@@ -49,6 +49,24 @@ This identity must never be bottlenecked into one service or industry again.
 - `gh auth setup-git` needed for HTTPS push to work
 - Full scopes granted (repo, workflow, admin, etc.)
 
+## Monetization Accounts (Updated 2026-03-17)
+- **Amazon Associates**: Store ID `donziglioni-20`
+- **Beatport Group Affiliate** (via loopmasters.postaffiliatepro.com): `a_aid=61ecdbcd0bb85`
+  - DJ Group: beatport.com, djcity.com
+  - Producer Group: pluginboutique.com, loopcloud.com, loopmasters.com
+- **Google AdSense**: `ca-pub-9010847486693166` (review pending)
+- **Google Search Console**: Verified, sitemap submitted (17 pages)
+- **Bing Webmaster Tools**: Verified, sitemap submitted (17 pages)
+
+## Active Project: audiorecordingschool.net (Updated 2026-03-17)
+- Domain: `audiorecordingschool.net`
+- GitHub: `TheConflux-Core/audiorecordingschool`
+- Vercel deployment: staging only, project `theconflux303-2630s-projects/audiorecordingschool`
+- Stack: Next.js 16.1.6, Tailwind v4, TypeScript
+- AdSense script + meta tag + ads.txt all deployed
+- Affiliate links in all 5 blog articles (Amazon + Beatport group)
+- Mission-0200 status: phases complete through deployment, registration phase in_progress
+
 ## Forge Execution Rule (2026-03-16)
 - **MANDATORY:** Every Forge run MUST end with `git add -A && git commit -m "..." && git push origin master`
 - Don wants changes uploaded to GitHub at the end of EVERY run — no exceptions
