@@ -1,0 +1,70 @@
+{
+  "skill": "dream-cycle",
+  "version": "1.0",
+  "description": "Nightly self-improvement framework based on human sleep neuroscience",
+  
+  "memory": {
+    "max_entries": 1000,
+    "daily_decay": 0.05,
+    "archive_days": 30,
+    "salience_threshold": {
+      "preserve": 7,
+      "compress": 4
+    }
+  },
+  
+  "execution": {
+    "schedule": "daily",
+    "time": "02:00",
+    "timezone": "UTC",
+    "duration_estimate_minutes": 20
+  },
+  
+  "phases": {
+    "1_harvest": {
+      "enabled": true,
+      "priority_criteria": [
+        "surprise_level > 6",
+        "failures or mixed outcomes",
+        "user corrections",
+        "novel successful strategies"
+      ]
+    },
+    "2_consolidate": {
+      "enabled": true,
+      "operations": [
+        "replay_compressed",
+        "pattern_extraction",
+        "knowledge_update",
+        "connection_making"
+      ]
+    },
+    "3_dream": {
+      "enabled": true,
+      "scenarios_per_cycle": 3
+    },
+    "4_prune": {
+      "enabled": true,
+      "decay_low_salience": 0.5,
+      "preserve_high_salience": 1.0
+    },
+    "5_integrate": {
+      "enabled": true,
+      "output_channel": "mission-control"
+    }
+  },
+  
+  "permissions": {
+    "can_run": ["zigbot", "helix", "forge", "quanta", "pulse"],
+    "limited": ["prism", "spectra"],
+    "cannot_run": ["luma", "vector"]
+  },
+  
+  "anti_hallucination": {
+    "verify_insights": true,
+    "track_provenance": true,
+    "distinguish_discovery_invention": true,
+    "external_validation_required": true,
+    "no_action_claims": true
+  }
+}

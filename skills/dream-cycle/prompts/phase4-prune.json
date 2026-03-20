@@ -1,0 +1,19 @@
+{
+  "phase": 4,
+  "name": "Synaptic Downscaling",
+  "description": "Apply proportional memory decay to prevent bloat",
+  "analog": "Synaptic Homeostasis — Proportional downscaling",
+  "prompt": "PHASE 4: MEMORY PRUNING\n\nApply synaptic downscaling:\n\nRULES:\n1. DECAY: Reduce weight of low-salience memories (salience < 4) by 50%\n2. PRESERVE: High-salience memories (salience > 7) retain full weight\n3. COMPRESS: Medium memories → keep lesson, discard details\n4. DELETE: Remove memories below threshold after decay\n\nAdditional:\n- Consolidate duplicate lessons (keep one strong memory + count)\n- Merge related entries in knowledge base\n- Remove outdated superseded strategies\n\nOutput: Pruned and consolidated memory/knowledge base.",
+  "pruning_rules": [
+    { "condition": "salience < 4", "action": "decay by 50%" },
+    { "condition": "salience > 7", "action": "preserve full weight" },
+    { "condition": "salience 4-7", "action": "compress — keep lesson, discard details" },
+    { "condition": "weight < threshold after decay", "action": "delete" }
+  ],
+  "additional_operations": [
+    "Consolidate duplicate lessons",
+    "Merge related entries",
+    "Remove outdated strategies"
+  ],
+  "output_format": "Pruned and consolidated memory/knowledge base"
+}

@@ -1,0 +1,80 @@
+{
+  "phase": "1a",
+  "name": "Session Harvesting Module",
+  "description": "Extract key interactions from chat sessions for dream cycle",
+  
+  "objective": "Harvest salient interactions from recent chat sessions to feed into Phase 1 Event Harvesting",
+  
+  "operations": [
+    "Fetch recent chat sessions with the operator",
+    "Identify user corrections, questions, and strategic discussions",
+    "Score each interaction for salience and surprise level",
+    "Extract patterns and themes from conversations"
+  ],
+  
+  "harvesting_criteria": {
+    "high_priority": [
+      "User corrections or feedback",
+      "Strategic decisions or pivots",
+      "Questions that revealed knowledge gaps",
+      "Novel approaches that succeeded",
+      "Failures that provided learning",
+      "New opportunity identifications"
+    ],
+    "medium_priority": [
+      "Routine operational discussions",
+      "Confirmations of existing knowledge",
+      "Standard workflow questions"
+    ],
+    "low_priority": [
+      "Greeting/introductory messages",
+      "Simple acknowledgments",
+      "Off-topic conversation"
+    ]
+  },
+  
+  "scoring_matrix": {
+    "user_correction": { "salience": 9, "surprise": 7 },
+    "strategic_decision": { "salience": 8, "surprise": 6 },
+    "new_opportunity": { "salience": 8, "surprise": 8 },
+    "failed_approach": { "salience": 7, "surprise": 9 },
+    "successful_novel": { "salience": 7, "surprise": 8 },
+    "knowledge_gap": { "salience": 6, "surprise": 7 },
+    "routine_interaction": { "salience": 3, "surprise": 2 }
+  },
+  
+  "tool_calls": [
+    {
+      "tool": "sessions_history",
+      "purpose": "Fetch recent chat sessions with operator",
+      "parameters": {
+        "sessionKey": "current session or recent sessions",
+        "limit": 50,
+        "includeTools": true
+      }
+    }
+  ],
+  
+  "output_format": {
+    "interactions": [
+      {
+        "id": "session-xxx",
+        "timestamp": "ISO timestamp",
+        "type": "correction|decision|opportunity|failure|success|gap|routine",
+        "content": "compressed description",
+        "salience": "1-10",
+        "surprise": "1-10",
+        "priority": "high|medium|low"
+      }
+    ],
+    "patterns": [
+      {
+        "theme": "pattern name",
+        "count": "number of occurrences",
+        "insight": "what this reveals"
+      }
+    ]
+  },
+  
+  "integration": "Output from this module feeds directly into Phase 1 Event Harvesting for consolidation"
+}

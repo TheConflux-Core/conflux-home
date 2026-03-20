@@ -1,0 +1,614 @@
+{
+  "jobs": [
+    {
+      "id": "ce6d0732-ca1a-4180-8d3e-6052f6f79589",
+      "name": "Audio SEO Research",
+      "enabled": true,
+      "createdAtMs": 1773888143160,
+      "updatedAtMs": 1773918077715,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 5 * * *",
+        "tz": "America/Denver"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "You are Helix. Research the top 5 highest-ROI keyword opportunities for AudioRecordingSchool.net. Search for trending 'best [gear]', 'how to record', '[product] review' keywords. Estimate monthly search volume and commercial intent (1-10). Write findings to /home/calo/.openclaw/shared/intelligence/reports/daily-seo-[DATE].json",
+        "model": "openrouter/xiaomi/mimo-v2-flash",
+        "timeoutSeconds": 1500,
+        "agentId": "Helix",
+        "displayName": "Helix"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "last",
+        "to": "channel:1479285742915031080",
+        "bestEffort": true
+      },
+      "state": {
+        "nextRunAtMs": 1774004400000,
+        "lastRunAtMs": 1773918000007,
+        "lastRunStatus": "ok",
+        "lastStatus": "ok",
+        "lastDurationMs": 77708,
+        "lastDelivered": true,
+        "lastDeliveryStatus": "delivered",
+        "consecutiveErrors": 0
+      }
+    },
+    {
+      "id": "1be1e15b-c5cb-4d6a-81d4-b1d73cbe161a",
+      "name": "Audio SEO Gate",
+      "enabled": true,
+      "createdAtMs": 1773888127865,
+      "updatedAtMs": 1773919832671,
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 5 * * *",
+        "tz": "America/Denver"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "You are Helix. Write status to #mission-control channel. If file missing, log error.",
+        "model": "openrouter/xiaomi/mimo-v2-flash",
+        "timeoutSeconds": 600,
+        "agentId": "Helix",
+        "displayName": "Helix"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "last",
+        "to": "channel:1479285742915031080",
+        "bestEffort": true
+      },
+      "state": {
+        "nextRunAtMs": 1774006200000,
+        "lastRunAtMs": 1773919800007,
+        "lastRunStatus": "error",
+        "lastStatus": "error",
+        "lastDurationMs": 32664,
+        "lastError": "⚠️ ✉️ Message failed",
+        "lastDelivered": true,
+        "lastDeliveryStatus": "delivered",
+        "consecutiveErrors": 1
+      }
+    },
+    {
+      "id": "577f8e20-dfca-43c3-83b7-07377d1694e7",
+      "name": "Audio SEO Briefs",
+      "enabled": true,
+      "createdAtMs": 1773888127682,
+      "updatedAtMs": 1773920440244,
+      "schedule": {
+        "kind": "cron",
+        "expr": "40 5 * * *",
+        "tz": "America/Denver"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "You are Helix. Generate 3 detailed content briefs and write to /home/calo/.openclaw/shared/queue/content-briefs-[DATE].json",
+        "model": "openrouter/xiaomi/mimo-v2-flash",
+        "timeoutSeconds": 1200,
+        "agentId": "Helix",
+        "displayName": "Helix"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "last",
+        "to": "channel:1479285742915031080",
+        "bestEffort": true
+      },
+      "state": {
+        "nextRunAtMs": 1774006800000,
+        "lastRunAtMs": 1773920400005,
+        "lastRunStatus": "ok",
+        "lastStatus": "ok",
+        "lastDurationMs": 40239,
+        "lastDelivered": true,
+        "lastDeliveryStatus": "delivered",
+        "consecutiveErrors": 0
+      }
+    },
+    {
+      "id": "12bb27fa-cec4-4bd0-809c-974c73e75041",
+      "name": "Helix Daily Discovery",
+      "enabled": true,
+      "createdAtMs": 1773861285358,
+      "updatedAtMs": 1773921740754,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 6 * * *",
+        "tz": "America/Denver"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "You are Helix. Search for digital product opportunities AND verify audio briefs are ready.",
+        "model": "openrouter/xiaomi/mimo-v2-flash",
+        "timeoutSeconds": 300,
+        "agentId": "Helix",
+        "displayName": "Helix"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "last",
+        "to": "channel:1479285742915031080",
+        "bestEffort": true
+      },
+      "state": {
+        "nextRunAtMs": 1774008000000,
+        "lastRunAtMs": 1773921600016,
+        "lastRunStatus": "ok",
+        "lastStatus": "ok",
+        "lastDurationMs": 140738,
+        "lastDelivered": true,
+        "lastDeliveryStatus": "delivered",
+        "consecutiveErrors": 0
+      }
+    },
+    {
+      "id": "d12cc3f4-8958-4e42-871d-a1054d1d8e55",
+      "name": "Audio Briefs Gate",
+      "enabled": true,
+      "createdAtMs": 1773888127721,
+      "updatedAtMs": 1773921765135,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 6 * * *",
+        "tz": "America/Denver"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "You are ZigBot. Report to #mission-control.",
+        "model": "openrouter/xiaomi/mimo-v2-flash",
+        "timeoutSeconds": 600,
+        "agentId": "ZigBot",
+        "displayName": "ZigBot"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "last",
+        "to": "channel:1479285742915031080",
+        "bestEffort": true
+      },
+      "state": {
+        "nextRunAtMs": 1774008000000,
+        "lastRunAtMs": 1773921600017,
+        "lastRunStatus": "ok",
+        "lastStatus": "ok",
+        "lastDurationMs": 165118,
+        "lastDelivered": true,
+        "lastDeliveryStatus": "delivered",
+        "consecutiveErrors": 0
+      }
+    },
+    {
+      "id": "0c73f2b9-5310-4bea-a9c7-50dd127b3b34",
+      "name": "Digital Gate 1",
+      "enabled": true,
+      "createdAtMs": 1773861314657,
+      "updatedAtMs": 1773925298531,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 7 * * *"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "You are ZigBot. Report health to #mission-control.",
+        "model": "openrouter/xiaomi/mimo-v2-flash",
+        "timeoutSeconds": 120,
+        "agentId": "ZigBot",
+        "displayName": "ZigBot"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "last",
+        "to": "channel:1479285742915031080",
+        "bestEffort": true
+      },
+      "state": {
+        "nextRunAtMs": 1774011600000,
+        "lastRunAtMs": 1773925200007,
+        "lastRunStatus": "ok",
+        "lastStatus": "ok",
+        "lastDurationMs": 98524,
+        "lastDelivered": false,
+        "lastDeliveryStatus": "not-delivered",
+        "consecutiveErrors": 0
+      }
+    },
+    {
+      "id": "7836490a-3736-46bc-a1be-968fb5fb8d6b",
+      "name": "Vector Approval",
+      "enabled": true,
+      "createdAtMs": 1773861629991,
+      "updatedAtMs": 1773926220042,
+      "schedule": {
+        "kind": "cron",
+        "expr": "15 7 * * *",
+        "tz": "America/Denver"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "You are Vector. Read and follow /home/calo/.openclaw/shared/studio/vector_approval_prompt.md. Review scored opportunities and approve or reject based on scoring thresholds.",
+        "model": "openrouter/xiaomi/mimo-v2-flash",
+        "timeoutSeconds": 120,
+        "agentId": "Vector",
+        "displayName": "Vector"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "last",
+        "to": "channel:1479285742915031080",
+        "bestEffort": true
+      },
+      "state": {
+        "nextRunAtMs": 1774012500000,
+        "lastRunAtMs": 1773926100007,
+        "lastRunStatus": "error",
+        "lastStatus": "error",
+        "lastDurationMs": 120035,
+        "lastError": "cron: job execution timed out",
+        "lastErrorReason": "timeout",
+        "lastDeliveryStatus": "unknown",
+        "consecutiveErrors": 1
+      }
+    },
+    {
+      "id": "5e7a667b-8000-4dbd-b220-e5e00b275a47",
+      "name": "Prism Mission Creation",
+      "enabled": true,
+      "createdAtMs": 1773861665947,
+      "updatedAtMs": 1773926820018,
+      "schedule": {
+        "kind": "cron",
+        "expr": "25 7 * * *",
+        "tz": "America/Denver"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "You are Prism. Read and follow /home/calo/.openclaw/shared/studio/prism_mission_prompt.md. Create mission records from approved opportunities.",
+        "model": "openrouter/xiaomi/mimo-v2-flash",
+        "timeoutSeconds": 120,
+        "agentId": "Prism",
+        "displayName": "Prism"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "last",
+        "to": "channel:1479285742915031080",
+        "bestEffort": true
+      },
+      "state": {
+        "nextRunAtMs": 1774013100000,
+        "lastRunAtMs": 1773926700011,
+        "lastRunStatus": "error",
+        "lastStatus": "error",
+        "lastDurationMs": 120007,
+        "lastError": "cron: job execution timed out",
+        "lastErrorReason": "timeout",
+        "lastDeliveryStatus": "unknown",
+        "consecutiveErrors": 1
+      }
+    },
+    {
+      "id": "d8541a0d-99df-456b-8d12-6b4da0548ce1",
+      "name": "Digital Gate 2",
+      "enabled": true,
+      "createdAtMs": 1773862686604,
+      "updatedAtMs": 1773927120022,
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 7 * * *",
+        "tz": "America/Denver"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "You are ZigBot. Block next job if failed.",
+        "model": "openrouter/xiaomi/mimo-v2-flash",
+        "timeoutSeconds": 120,
+        "agentId": "ZigBot",
+        "displayName": "ZigBot"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "last",
+        "to": "channel:1479285742915031080",
+        "bestEffort": true
+      },
+      "state": {
+        "nextRunAtMs": 1774013400000,
+        "lastRunAtMs": 1773927000006,
+        "lastRunStatus": "error",
+        "lastStatus": "error",
+        "lastDurationMs": 120016,
+        "lastError": "cron: job execution timed out",
+        "lastErrorReason": "timeout",
+        "lastDeliveryStatus": "unknown",
+        "consecutiveErrors": 1
+      }
+    },
+    {
+      "id": "106818c8-d75b-4b04-8f82-bb23d20d4c18",
+      "name": "Spectra Task Decomposition",
+      "enabled": true,
+      "createdAtMs": 1773861676511,
+      "updatedAtMs": 1773927336084,
+      "schedule": {
+        "kind": "cron",
+        "expr": "35 7 * * *",
+        "tz": "America/Denver"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "You are Spectra. Read and follow /home/calo/.openclaw/shared/studio/spectra_decompose_prompt.md. Decompose planning missions into task graphs.",
+        "model": "openrouter/xiaomi/mimo-v2-flash",
+        "timeoutSeconds": 120,
+        "agentId": "Spectra",
+        "displayName": "Spectra"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "last",
+        "to": "channel:1479285742915031080",
+        "bestEffort": true
+      },
+      "state": {
+        "nextRunAtMs": 1774013700000,
+        "lastRunAtMs": 1773927300007,
+        "lastRunStatus": "ok",
+        "lastStatus": "ok",
+        "lastDurationMs": 36077,
+        "lastDelivered": true,
+        "lastDeliveryStatus": "delivered",
+        "consecutiveErrors": 0
+      }
+    },
+    {
+      "id": "dcf4c7f1-6ee8-489f-9fc7-51d4278dbde6",
+      "name": "Forge Build",
+      "enabled": true,
+      "createdAtMs": 1773861689744,
+      "updatedAtMs": 1773928271240,
+      "schedule": {
+        "kind": "cron",
+        "expr": "45 7 * * *",
+        "tz": "America/Denver"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "You are Forge. Read and follow /home/calo/.openclaw/shared/studio/forge_build_prompt.md. Build artifacts for queued prompt pack missions. Generate 100 prompts, PDF content, and listing copy. Commit and push to Git when done.",
+        "model": "openrouter/xiaomi/mimo-v2-flash",
+        "timeoutSeconds": 900,
+        "agentId": "Forge",
+        "displayName": "Forge"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "last",
+        "to": "channel:1479285742915031080",
+        "bestEffort": true
+      },
+      "state": {
+        "nextRunAtMs": 1774014300000,
+        "lastRunAtMs": 1773927900007,
+        "lastRunStatus": "ok",
+        "lastStatus": "ok",
+        "lastDurationMs": 371233,
+        "lastDelivered": true,
+        "lastDeliveryStatus": "delivered",
+        "consecutiveErrors": 0
+      }
+    },
+    {
+      "id": "5c9e60fe-8310-4348-9b36-c4b11bcb219a",
+      "name": "Forge Gate",
+      "enabled": true,
+      "createdAtMs": 1773888127921,
+      "updatedAtMs": 1773928873745,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 8 * * *",
+        "tz": "America/Denver"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "You are Forge. Check git log for today's commit.",
+        "model": "openrouter/xiaomi/mimo-v2-flash",
+        "timeoutSeconds": 300,
+        "agentId": "Forge",
+        "displayName": "Forge"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "last",
+        "to": "channel:1479285742915031080",
+        "bestEffort": true
+      },
+      "state": {
+        "nextRunAtMs": 1774015200000,
+        "lastRunAtMs": 1773928800007,
+        "lastRunStatus": "ok",
+        "lastStatus": "ok",
+        "lastDurationMs": 73738,
+        "lastDelivered": true,
+        "lastDeliveryStatus": "delivered",
+        "consecutiveErrors": 0
+      }
+    },
+    {
+      "id": "8293046e-d430-4a5e-9d15-e9a8ebd52dc5",
+      "name": "Quanta QA Verification",
+      "enabled": true,
+      "createdAtMs": 1773861705510,
+      "updatedAtMs": 1773929800388,
+      "schedule": {
+        "kind": "cron",
+        "expr": "15 8 * * *",
+        "tz": "America/Denver"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "You are Quanta. Read and follow /home/calo/.openclaw/shared/studio/quanta_verify_prompt.md. Run QA checks on products pending verification against the product spec.",
+        "model": "openrouter/xiaomi/mimo-v2-flash",
+        "timeoutSeconds": 300,
+        "agentId": "Quanta",
+        "displayName": "Quanta"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "last",
+        "to": "channel:1479285742915031080",
+        "bestEffort": true
+      },
+      "state": {
+        "nextRunAtMs": 1774016100000,
+        "lastRunAtMs": 1773929700013,
+        "lastRunStatus": "ok",
+        "lastStatus": "ok",
+        "lastDurationMs": 100375,
+        "lastDelivered": true,
+        "lastDeliveryStatus": "delivered",
+        "consecutiveErrors": 0
+      }
+    },
+    {
+      "id": "0ea15ce6-7705-4768-b72c-b11bd699b06e",
+      "name": "Forge Retry",
+      "enabled": true,
+      "createdAtMs": 1773862270223,
+      "updatedAtMs": 1773930348058,
+      "schedule": {
+        "kind": "cron",
+        "expr": "25 8 * * *",
+        "tz": "America/Denver"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "You are Forge. Read and follow /home/calo/.openclaw/shared/studio/forge_build_prompt.md. This is a retry run. Pick up any products with status \"building\" (failed QA) and fix issues. Also complete pass 2 (prompts 51-100) for any product with only 50 prompts. Commit and push to Git when done.",
+        "model": "openrouter/xiaomi/mimo-v2-flash",
+        "timeoutSeconds": 900,
+        "agentId": "Forge",
+        "displayName": "Forge"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "last",
+        "to": "channel:1479285742915031080",
+        "bestEffort": true
+      },
+      "state": {
+        "nextRunAtMs": 1774016700000,
+        "lastRunAtMs": 1773930300006,
+        "lastRunStatus": "ok",
+        "lastStatus": "ok",
+        "lastDurationMs": 48052,
+        "lastDelivered": true,
+        "lastDeliveryStatus": "delivered",
+        "consecutiveErrors": 0
+      }
+    },
+    {
+      "id": "80cfb2b3-469d-4212-a5fd-74a9a3cfec33",
+      "name": "Digital Gate 3",
+      "enabled": true,
+      "createdAtMs": 1773862695960,
+      "updatedAtMs": 1773930720018,
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 8 * * *",
+        "tz": "America/Denver"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "You are ZigBot. Block Pulse if failed.",
+        "model": "openrouter/xiaomi/mimo-v2-flash",
+        "timeoutSeconds": 120,
+        "agentId": "ZigBot",
+        "displayName": "ZigBot"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "last",
+        "to": "channel:1479285742915031080",
+        "bestEffort": true
+      },
+      "state": {
+        "nextRunAtMs": 1774017000000,
+        "lastRunAtMs": 1773930600008,
+        "lastRunStatus": "error",
+        "lastStatus": "error",
+        "lastDurationMs": 120010,
+        "lastError": "cron: job execution timed out",
+        "lastErrorReason": "timeout",
+        "lastDeliveryStatus": "unknown",
+        "consecutiveErrors": 1
+      }
+    },
+    {
+      "id": "57c4091b-72ad-4253-b489-1c8e3fe7e36f",
+      "name": "Weekly Revenue Sync",
+      "enabled": true,
+      "createdAtMs": 1773861327155,
+      "updatedAtMs": 1773861327155,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 9 * * 1",
+        "tz": "America/Denver"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "You are ZigBot. Read /home/calo/.openclaw/shared/portfolio/revenue.json for current state. Update it with any new sales numbers. Report a summary of total revenue, sales count, and per-product breakdown.",
+        "model": "openrouter/xiaomi/mimo-v2-flash",
+        "timeoutSeconds": 180,
+        "agentId": "ZigBot",
+        "displayName": "ZigBot"
+      },
+      "delivery": {
+        "mode": "announce",
+        "channel": "last",
+        "to": "channel:1479285742915031080",
+        "bestEffort": true
+      },
+      "state": {
+        "nextRunAtMs": 1774278000000
+      }
+    }
+  ],
+  "total": 16,
+  "offset": 0,
+  "limit": 16,
+  "hasMore": false,
+  "nextOffset": null
+}

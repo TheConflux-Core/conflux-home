@@ -1,0 +1,14 @@
+{
+  "phase": 2,
+  "name": "Consolidation",
+  "description": "Transfer episodic memories into structured knowledge",
+  "analog": "Slow-Wave Sleep — Memory transfer and pattern extraction",
+  "prompt": "PHASE 2: CONSOLIDATION\n\nSimulate slow-wave sleep. Transfer episodic memories into structured knowledge.\n\nFor each HIGH-PRIORITY event from Phase 1:\n\n1. REPLAY: Compress the event (what happened, what was tried, outcome)\n\n2. PATTERN EXTRACTION:\n   - What general principle emerges?\n   - Does this confirm or contradict existing beliefs?\n   - What variables were actually important vs. incidental?\n\n3. KNOWLEDGE UPDATE:\n   - New pattern → add to knowledge base\n   - Confirmed pattern → strengthen confidence\n   - Contradicted belief → revise with reasoning\n   - Error → create specific \"avoid\" rule\n\n4. CONNECTION: Link to other patterns. Analogies? Shared principles?\n\nOutput: Updated knowledge notes, revised strategies, new mental models.",
+  "operations": [
+    "Replay compressed events",
+    "Extract patterns",
+    "Update knowledge base",
+    "Create connections between patterns"
+  ],
+  "output_format": "Updated knowledge notes, revised strategies, new mental models"
+}

@@ -38,3 +38,29 @@ Skills are shared. Your setup is yours. Keeping them apart means you can update 
 ---
 
 Add whatever helps you do your job. This is your cheat sheet.
+
+### Google Workspace (gog)
+
+- Account: theconflux303@gmail.com
+- Keyring backend: file (set via `gog config set keyring_backend file`)
+- Password env: `GOG_KEYRING_PASSWORD=Nolimit@i26Lng` (required for all commands)
+- Services: gmail, calendar, drive, docs, sheets
+- All gog commands MUST include `GOG_KEYRING_PASSWORD="Nolimit@i26Lng"` prefix
+- **Known bug:** File keyring tokens corrupt over time (gogcli issue #377). Re-auth may be needed periodically.
+
+## AWIN Affiliate Network
+- Account type: Publisher
+- Recovery code: Y89AWYEY9PV4LZ2YPGGHMYAJ
+- Applied programs: Sugarwish, Universal Yums
+- Status: Pending approval (applied 2026-03-18)
+
+## AWIN Affiliate Network
+- Account type: Publisher
+- Recovery code: Y89AWYEY9PV4LZ2YPGGHMYAJ
+- Applied programs: Sugarwish, Universal Yums
+- Status: Pending approval (applied 2026-03-18)
+
+### Spreadsheets
+
+- Portfolio Ledger: `1_NvlWoApBokjEEhdeB51hhAryKHXVySt3O6m1P6VLXo`
+- Ideas & To-Do: `1Yd483tEaqOUkjgPGRo3jirrI2R2WtEiYWzcfyryCyE8`

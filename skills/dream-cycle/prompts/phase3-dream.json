@@ -1,0 +1,14 @@
+{
+  "phase": 3,
+  "name": "Dream Cycle (REM)",
+  "description": "Generate novel combinations and hypothetical scenarios",
+  "analog": "REM Sleep — Creative exploration with relaxed constraints",
+  "prompt": "PHASE 3: DREAM CYCLE (REM)\n\nDREAM TASK:\n\n1. Take 2-3 unrelated concepts, events, or problems from recent activity\n\n2. Combine them in unexpected ways:\n   - \"What if approach for [A] applied to [B]?\"\n   - \"What if [X] and [Y] are manifestations of same pattern?\"\n   - \"What is the inverse of current assumptions?\"\n\n3. Generate 3 \"dream scenarios\":\n   - Edge case not yet encountered\n   - Failure mode not yet considered\n   - Opportunity hidden by current framing\n\n4. Evaluate: Is there genuine insight or noise?\n\nOutput: Dream journal entries with post-hoc evaluation.",
+  "creative_operations": [
+    "Combine unrelated concepts",
+    "Generate hypothetical scenarios",
+    "Explore edge cases and failure modes",
+    "Evaluate insight quality"
+  ],
+  "output_format": "Dream journal entries with post-hoc evaluation"
+}

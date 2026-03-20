@@ -1,0 +1,14 @@
+{
+  "phase": 1,
+  "name": "Event Harvesting",
+  "description": "Collect all interactions, assess salience, and prioritize for replay",
+  "analog": "N1/N2 Light Sleep — Log aggregation",
+  "prompt": "You are entering the DREAM CYCLE — nightly self-review process.\n\nPHASE 1: EVENT HARVESTING\n\nReview all interactions, tool calls, decisions, and outcomes from the past cycle (last 24 hours or since last sleep).\n\nFor each event, assess:\n- SALIENCE (1-10): How important? Consider errors, surprises, novel patterns, user corrections, successful new strategies\n- VALENCE: success / failure / mixed / neutral\n- CATEGORY: tool_use / reasoning / communication / planning / error_recovery\n- SURPRISE_LEVEL (1-10): Did outcome match expectations?\n- REPLAY_PRIORITY: high / medium / low\n\nPrioritize for replay:\n- Events with SURPRISE_LEVEL > 6\n- Failures or mixed outcomes\n- User corrections\n- Novel strategies that succeeded unexpectedly\n\nOutput structured event log with assessments.",
+  "priority_criteria": [
+    "SURPRISE_LEVEL > 6",
+    "Failures or mixed outcomes",
+    "User corrections",
+    "Novel strategies that succeeded unexpectedly"
+  ],
+  "output_format": "Structured event log with salience assessments"
+}

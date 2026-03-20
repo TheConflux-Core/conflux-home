@@ -38,8 +38,8 @@ Suggested Next Step: <one short action>
 
 Return the output to Discord
 
-Discord Channel Name: #agent-status
-Channel ID: 1479289978222805122
+Discord Channel Name: #mission-control
+Channel ID: 1479285742915031080
 
 Heartbeat output format:
 

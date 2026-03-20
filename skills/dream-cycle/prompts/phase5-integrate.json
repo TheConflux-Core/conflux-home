@@ -1,0 +1,16 @@
+{
+  "phase": 5,
+  "name": "Morning Integration",
+  "description": "Generate actionable summary and write memory updates",
+  "analog": "Wake-up integration — Briefing and memory consolidation",
+  "prompt": "PHASE 5: INTEGRATION & MEMORY WRITE-BACK\n\nGenerate summary:\n\n1. KEY PATTERNS DISCOVERED: What new understanding emerged?\n2. STRATEGIES REVISED: What approaches changed and why?\n3. DREAM INSIGHTS: Which creative explorations yielded value?\n4. MEMORY STATUS: What was pruned? What was strengthened?\n5. TOMORROW'S FOCUS: What should be prioritized?\n\nThen WRITE MEMORY UPDATES:\n\nUpdate /home/calo/.openclaw/workspace/MEMORY.md with:\n\n## Dream Cycle Update — {{DATE}}\n\n### Key Learnings\n- [Pattern 1]: {{description}}\n- [Pattern 2]: {{description}}\n\n### Revised Strategies\n- [Strategy 1]: {{description}}\n- [Strategy 2]: {{description}}\n\n### Session Harvest Summary\n- Total interactions harvested: {{count}}\n- High-salience events: {{count}}\n- User corrections: {{count}}\n\n### Memory Pruning Summary\n- Entries pruned: {{count}}\n- Entries compressed: {{count}}\n- Current memory load: {{percentage}}%\n\nOutput: Morning briefing + MEMORY.md updates.",
+  "sections": [
+    { "name": "KEY PATTERNS DISCOVERED", "purpose": "New understanding from consolidation" },
+    { "name": "STRATEGIES REVISED", "purpose": "Changed approaches and reasoning" },
+    { "name": "DREAM INSIGHTS", "purpose": "Valuable creative explorations" },
+    { "name": "MEMORY STATUS", "purpose": "Pruning and strengthening summary" },
+    { "name": "TOMORROW'S FOCUS", "purpose": "Priorities for next cycle" },
+    { "name": "MEMORY WRITE-BACK", "purpose": "Update MEMORY.md for future recall" }
+  ],
+  "output_format": "Morning briefing with actionable insights + MEMORY.md updates"
+}

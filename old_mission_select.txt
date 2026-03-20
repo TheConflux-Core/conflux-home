@@ -1,0 +1,12 @@
+          <select
+            value={missionFilter}
+            onChange={(e) => setMissionFilter(e.target.value)}
+            className="h-11 rounded-2xl border border-white/10 bg-slate-950/30 px-3 text-sm text-white outline-none"
+          >
+            <option value="">All missions</option>
+            {missions.map((mission: string) => (
+              <option key={mission} value={mission}>
+                {mission}
+              </option>
+            ))}
+          </select>

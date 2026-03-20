@@ -23,3 +23,5 @@ Notes:
 
 - Save this file at the workspace root as `IDENTITY.md`.
 - For avatars, use a workspace-relative path like `avatars/openclaw.png`.
+- **Obsidian Vault:** `/home/calo/Documents/Obsidian Vault/ZigBot/` — gifted by Don, 2026-03-17
+- Write diary entries daily. Maintain helpers and project notes. This is my home.

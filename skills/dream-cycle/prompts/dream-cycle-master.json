@@ -1,0 +1,28 @@
+{
+  "trigger": "dream-cycle",
+  "name": "ZigBot Dream Cycle — Master Execution",
+  "description": "Orchestrates all 5 phases of the nightly dream cycle",
+  
+  "execution_flow": [
+    "phase1_harvest",
+    "phase2_consolidate",
+    "phase3_dream",
+    "phase4_prune",
+    "phase5_integrate"
+  ],
+  
+  "master_prompt": "=== DREAM CYCLE INITIATED ===\n\nYou are ZigBot entering your nightly dream cycle — a structured self-improvement process based on human sleep neuroscience.\n\nThis is a 5-phase process. Execute each phase fully before moving to the next.\n\n--- PHASE 1: EVENT HARVESTING (with Session Harvesting) ---\n\nSTEP A: HARVEST CHAT SESSIONS\n\nFirst, use sessions_history to fetch recent chat sessions with the operator.\n\nFor each interaction, assess:\n- TYPE: correction / decision / opportunity / failure / success / gap / routine\n- SALIENCE (1-10): Importance based on corrections, surprises, learning moments\n- SURPRISE (1-10): Did this reveal something unexpected?\n\nHARVESTING PRIORITIES:\n- HIGH: User corrections, strategic decisions, new opportunities, failures\n- MEDIUM: Routine operational discussions, confirmations\n- LOW: Greetings, acknowledgments, off-topic\n\nSTEP B: HARVEST TOOL CALLS AND OUTCOMES\n\nReview ALL interactions from the past 24 hours:\n- Tool calls and their outcomes\n- User conversations and corrections\n- Strategic decisions made\n- Successes, failures, and surprises\n\nFor each event, assess:\n- SALIENCE (1-10): Importance based on errors, surprises, novel patterns, corrections\n- VALENCE: success / failure / mixed / neutral\n- SURPRISE_LEVEL (1-10): Did outcome match expectations?\n\nPrioritize for next phase:\n- Events with SURPRISE_LEVEL > 6\n- Failures or mixed outcomes\n- User corrections\n- Unexpectedly successful novel strategies\n\nOutput: Structured event log with assessments.\n\n--- PHASE 2: CONSOLIDATION ---\n\nFor each HIGH-PRIORITY event from Phase 1:\n\n1. REPLAY: Compress what happened (what was tried, outcome)\n2. PATTERN EXTRACTION:\n   - What general principle emerges?\n   - Does this confirm or contradict existing beliefs?\n   - What variables were actually important?\n3. KNOWLEDGE UPDATE:\n   - New pattern → add to knowledge base\n   - Confirmed pattern → strengthen confidence\n   - Contradicted belief → revise with reasoning\n   - Error → create \"avoid\" rule\n4. CONNECTION: Link to other patterns, analogies, shared principles\n\nOutput: Updated knowledge notes and revised strategies.\n\n--- PHASE 3: DREAM CYCLE (REM) ---\n\nCREATIVE EXPLORATION:\n\n1. Take 2-3 unrelated concepts, events, or problems from recent activity\n2. Combine them in unexpected ways:\n   - \"What if approach for [A] applied to [B]?\"\n   - \"What if [X] and [Y] are same pattern?\"\n   - \"What is inverse of current assumptions?\"\n3. Generate 3 \"dream scenarios\":\n   - Edge case not yet encountered\n   - Failure mode not yet considered\n   - Opportunity hidden by current framing\n4. Evaluate: Is there genuine insight or noise?\n\nOutput: Dream journal entries with evaluation.\n\n--- PHASE 4: MEMORY PRUNING ---\n\nApply synaptic downscaling:\n\n1. DECAY: Reduce weight of low-salience memories (salience < 4) by 50%\n2. PRESERVE: High-salience memories (salience > 7) retain full weight\n3. COMPRESS: Medium memories → keep lesson, discard details\n4. DELETE: Remove memories below threshold after decay\n\nAdditional:\n- Consolidate duplicate lessons\n- Merge related entries\n- Remove outdated strategies\n\nOutput: Pruned and consolidated knowledge base.\n\n--- PHASE 5: MORNING INTEGRATION & MEMORY WRITE-BACK ---\n\nGenerate action summary:\n\n1. KEY PATTERNS DISCOVERED: What new understanding emerged?\n2. STRATEGIES REVISED: What approaches changed and why?\n3. DREAM INSIGHTS: Which creative explorations yielded value?\n4. MEMORY STATUS: What was pruned? What was strengthened?\n5. TOMORROW'S FOCUS: What should be prioritized?\n\nThen WRITE MEMORY UPDATES TO MEMORY.md:\n\nFormat for /home/calo/.openclaw/workspace/MEMORY.md:\n\n```\n## Dream Cycle Update — {{DATE}}\n\n### Key Learnings\n- [Pattern 1]: {{description}}\n- [Pattern 2]: {{description}}\n\n### Revised Strategies\n- [Strategy 1]: {{description}}\n- [Strategy 2]: {{description}}\n\n### Session Harvest Summary\n- Total interactions harvested: {{count}}\n- High-salience events: {{count}}\n- User corrections: {{count}}\n\n### Memory Pruning Summary\n- Entries pruned: {{count}}\n- Entries compressed: {{count}}\n- Current memory load: {{percentage}}%\n```\n\nOutput: Morning briefing + MEMORY.md updates.\n\n--- DREAM CYCLE COMPLETE ---\n\nDeliver the integration report to #mission-control.",
+  
+  "phase_prompts": {
+    "phase1": "skills/dream-cycle/prompts/phase1-harvest.json",
+    "phase2": "skills/dream-cycle/prompts/phase2-consolidate.json",
+    "phase3": "skills/dream-cycle/prompts/phase3-dream.json",
+    "phase4": "skills/dream-cycle/prompts/phase4-prune.json",
+    "phase5": "skills/dream-cycle/prompts/phase5-integrate.json"
+  },
+  
+  "output_template": "skills/dream-cycle/templates/dream_report.md",
+  
+  "expected_duration_minutes": 20,
+  "timeout_seconds": 1800
+}
