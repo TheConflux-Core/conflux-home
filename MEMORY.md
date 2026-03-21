@@ -62,13 +62,18 @@ Store URL: theconflux.gumroad.com
 - Channel delivery works: `--to "channel:1479285742915031080"` with `--announce`
 - All cron jobs announce to: #mission-control channel ID 1479285742915031080
 
-## Cron System Learnings (2026-03-16)
+## Cron System Learnings (Updated 2026-03-20)
 
 - `--to` target is REQUIRED for delivery (omit = fails with "recipient required")
-- `--timeout-seconds` defaults to 60 — too short for research tasks, use 120+
+- `--timeout-seconds` defaults to 60 — too short for research tasks, use 300+
 - `--best-effort-deliver` prevents delivery failures from marking job as error
 - `--stagger` shifts cron timing (e.g., `--stagger "5m"` adds 5-min offset)
 - `--disable` (not `--disabled`) to pause jobs
+- `--tz "America/Denver"` sets timezone for cron expressions (critical! without it, cron uses UTC)
+- `--exact` disables staggering (use for sequential pipeline where timing matters)
+- Cron expressions without `--tz` run in UTC — 6:00 AM cron = 11 PM MDT the previous day
+- Duplicate cron jobs at different hours = pipeline runs 3x creating chaos. ONE block only.
+- One-shot jobs: `--at "2026-03-20T21:30:00Z"` + `--delete-after-run`
 - Vector's daily jokes cron: `0b1fd7ec-d75e-447d-9ca1-ae98e888494e` (9 AM MST daily)
 
 ## GitHub Integration (2026-03-16)
@@ -141,7 +146,17 @@ Store URL: theconflux.gumroad.com
 - Vector approved: 2026-03-18
 - NOTE: Build requires Node 22 (nvm use 22) — Vercel handles this automatically
 
-## Prompt Pack Product Spec (2026-03-17)
+## The Conflux Brand & Website (Started 2026-03-20)
+
+- Branding document: `/home/calo/.openclaw/workspace/theconflux-branding.md`
+- Domain: theconflux.com (already owned)
+- Tagline favorite: "Where Everything Converges."
+- Hero concept: 3D particle network (React Three Fiber), procedural, no 3D models
+- Killer detail: Live agent status indicator — shows real pipeline activity on homepage
+- Tech stack: Next.js + Tailwind + R3F + GSAP + Framer Motion
+- Services: Audit $500 / Build $5K-15K / Retainer $2K-5K/mo
+- Voice: Co-founder energy, not corporate, not guru
+- Upwork profile created: $150/hr, uploaded 2026-03-20
 
 - Created canonical spec: `~/.openclaw/shared/products/PRODUCT_SPEC_PROMPT_PACKS.md`
 - Template directory: `~/.openclaw/shared/products/_template/`
@@ -170,14 +185,17 @@ Store URL: theconflux.gumroad.com
 - All cron jobs, heartbeats, and agents use this config (via openclaw.json)
 - Sonnet 4.5 may be used for heavy one-off builds only
 
-## Buffer Social Media Workflow (Built 2026-03-17, Updated 2026-03-18)
+## Pulse Launch Workflow (Updated 2026-03-20)
 
-- **Script:** `/home/calo/.openclaw/workspace/scripts/send_buffer_queue.py`
-- **Queue:** `/home/calo/.openclaw/shared/marketing/buffer_publish_queue.jsonl`
-- **Config:** `/home/calo/.openclaw/shared/integrations/buffer_config.json` (API token + channel IDs)
-- **Channels:** X (`69afa4607be9f8b1713dd5fe`), LinkedIn (`69afa56e7be9f8b13dd969`)
-- **Post drafts:** `shared/products/product-XXXX/marketing/social-linkedin.md`, `social-reddit.md`
-- **Flow:** Write posts → add to queue JSONL → run `python3 scripts/send_buffer_queue.py` → Buffer API → scheduled
+- **Products marked `launch_ready` (NOT `published`)** until Don confirms Gumroad/Etsy URLs
+- **Social posts:** 5 LinkedIn + 10 X per product → `shared/products/product-XXXX/marketing/social-linkedin.md`, `social-x.md`
+- **Buffer queue:** Posts appended to `/home/calo/.openclaw/shared/marketing/buffer_publish_queue.jsonl`
+- **Buffer script:** `python3 scripts/send_buffer_queue.py` — run after queueing. MAX products error = treat as success.
+- **Buffer config:** `/home/calo/.openclaw/shared/integrations/buffer_config.json` (API token + channel IDs)
+- **Buffer channels:** X (`69afa4607be9f8b1713dd5fe`), LinkedIn (`69afa56e7be9f8b13dd969`)
+- **Email:** `GOG_KEYRING_PASSWORD="Nolimit@i26Lng" gog gmail send` to shift2bass@gmail.com with attachments (prompts.md, prompt-pack.md, gumroad.md, etsy.md)
+- **Success =** posts ready + Buffer queued + emailed + marked `launch_ready`
+- **Don sends Gumroad link → ZigBot marks `published`**
 - **Status:** Mortgage (5 LinkedIn), Lawyers (5 LinkedIn + 10 X) scheduled. Real Estate has no social posts yet.
 
 ## Google Calendar
@@ -188,20 +206,18 @@ Store URL: theconflux.gumroad.com
 
 ## Pipeline Cron Jobs (22 total registered as of 2026-03-18)
 
-**Core pipeline (11 jobs):** All on openrouter/xiaomi/mimo-v2-flash, all to #mission-control:
+**Gated pipeline v2 (7 jobs + Dream Cycle):** Rebuilt 2026-03-20. All on openrouter/xiaomi/mimo-v2-flash, all to #mission-control, all America/Denver timezone, all `--exact`:
 
-- 6:00 AM: Helix Daily Discovery
-- 7:00 AM: Pipeline Heartbeat
-- 7:15 AM: Vector Approval
-- 7:25 AM: Prism Mission Creation
-- 7:30 AM: ZigBot Pipeline Check 1
-- 7:35 AM: Spectra Task Decomposition
-- 7:45 AM: Forge Build (prompts 1-50)
-- 8:15 AM: Quanta QA Verification
-- 8:25 AM: Forge Retry (prompts 51-100 + QA fixes)
-- 8:30 AM: ZigBot Pipeline Check 2
-- 9:00 AM: Pulse Launch & Publish
-- 9:00 AM Mon: Weekly Revenue Sync
+- 5:00 AM: Helix — Opportunity Discovery (research + score ONE opp, status→"scored")
+- 5:15 AM: Vector — Opportunity Approval (auto-approve ≥20, reject <20)
+- 5:25 AM: Prism — Mission Creation (approved opp → mission + product skeleton)
+- 5:35 AM: Spectra — Task Decomposition (planning mission → task graph)
+- 5:45 AM: Forge — Artifact Build (queued tasks / building products → artifacts, git push)
+- 6:15 AM: Quanta — QA Verification (qa_pending → verified or back to Forge)
+- 6:25 AM: Pulse — Launch & Publish (verified → social posts, Buffer, email Don, mark "launch_ready")
+- 11:30 PM: ZigBot Dream Cycle (nightly self-improvement, DO NOT CHANGE)
+
+**Pipeline design:** Each agent has a gate condition — exits idle if no work. Sequential with 10-30 min gaps for file sync. Full cycle takes ~90 min if Helix finds a niche. Total idle time ~30 sec if nothing to do.
 
 **AudioRecordingSchool daily pipeline (10 jobs):** Registered 2026-03-18
 
