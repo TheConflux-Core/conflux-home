@@ -24,13 +24,52 @@ Store URL: theconflux.gumroad.com
 
 - Real Estate: theconflux.gumroad.com/l/100_prompts_for_real_estate
 - Mortgage Brokers: theconflux.gumroad.com/l/100_prompts_for_mortgage_brokers
+- Mortgage Marketing: (check store for URL)
 - Lawyers: theconflux.gumroad.com/l/100_prompts_for_lawyers
-- Health & Wellness: theconflux.gumroad.com/l/100_prompts_for_health_and_wellness
+- Local Business: (check store for URL)
 - Finance: theconflux.gumroad.com/l/100_prompts_for_finance
-- E-Commerce: theconflux.gumroad.com/l/100_prompts_for_ecommerce
 - Healthcare Admin: theconflux.gumroad.com/l/100_ai_prompts_for_healthcare_practice_admins
 - Personal Trainers: theconflux.gumroad.com/l/100_ai_prompts_for_personal_trainers
 - Property Managers: theconflux.gumroad.com/l/100_ai_prompts_for_property_managers
+- Dental Practices: (not yet uploaded)
+
+## Product Publishing Workflow (Added 2026-03-21)
+
+**When Don gives a Gumroad URL, ZigBot must:**
+1. Update `products/product-XXXX/product.json` → status: "published", add gumroad_url, set published_at
+2. Update `portfolio/portfolio.json` → find matching product, set status: "published", add gumroad_url, set launch_date
+3. Confirm to Don: "✅ Product-XXXX marked published"
+
+**Do NOT wait for Pulse or any other agent.** This is a ZigBot responsibility. Don gives links directly to ZigBot.
+
+## Lessons Learned / Workflow Gaps (Updated 2026-03-21)
+
+Things we missed during development — documented so we don't repeat them:
+
+1. **Product status not updated when Don publishes** (2026-03-21)
+   - Don gave Gumroad links for product-0301 and product-0302 but we never marked them published
+   - Fix: ZigBot updates product + portfolio immediately when Don provides URL
+   - Fix added to MEMORY.md publishing workflow above
+
+2. **Pipeline created duplicate product** (2026-03-21)
+   - Pipeline created product-0303 (Personal Trainers) which duplicated published product-0007
+   - Root cause: Helix didn't check portfolio before scoring opportunities
+   - Fix: Two-layer dedup (Helix Step 1b + Catalyst gate check)
+   - Fix: Discovery queue now has `covered_markets` array
+
+3. **Vercel deployment budget blown** (2026-03-21)
+   - theconflux sync cron pushed every 60 seconds = 1000+ potential deploys/day against 100 limit
+   - Blocked all Vercel deploys including lead-followup env vars + domain asset tests
+   - Fix: Sync script now only pushes when content actually changes
+   - Fix: Budget checker script added, rules in MEMORY.md
+
+4. **Forge outputs truncated prompts** (2026-03-20)
+   - Forge couldn't output 100 prompts in one response due to token limits
+   - Fix: Forge writes to file in batches of 10 using bash heredoc
+
+5. **Cron timezone missing** (2026-03-20)
+   - Cron expressions without --tz run in UTC, not Mountain Time
+   - Fix: All crons now specify --tz "America/Denver"
 
 ## Published Products (9 total as of 2026-03-21)
 
@@ -88,12 +127,59 @@ Store URL: theconflux.gumroad.com
 - One-shot jobs: `--at "2026-03-20T21:30:00Z"` + `--delete-after-run`
 - Vector's daily jokes cron: `0b1fd7ec-d75e-447d-9ca1-ae98e888494e` (9 AM MST daily)
 
+## Nightly Discovery Pipeline (Added 2026-03-21)
+
+Autonomous pipeline that finds NEW business opportunities beyond prompt packs. Runs at 11 PM MST after the daytime prompt factory finishes.
+
+**Philosophy:** Start with demand signals, not categories. Follow the evidence wherever it leads. Format (SaaS, digital product, marketplace, service, API, etc.) is determined by the opportunity.
+
+**Chain:** Helix (deep research) → Vector (VC filter, max 2 approvals) → Prism (create missions) → Announce to #mission-control
+
+**Spec:** `/home/calo/.openclaw/workspace/NIGHTLY_DISCOVERY_PIPELINE_SPEC.md`
+
+**Cron IDs:**
+- Nightly Discovery Pipeline: `824098f0-c0a2-43ba-bbb1-54f29dfae6af` (11 PM MST, Helix kickoff, research model)
+- Catalyst Daily Health Check: `968ecba7-6eb2-4827-9920-33134c707244` (8 AM MST daily, silent if healthy)
+- Catalyst Weekly Analysis: `4287f189-6894-47ed-928c-2cdd8ed68009` (Monday 9 AM MST, full studio report)
+
+**Quality bar:** 2 great opportunities beats 5 mediocre ones. Every opportunity at venture-capital depth (opportunity-0300 standard). Never "prompt pack for X".
+
+**Product ID rule:** Legacy pipeline owns 0001-0599. Autonomous discovery pipeline starts at 0600+. Registry at `shared/studio/product_id_ranges.json`. No renumbering of existing products.
+
+**Helix AGENTS.md:** Added nightly pipeline section with deep discovery workflow
+**Catalyst AGENTS.md:** Added nightly pipeline driver section + daily/weekly health checks
+
 ## GitHub Integration (2026-03-16)
 
 - Account: `TheConflux-Core` (theconflux303@gmail.com)
 - Git author: `ZigBot-Core <theconflux303@gmail.com>`
 - `gh auth setup-git` needed for HTTPS push to work
 - Full scopes granted (repo, workflow, admin, etc.)
+
+## Vercel Deployment Budget (CRITICAL — Updated 2026-03-21)
+
+**Free tier limit: 100 deployments per 24-hour rolling window.**
+- ALL deployments count: Git push, manual CLI, CI/CD — no exceptions
+- No notifications when limit is hit — only errors on deploy attempt
+- Resets 24h after first deployment in current window (not midnight)
+- 4 projects share the budget: lead-followup-app, theconflux, audiorecordingschool, clickhereforcandy
+
+**Current burn rate:**
+- theconflux.com: ~100/day (pipeline sync cron pushes every 60 seconds!)
+- Other 3 projects: ~0-5/day
+- **The sync-pipeline-state.sh cron is the main culprit — 1 push/min = 1440 potential deploys/day**
+
+**FIX NEEDED:** Disable Vercel auto-deploy on theconflux project, OR move pipeline snapshot to a non-Vercel source (S3, GitHub raw file, etc.)
+
+**Deployment budget rules:**
+1. ALWAYS check remaining deploys before triggering builds: use the API check script
+2. theconflux auto-deploy should be disabled (it's a data source, not a code project)
+3. Batch content commits when possible (don't push after every article)
+4. Domain asset pipeline: 1 commit per article = 2 deploys/day max (ARS + Candy)
+5. Prompt pack pipeline: runs via agents, not Vercel — no deploy impact
+6. If deploys < 10 remaining: STOP all pushes until window resets
+
+**Quick check command:** Run the deployment counter script before triggering any build.
 
 ## Monetization Accounts (Updated 2026-03-17)
 
@@ -216,19 +302,52 @@ Store URL: theconflux.gumroad.com
 - **Needs:** `GOG_KEYRING_PASSWORD` env var for gog CLI
 - Purpose: Calendar events when products publish (remind Don to upload to Gumroad)
 
-## Pipeline Cron Jobs (v3.0 Catalyst-Driven — Updated 2026-03-20)
+## Pipeline Architecture (v5.0 Dual Pipeline — Updated 2026-03-21)
 
-**Architecture:** Catalyst (Cat) drives the pipeline dynamically. Only Helix kickoff is fixed.
+**Architecture:** Catalyst (Cat) drives TWO independent pipelines. Separate crons, separate agent prompts.
 
-**Active crons (4 total):**
-- 5:00 AM: Helix kickoff (scores one opportunity, then Cat takes over)
-- Every 5 min (5-7 AM): Cat fast driver — chains agents, detects completions, handles failures
+### Pipeline 1: Prompt Pack Factory (5:00 AM)
+- Helix discovers → Vector approves → Prism creates mission → Spectra decomposes → Forge builds → Quanta verifies → Pulse launches
+- Target: 3 unique opportunities per shift
+- Dedup: Two-layer (Helix Step 1b + Cat gate check)
+- Cat fast driver: every 5 min (5:00-7:00 AM)
+
+### Pipeline 2: Domain Asset Content (7:30 AM)
+- Helix (content strategist) → Forge (writer + deployer) → Pulse (SEO + links)
+- Target: 1 article per site, round-robin between active sites
+- Sites: audiorecordingschool.net → clickhereforcandy.com
+- Configs: `/home/calo/.openclaw/shared/domain_assets/{site}/config.json`
+- Pipeline spec: `/home/calo/.openclaw/shared/pipelines/domain_asset_pipeline.md`
+
+**Active crons (5 total):**
+- 5:00 AM: Helix kickoff (prompt packs — scores one opportunity, then Cat takes over)
+- Every 5 min (5-7 AM): Cat fast driver — chains prompt pack agents
+- 7:30 AM: Domain asset pipeline kickoff → Cat (cron ID: 5a95c913-eabe-491a-9ae7-c7535cd2545d)
 - Every 30 min (off-hours): Cat health monitor — checks for stuck products, stale locks
 - 11:30 PM: ZigBot Dream Cycle (DO NOT CHANGE)
 
-**How it works:** Helix finishes → Cat detects → triggers Vector → Cat detects → triggers Prism → etc. Pipeline runs at agent speed (~20-30 min), not clock speed (~90 min).
-
 **All crons use:** openrouter/xiaomi/mimo-v2-pro, America/Denver timezone, --best-effort-deliver
+
+## Pipeline Dedup System (Added 2026-03-21)
+
+**Problem:** On 2026-03-21, the pipeline created product-0303 (Personal Trainers) which was a duplicate of already-published product-0007. Root cause: Helix scored the opportunity without checking existing portfolio products.
+
+**Fix — Two-layer dedup:**
+
+1. **Helix (Step 1b):** Before scoring any market, Helix reads `portfolio.json` and `discovery_queue.json` → `covered_markets`. If the market is already covered, skip it and pick the next one.
+
+2. **Catalyst (dedup gate):** After Helix scores, Cat verifies the market is unique against `portfolio.json` before chaining to Vector. If duplicate → archive it, re-trigger Helix, don't count toward shift target.
+
+**Catalyst shift target: 3 unique opportunities per shift** (5:00–7:00 AM window). Duplicates and rejections don't count — Cat retries those slots.
+
+**Discovery queue:**
+- Location: `/home/calo/.openclaw/shared/intelligence/discovery_queue.json`
+- `markets[]`: 36 remaining niches (active queue)
+- `covered_markets[]`: 15 niches with published/in-progress products
+- **Capacity: 36 remaining ÷ 3 per shift = ~12 shifts (4 days) before queue needs expansion**
+- ⚠️ **Expand the queue by ~Day 5 (approx 2026-03-25)** to avoid Helix going idle
+
+**Archived duplicate:** product-0303 → `products/_archive/product-0303` (duplicate of product-0007)
 
 ## Catalyst (Cat) Agent (Created 2026-03-20)
 
@@ -238,6 +357,7 @@ Store URL: theconflux.gumroad.com
 - Key files: AGENTS.md (chaining logic), SOUL.md, IDENTITY.md, TOOLS.md
 - Does NOT: Create missions, approve opportunities, build artifacts
 - DOES: Chain agents, detect completions, reschedule on failure, report to #mission-control
+- **Shift target:** 3 unique opportunities per shift (added 2026-03-21)
 - Cron: fast heartbeat (5 min, 5-7 AM) + health monitor (30 min, off-hours)
 
 **Previous content preserved below for reference:**
