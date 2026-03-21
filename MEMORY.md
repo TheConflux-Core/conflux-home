@@ -25,12 +25,24 @@ Store URL: theconflux.gumroad.com
 - Real Estate: theconflux.gumroad.com/l/100_prompts_for_real_estate
 - Mortgage Brokers: theconflux.gumroad.com/l/100_prompts_for_mortgage_brokers
 - Lawyers: theconflux.gumroad.com/l/100_prompts_for_lawyers
+- Health & Wellness: theconflux.gumroad.com/l/100_prompts_for_health_and_wellness
+- Finance: theconflux.gumroad.com/l/100_prompts_for_finance
+- E-Commerce: theconflux.gumroad.com/l/100_prompts_for_ecommerce
+- Healthcare Admin: theconflux.gumroad.com/l/100_ai_prompts_for_healthcare_practice_admins
+- Personal Trainers: theconflux.gumroad.com/l/100_ai_prompts_for_personal_trainers
+- Property Managers: theconflux.gumroad.com/l/100_ai_prompts_for_property_managers
 
-## Published Products
+## Published Products (9 total as of 2026-03-21)
 
-- **product-0001**: 100 AI Prompts for Real Estate Agents (published 2026-03-09, gold standard)
-- **product-0003**: 100 AI Prompts for Mortgage Brokers (published 2026-03-17, v2 rebuild)
-- **product-0005**: 100 AI Prompts for Lawyers (published 2026-03-17, v2 new market)
+- **product-0001**: 100 AI Prompts for Real Estate Agents (published 2026-03-09)
+- **product-0003**: 100 AI Prompts for Mortgage Brokers (published 2026-03-17)
+- **product-0005**: 100 AI Prompts for Lawyers (published 2026-03-17)
+- **product-0006**: 100 AI Prompts for Health & Wellness
+- **product-0101**: 100 AI Prompts for Finance
+- **product-0201**: 100 AI Prompts for E-Commerce
+- **product-0301**: 100 AI Prompts for Healthcare Practice Admins (published 2026-03-20)
+- **product-0007**: 100 AI Prompts for Personal Trainers (published 2026-03-21)
+- **product-0302**: 100 AI Prompts for Property Managers (published 2026-03-21)
 
 **ANTI-HALLUCINATION PROTOCOL (Added 2026-03-13)**
 
@@ -204,40 +216,29 @@ Store URL: theconflux.gumroad.com
 - **Needs:** `GOG_KEYRING_PASSWORD` env var for gog CLI
 - Purpose: Calendar events when products publish (remind Don to upload to Gumroad)
 
-## Pipeline Cron Jobs (22 total registered as of 2026-03-18)
+## Pipeline Cron Jobs (v3.0 Catalyst-Driven — Updated 2026-03-20)
 
-**Gated pipeline v2 (7 jobs + Dream Cycle):** Rebuilt 2026-03-20. All on openrouter/xiaomi/mimo-v2-flash, all to #mission-control, all America/Denver timezone, all `--exact`:
+**Architecture:** Catalyst (Cat) drives the pipeline dynamically. Only Helix kickoff is fixed.
 
-- 5:00 AM: Helix — Opportunity Discovery (research + score ONE opp, status→"scored")
-- 5:15 AM: Vector — Opportunity Approval (auto-approve ≥20, reject <20)
-- 5:25 AM: Prism — Mission Creation (approved opp → mission + product skeleton)
-- 5:35 AM: Spectra — Task Decomposition (planning mission → task graph)
-- 5:45 AM: Forge — Artifact Build (queued tasks / building products → artifacts, git push)
-- 6:15 AM: Quanta — QA Verification (qa_pending → verified or back to Forge)
-- 6:25 AM: Pulse — Launch & Publish (verified → social posts, Buffer, email Don, mark "launch_ready")
-- 11:30 PM: ZigBot Dream Cycle (nightly self-improvement, DO NOT CHANGE)
+**Active crons (4 total):**
+- 5:00 AM: Helix kickoff (scores one opportunity, then Cat takes over)
+- Every 5 min (5-7 AM): Cat fast driver — chains agents, detects completions, handles failures
+- Every 30 min (off-hours): Cat health monitor — checks for stuck products, stale locks
+- 11:30 PM: ZigBot Dream Cycle (DO NOT CHANGE)
 
-**Pipeline design:** Each agent has a gate condition — exits idle if no work. Sequential with 10-30 min gaps for file sync. Full cycle takes ~90 min if Helix finds a niche. Total idle time ~30 sec if nothing to do.
+**How it works:** Helix finishes → Cat detects → triggers Vector → Cat detects → triggers Prism → etc. Pipeline runs at agent speed (~20-30 min), not clock speed (~90 min).
 
-**AudioRecordingSchool daily pipeline (10 jobs):** Registered 2026-03-18
+**All crons use:** openrouter/xiaomi/mimo-v2-pro, America/Denver timezone, --best-effort-deliver
 
-- All run daily, all announce to #mission-control
-- All use openrouter/xiaomi/mimo-v2-flash
-- Workflow: Content creation, review, formatting, image generation, SEO, Buffer queue, publish
-- Mission-0200 automated daily content publishing
+## Catalyst (Cat) Agent (Created 2026-03-20)
 
-**Digital product platforms (6 jobs):** Status checks for ClickHereForCandy, AudioRecordingSchool, LeadFollowUp
-
-- Daily 8:00 AM, weekly Monday 8:00 AM checks
-- All to #mission-control
-
-**Previous gates (still registered, 6 jobs):** Helix, Vector, Prism, Spectra gates (9AM cycle)
-
-- May be deprecated soon (replaced by new 6-9 AM pipeline)
-
-(Previous "AI Agency building prompt-pack products" description has been retired.)
-
----
+- Identity: ⚡ Catalyst (Cat), she/her, sharp, proactive, slightly restless
+- Workspace: `/home/calo/.openclaw/workspace-catalyst/`
+- Role: Pipeline driver — monitors completions, chains agents dynamically, handles failures
+- Key files: AGENTS.md (chaining logic), SOUL.md, IDENTITY.md, TOOLS.md
+- Does NOT: Create missions, approve opportunities, build artifacts
+- DOES: Chain agents, detect completions, reschedule on failure, report to #mission-control
+- Cron: fast heartbeat (5 min, 5-7 AM) + health monitor (30 min, off-hours)
 
 **Previous content preserved below for reference:**
 
@@ -306,3 +307,75 @@ Store URL: theconflux.gumroad.com
 ## Future Reference
 
 This structure ensures our AI agency operates with clear authority, proper verification, and safe execution. The hierarchical design prevents conflicts while maintaining operational efficiency.
+
+## Catalyst Agent (Created 2026-03-20)
+
+- **Role:** Pipeline Health Monitor & Strategic Accelerator
+- **Workspace:** `/home/calo/.openclaw/workspace-catalyst/`
+- **Purpose:** Monitors pipeline health every 30 min, detects stuck states, reschedules agents on failure
+- **Reports to:** #mission-control (channel:1479285742915031080)
+- **Discord:** DMs enabled, responds to Don
+- **Identity:** ⚡ Catalyst — sharp, proactive, slightly restless
+- **Key files:** AGENTS.md (full role spec), SOUL.md, IDENTITY.md, TOOLS.md
+- **Does NOT:** Create missions, approve opportunities, build artifacts
+- **DOES:** Monitor, diagnose, reschedule, report
+
+## Tavily Backup Search (Added 2026-03-20)
+
+- Script: `/home/calo/.openclaw/workspace/scripts/tavily_search.py`
+- API key: `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`
+- Usage: `TAVILY_API_KEY="key" python3 scripts/tavily_search.py "query" --max-results 5`
+- Fallback when Brave Search hits rate limits
+- Updated in Helix and Forge prompts
+
+## The Conflux Brand & Website (Updated 2026-03-21)
+
+- Branding document: `/home/calo/.openclaw/workspace/theconflux-branding.md`
+- Logo: `/home/calo/.openclaw/workspace/theconflux-logo.png` (three converging streams, dark bg)
+- Domain: theconflux.com (linked to Vercel production, DNS active)
+- Tagline: **"Streams Converge, Empires Emerge."** (LOCKED)
+- GitHub: `TheConflux-Core/theconflux` (private)
+- Vercel project: `prj_kIYnWR1Vn98a2DSXraQpDxaa8zZC`, team `team_GucOF34TTgfJnsD7e1BReZn2`
+- Vercel auth token: `vca_7FXyaVXkV65fGkiEFJWCah5NdFCGwCUKalTYKqlzJEuBoN7hq50DGZa4` (in `/home/calo/.local/share/com.vercel.cli/auth.json`)
+- Production URL: https://theconflux.com + https://www.theconflux.com
+- Tech stack: Next.js 16, Tailwind v4, TypeScript
+- Services: Audit $500 / Build $5K-15K / Retainer $2K-5K/mo
+- Stripe (TEST MODE): Payment Links wired into Services section via Vercel env vars
+- Voice: Co-founder energy, not corporate, not guru
+- Upwork profile: $150/hr, uploaded 2026-03-20
+
+### The Conflux Orb (Hero — CSS Solar System)
+- CSS-based solar system with 7 agent orbs orbiting a central pipeline orb
+- Agents: Helix (cyan), Forge (amber), Quanta (green), Pulse (violet), Prism (sky blue), Spectra (rose), Vector (orange)
+- JS-driven animation via requestAnimationFrame — orbs stay on rings, labels stay horizontal
+- Each orb has: hover popup (name, role, description, active/idle status), connecting line to floating badge
+- Central orb has hover popup showing "The Conflux — Pipeline Core"
+- Floating live orb (bottom-right, fixed) — shows pipeline status, follows user as they scroll
+- Star field background (400 stars, Three.js R3F, twinkling)
+- Mouse parallax on star field
+- Split layout: text left (hero copy + CTAs), solar system right
+- Mobile-responsive sizing (280px-500px container)
+- Pipeline state fetched from `/api/pipeline-status` every 30s
+
+### Pipeline State Sync (Live Agent Status)
+- System cron every 60s: `sync-pipeline-state.sh` reads shared state → writes `pipeline-snapshot.json` → pushes to GitHub
+- Vercel API route `/api/pipeline-status` reads snapshot from GitHub raw URL using `GITHUB_TOKEN`
+- Reads: studio_state.json, run_queue.json, agent_runs.jsonl, missions/, portfolio.json
+- GITHUB_TOKEN in Vercel env vars: `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`
+- Cron installed in system crontab: `* * * * * /bin/bash /home/calo/theconflux/scripts/sync-pipeline-state.sh`
+
+### Design Iterations (Session 2026-03-21)
+- v1: R3F 3D particle network → too noisy, orbs floating randomly
+- v2: R3F solar system with orbital rings → perspective distortion issues
+- v3: CSS solar system → cleaner, but text/orb conflicts
+- v4 (current): JS-driven CSS orbits with split layout, hover popups, floating orb — final design
+- Key lesson: R3F overkill for orbital animation; CSS + JS animation loop is cleaner and more reliable
+
+## Key Forge Learnings (2026-03-20)
+
+- Forge CANNOT output 100 prompts in one response — output token limit truncates them
+- Fix: Forge must use `exec` with bash heredoc to write prompts to file in batches of 10
+- Example: `cat >> /path/file.md << 'PROMPTS_EOF' ... PROMPTS_EOF`
+- Verify after writing: `grep -c "### Prompt" file.md`
+- Healthcare prompts were garbage (all 100 identical templates) — Quanta caught it
+- Rebuilt prompts were excellent — unique, niche-specific, domain expertise evident
