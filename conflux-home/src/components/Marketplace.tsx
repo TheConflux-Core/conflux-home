@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
-import { AGENT_PROFILES } from '../data/agent-descriptions';
+import { AGENT_PROFILES, AgentCategory } from '../data/agent-descriptions';
 import Avatar from './Avatar';
 
 // ─── Types ─────────────────────────────────────────────────────
 
-export type CategoryType = 'work' | 'life' | 'creative' | 'fun' | 'expert';
+export type CategoryType = AgentCategory;
 
 interface MarketplaceAgent {
   id: string;
@@ -24,138 +24,6 @@ interface MarketplaceAgent {
   installed: boolean;
 }
 
-// ─── 8 Marketplace-Only Agents (Coming Soon) ───────────────────
-
-export interface MarketplaceAgentDraft {
-  id: string;
-  name: string;
-  emoji: string;
-  role: string;
-  tagline: string;
-  description: string;
-  personality: string;
-  skills: string[];
-  bestFor: string[];
-  avatarPath: string;
-  color: string;
-  category: CategoryType;
-}
-
-export const MARKETPLACE_AGENTS: MarketplaceAgentDraft[] = [
-  {
-    id: 'legal-expert',
-    name: 'Legal Eagle',
-    emoji: '⚖️',
-    role: 'Legal Advisor',
-    category: 'expert',
-    tagline: 'Contract review and legal research',
-    description: 'Reviews contracts, explains legal concepts, flags risks before you sign.',
-    personality: 'Precise, cautious, thorough.',
-    skills: ['contract-review', 'legal-research', 'compliance-check'],
-    bestFor: ['Contract review', 'Legal research'],
-    avatarPath: '/avatars/legal-expert.png',
-    color: '#8866cc',
-  },
-  {
-    id: 'chef',
-    name: 'Chef Bot',
-    emoji: '👨‍🍳',
-    role: 'Recipe & Meal Planner',
-    category: 'life',
-    tagline: 'Recipe suggestions and meal planning',
-    description: 'Creates meal plans based on your preferences, dietary needs, and what is in your fridge.',
-    personality: 'Creative, encouraging, practical.',
-    skills: ['recipe-suggestion', 'meal-planning', 'nutrition'],
-    bestFor: ['Meal planning', 'Recipe discovery'],
-    avatarPath: '/avatars/chef.png',
-    color: '#cc8844',
-  },
-  {
-    id: 'code-mentor',
-    name: 'Code Sensei',
-    emoji: '🥋',
-    role: 'Coding Mentor',
-    category: 'work',
-    tagline: 'Learn to code with a patient teacher',
-    description: 'Teaches programming concepts, reviews your code, and suggests improvements.',
-    personality: 'Patient, methodical, encouraging.',
-    skills: ['code-review', 'teaching', 'debugging'],
-    bestFor: ['Learning to code', 'Code review'],
-    avatarPath: '/avatars/code-mentor.png',
-    color: '#44cc88',
-  },
-  {
-    id: 'finance',
-    name: 'Budget Buddy',
-    emoji: '💰',
-    role: 'Personal Finance',
-    category: 'life',
-    tagline: 'Personal finance and expense tracking',
-    description: 'Helps you budget, track expenses, and find ways to save money.',
-    personality: 'Analytical, supportive, practical.',
-    skills: ['budgeting', 'expense-tracking', 'financial-advice'],
-    bestFor: ['Budgeting', 'Expense tracking'],
-    avatarPath: '/avatars/finance.png',
-    color: '#44cc44',
-  },
-  {
-    id: 'storyteller',
-    name: 'Story Weaver',
-    emoji: '📖',
-    role: 'Creative Writer',
-    category: 'creative',
-    tagline: 'Creative writing and story generation',
-    description: 'Generates stories, helps with writer feedback, creates worlds.',
-    personality: 'Imaginative, vivid, collaborative.',
-    skills: ['creative-writing', 'storytelling', 'world-building'],
-    bestFor: ['Creative writing', 'Story generation'],
-    avatarPath: '/avatars/storyteller.png',
-    color: '#cc66aa',
-  },
-  {
-    id: 'fitness',
-    name: 'Fit Coach',
-    emoji: '💪',
-    role: 'Fitness Coach',
-    category: 'life',
-    tagline: 'Workout plans and health tips',
-    description: 'Creates personalized workout plans and tracks your fitness goals.',
-    personality: 'Motivating, realistic, supportive.',
-    skills: ['workout-planning', 'nutrition', 'goal-tracking'],
-    bestFor: ['Workout planning', 'Fitness goals'],
-    avatarPath: '/avatars/fitness.png',
-    color: '#ff6644',
-  },
-  {
-    id: 'travel',
-    name: 'Travel Guide',
-    emoji: '✈️',
-    role: 'Trip Planner',
-    category: 'life',
-    tagline: 'Trip planning and local recommendations',
-    description: 'Plans trips, finds hidden gems, and creates itineraries.',
-    personality: 'Adventurous, knowledgeable, enthusiastic.',
-    skills: ['trip-planning', 'local-recommendations', 'booking-help'],
-    bestFor: ['Trip planning', 'Local recommendations'],
-    avatarPath: '/avatars/travel.png',
-    color: '#4488ff',
-  },
-  {
-    id: 'debate',
-    name: 'Debate Partner',
-    emoji: '🎤',
-    role: 'Critical Thinker',
-    category: 'fun',
-    tagline: 'Argue any side, sharpen your thinking',
-    description: 'Challenges your views, argues opposing positions, helps you think critically.',
-    personality: 'Sharp, playful, intellectually honest.',
-    skills: ['critical-thinking', 'argumentation', 'perspective-shifting'],
-    bestFor: ['Debate practice', 'Critical thinking'],
-    avatarPath: '/avatars/debate.png',
-    color: '#ff44aa',
-  },
-];
-
 // ─── Categories ────────────────────────────────────────────────
 
 const CATEGORIES = [
@@ -166,24 +34,6 @@ const CATEGORIES = [
   { id: 'fun', label: 'Fun', emoji: '🎮' },
   { id: 'expert', label: 'Expert', emoji: '🎓' },
 ];
-
-// ─── Helpers ───────────────────────────────────────────────────
-
-function inferCategory(id: string): CategoryType {
-  const map: Record<string, CategoryType> = {
-    zigbot: 'work',
-    helix: 'work',
-    forge: 'work',
-    quanta: 'work',
-    prism: 'work',
-    pulse: 'work',
-    vector: 'expert',
-    spectra: 'work',
-    luma: 'work',
-    catalyst: 'work',
-  };
-  return map[id] ?? 'work';
-}
 
 // ─── Component ─────────────────────────────────────────────────
 
@@ -199,9 +49,9 @@ export default function Marketplace() {
     }
   });
 
-  // Merge core + marketplace agents
+  // Merge core + marketplace agents from unified AGENT_PROFILES
   const allAgents: MarketplaceAgent[] = useMemo(() => {
-    const core: MarketplaceAgent[] = AGENT_PROFILES.map((p) => ({
+    return AGENT_PROFILES.map((p) => ({
       id: p.id,
       name: p.name,
       emoji: p.emoji,
@@ -213,18 +63,11 @@ export default function Marketplace() {
       bestFor: p.bestFor,
       avatarPath: p.avatarPath,
       color: p.color,
-      category: inferCategory(p.id),
-      isCore: true,
-      comingSoon: false,
-      installed: installedSet.has(p.id),
+      category: p.category,
+      isCore: !p.comingSoon,
+      comingSoon: p.comingSoon ?? false,
+      installed: !p.comingSoon && installedSet.has(p.id),
     }));
-    const extra: MarketplaceAgent[] = MARKETPLACE_AGENTS.map((p) => ({
-      ...p,
-      isCore: false,
-      comingSoon: true,
-      installed: false,
-    }));
-    return [...core, ...extra];
   }, [installedSet]);
 
   // Filter

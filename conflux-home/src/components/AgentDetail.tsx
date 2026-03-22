@@ -1,7 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AGENT_PROFILE_MAP } from '../data/agent-descriptions';
-import { MARKETPLACE_AGENTS } from './Marketplace';
-import type { MarketplaceAgentDraft } from './Marketplace';
 import Avatar from './Avatar';
 import { useAgentManager } from '../hooks/useAgentManager';
 
@@ -24,45 +22,23 @@ interface AgentDetailData {
 }
 
 function resolveAgent(agentId: string): AgentDetailData | null {
-  // Try core agent first
-  const core = AGENT_PROFILE_MAP[agentId];
-  if (core) {
-    return {
-      id: core.id,
-      name: core.name,
-      emoji: core.emoji,
-      role: core.role,
-      tagline: core.tagline,
-      description: core.description,
-      personality: core.personality,
-      skills: core.skills,
-      bestFor: core.bestFor,
-      avatarPath: core.avatarPath,
-      color: core.color,
-      isCore: true,
-      comingSoon: false,
-    };
-  }
-  // Try marketplace agents
-  const mkt = MARKETPLACE_AGENTS.find((a: MarketplaceAgentDraft) => a.id === agentId);
-  if (mkt) {
-    return {
-      id: mkt.id,
-      name: mkt.name,
-      emoji: mkt.emoji,
-      role: mkt.role,
-      tagline: mkt.tagline,
-      description: mkt.description,
-      personality: mkt.personality,
-      skills: mkt.skills,
-      bestFor: mkt.bestFor,
-      avatarPath: mkt.avatarPath,
-      color: mkt.color,
-      isCore: false,
-      comingSoon: true,
-    };
-  }
-  return null;
+  const profile = AGENT_PROFILE_MAP[agentId];
+  if (!profile) return null;
+  return {
+    id: profile.id,
+    name: profile.name,
+    emoji: profile.emoji,
+    role: profile.role,
+    tagline: profile.tagline,
+    description: profile.description,
+    personality: profile.personality,
+    skills: profile.skills,
+    bestFor: profile.bestFor,
+    avatarPath: profile.avatarPath,
+    color: profile.color,
+    isCore: !profile.comingSoon,
+    comingSoon: profile.comingSoon ?? false,
+  };
 }
 
 // ─── Component ─────────────────────────────────────────────────

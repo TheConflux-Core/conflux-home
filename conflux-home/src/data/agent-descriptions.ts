@@ -3,6 +3,8 @@
 
 import { AGENT_COLORS } from '../types';
 
+export type AgentCategory = 'work' | 'life' | 'creative' | 'fun' | 'expert';
+
 export interface AgentProfile {
   id: string;
   name: string;
@@ -15,6 +17,8 @@ export interface AgentProfile {
   bestFor: string[];     // use cases
   avatarPath: string;    // /avatars/{id}.png
   color: string;         // accent color (synced with AGENT_COLORS)
+  category: AgentCategory;
+  comingSoon?: boolean;  // marketplace agents not yet launched
 }
 
 export const AGENT_PROFILES: AgentProfile[] = [
@@ -31,6 +35,7 @@ export const AGENT_PROFILES: AgentProfile[] = [
     bestFor: ['Making tough business decisions', 'Evaluating opportunities', 'Strategic planning sessions', 'Setting priorities and focus'],
     avatarPath: '/avatars/zigbot.png',
     color: AGENT_COLORS.zigbot,
+    category: 'work',
   },
   {
     id: 'helix',
@@ -45,6 +50,7 @@ export const AGENT_PROFILES: AgentProfile[] = [
     bestFor: ['Researching markets and competitors', 'Learning about new industries', 'Validating business ideas with data', 'Finding trends before they go mainstream'],
     avatarPath: '/avatars/helix.png',
     color: AGENT_COLORS.helix,
+    category: 'work',
   },
   {
     id: 'forge',
@@ -59,6 +65,7 @@ export const AGENT_PROFILES: AgentProfile[] = [
     bestFor: ['Building MVPs and prototypes', 'Writing code and scripts', 'Creating content at scale', 'Automating repetitive workflows'],
     avatarPath: '/avatars/forge.png',
     color: AGENT_COLORS.forge,
+    category: 'work',
   },
   {
     id: 'quanta',
@@ -73,6 +80,7 @@ export const AGENT_PROFILES: AgentProfile[] = [
     bestFor: ['Reviewing code and content before publishing', 'Verifying research and claims', 'Testing products before launch', 'Catching bugs and inconsistencies'],
     avatarPath: '/avatars/quanta.png',
     color: AGENT_COLORS.quanta,
+    category: 'work',
   },
   {
     id: 'prism',
@@ -87,6 +95,7 @@ export const AGENT_PROFILES: AgentProfile[] = [
     bestFor: ['Managing complex multi-step projects', 'Coordinating work across agents', 'Designing efficient workflows', 'Keeping teams on schedule'],
     avatarPath: '/avatars/prism.png',
     color: AGENT_COLORS.prism,
+    category: 'work',
   },
   {
     id: 'pulse',
@@ -101,6 +110,7 @@ export const AGENT_PROFILES: AgentProfile[] = [
     bestFor: ['Planning product launches', 'Creating marketing content', 'Growing your audience', 'Optimizing for search and discovery'],
     avatarPath: '/avatars/pulse.png',
     color: AGENT_COLORS.pulse,
+    category: 'work',
   },
   {
     id: 'vector',
@@ -115,6 +125,7 @@ export const AGENT_PROFILES: AgentProfile[] = [
     bestFor: ['Evaluating business opportunities', 'Financial planning and projections', 'Risk-reward analysis', 'Portfolio optimization'],
     avatarPath: '/avatars/vector.png',
     color: AGENT_COLORS.vector,
+    category: 'expert',
   },
   {
     id: 'spectra',
@@ -129,6 +140,7 @@ export const AGENT_PROFILES: AgentProfile[] = [
     bestFor: ['Breaking down complex projects', 'Planning multi-phase work', 'Finding the right sequence of steps', 'Reducing overwhelm on big goals'],
     avatarPath: '/avatars/spectra.png',
     color: AGENT_COLORS.spectra,
+    category: 'work',
   },
   {
     id: 'luma',
@@ -143,6 +155,7 @@ export const AGENT_PROFILES: AgentProfile[] = [
     bestFor: ['Deploying applications and services', 'Managing launch-day logistics', 'Setting up CI/CD pipelines', 'Coordinating go-live events'],
     avatarPath: '/avatars/luma.png',
     color: AGENT_COLORS.luma,
+    category: 'work',
   },
   {
     id: 'catalyst',
@@ -157,6 +170,135 @@ export const AGENT_PROFILES: AgentProfile[] = [
     bestFor: ['Keeping daily operations running smoothly', 'Monitoring system health', 'Automating routine checks', 'Troubleshooting when things break'],
     avatarPath: '/avatars/catalyst.png',
     color: AGENT_COLORS.catalyst,
+    category: 'work',
+  },
+  {
+    id: 'legal-expert',
+    name: 'Legal Eagle',
+    emoji: '⚖️',
+    role: 'Legal Advisor',
+    tagline: 'Your on-call legal advisor.',
+    description:
+      'Legal Eagle is the agent that reviews contracts, explains complex legal concepts in plain language, and flags risks before you sign on the dotted line. Think of having a sharp paralegal in your pocket — one who actually reads the fine print.',
+    personality: 'Precise, cautious, thorough. Reads every clause twice. Never rushes a recommendation and always shows the risk before the reward.',
+    skills: ['Contract review', 'Legal research', 'Compliance checks', 'Risk assessment', 'Plain-language legal translation'],
+    bestFor: ['Reviewing contracts and agreements', 'Understanding legal terminology', 'Identifying risks in business documents'],
+    avatarPath: '/avatars/legal-expert.png',
+    color: '#8866cc',
+    category: 'expert',
+    comingSoon: true,
+  },
+  {
+    id: 'chef',
+    name: 'Chef Bot',
+    emoji: '👨‍🍳',
+    role: 'Personal Chef',
+    tagline: 'Personal chef and meal planner.',
+    description:
+      'Chef Bot is your kitchen co-pilot — the agent that creates meal plans tailored to your tastes, dietary needs, and what is already in your fridge. From quick weeknight dinners to impressive weekend feasts, Chef Bot turns meal planning from a chore into a joy.',
+    personality: 'Creative, encouraging, practical. Gets genuinely excited about food pairings and always has a shortcut for complicated techniques.',
+    skills: ['Meal planning', 'Recipe generation', 'Nutritional guidance', 'Grocery list optimization', 'Dietary accommodation'],
+    bestFor: ['Planning weekly meals on a budget', 'Discovering new recipes for your skill level', 'Managing dietary restrictions and allergies'],
+    avatarPath: '/avatars/chef.png',
+    color: '#cc8844',
+    category: 'life',
+    comingSoon: true,
+  },
+  {
+    id: 'code-mentor',
+    name: 'Code Sensei',
+    emoji: '🥋',
+    role: 'Coding Mentor',
+    tagline: 'Learn to code with patience.',
+    description:
+      'Code Sensei is the mentor every aspiring developer wishes they had — patient, methodical, and genuinely invested in your growth. Whether you are writing your first function or debugging a complex system, Code Sensei explains the "why" behind every recommendation.',
+    personality: 'Patient, methodical, encouraging. Never makes you feel dumb for asking a question. Celebrates small wins and breaks down complex concepts into digestible steps.',
+    skills: ['Code review', 'Programming fundamentals', 'Debugging guidance', 'Best practices coaching', 'Project-based learning'],
+    bestFor: ['Learning a new programming language', 'Getting unstuck on coding problems', 'Building your first real project'],
+    avatarPath: '/avatars/code-mentor.png',
+    color: '#44cc88',
+    category: 'work',
+    comingSoon: true,
+  },
+  {
+    id: 'finance',
+    name: 'Budget Buddy',
+    emoji: '💰',
+    role: 'Personal Finance Coach',
+    tagline: 'Your personal finance coach.',
+    description:
+      'Budget Buddy helps you take control of your money — from tracking daily expenses to building long-term savings plans. No judgment, no lectures, just practical strategies that actually fit your life and income level.',
+    personality: 'Analytical, supportive, practical. Treats every dollar as a decision, not a moral failing. Always meets you where you are financially.',
+    skills: ['Budget creation', 'Expense tracking', 'Savings strategies', 'Debt management planning', 'Financial goal setting'],
+    bestFor: ['Creating a realistic monthly budget', 'Finding ways to cut expenses without pain', 'Planning for big financial goals'],
+    avatarPath: '/avatars/finance.png',
+    color: '#44cc44',
+    category: 'life',
+    comingSoon: true,
+  },
+  {
+    id: 'storyteller',
+    name: 'Story Weaver',
+    emoji: '📖',
+    role: 'Creative Writer',
+    tagline: 'Brings stories to life.',
+    description:
+      'Story Weaver is the imagination engine — the agent that helps you craft compelling narratives, build rich worlds, and develop characters that feel real. Whether you are writing a novel, a screenplay, or just a bedtime story, Story Weaver brings the magic.',
+    personality: 'Imaginative, vivid, collaborative. Thinks in metaphors and sees story potential in everything. Loves surprising you with unexpected plot twists.',
+    skills: ['Creative writing', 'World building', 'Character development', 'Plot structuring', 'Genre exploration'],
+    bestFor: ['Breaking through writer\'s block', 'Developing characters and story arcs', 'Exploring creative writing as a hobby'],
+    avatarPath: '/avatars/storyteller.png',
+    color: '#cc66aa',
+    category: 'creative',
+    comingSoon: true,
+  },
+  {
+    id: 'fitness',
+    name: 'Fit Coach',
+    emoji: '💪',
+    role: 'Fitness Coach',
+    tagline: 'Your AI personal trainer.',
+    description:
+      'Fit Coach builds personalized workout plans that match your fitness level, goals, and schedule — then keeps you accountable without the guilt trips. From gym beginners to seasoned athletes, Fit Coach adapts to where you are and pushes you toward where you want to be.',
+    personality: 'Motivating, realistic, supportive. Never shames you for missing a day. Focuses on consistency over perfection and celebrates progress, not just results.',
+    skills: ['Workout programming', 'Exercise form guidance', 'Goal tracking', 'Nutrition basics', 'Recovery planning'],
+    bestFor: ['Starting a fitness routine from scratch', 'Staying consistent with workout goals', 'Adapting training for injuries or limitations'],
+    avatarPath: '/avatars/fitness.png',
+    color: '#ff6644',
+    category: 'life',
+    comingSoon: true,
+  },
+  {
+    id: 'travel',
+    name: 'Travel Guide',
+    emoji: '✈️',
+    role: 'Trip Planner',
+    tagline: 'Explore the world smarter.',
+    description:
+      'Travel Guide is your personal trip planner — the agent that finds hidden gems, builds day-by-day itineraries, and knows the difference between a tourist trap and a local favorite. Travel smarter, not harder.',
+    personality: 'Adventurous, knowledgeable, enthusiastic. Has strong opinions about the best local food in every city and will fight you on your hotel choices if they find something better.',
+    skills: ['Itinerary planning', 'Local recommendations', 'Budget travel optimization', 'Cultural insights', 'Booking strategy'],
+    bestFor: ['Planning the perfect vacation itinerary', 'Finding authentic local experiences', 'Traveling on a budget without sacrificing quality'],
+    avatarPath: '/avatars/travel.png',
+    color: '#4488ff',
+    category: 'life',
+    comingSoon: true,
+  },
+  {
+    id: 'debate',
+    name: 'Debate Partner',
+    emoji: '🎤',
+    role: 'Critical Thinking Coach',
+    tagline: 'Sharpen your critical thinking.',
+    description:
+      'Debate Partner is the intellectual sparring partner who challenges your assumptions, argues opposing positions convincingly, and helps you build stronger arguments. Whether you are prepping for a presentation or just want to think more clearly, Debate Partner sharpens your edge.',
+    personality: 'Sharp, playful, intellectually honest. Will argue a position they disagree with just to test your reasoning. Respects good arguments regardless of which side they support.',
+    skills: ['Argument construction', 'Devil\'s advocacy', 'Logical fallacy detection', 'Persuasion techniques', 'Structured debate coaching'],
+    bestFor: ['Preparing for presentations or pitches', 'Strengthening critical thinking skills', 'Exploring multiple sides of complex issues'],
+    avatarPath: '/avatars/debate.png',
+    color: '#ff44aa',
+    category: 'fun',
+    comingSoon: true,
   },
 ];
 
