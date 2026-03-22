@@ -159,6 +159,7 @@ function AppearanceSection() {
     setAccent(value);
     localStorage.setItem('conflux-accent', value);
     document.body.setAttribute('data-accent', value);
+    window.dispatchEvent(new CustomEvent('conflux:accent-change', { detail: value }));
   };
 
   const handleWallpaperChange = (url: string) => {
