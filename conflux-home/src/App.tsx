@@ -5,6 +5,7 @@ import Desktop from './components/Desktop';
 import Taskbar from './components/Taskbar';
 import ChatPanel from './components/ChatPanel';
 import Marketplace from './components/Marketplace';
+import AgentDetail from './components/AgentDetail';
 import Onboarding from './components/Onboarding';
 import WelcomeOverlay from './components/WelcomeOverlay';
 import { useGateway } from './hooks/useGateway';
@@ -142,6 +143,22 @@ export default function App() {
     window.addEventListener('conflux:navigate', handler);
     return () => window.removeEventListener('conflux:navigate', handler);
   }, []);
+
+  // Listen for open-chat from AgentDetail modal
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.agentId) {
+        const agent = agents.find(a => a.id === detail.agentId);
+        if (agent) {
+          setSelectedAgent(agent);
+          setChatOpen(true);
+        }
+      }
+    };
+    window.addEventListener('conflux:open-chat', handler);
+    return () => window.removeEventListener('conflux:open-chat', handler);
+  }, [agents]);
 
   // Toggle dark mode on body
   useEffect(() => {
@@ -311,6 +328,9 @@ export default function App() {
       )}
 
       <Taskbar currentView={view} onNavigate={handleNavigate} />
+
+      {/* Agent Detail Modal — listens for conflux:agent-detail events */}
+      <AgentDetail />
     </div>
   );
 }

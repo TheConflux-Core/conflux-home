@@ -4,7 +4,7 @@ import Avatar from './Avatar';
 
 // ─── Types ─────────────────────────────────────────────────────
 
-type CategoryType = 'work' | 'life' | 'creative' | 'fun' | 'expert';
+export type CategoryType = 'work' | 'life' | 'creative' | 'fun' | 'expert';
 
 interface MarketplaceAgent {
   id: string;
@@ -26,7 +26,7 @@ interface MarketplaceAgent {
 
 // ─── 8 Marketplace-Only Agents (Coming Soon) ───────────────────
 
-interface MarketplaceAgentDraft {
+export interface MarketplaceAgentDraft {
   id: string;
   name: string;
   emoji: string;
@@ -41,7 +41,7 @@ interface MarketplaceAgentDraft {
   category: CategoryType;
 }
 
-const MARKETPLACE_AGENTS: MarketplaceAgentDraft[] = [
+export const MARKETPLACE_AGENTS: MarketplaceAgentDraft[] = [
   {
     id: 'legal-expert',
     name: 'Legal Eagle',
