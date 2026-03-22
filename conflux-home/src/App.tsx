@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Agent, View } from './types';
-import Sidebar from './components/Sidebar';
-import Dashboard from './components/Dashboard';
+import TopBar from './components/TopBar';
+import Desktop from './components/Desktop';
+import Taskbar from './components/Taskbar';
 import ChatPanel from './components/ChatPanel';
 import Marketplace from './components/Marketplace';
 import Onboarding from './components/Onboarding';
@@ -94,77 +95,149 @@ export default function App() {
   const [view, setView] = useState<View>('dashboard');
   const [agents] = useState<Agent[]>(DEMO_AGENTS);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
+  const [isDark, setIsDark] = useState(false);
+
+  // Listen for settings nav from TopBar gear icon
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail === 'settings') setView('settings');
+    };
+    window.addEventListener('conflux:navigate', handler);
+    return () => window.removeEventListener('conflux:navigate', handler);
+  }, []);
+
+  // Toggle dark mode on body
+  useEffect(() => {
+    document.body.classList.toggle('dark', isDark);
+  }, [isDark]);
+
+  const handleSelectAgent = useCallback((agent: Agent | null) => {
+    setSelectedAgent(agent);
+    if (agent) {
+      setChatOpen(true);
+    } else {
+      setChatOpen(false);
+    }
+  }, []);
+
+  const handleNavigate = useCallback((v: View) => {
+    setView(v);
+    if (v === 'chat' && !selectedAgent) {
+      // Auto-select first active agent when navigating to chat
+      const active = agents.find(a => a.status !== 'offline');
+      if (active) setSelectedAgent(active);
+      setChatOpen(true);
+    }
+  }, [agents, selectedAgent]);
 
   // Show onboarding if first time
   if (!hasCompletedOnboarding) {
     return <Onboarding onComplete={() => setHasCompletedOnboarding(true)} />;
   }
 
-  const activeAgents = agents.filter(a => a.status !== 'offline').length;
-  const tasksRunning = agents.filter(a => a.status === 'working' || a.status === 'thinking').length;
+  // Determine if we're showing an overlay view (dashboard/stats or marketplace or settings)
+  const showDashboardOverlay = view === 'dashboard';
+  const showMarketplaceOverlay = view === 'marketplace';
+  const showSettingsOverlay = view === 'settings';
 
   return (
-    <div className="app-layout">
-      <Sidebar
-        currentView={view}
-        onNavigate={setView}
-        agentCount={agents.length}
-        activeCount={activeAgents}
+    <div className="desktop-shell">
+      <TopBar
+        selectedAgent={selectedAgent}
+        gatewayConnected={true}
+        isDark={isDark}
+        onToggleTheme={() => setIsDark(d => !d)}
       />
-      <div className="main-content">
-        <div className="top-bar">
-          <h2>{getViewTitle(view)}</h2>
-          <div className="pipeline-status">
-            <div className="stat">
-              <div className="dot" />
-              <span>{activeAgents} agents active</span>
-            </div>
-            <div className="stat">
-              <span>{tasksRunning} tasks running</span>
-            </div>
-            <div className="stat">
-              <span>Uptime: 2h 34m</span>
-            </div>
-          </div>
+
+      <Desktop
+        agents={agents}
+        selectedAgent={selectedAgent}
+        onSelectAgent={handleSelectAgent}
+      />
+
+      {/* Chat slide-in panel */}
+      <div className={`chat-slide-panel ${chatOpen ? 'open' : ''}`}>
+        <div className="chat-slide-header">
+          <h3>{selectedAgent ? `${selectedAgent.emoji} ${selectedAgent.name}` : 'Chat'}</h3>
+          <button className="chat-slide-close" onClick={() => { setChatOpen(false); setSelectedAgent(null); }}>
+            ✕
+          </button>
         </div>
-        <div className="content-area">
-          {view === 'dashboard' && (
-            <Dashboard
-              agents={agents}
-              onSelectAgent={(agent) => {
-                setSelectedAgent(agent);
-                setView('chat');
-              }}
-            />
-          )}
-          {view === 'chat' && (
-            <ChatPanel
-              agent={selectedAgent}
-              agents={agents}
-              onSelectAgent={setSelectedAgent}
-            />
-          )}
-          {view === 'marketplace' && <Marketplace />}
-          {view === 'settings' && (
-            <div style={{ textAlign: 'center', paddingTop: 100, color: 'var(--text-muted)' }}>
-              <p style={{ fontSize: 48 }}>⚙️</p>
-              <p style={{ marginTop: 16, fontSize: 16 }}>Settings coming soon</p>
-              <p style={{ fontSize: 13, marginTop: 8 }}>API keys, model preferences, agent configs</p>
-            </div>
-          )}
+        <div className="chat-slide-body">
+          <ChatPanel
+            agent={selectedAgent}
+            agents={agents}
+            onSelectAgent={setSelectedAgent}
+          />
         </div>
       </div>
+
+      {/* Overlay views */}
+      {showDashboardOverlay && (
+        <div className="content-overlay">
+          <div style={{ marginBottom: 24 }}>
+            <h3 style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 4 }}>
+              Your AI Family
+            </h3>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+              {agents.filter(a => a.status === 'working' || a.status === 'thinking').length} agents working
+              right now. Click any agent on the desktop to chat.
+            </p>
+          </div>
+
+          {/* Quick Stats */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+            gap: 16,
+          }}>
+            {[
+              { label: 'Missions Completed', value: '14', emoji: '🎯' },
+              { label: 'Products Built', value: '13', emoji: '📦' },
+              { label: 'Research Reports', value: '6', emoji: '📊' },
+              { label: 'Hours Saved', value: '247', emoji: '⏰' },
+            ].map((stat) => (
+              <div key={stat.label} style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--border-radius)',
+                padding: 20,
+                textAlign: 'center',
+                boxShadow: 'var(--shadow)',
+              }}>
+                <div style={{ fontSize: 24, marginBottom: 8 }}>{stat.emoji}</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--accent-primary)' }}>
+                  {stat.value}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                  {stat.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {showMarketplaceOverlay && (
+        <div className="content-overlay">
+          <Marketplace />
+        </div>
+      )}
+
+      {showSettingsOverlay && (
+        <div className="content-overlay">
+          <div style={{ textAlign: 'center', paddingTop: 100, color: 'var(--text-muted)' }}>
+            <p style={{ fontSize: 48 }}>⚙️</p>
+            <p style={{ marginTop: 16, fontSize: 16 }}>Settings coming soon</p>
+            <p style={{ fontSize: 13, marginTop: 8 }}>API keys, model preferences, agent configs</p>
+          </div>
+        </div>
+      )}
+
+      <Taskbar currentView={view} onNavigate={handleNavigate} />
     </div>
   );
-}
-
-function getViewTitle(view: View): string {
-  switch (view) {
-    case 'dashboard': return 'Dashboard';
-    case 'chat': return 'Chat';
-    case 'marketplace': return 'Agent Marketplace';
-    case 'settings': return 'Settings';
-    case 'onboarding': return 'Welcome';
-  }
 }
