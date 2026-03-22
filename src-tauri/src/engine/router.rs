@@ -100,6 +100,8 @@ struct OpenAIRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     temperature: Option<f64>,
     stream: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tools: Option<Vec<serde_json::Value>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -134,6 +136,14 @@ struct OpenAIUsage {
     total_tokens: Option<i64>,
 }
 
+/// A tool call from the model.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCallRequest {
+    pub id: String,
+    pub name: String,
+    pub arguments: String, // JSON string
+}
+
 /// The result of a model call.
 #[derive(Debug, Clone)]
 pub struct ModelResponse {
@@ -143,6 +153,7 @@ pub struct ModelResponse {
     pub provider_name: String,
     pub tokens_used: i64,
     pub latency_ms: i64,
+    pub tool_calls: Vec<ToolCallRequest>,
 }
 
 /// Send a chat completion request with automatic failover across providers.
@@ -151,6 +162,7 @@ pub async fn chat(
     messages: Vec<OpenAIMessage>,
     max_tokens: Option<i64>,
     temperature: Option<f64>,
+    tools: Option<Vec<serde_json::Value>>,
 ) -> Result<ModelResponse> {
     let providers = get_providers_for_alias(alias);
 
@@ -169,6 +181,7 @@ pub async fn chat(
             max_tokens,
             temperature,
             stream: false,
+            tools: tools.clone(),
         };
 
         let url = format!("{}/chat/completions", provider.base_url);
@@ -177,11 +190,34 @@ pub async fn chat(
             Ok(response) => {
                 let latency_ms = start.elapsed().as_millis() as i64;
 
-                let content = response
-                    .choices
-                    .first()
+                let choice = response.choices.first();
+
+                let content = choice
                     .and_then(|c| c.message.as_ref())
                     .and_then(|m| m.content.clone())
+                    .unwrap_or_default();
+
+                // Parse tool_calls if present
+                let tool_calls = choice
+                    .and_then(|c| c.message.as_ref())
+                    .and_then(|m| m.tool_calls.as_ref())
+                    .map(|tc| {
+                        tc.iter()
+                            .filter_map(|call| {
+                                let id = call.get("id").and_then(|v| v.as_str())?.to_string();
+                                let name = call.get("function")
+                                    .and_then(|f| f.get("name"))
+                                    .and_then(|n| n.as_str())?
+                                    .to_string();
+                                let arguments = call.get("function")
+                                    .and_then(|f| f.get("arguments"))
+                                    .and_then(|a| a.as_str())
+                                    .unwrap_or("{}")
+                                    .to_string();
+                                Some(ToolCallRequest { id, name, arguments })
+                            })
+                            .collect()
+                    })
                     .unwrap_or_default();
 
                 let tokens_used = response
@@ -196,6 +232,7 @@ pub async fn chat(
                     provider_name: provider.name.clone(),
                     tokens_used,
                     latency_ms,
+                    tool_calls,
                 });
             }
             Err(e) => {
@@ -214,12 +251,20 @@ pub async fn chat_stream(
     alias: &str,
     messages: Vec<OpenAIMessage>,
     max_tokens: Option<i64>,
+    tools: Option<Vec<serde_json::Value>>,
     on_chunk: &mut dyn FnMut(&str) -> Result<()>,
 ) -> Result<ModelResponse> {
     let providers = get_providers_for_alias(alias);
 
     if providers.is_empty() {
         anyhow::bail!("No providers configured for alias: {}", alias);
+    }
+
+    // If tools are present, use non-streaming to reliably capture tool_calls,
+    // then stream the follow-up text response.
+    if tools.is_some() {
+        // Use non-streaming for the tool detection pass
+        return chat(alias, messages, max_tokens, None, tools).await;
     }
 
     let mut last_error: Option<anyhow::Error> = None;
@@ -233,6 +278,7 @@ pub async fn chat_stream(
             max_tokens,
             temperature: None,
             stream: true,
+            tools: None,
         };
 
         let url = format!("{}/chat/completions", provider.base_url);
@@ -249,6 +295,7 @@ pub async fn chat_stream(
                     provider_name: provider.name.clone(),
                     tokens_used,
                     latency_ms,
+                    tool_calls: vec![],
                 });
             }
             Err(e) => {

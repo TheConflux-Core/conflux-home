@@ -216,14 +216,31 @@ impl EngineDb {
         provider_id: Option<&str>,
         latency_ms: Option<i64>,
     ) -> Result<super::types::Message> {
+        self.add_message_with_tools(session_id, role, content, tokens_used, model, provider_id, latency_ms, None, None, None, None)
+    }
+
+    pub fn add_message_with_tools(
+        &self,
+        session_id: &str,
+        role: &str,
+        content: &str,
+        tokens_used: i64,
+        model: Option<&str>,
+        provider_id: Option<&str>,
+        latency_ms: Option<i64>,
+        tool_call_id: Option<&str>,
+        tool_name: Option<&str>,
+        tool_args: Option<&str>,
+        tool_result: Option<&str>,
+    ) -> Result<super::types::Message> {
         let id = uuid::Uuid::new_v4().to_string();
         let now = Self::now();
         let conn = self.conn();
 
         conn.execute(
-            "INSERT INTO messages (id, session_id, role, content, tokens_used, model, provider_id, latency_ms)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![id, session_id, role, content, tokens_used, model, provider_id, latency_ms],
+            "INSERT INTO messages (id, session_id, role, content, tokens_used, model, provider_id, latency_ms, tool_call_id, tool_name, tool_args, tool_result)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            params![id, session_id, role, content, tokens_used, model, provider_id, latency_ms, tool_call_id, tool_name, tool_args, tool_result],
         )?;
 
         // Update session counters
@@ -237,10 +254,10 @@ impl EngineDb {
             session_id: session_id.to_string(),
             role: role.to_string(),
             content: content.to_string(),
-            tool_call_id: None,
-            tool_name: None,
-            tool_args: None,
-            tool_result: None,
+            tool_call_id: tool_call_id.map(String::from),
+            tool_name: tool_name.map(String::from),
+            tool_args: tool_args.map(String::from),
+            tool_result: tool_result.map(String::from),
             tokens_used,
             model: model.map(String::from),
             provider_id: provider_id.map(String::from),
