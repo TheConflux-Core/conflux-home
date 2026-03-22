@@ -311,6 +311,50 @@ pub async fn chat_stream(
 
 // ── HTTP helpers ──
 
+/// Send a chat request to a specific provider (for testing).
+pub async fn chat_with_provider(
+    provider: &super::types::ProviderConfig,
+    messages: Vec<OpenAIMessage>,
+    max_tokens: Option<i64>,
+) -> Result<ModelResponse> {
+    let start = Instant::now();
+
+    let request = OpenAIRequest {
+        model: provider.model_id.clone(),
+        messages,
+        max_tokens,
+        temperature: None,
+        stream: false,
+        tools: None,
+    };
+
+    let url = format!("{}/chat/completions", provider.base_url);
+    let response = send_request(&url, &provider.api_key, &request).await?;
+    let latency_ms = start.elapsed().as_millis() as i64;
+
+    let content = response
+        .choices
+        .first()
+        .and_then(|c| c.message.as_ref())
+        .and_then(|m| m.content.clone())
+        .unwrap_or_default();
+
+    let tokens_used = response
+        .usage
+        .map(|u| u.total_tokens.unwrap_or(0))
+        .unwrap_or(0);
+
+    Ok(ModelResponse {
+        content,
+        model: response.model.unwrap_or_else(|| provider.model_id.clone()),
+        provider_id: provider.id.clone(),
+        provider_name: provider.name.clone(),
+        tokens_used,
+        latency_ms,
+        tool_calls: vec![],
+    })
+}
+
 async fn send_request(
     url: &str,
     api_key: &str,

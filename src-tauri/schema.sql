@@ -220,6 +220,26 @@ CREATE TABLE IF NOT EXISTS config (
     updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
+-- ============================================================
+-- PROVIDERS — Model API Providers
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS providers (
+    id              TEXT PRIMARY KEY,           -- 'cerebras', 'groq', etc.
+    name            TEXT NOT NULL,
+    base_url        TEXT NOT NULL,
+    api_key         TEXT NOT NULL,
+    model_id        TEXT NOT NULL,              -- provider's model name
+    model_alias     TEXT NOT NULL DEFAULT 'conflux-fast', -- 'conflux-fast' | 'conflux-smart'
+    priority        INTEGER NOT NULL DEFAULT 1, -- lower = try first
+    is_enabled      INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_providers_alias ON providers(model_alias);
+CREATE INDEX IF NOT EXISTS idx_providers_enabled ON providers(is_enabled);
+
 -- Default config values
 INSERT OR IGNORE INTO config (key, value) VALUES
     ('engine_version', '1.0.0'),
@@ -256,3 +276,15 @@ INSERT OR IGNORE INTO tools (id, name, description, parameters, category) VALUES
     ('time',        'Current Time','Get the current date and time', '{"type":"object","properties":{},"required":[]}', 'builtin'),
     ('memory_read', 'Memory Read', 'Search agent memory',           '{"type":"object","properties":{"query":{"type":"string"},"limit":{"type":"integer"}},"required":["query"]}', 'builtin'),
     ('memory_write','Memory Write','Store a memory',                '{"type":"object","properties":{"key":{"type":"string"},"content":{"type":"string"},"memory_type":{"type":"string"}},"required":["content"]}', 'builtin');
+
+-- ============================================================
+-- SEED: Default Providers
+-- ============================================================
+
+INSERT OR IGNORE INTO providers (id, name, base_url, api_key, model_id, model_alias, priority) VALUES
+    ('cerebras',      'Cerebras',              'https://api.cerebras.ai/v1',          'csk-2kpn9eycky4ycj2dd82n6jvmhc4tjnm4ykt2vxjfvkvv9fcf', 'llama3.1-8b',                          'conflux-fast',  1),
+    ('groq',          'Groq',                  'https://api.groq.com/openai/v1',      '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', 'llama-3.1-8b-instant',                 'conflux-fast',  2),
+    ('mistral',       'Mistral',               'https://api.mistral.ai/v1',           'H24a3cJs3bTsWkYiVgmrYPr8Xs8T4ERE',                         'mistral-small-latest',                 'conflux-fast',  3),
+    ('cloudflare',    'Cloudflare Workers AI', 'https://api.cloudflare.com/client/v4/accounts/36d37d313aa8598b2735b28b4211862b/ai/v1', 'cfut_Ufhi1mcDzbLxwSNYZguzSlYsXy1GtAwzzo3mCir7fa5f5dab', '@cf/meta/llama-3.1-8b-instruct', 'conflux-fast',  4),
+    ('groq-smart',    'Groq (Smart)',          'https://api.groq.com/openai/v1',      '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', 'llama-3.3-70b-versatile',             'conflux-smart', 1),
+    ('cerebras-smart','Cerebras (Smart)',       'https://api.cerebras.ai/v1',          'csk-2kpn9eycky4ycj2dd82n6jvmhc4tjnm4ykt2vxjfvkvv9fcf', 'qwen-3-235b-a22b-instruct-2507',       'conflux-smart', 2);

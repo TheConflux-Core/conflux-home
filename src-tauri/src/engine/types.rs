@@ -175,6 +175,22 @@ pub struct Usage {
     pub total_tokens: i64,
 }
 
+// ── Provider Config ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderConfig {
+    pub id: String,
+    pub name: String,
+    pub base_url: String,
+    pub api_key: String,
+    pub model_id: String,
+    pub model_alias: String,
+    pub priority: i32,
+    pub is_enabled: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 // ── Quota ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
