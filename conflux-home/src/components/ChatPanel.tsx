@@ -1,7 +1,23 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { marked } from 'marked';
 import Avatar from './Avatar';
 import { Agent } from '../types';
 import { useAgentChat } from '../hooks/useAgentChat';
+
+// Configure marked for safe rendering
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+});
+
+// Simple XSS sanitizer: strip <script> tags and event handlers
+function sanitize(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/\son\w+="[^"]*"/gi, '')
+    .replace(/\son\w+='[^']*'/gi, '')
+    .replace(/javascript:/gi, '');
+}
 
 interface ChatPanelProps {
   agent: Agent | null;
@@ -90,29 +106,43 @@ export default function ChatPanel({ agent, isOpen, onClose }: ChatPanelProps) {
         </div>
       ) : (
         <div className="chat-panel-messages">
-          {messages.map((msg) => (
-            <div key={msg.id} className={`chat-message ${msg.type}`}>
-              {msg.type === 'agent' && (
+          {messages.map((msg) => {
+            const isAgent = msg.type === 'agent';
+            const renderedContent = isAgent
+              ? sanitize(marked.parse(msg.content) as string)
+              : undefined;
+
+            return (
+              <div key={msg.id} className={`chat-message ${msg.type}`}>
+                {isAgent && (
+                  <div style={{
+                    fontSize: 11,
+                    color: 'var(--accent-primary)',
+                    marginBottom: 4,
+                    fontWeight: 600,
+                  }}>
+                    {agent.emoji} {agent.name}
+                  </div>
+                )}
+                {isAgent ? (
+                  <span
+                    className="chat-message-html"
+                    dangerouslySetInnerHTML={{ __html: renderedContent! }}
+                  />
+                ) : (
+                  msg.content
+                )}
                 <div style={{
-                  fontSize: 11,
-                  color: 'var(--accent-primary)',
-                  marginBottom: 4,
-                  fontWeight: 600,
+                  fontSize: 10,
+                  color: msg.type === 'user' ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)',
+                  marginTop: 4,
+                  textAlign: msg.type === 'user' ? 'right' : 'left',
                 }}>
-                  {agent.emoji} {agent.name}
+                  {msg.timestamp}
                 </div>
-              )}
-              {msg.content}
-              <div style={{
-                fontSize: 10,
-                color: msg.type === 'user' ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)',
-                marginTop: 4,
-                textAlign: msg.type === 'user' ? 'right' : 'left',
-              }}>
-                {msg.timestamp}
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Thinking indicator */}
           {(thinking || streaming) && (

@@ -65,8 +65,25 @@ export default function Desktop({ agents, selectedAgent, onSelectAgent, wallpape
     >
       <div className="desktop-bg-pattern" />
 
-      <div className="desktop-agents">
-        {agents.map((agent) => {
+      {agents.length === 0 ? (
+        <div className="desktop-empty-state">
+          <div className="desktop-empty-emoji">👥</div>
+          <h3 className="desktop-empty-title">Your team is waiting</h3>
+          <p className="desktop-empty-text">
+            Head to the Marketplace to install your first agent.
+          </p>
+          <button
+            className="desktop-empty-btn"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: 'marketplace' }));
+            }}
+          >
+            Browse Agents →
+          </button>
+        </div>
+      ) : (
+        <div className="desktop-agents">
+          {agents.map((agent) => {
           const isSelected = selectedAgent?.id === agent.id;
           const isActive = agent.status === 'working' || agent.status === 'thinking';
           const accentColor = AGENT_COLORS[agent.id] ?? '#8888aa';
@@ -108,7 +125,8 @@ export default function Desktop({ agents, selectedAgent, onSelectAgent, wallpape
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
