@@ -7,6 +7,7 @@ pub mod router;
 pub mod runtime;
 pub mod tools;
 pub mod memory;
+pub mod google;
 
 use anyhow::Result;
 use std::path::Path;

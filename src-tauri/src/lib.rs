@@ -54,6 +54,14 @@ pub fn run() {
             commands::engine_update_provider,
             commands::engine_delete_provider,
             commands::engine_test_provider,
+            // Google
+            commands::engine_google_is_connected,
+            commands::engine_google_get_email,
+            commands::engine_google_auth_url,
+            commands::engine_google_connect,
+            commands::engine_google_disconnect,
+            commands::engine_google_set_credentials,
+            commands::engine_google_get_credentials,
             // Health
             commands::engine_health,
         ])

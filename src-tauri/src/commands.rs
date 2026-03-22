@@ -280,6 +280,67 @@ pub fn engine_test_provider(id: String) -> Result<serde_json::Value, String> {
     }
 }
 
+// ── Google Commands ──
+
+#[tauri::command]
+pub fn engine_google_is_connected() -> Result<bool, String> {
+    let engine = engine::get_engine();
+    engine::google::is_connected(engine.db()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_google_get_email() -> Result<String, String> {
+    let engine = engine::get_engine();
+    engine.db().get_config("google_email")
+        .map_err(|e| e.to_string())
+        .map(|v| v.unwrap_or_default())
+}
+
+#[tauri::command]
+pub fn engine_google_auth_url() -> Result<String, String> {
+    let engine = engine::get_engine();
+    engine::google::get_auth_url(engine.db()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_google_connect() -> Result<String, String> {
+    let engine = engine::get_engine();
+    // Open browser
+    let url = engine::google::get_auth_url(engine.db()).map_err(|e| e.to_string())?;
+    let _ = open::that(&url);
+
+    // Block waiting for callback
+    let tokens = engine::google::handle_oauth_callback(engine.db()).map_err(|e| e.to_string())?;
+
+    Ok(tokens.email.unwrap_or_else(|| "Connected".to_string()))
+}
+
+#[tauri::command]
+pub fn engine_google_disconnect() -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine::google::disconnect(engine.db()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_google_set_credentials(client_id: String, client_secret: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().set_config("google_client_id", &client_id).map_err(|e| e.to_string())?;
+    engine.db().set_config("google_client_secret", &client_secret).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn engine_google_get_credentials() -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let client_id = engine.db().get_config("google_client_id").map_err(|e| e.to_string())?.unwrap_or_default();
+    let client_secret = engine.db().get_config("google_client_secret").map_err(|e| e.to_string())?.unwrap_or_default();
+    Ok(serde_json::json!({
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "has_credentials": !client_id.is_empty() && !client_secret.is_empty(),
+    }))
+}
+
 // ── Health ──
 
 #[tauri::command]

@@ -4,6 +4,7 @@ import { AGENT_PROFILES, AGENT_PROFILE_MAP } from '../data/agent-descriptions';
 import Avatar from './Avatar';
 import ProviderSettings from './settings/ProviderSettings';
 import AgentEditor from './settings/AgentEditor';
+import GoogleSettings from './settings/GoogleSettings';
 
 // ── Constants ──
 
@@ -426,6 +427,7 @@ export default function Settings() {
     <div className="settings-page">
       <GatewaySection />
       <ProviderSettings />
+      <GoogleSettings />
       <AppearanceSection />
       <AgentsSection />
       <AgentEditor />
