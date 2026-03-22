@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { marked } from 'marked';
 import Avatar from './Avatar';
 import { Agent } from '../types';
-import { useAgentChat } from '../hooks/useAgentChat';
+import { useConfluxChat } from '../hooks/useConfluxChat';
 
 // Configure marked for safe rendering
 marked.setOptions({
@@ -29,7 +29,7 @@ export default function ChatPanel({ agent, isOpen, onClose }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { messages, sendMessage, streaming, thinking, error } = useAgentChat(agent?.id ?? null);
+  const { messages, sendMessage, streaming, thinking, error, remainingCalls, isQuotaExceeded, mode } = useConfluxChat(agent?.id ?? null);
 
   // Reset input when agent changes
   useEffect(() => {
@@ -80,6 +80,28 @@ export default function ChatPanel({ agent, isOpen, onClose }: ChatPanelProps) {
         <div className="chat-panel-header-info">
           <div className="chat-panel-header-name">{agent.name}</div>
           <div className="chat-panel-header-role">{agent.role}</div>
+        </div>
+        {/* Quota badge */}
+        <div style={{
+          fontSize: 11,
+          padding: '3px 8px',
+          borderRadius: 12,
+          background: isQuotaExceeded
+            ? 'rgba(255, 68, 68, 0.15)'
+            : remainingCalls <= 10
+              ? 'rgba(255, 170, 0, 0.15)'
+              : 'rgba(100, 200, 100, 0.12)',
+          color: isQuotaExceeded
+            ? '#ff6666'
+            : remainingCalls <= 10
+              ? '#ffaa00'
+              : 'var(--accent-primary)',
+          fontWeight: 600,
+          whiteSpace: 'nowrap',
+        }}>
+          {isQuotaExceeded
+            ? '🔒 Limit reached'
+            : `${remainingCalls} free left`}
         </div>
         <button className="chat-panel-close" onClick={onClose} aria-label="Close chat">
           ✕
