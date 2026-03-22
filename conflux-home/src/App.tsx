@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Agent, View } from './types';
 import TopBar from './components/TopBar';
 import Desktop from './components/Desktop';
@@ -6,98 +6,150 @@ import Taskbar from './components/Taskbar';
 import ChatPanel from './components/ChatPanel';
 import Marketplace from './components/Marketplace';
 import Onboarding from './components/Onboarding';
+import { useGateway, getToken, saveToken } from './hooks/useGateway';
+import type { AgentInfo } from './gateway-client';
 
-// Demo agents — these would come from OpenClaw runtime
-const DEMO_AGENTS: Agent[] = [
-  {
-    id: 'zigbot',
-    name: 'ZigBot',
-    emoji: '🤖',
-    role: 'Strategic Partner',
-    description: 'Your executive interface and strategic co-owner. Helps you think clearly and make high-quality decisions.',
-    status: 'working',
-    model: 'openrouter/xiaomi/mimo-v2-pro',
-    currentTask: 'Analyzing market opportunities...',
-    lastActive: 'Just now',
-    memorySize: 847,
-  },
-  {
-    id: 'helix',
-    name: 'Helix',
-    emoji: '🔬',
-    role: 'Research & Intelligence',
-    description: 'Deep market research, competitive analysis, and trend identification.',
-    status: 'thinking',
-    model: 'openrouter/xiaomi/mimo-v2-pro',
-    currentTask: 'Researching billion-dollar empire patterns...',
-    lastActive: '2 min ago',
-    memorySize: 1203,
-  },
-  {
-    id: 'forge',
-    name: 'Forge',
-    emoji: '🔨',
-    role: 'Builder',
-    description: 'Creates artifacts, generates content, builds products.',
-    status: 'idle',
-    model: 'openrouter/xiaomi/mimo-v2-pro',
-    lastActive: '15 min ago',
-    memorySize: 456,
-  },
-  {
-    id: 'quanta',
-    name: 'Quanta',
-    emoji: '✅',
-    role: 'Quality Control',
-    description: 'Verifies outputs, catches errors, ensures quality standards.',
-    status: 'idle',
-    model: 'openrouter/xiaomi/mimo-v2-pro',
-    lastActive: '15 min ago',
-    memorySize: 312,
-  },
-  {
-    id: 'prism',
-    name: 'Prism',
-    emoji: '💎',
-    role: 'System Orchestrator',
-    description: 'Manages mission lifecycle, coordinates agent workflows.',
-    status: 'working',
-    model: 'openrouter/xiaomi/mimo-v2-pro',
-    currentTask: 'Managing mission-0600 pipeline...',
-    lastActive: 'Just now',
-    memorySize: 589,
-  },
-  {
-    id: 'pulse',
-    name: 'Pulse',
-    emoji: '📣',
-    role: 'Growth & Marketing',
-    description: 'Creates marketing assets, manages launches, drives growth.',
-    status: 'offline',
-    model: 'openrouter/xiaomi/mimo-v2-pro',
-    lastActive: '2 hours ago',
-    memorySize: 234,
-  },
-  {
-    id: 'vector',
-    name: 'Vector',
-    emoji: '🎯',
-    role: 'CEO / Gatekeeper',
-    description: 'Evaluates opportunities, approves investments, financial strategy.',
-    status: 'idle',
-    model: 'openrouter/xiaomi/mimo-v2-pro',
-    lastActive: '1 hour ago',
-    memorySize: 678,
-  },
-];
+// Map SDK AgentInfo → UI Agent type
+function mapAgentInfo(info: AgentInfo): Agent {
+  return {
+    id: info.id,
+    name: info.name,
+    emoji: info.emoji,
+    role: info.role,
+    description: `${info.role} agent`,
+    status: info.status,
+    model: info.model || '',
+    currentTask: info.currentTask,
+    lastActive: info.lastActive,
+    memorySize: info.memorySize,
+  };
+}
+
+// ── Token Setup Screen ──
+
+function TokenSetup({ onTokenSaved }: { onTokenSaved: () => void }) {
+  const [tokenInput, setTokenInput] = useState('');
+  const [error, setError] = useState('');
+
+  const handleSave = () => {
+    const trimmed = tokenInput.trim();
+    if (!trimmed) {
+      setError('Please enter a token');
+      return;
+    }
+    saveToken(trimmed);
+    onTokenSaved();
+  };
+
+  return (
+    <div className="desktop-shell" style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}>
+      <div style={{
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border)',
+        borderRadius: 16,
+        padding: 48,
+        maxWidth: 440,
+        width: '100%',
+        textAlign: 'center',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+      }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>⚡</div>
+        <h2 style={{ margin: '0 0 8px', fontSize: 20 }}>Connect to Gateway</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 24 }}>
+          Enter your OpenClaw gateway token to get started.
+        </p>
+        <input
+          type="password"
+          placeholder="Paste your gateway token..."
+          value={tokenInput}
+          onChange={e => { setTokenInput(e.target.value); setError(''); }}
+          onKeyDown={e => e.key === 'Enter' && handleSave()}
+          style={{
+            width: '100%',
+            padding: '12px 16px',
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: 'var(--bg-input, #1a1a2e)',
+            color: 'var(--text-primary)',
+            fontSize: 14,
+            outline: 'none',
+            boxSizing: 'border-box',
+            marginBottom: 12,
+          }}
+        />
+        {error && (
+          <div style={{ color: 'var(--accent-error, #ff4444)', fontSize: 13, marginBottom: 12 }}>
+            {error}
+          </div>
+        )}
+        <button
+          onClick={handleSave}
+          style={{
+            width: '100%',
+            padding: '12px',
+            borderRadius: 8,
+            border: 'none',
+            background: 'var(--accent-primary, #00d4ff)',
+            color: '#000',
+            fontWeight: 600,
+            fontSize: 14,
+            cursor: 'pointer',
+          }}
+        >
+          Connect
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Connecting Screen ──
+
+function ConnectingScreen() {
+  const [dots, setDots] = useState('');
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDots(prev => prev.length >= 3 ? '' : prev + '.');
+    }, 500);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="desktop-shell" style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}>
+      <div style={{
+        textAlign: 'center',
+        color: 'var(--text-muted)',
+      }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>⚡</div>
+        <div style={{ fontSize: 18 }}>Connecting to gateway{dots}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main App ──
 
 export default function App() {
   const [view, setView] = useState<View>('dashboard');
-  const [agents] = useState<Agent[]>(DEMO_AGENTS);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
   const [isDark, setIsDark] = useState(false);
+  const [hasToken, setHasToken] = useState(() => !!getToken());
+
+  const { client, connected, agents: rawAgents, refresh } = useGateway();
+
+  // Map live agents to UI Agent type
+  const agents = useMemo(() => rawAgents.map(mapAgentInfo), [rawAgents]);
 
   // Listen for settings nav from TopBar gear icon
   useEffect(() => {
@@ -138,9 +190,25 @@ export default function App() {
     }
   }, [agents, selectedAgent]);
 
-  // Show onboarding if first time
+  const handleTokenSaved = useCallback(() => {
+    setHasToken(true);
+    // Gateway hook will pick up the token from localStorage on next render
+    window.location.reload();
+  }, []);
+
+  // Gate: no token → show setup screen
+  if (!hasToken) {
+    return <TokenSetup onTokenSaved={handleTokenSaved} />;
+  }
+
+  // Gate: onboarding
   if (!hasCompletedOnboarding) {
     return <Onboarding onComplete={() => setHasCompletedOnboarding(true)} />;
+  }
+
+  // Gate: not connected to gateway yet → show connecting screen
+  if (!connected) {
+    return <ConnectingScreen />;
   }
 
   // Determine if we're showing an overlay view
@@ -152,7 +220,7 @@ export default function App() {
     <div className="desktop-shell">
       <TopBar
         selectedAgent={selectedAgent}
-        gatewayConnected={true}
+        gatewayConnected={connected}
         isDark={isDark}
         onToggleTheme={() => setIsDark(d => !d)}
       />
