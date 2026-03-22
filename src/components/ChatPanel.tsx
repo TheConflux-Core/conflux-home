@@ -1,0 +1,195 @@
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { marked } from 'marked';
+import Avatar from './Avatar';
+import { Agent } from '../types';
+import { useAgentChat } from '../hooks/useAgentChat';
+
+// Configure marked for safe rendering
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+});
+
+// Simple XSS sanitizer: strip <script> tags and event handlers
+function sanitize(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/\son\w+="[^"]*"/gi, '')
+    .replace(/\son\w+='[^']*'/gi, '')
+    .replace(/javascript:/gi, '');
+}
+
+interface ChatPanelProps {
+  agent: Agent | null;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function ChatPanel({ agent, isOpen, onClose }: ChatPanelProps) {
+  const [input, setInput] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const { messages, sendMessage, streaming, thinking, error } = useAgentChat(agent?.id ?? null);
+
+  // Reset input when agent changes
+  useEffect(() => {
+    setInput('');
+  }, [agent?.id]);
+
+  // Auto-scroll to bottom when messages change or panel opens
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [messages, isOpen]);
+
+  const handleSend = useCallback(() => {
+    if (!input.trim() || streaming || !agent) return;
+    const content = input;
+    setInput('');
+    sendMessage(content);
+  }, [input, streaming, agent, sendMessage]);
+
+  // Keyboard shortcut: Escape to close
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isOpen, onClose]);
+
+  if (!agent) return null;
+
+  return (
+    <div className={`chat-panel ${isOpen ? 'open' : ''}`}>
+      {/* Header */}
+      <div className="chat-panel-header">
+        <Avatar
+          agentId={agent.id}
+          name={agent.name}
+          emoji={agent.emoji}
+          status={agent.status}
+          size="sm"
+          showStatus={true}
+        />
+        <div className="chat-panel-header-info">
+          <div className="chat-panel-header-name">{agent.name}</div>
+          <div className="chat-panel-header-role">{agent.role}</div>
+        </div>
+        <button className="chat-panel-close" onClick={onClose} aria-label="Close chat">
+          ✕
+        </button>
+      </div>
+
+      {/* Messages or empty state */}
+      {messages.length === 0 ? (
+        <div className="chat-panel-empty">
+          <Avatar
+            agentId={agent.id}
+            name={agent.name}
+            emoji={agent.emoji}
+            status={agent.status}
+            size="hero"
+            showStatus={true}
+          />
+          <div className="chat-panel-empty-text">
+            Start a conversation with {agent.name}
+          </div>
+          <div className="chat-panel-empty-sub">
+            {agent.description}
+          </div>
+        </div>
+      ) : (
+        <div className="chat-panel-messages">
+          {messages.map((msg) => {
+            const isAgent = msg.type === 'agent';
+            const renderedContent = isAgent
+              ? sanitize(marked.parse(msg.content) as string)
+              : undefined;
+
+            return (
+              <div key={msg.id} className={`chat-message ${msg.type}`}>
+                {isAgent && (
+                  <div style={{
+                    fontSize: 11,
+                    color: 'var(--accent-primary)',
+                    marginBottom: 4,
+                    fontWeight: 600,
+                  }}>
+                    {agent.emoji} {agent.name}
+                  </div>
+                )}
+                {isAgent ? (
+                  <span
+                    className="chat-message-html"
+                    dangerouslySetInnerHTML={{ __html: renderedContent! }}
+                  />
+                ) : (
+                  msg.content
+                )}
+                <div style={{
+                  fontSize: 10,
+                  color: msg.type === 'user' ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)',
+                  marginTop: 4,
+                  textAlign: msg.type === 'user' ? 'right' : 'left',
+                }}>
+                  {msg.timestamp}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Thinking indicator */}
+          {(thinking || streaming) && (
+            <div className="thinking-indicator">
+              <div className="thinking-dot" />
+              <div className="thinking-dot" />
+              <div className="thinking-dot" />
+            </div>
+          )}
+
+          {/* Error display */}
+          {error && !thinking && !streaming && (
+            <div style={{
+              padding: '8px 12px',
+              borderRadius: 8,
+              background: 'rgba(255, 68, 68, 0.1)',
+              border: '1px solid rgba(255, 68, 68, 0.3)',
+              color: '#ff6666',
+              fontSize: 12,
+              marginTop: 8,
+            }}>
+              {error}
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+      )}
+
+      {/* Input */}
+      <div className="chat-panel-input-area">
+        <input
+          className="chat-panel-input"
+          placeholder={`Message ${agent.name}...`}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+          disabled={streaming}
+        />
+        <button
+          className="chat-panel-send"
+          onClick={handleSend}
+          disabled={streaming || !input.trim()}
+        >
+          {streaming ? '...' : 'Send'}
+        </button>
+      </div>
+    </div>
+  );
+}

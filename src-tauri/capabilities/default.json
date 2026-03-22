@@ -1,0 +1,18 @@
+{
+  "identifier": "conflux-home-default",
+  "description": "Default capabilities for Conflux Home",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-message",
+    "fs:default",
+    "fs:allow-read-text-file",
+    "fs:allow-read-file",
+    "fs:allow-read-dir",
+    "fs:allow-exists",
+    "fs:scope-home-recursive",
+    "log:default"
+  ]
+}
