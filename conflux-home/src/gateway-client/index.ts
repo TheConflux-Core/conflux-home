@@ -2,7 +2,7 @@
 // Main entry point. Clean import: import { GatewayClient } from './gateway-client'
 
 import { invokeTool } from './tools';
-import { sendMessage, streamMessage } from './chat';
+import { sendMessage, streamMessage, ChatSession } from './chat';
 import { checkHealth } from './health';
 import { AgentReader } from './agents';
 
@@ -15,12 +15,15 @@ export type {
   ChatStreamChunk,
   HealthResponse,
   ToolInvokeResponse,
+  ChatSessionState,
+  StreamCallbacks,
 } from './types';
 
 export type { AgentInfo, AgentIdentity, AgentStatus } from './agents';
 
 export { GatewayError, GatewayTimeoutError } from './types';
 export { AgentReader } from './agents';
+export { ChatSession } from './chat';
 
 import type {
   GatewayConfig,
@@ -114,5 +117,13 @@ export class GatewayClient {
   /** Get an AgentReader bound to this client */
   getAgentReader(cacheTtlMs?: number): AgentReader {
     return new AgentReader(this, cacheTtlMs);
+  }
+
+  /** Create a ChatSession for a given agent */
+  createChatSession(
+    agentId: string,
+    options?: { persist?: boolean },
+  ): ChatSession {
+    return new ChatSession(this.config, agentId, options);
   }
 }

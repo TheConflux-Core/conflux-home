@@ -109,3 +109,19 @@ export class GatewayTimeoutError extends GatewayError {
     this.name = 'GatewayTimeoutError';
   }
 }
+
+// ── Chat Session ──
+
+export interface ChatSessionState {
+  agentId: string;
+  messages: ChatMessage[];
+  isStreaming: boolean;
+  error: string | null;
+}
+
+export interface StreamCallbacks {
+  onChunk?: (text: string) => void;
+  onDone?: (fullText: string) => void;
+  onError?: (error: Error) => void;
+  onStart?: () => void;
+}
