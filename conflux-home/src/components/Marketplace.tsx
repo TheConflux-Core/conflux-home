@@ -215,13 +215,14 @@ export default function Marketplace() {
               gap: 16,
             }}
           >
-            {featuredAgents.map((agent) => (
+            {featuredAgents.map((agent, i) => (
               <AgentCard
                 key={agent.id}
                 agent={agent}
                 onInstall={() => handleInstall(agent.id, agent.comingSoon)}
                 onClick={() => handleCardClick(agent.id)}
                 featured
+                index={i}
               />
             ))}
           </div>
@@ -243,25 +244,31 @@ export default function Marketplace() {
           ({filtered.length})
         </h4>
         <div className="marketplace-grid">
-          {filtered.map((agent) => (
+          {filtered.map((agent, i) => (
             <AgentCard
               key={agent.id}
               agent={agent}
               onInstall={() => handleInstall(agent.id, agent.comingSoon)}
               onClick={() => handleCardClick(agent.id)}
+              index={i}
             />
           ))}
           {filtered.length === 0 && (
-            <div
-              style={{
-                gridColumn: '1 / -1',
-                textAlign: 'center',
-                padding: 40,
-                color: 'var(--text-muted)',
-                fontSize: 14,
-              }}
-            >
-              No agents found matching your search.
+            <div className="marketplace-empty-state">
+              <div className="marketplace-empty-emoji">🔍</div>
+              <h4 className="marketplace-empty-title">No agents found</h4>
+              <p className="marketplace-empty-text">
+                Try a different search, or browse all agents.
+              </p>
+              <button
+                className="marketplace-empty-btn"
+                onClick={() => {
+                  setSearch('');
+                  setSelectedCategory('all');
+                }}
+              >
+                Clear Search
+              </button>
             </div>
           )}
         </div>
@@ -277,11 +284,13 @@ function AgentCard({
   onInstall,
   onClick,
   featured = false,
+  index = 0,
 }: {
   agent: MarketplaceAgent;
   onInstall: () => void;
   onClick: () => void;
   featured?: boolean;
+  index?: number;
 }) {
   return (
     <div
@@ -290,6 +299,8 @@ function AgentCard({
       style={{
         cursor: 'pointer',
         position: 'relative',
+        animation: `card-enter 0.4s ease-out both`,
+        animationDelay: `${index * 50}ms`,
         ...(featured
           ? {
               borderColor: 'var(--accent-secondary)',

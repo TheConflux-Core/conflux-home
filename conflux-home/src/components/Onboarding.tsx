@@ -217,13 +217,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     || (step === 2 && selectedGoals.size >= 2)
     || (step === 3 && selectedAgents.size >= 1);
 
-  const slideStyle: React.CSSProperties = {
-    transform: animating
-      ? `translateX(${direction === 'forward' ? '-40px' : '40px'})`
-      : 'translateX(0)',
-    opacity: animating ? 0 : 1,
-    transition: 'transform 300ms ease, opacity 300ms ease',
-  };
+  const slideClass = animating
+    ? (direction === 'forward' ? 'animating-slide-right' : 'animating-slide-left')
+    : '';
 
   // ── Render Steps ──
 
@@ -678,7 +674,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           padding: '24px',
           overflow: 'auto',
         }}>
-          <div style={slideStyle} key={step}>
+          <div className={slideClass} key={step} style={{ width: '100%' }}>
             {renderStep()}
           </div>
         </div>

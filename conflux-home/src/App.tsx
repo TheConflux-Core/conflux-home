@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Agent, View } from './types';
 import TopBar from './components/TopBar';
 import Desktop from './components/Desktop';
@@ -9,9 +9,22 @@ import AgentDetail from './components/AgentDetail';
 import Onboarding from './components/Onboarding';
 import WelcomeOverlay from './components/WelcomeOverlay';
 import Settings from './components/Settings';
+import SplashScreen from './components/SplashScreen';
+import ToastContainer from './components/Toast';
 import { useGateway } from './hooks/useGateway';
+import { useToast } from './hooks/useToast';
 import type { AgentInfo } from './gateway-client';
 import { initTheme, getSavedWallpaper } from './lib/theme';
+import { registerShortcuts } from './lib/shortcuts';
+
+// Default wallpapers
+function getDefaultWallpaper(): string {
+  const saved = getSavedWallpaper();
+  if (saved) return saved;
+  const isDark = document.body.classList.contains('dark') ||
+    window.matchMedia('(prefers-color-scheme: dark)').matches;
+  return isDark ? '/wallpapers/wallpaper-dark.png' : '/wallpapers/desktop-wallpaper.png';
+}
 
 // Map SDK AgentInfo → UI Agent type
 function mapAgentInfo(info: AgentInfo): Agent {
@@ -64,11 +77,31 @@ export default function App() {
   const [view, setView] = useState<View>('dashboard');
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
-  const [wallpaper, setWallpaper] = useState(() => getSavedWallpaper());
+  const [wallpaper, setWallpaper] = useState(() => getDefaultWallpaper());
+  const [loaded, setLoaded] = useState(false);
+  const { toasts, toast, dismiss } = useToast();
+  const toastRef = useRef(toast);
 
   // Initialize theme system once on mount
   useEffect(() => {
     initTheme();
+  }, []);
+
+  // Keep toast ref in sync
+  useEffect(() => {
+    toastRef.current = toast;
+  }, [toast]);
+
+  // Listen for conflux:toast custom events
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { message: string; type: 'success' | 'error' | 'info' };
+      if (detail?.message) {
+        toastRef.current(detail.message, detail.type || 'info');
+      }
+    };
+    window.addEventListener('conflux:toast', handler);
+    return () => window.removeEventListener('conflux:toast', handler);
   }, []);
 
   // Listen for custom events from Settings
@@ -209,6 +242,33 @@ export default function App() {
     }
   }, [agents, selectedAgent]);
 
+  // ── Keyboard shortcuts (FIX 10) ──
+  useEffect(() => {
+    if (!isOnboarded || showWelcome || !connected) return;
+    const cleanup = registerShortcuts({
+      onNavigate: (v) => handleNavigate(v),
+      onClose: () => {
+        if (chatOpen) handleCloseChat();
+        else if (view !== 'dashboard') setView('dashboard');
+      },
+      onFocusSearch: () => {
+        const searchInput = document.querySelector<HTMLInputElement>('.marketplace-search input, .marketplace-search');
+        if (searchInput) searchInput.focus();
+      },
+      onSelectFirstAgent: () => {
+        const list = selectedAgentIds.length > 0 ? filteredAgents : agents;
+        const first = list.find(a => a.status !== 'offline') ?? list[0];
+        if (first) setSelectedAgent(first);
+      },
+    });
+    return cleanup;
+  }, [isOnboarded, showWelcome, connected, view, chatOpen, handleNavigate, handleCloseChat, filteredAgents, agents, selectedAgentIds]);
+
+  // ── Gate: Splash screen ──
+  if (!loaded) {
+    return <SplashScreen onComplete={() => setLoaded(true)} />;
+  }
+
   // ── Gate: Onboarding ──
   if (!isOnboarded) {
     return <Onboarding onComplete={handleOnboardingComplete} />;
@@ -323,6 +383,9 @@ export default function App() {
 
       {/* Agent Detail Modal — listens for conflux:agent-detail events */}
       <AgentDetail />
+
+      {/* Toast notifications */}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }
