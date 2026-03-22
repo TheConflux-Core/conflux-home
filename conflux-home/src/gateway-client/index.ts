@@ -66,9 +66,21 @@ export class GatewayClient {
 
   /** List registered agents (via tools invoke) */
   async listAgents(): Promise<GatewayAgent[]> {
-    const res = await this.invokeTool('agents_list', {});
-    if (res.ok && res.result?.details) {
-      return (res.result.details as unknown as GatewayAgent[]) ?? [];
+    try {
+      const res = await this.invokeTool('agents_list', {});
+      if (res.ok && res.result?.details) {
+        const details = res.result.details as Record<string, unknown>;
+        // Gateway returns { agents: [...] } shape
+        if (Array.isArray(details['agents'])) {
+          return (details['agents'] as GatewayAgent[]) ?? [];
+        }
+        // Fallback: details is directly an array
+        if (Array.isArray(details)) {
+          return (details as unknown as GatewayAgent[]) ?? [];
+        }
+      }
+    } catch {
+      // Tool invocation failed — return empty
     }
     return [];
   }
