@@ -1,84 +1,88 @@
 # Conflux Engine — Session Progress
 
-**Last Updated:** 2026-03-22 (Sunday evening, 4:33 PM MST)
-**Previous State:** Engine compiled but disconnected from frontend
-**Current State:** Frontend fully wired to engine, tool calling active
+**Last Updated:** 2026-03-22 (Sunday, 4:47 PM MST)
+**Session 1:** Frontend → Engine bridge, tool calling, persistence, session sidebar
+**Session 2:** Memory extraction, provider settings UI, agent persona editor, project structure
 
 ---
 
-## ✅ Completed This Session
+## ✅ All Features Complete
 
 ### 1. Frontend → Engine Bridge ✅
-- `src/hooks/useEngineChat.ts` — new hook that calls `invoke('engine_chat_stream')`
-- `src/components/ChatPanel.tsx` — switched from `useConfluxChat` to `useEngineChat`
-- Tauri events: `engine:thinking`, `engine:chunk`, `engine:done`, `engine:error`
-- Quota tracked server-side in SQLite (not just localStorage)
+- `useEngineChat.ts` — Tauri invoke() hook replacing TypeScript router
+- `ChatPanel.tsx` — uses engine, streaming via Tauri events
+- Quota tracked server-side in SQLite
 
 ### 2. Tool Calling Loop ✅
-- `src-tauri/src/engine/runtime.rs` — full tool calling loop with max 3 iterations
-- Model receives tool definitions → detects tool_calls → executes → feeds back → final response
-- 8 tools available: web_search, file_read, file_write, exec, calc, time, memory_read, memory_write
-- Tool calls + results stored in DB with `tool_call_id`, `tool_name`, `tool_args`, `tool_result`
-- Router updated to pass `tools` field and parse `tool_calls` from response
+- `runtime.rs` — full tool calling loop, max 3 iterations
+- 8 tools: web_search, file_read, file_write, exec, calc, time, memory_read, memory_write
+- Tool calls + results stored in DB
 
 ### 3. Conversation Persistence ✅
-- SQLite already had schema; now frontend actually uses it
-- Session auto-created on first message for each agent
-- Messages loaded from DB on chat panel open
-- `src/components/SessionSidebar.tsx` — browse and resume past conversations
-- History button (🕐) in chat header toggles sidebar
+- SQLite sessions + messages survive restarts
+- `SessionSidebar.tsx` — browse and resume past conversations
 
 ### 4. Streaming via Tauri Events ✅
-- `engine_chat_stream` command in `src-tauri/src/lib.rs`
-- Engine processes turn, then emits word-chunks for streaming feel
-- Frontend listens on `engine:chunk` events and appends to message
-- Thinking indicator shown during processing
+- `engine_chat_stream` command — emits word-chunks for streaming feel
+- Frontend listens on `engine:chunk` events
+
+### 5. Memory Extraction ✅ (NEW)
+- `engine/memory.rs` — LLM-powered memory extraction after each turn
+- Uses conflux-fast to analyze exchanges, extract facts/preferences
+- Structured JSON → memory table with deduplication
+- Fires and forgets — won't break conversations on failure
+
+### 6. Provider Settings UI ✅ (NEW)
+- DB-backed `providers` table replaces hardcoded API keys
+- `ProviderSettings.tsx` — full CRUD with test connection
+- Tauri commands: get, update, delete, test providers
+- Schema seeded with existing provider configs
+
+### 7. Agent Persona Editor ✅ (NEW)
+- `AgentEditor.tsx` — edit soul, instructions, model, emoji
+- `engine_update_agent` — dynamic SQL for partial updates
+- Model toggle: conflux-fast vs conflux-smart
+
+---
 
 ## Build Status
-- Rust: ✅ compiles clean (25 warnings, all non-critical)
-- TypeScript: ✅ compiles clean
+- Rust: ✅ 28 warnings, 0 errors
+- TypeScript: ✅ clean
 - Binary: 20MB release
-- Commit: `c995e41` — 8 files changed, 919 insertions
+- Latest commit: `e9d3c2e` — 12 files, 1551 insertions
+
+## Architecture
+```
+src-tauri/src/
+├── lib.rs              ← setup + handler registration (clean)
+├── commands.rs         ← ALL Tauri invoke handlers
+└── engine/
+    ├── mod.rs          ← ConfluxEngine struct + global init
+    ├── db.rs           ← SQLite: agents, sessions, messages, memory, providers, quota
+    ├── router.rs       ← Multi-provider failover + streaming
+    ├── runtime.rs      ← Reasoning loop + tool calling
+    ├── tools.rs        ← Tool registry + execution
+    ├── memory.rs       ← LLM-powered memory extraction
+    └── types.rs        ← Shared data structures
+
+src/
+├── hooks/
+│   ├── useEngineChat.ts   ← Primary chat hook (Tauri engine)
+│   └── useConfluxChat.ts  ← Legacy fallback (TypeScript router)
+├── components/
+│   ├── ChatPanel.tsx      ← Chat UI with session sidebar
+│   ├── SessionSidebar.tsx ← Conversation history browser
+│   └── settings/
+│       ├── ProviderSettings.tsx  ← CRUD for AI providers
+│       └── AgentEditor.tsx       ← Edit agent personas
+```
 
 ---
 
-## 🔲 Remaining (Next Session)
+## 🔲 Future Enhancements
 
-### 5. Memory Extraction (MEDIUM)
-- After each conversation turn, analyze exchange and extract facts/preferences
-- Send second LLM call with "extract memories" prompt
-- Parse structured JSON into memory entries
-- Store in SQLite with confidence scores
-
-### 6. Provider Settings UI (LOW)
-- Let users add/edit/remove API keys through the UI
-- Store in engine's config table (single source of truth)
-- Remove hardcoded keys from router.rs
-
-### 7. Agent Persona Editor (LOW)
-- Edit agent soul/instructions from the UI
-- Store in agents table
-
-### 8. Error Recovery (MEDIUM)
-- Retry failed providers with exponential backoff
-- Graceful degradation when all providers fail
-- User-friendly error messages
-
----
-
-## Architecture Notes
-
-### Dual Router Strategy
-- TypeScript ConfluxRouter still exists as code but is no longer used by ChatPanel
-- Can be removed after 1-2 sessions of engine stability
-- `useConfluxChat.ts` kept as fallback reference
-
-### Streaming Strategy
-- Currently: non-streaming + chunked emit (reliable, supports tool calls)
-- Future: true SSE streaming through Tauri events when no tools needed
-- `process_turn_stream` exists but unused — ready for future true-streaming path
-
-### API Keys
-- Currently hardcoded in `router.rs`
-- Engine has config table for future migration
-- Providers: Cerebras, Groq, Mistral, Cloudflare (all tested, all working)
+- Provider settings: add new provider from templates (Groq, OpenAI, Anthropic, etc.)
+- Memory viewer: browse and edit stored memories in Settings
+- Agent skill editor: create custom tool combinations per agent
+- Export/import agent configurations
+- Multi-user support (different user_id per person)
