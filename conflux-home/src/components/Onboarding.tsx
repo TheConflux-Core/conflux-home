@@ -90,6 +90,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   // Step 5 — Alive
   const [alivePhase, setAlivePhase] = useState<'loading' | 'ready'>('loading');
 
+  // Step 1 — Name
+  const [userName, setUserName] = useState('');
+
   // ── Auto-detect gateway on mount ──
   useEffect(() => {
     let cancelled = false;
@@ -186,6 +189,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     localStorage.setItem('conflux-onboarded', 'true');
     localStorage.setItem('conflux-goals', JSON.stringify(goalsArr));
     localStorage.setItem('conflux-selected-agents', JSON.stringify(agentsArr));
+    localStorage.setItem('conflux-name', userName.trim() || 'there');
     onComplete(goalsArr, agentsArr);
   };
 
@@ -203,6 +207,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     localStorage.setItem('conflux-onboarded', 'true');
     localStorage.setItem('conflux-goals', JSON.stringify([]));
     localStorage.setItem('conflux-selected-agents', JSON.stringify(allAgentIds));
+    localStorage.setItem('conflux-name', userName.trim() || 'there');
     onComplete([], allAgentIds);
   };
 
@@ -252,11 +257,33 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       <p style={{
         fontSize: 17,
         color: 'var(--text-secondary)',
-        marginBottom: 40,
+        marginBottom: 32,
         lineHeight: 1.5,
       }}>
         Your AI family is about to come alive.
       </p>
+      <input
+        type="text"
+        placeholder="What's your name?"
+        value={userName}
+        onChange={e => setUserName(e.target.value)}
+        style={{
+          width: '100%',
+          maxWidth: 280,
+          padding: '12px 16px',
+          borderRadius: 10,
+          border: '1px solid var(--border)',
+          background: 'var(--bg-primary)',
+          color: 'var(--text-primary)',
+          fontSize: 16,
+          textAlign: 'center',
+          outline: 'none',
+          marginBottom: 20,
+          boxSizing: 'border-box',
+        }}
+        autoFocus
+      />
+      <br />
       <button className="next-btn" onClick={nextStep} style={{ maxWidth: 280, margin: '0 auto' }}>
         Get Started
       </button>
