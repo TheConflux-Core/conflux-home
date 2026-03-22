@@ -494,4 +494,196 @@ impl EngineDb {
     fn now() -> String {
         chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()
     }
+
+    // ── Agent Updates ──
+
+    pub fn update_agent(
+        &self,
+        id: &str,
+        name: Option<&str>,
+        emoji: Option<&str>,
+        role: Option<&str>,
+        soul: Option<&str>,
+        instructions: Option<&str>,
+        model_alias: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.conn();
+        let now = Self::now();
+
+        // Build dynamic update query
+        let mut sets: Vec<String> = Vec::new();
+        let mut params_vec: Vec<(String, String)> = Vec::new();
+
+        if let Some(v) = name { sets.push("name = ?".to_string()); params_vec.push(("name".to_string(), v.to_string())); }
+        if let Some(v) = emoji { sets.push("emoji = ?".to_string()); params_vec.push(("emoji".to_string(), v.to_string())); }
+        if let Some(v) = role { sets.push("role = ?".to_string()); params_vec.push(("role".to_string(), v.to_string())); }
+        if let Some(v) = soul { sets.push("soul = ?".to_string()); params_vec.push(("soul".to_string(), v.to_string())); }
+        if let Some(v) = instructions { sets.push("instructions = ?".to_string()); params_vec.push(("instructions".to_string(), v.to_string())); }
+        if let Some(v) = model_alias { sets.push("model_alias = ?".to_string()); params_vec.push(("model_alias".to_string(), v.to_string())); }
+
+        if sets.is_empty() {
+            return Ok(());
+        }
+
+        sets.push("updated_at = ?".to_string());
+
+        let query = format!(
+            "UPDATE agents SET {} WHERE id = ?",
+            sets.join(", ")
+        );
+
+        let now = Self::now();
+        let id_owned = id.to_string();
+
+        let mut all_params: Vec<&dyn rusqlite::ToSql> = Vec::new();
+        for (_, v) in &params_vec {
+            all_params.push(v);
+        }
+        all_params.push(&now);
+        all_params.push(&id_owned);
+
+        conn.execute(&query, rusqlite::params_from_iter(all_params))?;
+        Ok(())
+    }
+
+    // ── Memory Extended ──
+
+    pub fn get_all_memories(&self, agent_id: &str, limit: i64) -> Result<Vec<super::types::Memory>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, agent_id, memory_type, key, content, source, confidence,
+                    access_count, last_accessed, created_at, updated_at, expires_at
+             FROM memory WHERE agent_id = ?1
+             ORDER BY updated_at DESC LIMIT ?2"
+        )?;
+
+        let memories = stmt.query_map(params![agent_id, limit], |row| {
+            Ok(super::types::Memory {
+                id: row.get(0)?,
+                agent_id: row.get(1)?,
+                memory_type: row.get(2)?,
+                key: row.get(3)?,
+                content: row.get(4)?,
+                source: row.get(5)?,
+                confidence: row.get(6)?,
+                access_count: row.get(7)?,
+                last_accessed: row.get(8)?,
+                created_at: row.get(9)?,
+                updated_at: row.get(10)?,
+                expires_at: row.get(11)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for mem in memories {
+            result.push(mem?);
+        }
+        Ok(result)
+    }
+
+    pub fn delete_memory(&self, memory_id: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute("DELETE FROM memory WHERE id = ?1", params![memory_id])?;
+        Ok(())
+    }
+
+    pub fn set_memory_confidence(&self, memory_id: &str, confidence: f64) -> Result<()> {
+        let conn = self.conn();
+        conn.execute(
+            "UPDATE memory SET confidence = ?2, updated_at = ?3 WHERE id = ?1",
+            params![memory_id, confidence, Self::now()],
+        )?;
+        Ok(())
+    }
+
+    // ── Provider CRUD ──
+
+    pub fn get_providers(&self) -> Result<Vec<super::types::ProviderConfig>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, base_url, api_key, model_id, model_alias, priority, is_enabled, created_at, updated_at
+             FROM providers ORDER BY priority ASC"
+        )?;
+
+        let providers = stmt.query_map([], |row| {
+            Ok(super::types::ProviderConfig {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                base_url: row.get(2)?,
+                api_key: row.get(3)?,
+                model_id: row.get(4)?,
+                model_alias: row.get(5)?,
+                priority: row.get(6)?,
+                is_enabled: row.get::<_, i64>(7)? != 0,
+                created_at: row.get(8)?,
+                updated_at: row.get(9)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for p in providers {
+            result.push(p?);
+        }
+        Ok(result)
+    }
+
+    pub fn get_provider(&self, id: &str) -> Result<Option<super::types::ProviderConfig>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, base_url, api_key, model_id, model_alias, priority, is_enabled, created_at, updated_at
+             FROM providers WHERE id = ?1"
+        )?;
+
+        let result = stmt.query_row(params![id], |row| {
+            Ok(super::types::ProviderConfig {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                base_url: row.get(2)?,
+                api_key: row.get(3)?,
+                model_id: row.get(4)?,
+                model_alias: row.get(5)?,
+                priority: row.get(6)?,
+                is_enabled: row.get::<_, i64>(7)? != 0,
+                created_at: row.get(8)?,
+                updated_at: row.get(9)?,
+            })
+        });
+
+        match result {
+            Ok(p) => Ok(Some(p)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn upsert_provider(
+        &self,
+        id: &str,
+        name: &str,
+        base_url: &str,
+        api_key: &str,
+        model_id: &str,
+        model_alias: &str,
+        priority: i32,
+        is_enabled: bool,
+    ) -> Result<()> {
+        let conn = self.conn();
+        let enabled: i64 = if is_enabled { 1 } else { 0 };
+        conn.execute(
+            "INSERT INTO providers (id, name, base_url, api_key, model_id, model_alias, priority, is_enabled)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+             ON CONFLICT(id) DO UPDATE SET
+                name = ?2, base_url = ?3, api_key = ?4, model_id = ?5,
+                model_alias = ?6, priority = ?7, is_enabled = ?8,
+                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
+            params![id, name, base_url, api_key, model_id, model_alias, priority, enabled],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_provider(&self, id: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute("DELETE FROM providers WHERE id = ?1", params![id])?;
+        Ok(())
+    }
 }

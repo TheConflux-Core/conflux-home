@@ -180,7 +180,10 @@ pub async fn process_turn(
         Some(response.latency_ms),
     )?;
 
-    // 9. Log telemetry
+    // 9. Extract memories from this exchange (fire and forget)
+    let _ = super::memory::extract_and_store(db, session_id, agent_id, user_message, &response.content).await;
+
+    // 10. Log telemetry
     let _ = db.log_event(
         "message_processed",
         Some(agent_id),

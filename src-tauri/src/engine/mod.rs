@@ -6,11 +6,29 @@ pub mod types;
 pub mod router;
 pub mod runtime;
 pub mod tools;
+pub mod memory;
 
 use anyhow::Result;
 use std::path::Path;
+use std::sync::OnceLock;
 
 use db::EngineDb;
+
+/// Global engine instance.
+static ENGINE: OnceLock<ConfluxEngine> = OnceLock::new();
+
+/// Get the global engine instance.
+pub fn get_engine() -> &'static ConfluxEngine {
+    ENGINE.get().expect("Conflux Engine not initialized")
+}
+
+/// Initialize the global engine. Call once during app setup.
+pub fn init_engine(db_path: &Path) -> Result<()> {
+    let engine = ConfluxEngine::new(db_path)?;
+    ENGINE.set(engine)
+        .map_err(|_| anyhow::anyhow!("Engine already initialized"))?;
+    Ok(())
+}
 
 /// The Conflux Engine — manages all agent state and inference.
 pub struct ConfluxEngine {
@@ -42,31 +60,43 @@ impl ConfluxEngine {
         &self.db
     }
 
-    // ── Convenience Methods ──
+    // ── Agents ──
 
-    /// Get all active agents.
     pub fn get_agents(&self) -> Result<Vec<types::Agent>> {
         self.db.get_active_agents()
     }
 
-    /// Create a new session for an agent.
+    pub fn update_agent(
+        &self,
+        id: &str,
+        name: Option<&str>,
+        emoji: Option<&str>,
+        role: Option<&str>,
+        soul: Option<&str>,
+        instructions: Option<&str>,
+        model_alias: Option<&str>,
+    ) -> Result<()> {
+        self.db.update_agent(id, name, emoji, role, soul, instructions, model_alias)
+    }
+
+    // ── Sessions ──
+
     pub fn create_session(&self, agent_id: &str, user_id: &str) -> Result<types::Session> {
         let session = self.db.create_session(agent_id, user_id)?;
         let _ = self.db.log_event("session_created", Some(agent_id), Some(&session.id), None);
         Ok(session)
     }
 
-    /// Get recent sessions.
     pub fn get_sessions(&self, limit: i64) -> Result<Vec<types::Session>> {
         self.db.get_recent_sessions(limit)
     }
 
-    /// Get messages for a session.
     pub fn get_messages(&self, session_id: &str, limit: i64) -> Result<Vec<types::Message>> {
         self.db.get_messages(session_id, limit)
     }
 
-    /// Process a chat message (non-streaming).
+    // ── Chat ──
+
     pub async fn chat(
         &self,
         session_id: &str,
@@ -77,7 +107,6 @@ impl ConfluxEngine {
         runtime::process_turn(&self.db, session_id, agent_id, message, max_tokens).await
     }
 
-    /// Process a chat message (streaming).
     pub async fn chat_stream(
         &self,
         session_id: &str,
@@ -89,7 +118,8 @@ impl ConfluxEngine {
         runtime::process_turn_stream(&self.db, session_id, agent_id, message, max_tokens, on_chunk).await
     }
 
-    /// Store a memory for an agent.
+    // ── Memory ──
+
     pub fn store_memory(
         &self,
         agent_id: &str,
@@ -101,12 +131,64 @@ impl ConfluxEngine {
         self.db.store_memory(agent_id, memory_type, key, content, source)
     }
 
-    /// Search agent memories.
     pub fn search_memory(&self, agent_id: &str, query: &str, limit: i64) -> Result<Vec<types::Memory>> {
         self.db.search_memory(agent_id, query, limit)
     }
 
-    /// Get quota for a user today.
+    pub fn get_all_memories(&self, agent_id: &str, limit: i64) -> Result<Vec<types::Memory>> {
+        self.db.get_all_memories(agent_id, limit)
+    }
+
+    pub fn delete_memory(&self, memory_id: &str) -> Result<()> {
+        self.db.delete_memory(memory_id)
+    }
+
+    // ── Providers ──
+
+    pub fn get_providers(&self) -> Result<Vec<types::ProviderConfig>> {
+        self.db.get_providers()
+    }
+
+    pub fn update_provider(
+        &self,
+        id: &str,
+        name: &str,
+        base_url: &str,
+        api_key: &str,
+        model_id: &str,
+        model_alias: &str,
+        priority: i32,
+        is_enabled: bool,
+    ) -> Result<()> {
+        self.db.upsert_provider(id, name, base_url, api_key, model_id, model_alias, priority, is_enabled)
+    }
+
+    pub fn delete_provider(&self, id: &str) -> Result<()> {
+        self.db.delete_provider(id)
+    }
+
+    pub fn test_provider(&self, id: &str) -> Result<router::ModelResponse> {
+        // Run a synchronous test call through the provider
+        let rt = tokio::runtime::Runtime::new()?;
+        rt.block_on(async {
+            let messages = vec![router::OpenAIMessage {
+                role: "user".to_string(),
+                content: Some("Say 'hello' in one word.".to_string()),
+                tool_call_id: None,
+                tool_calls: None,
+            }];
+
+            // Get the provider directly
+            let provider = self.db.get_provider(id)?
+                .ok_or_else(|| anyhow::anyhow!("Provider not found: {}", id))?;
+
+            // Make a direct request
+            router::chat_with_provider(&provider, messages, Some(50)).await
+        })
+    }
+
+    // ── Quota ──
+
     pub fn get_quota(&self, user_id: &str) -> Result<types::QuotaRecord> {
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
         match self.db.get_quota(user_id, &today)? {
@@ -121,13 +203,11 @@ impl ConfluxEngine {
         }
     }
 
-    /// Increment quota after a successful call.
     pub fn increment_quota(&self, user_id: &str, tokens: i64, provider_id: &str) -> Result<i64> {
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
         self.db.increment_quota(user_id, &today, tokens, provider_id)
     }
 
-    /// Check if user has remaining quota.
     pub fn has_quota(&self, user_id: &str) -> Result<bool> {
         let quota = self.get_quota(user_id)?;
         let limit: i64 = self.db.get_config("free_daily_limit")?
