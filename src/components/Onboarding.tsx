@@ -54,19 +54,6 @@ const ALL_AGENTS: Record<string, AgentInfo> = {
   catalyst: { id: 'catalyst', name: 'Catalyst', emoji: '⚡', role: 'Everyday Assistant', why: 'Helps with daily planning, organization, and quick tasks' },
 };
 
-// ── Gateway Detection ──
-
-const DEFAULT_GATEWAY_URL = 'http://localhost:18789';
-
-async function checkGateway(url: string): Promise<boolean> {
-  try {
-    const res = await fetch(`${url}/health`, { signal: AbortSignal.timeout(3000) });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
 // ── Component ──
 
 export default function Onboarding({ onComplete }: OnboardingProps) {
@@ -74,12 +61,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [direction, setDirection] = useState<'forward' | 'back'>('forward');
   const [animating, setAnimating] = useState(false);
 
-  // Step 2 — Connection
-  const [gatewayUrl, setGatewayUrl] = useState(DEFAULT_GATEWAY_URL);
-  const [gatewayToken, setGatewayToken] = useState('');
-  const [detecting, setDetecting] = useState(true);
-  const [gatewayFound, setGatewayFound] = useState(false);
-  const [connectError, setConnectError] = useState('');
+  // Step 2 — Connection (auto-confirmed, no user action needed)
+  const [gatewayFound] = useState(true);
 
   // Step 3 — Goals
   const [selectedGoals, setSelectedGoals] = useState<Set<string>>(new Set());
@@ -93,25 +76,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   // Step 1 — Name
   const [userName, setUserName] = useState('');
 
-  // ── Auto-detect gateway on mount ──
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const found = await checkGateway(DEFAULT_GATEWAY_URL);
-      if (cancelled) return;
-      if (found) {
-        setGatewayFound(true);
-        setDetecting(false);
-        // Auto-advance after 1.5s
-        setTimeout(() => {
-          if (!cancelled) goToStep(2);
-        }, 1500);
-      } else {
-        setDetecting(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+  // ── Conflux Router is self-contained — no gateway detection needed ──
+  // The connection step is replaced with a simple "You're connected!" screen.
 
   // ── Step 4: derive recommended agents when goals change ──
   useEffect(() => {
@@ -137,24 +103,6 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   const nextStep = () => goToStep(step + 1);
   const prevStep = () => goToStep(step - 1);
-
-  // ── Step 2: manual connect ──
-  const handleConnect = async () => {
-    setConnectError('');
-    setDetecting(true);
-    const ok = await checkGateway(gatewayUrl);
-    setDetecting(false);
-    if (ok) {
-      setGatewayFound(true);
-      localStorage.setItem('conflux-gateway-url', gatewayUrl);
-      if (gatewayToken) {
-        localStorage.setItem('conflux-gateway-token', gatewayToken);
-      }
-      setTimeout(() => goToStep(2), 1500);
-    } else {
-      setConnectError('Could not reach gateway. Check the URL and try again.');
-    }
-  };
 
   // ── Step 3: toggle goal ──
   const toggleGoal = (id: string) => {
@@ -213,7 +161,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   // ── Derived ──
   const canNext = step === 0
-    || (step === 1 && (gatewayFound || !detecting))
+    || step === 1  // "You're connected" — always can proceed
     || (step === 2 && selectedGoals.size >= 2)
     || (step === 3 && selectedAgents.size >= 1);
 
@@ -288,107 +236,34 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   const renderConnection = () => (
     <div style={{ textAlign: 'center', maxWidth: 420 }}>
+      <div style={{
+        width: 80, height: 80, margin: '0 auto 24px',
+        borderRadius: '50%',
+        background: 'rgba(52,199,89,0.12)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <span style={{ fontSize: 40 }}>⚡</span>
+      </div>
       <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}>
-        Connect to Gateway
+        You're Connected!
       </h2>
-      <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 32 }}>
-        We need to talk to your Conflux gateway.
+      <p style={{ fontSize: 15, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5 }}>
+        Your AI family is ready to go. No setup needed — everything just works.
       </p>
-
-      {detecting && !gatewayFound && (
-        <div style={{ marginBottom: 24 }}>
-          <div style={{
-            width: 48, height: 48, margin: '0 auto 16px',
-            border: '3px solid var(--border)',
-            borderTopColor: 'var(--accent-primary)',
-            borderRadius: '50%',
-            animation: 'spin 0.8s linear infinite',
-          }} />
-          <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
-            Looking for gateway at localhost:18789…
-          </p>
-        </div>
-      )}
-
-      {gatewayFound && (
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-          padding: '16px 24px', background: 'rgba(52,199,89,0.1)',
-          borderRadius: 12, marginBottom: 24,
-        }}>
-          <span style={{ fontSize: 24, color: 'var(--accent-success)' }}>✓</span>
-          <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--accent-success)' }}>
-            Gateway detected!
-          </span>
-        </div>
-      )}
-
-      {!detecting && !gatewayFound && (
-        <>
-          <div style={{
-            background: 'var(--bg-card)', border: '1px solid var(--border)',
-            borderRadius: 16, padding: 28, textAlign: 'left',
-          }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Gateway URL
-            </label>
-            <input
-              type="text"
-              value={gatewayUrl}
-              onChange={e => setGatewayUrl(e.target.value)}
-              placeholder={DEFAULT_GATEWAY_URL}
-              style={{
-                width: '100%', padding: '10px 14px', borderRadius: 8,
-                border: '1px solid var(--border)', background: 'var(--bg-primary)',
-                color: 'var(--text-primary)', fontSize: 14, outline: 'none',
-                marginTop: 6, marginBottom: 16, boxSizing: 'border-box',
-              }}
-            />
-
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Gateway Token
-            </label>
-            <input
-              type="password"
-              value={gatewayToken}
-              onChange={e => setGatewayToken(e.target.value)}
-              placeholder="Paste your gateway token…"
-              style={{
-                width: '100%', padding: '10px 14px', borderRadius: 8,
-                border: '1px solid var(--border)', background: 'var(--bg-primary)',
-                color: 'var(--text-primary)', fontSize: 14, outline: 'none',
-                marginTop: 6, marginBottom: 16, boxSizing: 'border-box',
-              }}
-            />
-
-            {connectError && (
-              <p style={{ fontSize: 13, color: 'var(--accent-error)', marginBottom: 12 }}>
-                {connectError}
-              </p>
-            )}
-
-            <button
-              className="next-btn"
-              onClick={handleConnect}
-              disabled={detecting}
-            >
-              {detecting ? 'Connecting…' : 'Connect'}
-            </button>
-          </div>
-
-          {/* Skip link for manual mode */}
-          <button
-            onClick={handleSkip}
-            style={{
-              marginTop: 16, background: 'none', border: 'none',
-              color: 'var(--text-muted)', fontSize: 13, cursor: 'pointer',
-              textDecoration: 'underline',
-            }}
-          >
-            Skip setup
-          </button>
-        </>
-      )}
+      <div style={{
+        display: 'inline-flex', alignItems: 'center', gap: 8,
+        padding: '8px 16px', background: 'rgba(52,199,89,0.1)',
+        borderRadius: 20, marginBottom: 28,
+      }}>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#34c759' }} />
+        <span style={{ fontSize: 13, fontWeight: 600, color: '#34c759' }}>
+          50 free AI calls per day
+        </span>
+      </div>
+      <br />
+      <button className="next-btn" onClick={nextStep} style={{ maxWidth: 280, margin: '0 auto' }}>
+        Continue
+      </button>
     </div>
   );
 
