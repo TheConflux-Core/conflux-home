@@ -1,0 +1,258 @@
+-- Conflux Engine — Database Schema v1
+-- The single source of truth for all agent state.
+-- SQLite — embedded, zero-config, fast.
+
+-- ============================================================
+-- AGENTS
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS agents (
+    id              TEXT PRIMARY KEY,           -- 'zigbot', 'helix', etc.
+    name            TEXT NOT NULL,              -- 'ZigBot'
+    emoji           TEXT NOT NULL DEFAULT '🤖', -- display emoji
+    role            TEXT NOT NULL,              -- 'Strategic Partner'
+    soul            TEXT,                       -- SOUL.md content
+    instructions    TEXT,                       -- AGENTS.md content
+    model_alias     TEXT NOT NULL DEFAULT 'conflux-fast', -- which model alias to use
+    tier            TEXT NOT NULL DEFAULT 'free', -- 'free' | 'pro'
+    is_active       INTEGER NOT NULL DEFAULT 1, -- 1 = active, 0 = disabled
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- ============================================================
+-- SESSIONS
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS sessions (
+    id              TEXT PRIMARY KEY,           -- uuid
+    agent_id        TEXT NOT NULL REFERENCES agents(id),
+    user_id         TEXT NOT NULL DEFAULT 'default',
+    title           TEXT,                       -- auto-generated or user-set
+    status          TEXT NOT NULL DEFAULT 'active', -- 'active' | 'archived' | 'paused'
+    message_count   INTEGER NOT NULL DEFAULT 0,
+    total_tokens    INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_agent ON sessions(agent_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status);
+CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC);
+
+-- ============================================================
+-- MESSAGES
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS messages (
+    id              TEXT PRIMARY KEY,           -- uuid
+    session_id      TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    role            TEXT NOT NULL,              -- 'system' | 'user' | 'assistant' | 'tool'
+    content         TEXT NOT NULL,
+    tool_call_id    TEXT,                       -- if role='tool', which call this responds to
+    tool_name       TEXT,                       -- if assistant triggered a tool
+    tool_args       TEXT,                       -- JSON: tool arguments
+    tool_result     TEXT,                       -- JSON: tool result
+    tokens_used     INTEGER NOT NULL DEFAULT 0,
+    model           TEXT,                       -- which model was used
+    provider_id     TEXT,                       -- which provider served it
+    latency_ms      INTEGER,                   -- response time
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
+
+-- ============================================================
+-- MEMORY — Short-term (conversation context) & Long-term (facts)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS memory (
+    id              TEXT PRIMARY KEY,           -- uuid
+    agent_id        TEXT NOT NULL REFERENCES agents(id),
+    memory_type     TEXT NOT NULL,              -- 'fact' | 'preference' | 'skill' | 'knowledge' | 'correction'
+    key             TEXT,                       -- searchable key (e.g., 'user_name', 'project_x_status')
+    content         TEXT NOT NULL,              -- the actual memory content
+    source          TEXT,                       -- where this came from (session_id, 'user_told', 'learned')
+    confidence      REAL NOT NULL DEFAULT 1.0,  -- 0.0 to 1.0
+    access_count    INTEGER NOT NULL DEFAULT 0, -- how many times recalled
+    last_accessed   TEXT,
+    embedding       BLOB,                       -- vector embedding for semantic search (future)
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    expires_at      TEXT                        -- NULL = permanent, or TTL for temp memories
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_agent ON memory(agent_id);
+CREATE INDEX IF NOT EXISTS idx_memory_type ON memory(memory_type);
+CREATE INDEX IF NOT EXISTS idx_memory_key ON memory(agent_id, key);
+CREATE INDEX IF NOT EXISTS idx_memory_expires ON memory(expires_at) WHERE expires_at IS NOT NULL;
+
+-- ============================================================
+-- TOOLS — Registry & Execution Log
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS tools (
+    id              TEXT PRIMARY KEY,           -- 'web_search', 'file_read', etc.
+    name            TEXT NOT NULL,
+    description     TEXT NOT NULL,
+    parameters      TEXT NOT NULL,              -- JSON Schema for parameters
+    category        TEXT NOT NULL DEFAULT 'builtin', -- 'builtin' | 'plugin' | 'external'
+    permissions     TEXT NOT NULL DEFAULT '[]', -- JSON array of required permissions
+    is_enabled      INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS tool_executions (
+    id              TEXT PRIMARY KEY,           -- uuid
+    session_id      TEXT NOT NULL REFERENCES sessions(id),
+    message_id      TEXT NOT NULL REFERENCES messages(id),
+    tool_id         TEXT NOT NULL REFERENCES tools(id),
+    agent_id        TEXT NOT NULL,
+    arguments       TEXT NOT NULL,              -- JSON
+    result          TEXT,                       -- JSON response
+    status          TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'running' | 'success' | 'error'
+    error           TEXT,
+    duration_ms     INTEGER,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_tool_exec_session ON tool_executions(session_id);
+CREATE INDEX IF NOT EXISTS idx_tool_exec_status ON tool_executions(status);
+
+-- ============================================================
+-- TELEMETRY — Events, Metrics, Errors
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS telemetry_events (
+    id              TEXT PRIMARY KEY,           -- uuid
+    event_type      TEXT NOT NULL,              -- 'session_start', 'message_sent', 'tool_called', 'error', etc.
+    agent_id        TEXT,
+    session_id      TEXT,
+    data            TEXT,                       -- JSON payload
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_telemetry_type ON telemetry_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_telemetry_created ON telemetry_events(created_at DESC);
+
+-- ============================================================
+-- CRON — Scheduled Tasks
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS cron_jobs (
+    id              TEXT PRIMARY KEY,           -- uuid
+    name            TEXT NOT NULL,
+    agent_id        TEXT NOT NULL REFERENCES agents(id),
+    schedule        TEXT NOT NULL,              -- cron expression
+    timezone        TEXT NOT NULL DEFAULT 'UTC',
+    task_message    TEXT NOT NULL,              -- what to tell the agent
+    is_enabled      INTEGER NOT NULL DEFAULT 1,
+    last_run_at     TEXT,
+    next_run_at     TEXT,
+    run_count       INTEGER NOT NULL DEFAULT 0,
+    error_count     INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_cron_enabled ON cron_jobs(is_enabled);
+CREATE INDEX IF NOT EXISTS idx_cron_next_run ON cron_jobs(next_run_at) WHERE is_enabled = 1;
+
+-- ============================================================
+-- MISSIONS — Task Orchestration
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS missions (
+    id              TEXT PRIMARY KEY,           -- uuid
+    title           TEXT NOT NULL,
+    description     TEXT,
+    status          TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'active' | 'completed' | 'failed' | 'cancelled'
+    priority        TEXT NOT NULL DEFAULT 'normal', -- 'low' | 'normal' | 'high' | 'critical'
+    owner_agent_id  TEXT REFERENCES agents(id),
+    parent_id       TEXT REFERENCES missions(id), -- for sub-missions
+    data            TEXT,                       -- JSON: flexible mission data
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    completed_at    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_missions_status ON missions(status);
+CREATE INDEX IF NOT EXISTS idx_missions_owner ON missions(owner_agent_id);
+
+-- ============================================================
+-- SKILLS — Installable Capabilities
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS skills (
+    id              TEXT PRIMARY KEY,           -- 'web_research', 'code_review', etc.
+    name            TEXT NOT NULL,
+    description     TEXT,
+    version         TEXT NOT NULL DEFAULT '1.0.0',
+    author          TEXT,
+    instructions    TEXT NOT NULL,              -- what the agent should do
+    triggers        TEXT,                       -- JSON: phrases/patterns that activate this skill
+    tools_used      TEXT,                       -- JSON: tool IDs this skill requires
+    is_installed    INTEGER NOT NULL DEFAULT 1,
+    installed_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- ============================================================
+-- QUOTA — Usage Tracking
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS quota (
+    user_id         TEXT NOT NULL DEFAULT 'default',
+    date            TEXT NOT NULL,              -- 'YYYY-MM-DD'
+    calls_used      INTEGER NOT NULL DEFAULT 0,
+    tokens_used     INTEGER NOT NULL DEFAULT 0,
+    providers_used  TEXT,                       -- JSON: { "groq": 15, "mistral": 10 }
+    PRIMARY KEY (user_id, date)
+);
+
+-- ============================================================
+-- CONFIG — Key-Value Store
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS config (
+    key             TEXT PRIMARY KEY,
+    value           TEXT NOT NULL,
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- Default config values
+INSERT OR IGNORE INTO config (key, value) VALUES
+    ('engine_version', '1.0.0'),
+    ('default_model', 'conflux-fast'),
+    ('free_daily_limit', '50'),
+    ('created_at', (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')));
+
+-- ============================================================
+-- SEED: Default Agents
+-- ============================================================
+
+INSERT OR IGNORE INTO agents (id, name, emoji, role, model_alias) VALUES
+    ('zigbot',    'ZigBot',    '🤖', 'Strategic Partner',          'conflux-fast'),
+    ('helix',     'Helix',     '🔬', 'Market Researcher',          'conflux-fast'),
+    ('forge',     'Forge',     '🔨', 'Builder',                    'conflux-fast'),
+    ('quanta',    'Quanta',    '✅', 'Quality Control',            'conflux-fast'),
+    ('prism',     'Prism',     '💎', 'System Orchestrator',        'conflux-fast'),
+    ('pulse',     'Pulse',     '📣', 'Growth Engine',              'conflux-fast'),
+    ('vector',    'Vector',    '🧭', 'Business Strategist',        'conflux-smart'),
+    ('spectra',   'Spectra',   '🧩', 'Task Decomposer',            'conflux-fast'),
+    ('luma',      'Luma',      '🚀', 'Run Launcher',               'conflux-fast'),
+    ('catalyst',  'Catalyst',  '⚡', 'Everyday Assistant',         'conflux-fast');
+
+-- ============================================================
+-- SEED: Built-in Tools
+-- ============================================================
+
+INSERT OR IGNORE INTO tools (id, name, description, parameters, category) VALUES
+    ('web_search',  'Web Search',  'Search the web for information', '{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}', 'builtin'),
+    ('file_read',   'File Read',   'Read the contents of a file',   '{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}', 'builtin'),
+    ('file_write',  'File Write',  'Write content to a file',       '{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]}', 'builtin'),
+    ('exec',        'Execute',     'Run a shell command',           '{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}', 'builtin'),
+    ('calc',        'Calculator',  'Evaluate a math expression',    '{"type":"object","properties":{"expression":{"type":"string"}},"required":["expression"]}', 'builtin'),
+    ('time',        'Current Time','Get the current date and time', '{"type":"object","properties":{},"required":[]}', 'builtin'),
+    ('memory_read', 'Memory Read', 'Search agent memory',           '{"type":"object","properties":{"query":{"type":"string"},"limit":{"type":"integer"}},"required":["query"]}', 'builtin'),
+    ('memory_write','Memory Write','Store a memory',                '{"type":"object","properties":{"key":{"type":"string"},"content":{"type":"string"},"memory_type":{"type":"string"}},"required":["content"]}', 'builtin');

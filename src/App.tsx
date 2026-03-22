@@ -12,6 +12,7 @@ import Settings from './components/Settings';
 import SplashScreen from './components/SplashScreen';
 import ToastContainer from './components/Toast';
 import { useGateway } from './hooks/useGateway';
+import { useConfluxChat, hasConfluxKeys } from './hooks/useConfluxChat';
 import { useToast } from './hooks/useToast';
 import type { AgentInfo } from './gateway-client';
 import { initTheme, getSavedWallpaper } from './lib/theme';
@@ -285,8 +286,9 @@ export default function App() {
     );
   }
 
-  // ── Gate: not connected to gateway yet → show connecting screen ──
-  if (!connected) {
+  // ── Gate: not connected to gateway yet → show connecting screen
+  //     (Skip this gate if Conflux Router has API keys — it's self-contained)
+  if (!connected && !hasConfluxKeys()) {
     return <ConnectingScreen />;
   }
 
