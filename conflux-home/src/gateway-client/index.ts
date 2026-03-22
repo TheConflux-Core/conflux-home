@@ -4,6 +4,7 @@
 import { invokeTool } from './tools';
 import { sendMessage, streamMessage } from './chat';
 import { checkHealth } from './health';
+import { AgentReader } from './agents';
 
 export type {
   GatewayConfig,
@@ -16,7 +17,10 @@ export type {
   ToolInvokeResponse,
 } from './types';
 
+export type { AgentInfo, AgentIdentity, AgentStatus } from './agents';
+
 export { GatewayError, GatewayTimeoutError } from './types';
+export { AgentReader } from './agents';
 
 import type {
   GatewayConfig,
@@ -103,5 +107,12 @@ export class GatewayClient {
     const { signal } = this.withTimeout();
     const res = await checkHealth(this.config, signal);
     return res.ok && res.status === 'live';
+  }
+
+  // ── Agent Data (convenience methods via AgentReader) ──
+
+  /** Get an AgentReader bound to this client */
+  getAgentReader(cacheTtlMs?: number): AgentReader {
+    return new AgentReader(this, cacheTtlMs);
   }
 }
