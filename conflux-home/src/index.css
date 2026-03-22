@@ -218,7 +218,162 @@ body {
   z-index: 1;
 }
 
-/* === AGENT PRESENCE CARD === */
+/* === AGENT PRESENCE CARD (Enhanced) === */
+.agent-presence-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 20px 14px;
+  border-radius: var(--border-radius);
+  border: 1.5px solid var(--border);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+  min-width: 140px;
+  max-width: 160px;
+  position: relative;
+}
+
+.agent-presence-card:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--agent-accent, var(--accent-primary));
+}
+
+.agent-presence-card.selected {
+  border-color: var(--agent-accent, var(--accent-primary));
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--agent-accent, var(--accent-primary)) 25%, transparent);
+  transform: translateY(-2px) scale(1.02);
+}
+
+.agent-avatar-wrap {
+  position: relative;
+}
+
+.agent-info {
+  text-align: center;
+}
+
+.agent-presence-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.2px;
+}
+
+.agent-presence-role {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+/* Status text under avatar */
+.agent-status-text {
+  font-size: 11px;
+  line-height: 1.3;
+  max-width: 140px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-status-text.working {
+  color: var(--accent-success);
+  font-style: italic;
+}
+
+.agent-status-text.thinking {
+  color: var(--accent-warning);
+  font-style: italic;
+}
+
+.agent-status-text.idle {
+  color: var(--text-muted);
+}
+
+.agent-status-text.error {
+  color: var(--accent-error);
+}
+
+.agent-status-text.offline {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+/* Memory indicator bar */
+.memory-bar-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0 4px;
+}
+
+.memory-bar-track {
+  flex: 1;
+  height: 3px;
+  background: var(--bg-hover);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.memory-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+.memory-bar-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* Last active timestamp */
+.agent-last-active {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.last-active-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Breathing animation for working/thinking agents */
+.agent-presence-card.breathing {
+  animation: agent-float 3s ease-in-out infinite;
+}
+
+@keyframes agent-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.agent-presence-card.breathing:hover {
+  animation: none;
+  transform: translateY(-4px) scale(1.01);
+}
+
+.agent-presence-card.breathing.selected {
+  animation: agent-float-selected 3s ease-in-out infinite;
+}
+
+@keyframes agent-float-selected {
+  0%, 100% { transform: translateY(-2px) scale(1.02); }
+  50% { transform: translateY(-5px) scale(1.02); }
+}
+
+/* Keep old class for compatibility */
 .agent-presence {
   display: flex;
   flex-direction: column;
@@ -235,91 +390,214 @@ body {
   position: relative;
 }
 
-.agent-presence:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
-  border-color: var(--accent-primary);
+/* === CHAT BACKDROP === */
+.chat-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.2);
+  z-index: 85;
+  animation: backdrop-fade-in 0.2s ease;
 }
 
-.agent-presence.selected {
-  border-color: var(--accent-primary);
-  box-shadow: 0 4px 20px rgba(0, 113, 227, 0.15);
-  transform: translateY(-2px);
+@keyframes backdrop-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-.agent-presence-name {
+/* === CHAT SLIDE-IN PANEL (Enhanced) === */
+.chat-panel {
+  position: fixed;
+  top: 48px;
+  right: 0;
+  bottom: 72px;
+  width: 420px;
+  max-width: 90vw;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border);
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.1);
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: translateX(100%);
+  transition: transform 0.2s ease-out;
+}
+
+.chat-panel.open {
+  transform: translateX(0);
+}
+
+.chat-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+}
+
+.chat-panel-header-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-panel-header-name {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
-  letter-spacing: -0.2px;
 }
 
-.agent-presence-role {
+.chat-panel-header-role {
   font-size: 11px;
   color: var(--text-muted);
-  margin-top: -6px;
 }
 
-.agent-presence-status {
+.chat-panel-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 6px 8px;
+  border-radius: 8px;
+  transition: background 0.15s ease, color 0.15s ease;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.chat-panel-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* Messages area */
+.chat-panel-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Empty state */
+.chat-panel-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 16px;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.chat-panel-empty-text {
+  font-size: 15px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.chat-panel-empty-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Thinking indicator */
+.thinking-indicator {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: var(--text-secondary);
-  text-transform: capitalize;
+  gap: 4px;
+  padding: 12px 16px;
+  align-self: flex-start;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius);
+  border-bottom-left-radius: 4px;
 }
 
-.agent-presence-status .status-indicator {
-  width: 7px;
-  height: 7px;
+.thinking-dot {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
+  background: var(--text-muted);
+  animation: thinking-bounce 1.4s ease-in-out infinite;
 }
 
-.agent-presence-status .status-indicator.idle { background: var(--text-muted); }
-.agent-presence-status .status-indicator.working {
-  background: var(--accent-success);
-  animation: presence-pulse 2s infinite;
-}
-.agent-presence-status .status-indicator.thinking {
-  background: var(--accent-warning);
-  animation: presence-pulse 1s infinite;
-}
-.agent-presence-status .status-indicator.error { background: var(--accent-error); }
-.agent-presence-status .status-indicator.offline { background: var(--text-muted); opacity: 0.4; }
-
-@keyframes presence-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(0.85); }
+.thinking-dot:nth-child(2) {
+  animation-delay: 0.2s;
 }
 
-.agent-presence-task {
-  font-size: 11px;
-  color: var(--text-secondary);
-  max-width: 140px;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-style: italic;
-  opacity: 0.8;
+.thinking-dot:nth-child(3) {
+  animation-delay: 0.4s;
 }
 
-/* Breathing animation for working agents */
-.agent-presence.breathing {
-  animation: agent-breathe 4s ease-in-out infinite;
+@keyframes thinking-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
 }
 
-@keyframes agent-breathe {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
+/* Input area */
+.chat-panel-input-area {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg-secondary);
 }
 
-.agent-presence.breathing:hover {
-  animation: none;
-  transform: translateY(-4px);
+.chat-panel-input {
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s ease;
+  font-family: inherit;
 }
 
-/* === CHAT SLIDE-IN PANEL === */
+.chat-panel-input:focus {
+  border-color: var(--accent-primary);
+}
+
+.chat-panel-input::placeholder {
+  color: var(--text-muted);
+}
+
+.chat-panel-send {
+  background: var(--accent-primary);
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.chat-panel-send:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.chat-panel-send:active {
+  transform: translateY(0);
+}
+
+/* Old slide panel class kept for compat */
 .chat-slide-panel {
   position: fixed;
   top: 48px;

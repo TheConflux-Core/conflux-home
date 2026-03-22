@@ -123,6 +123,11 @@ export default function App() {
     }
   }, []);
 
+  const handleCloseChat = useCallback(() => {
+    setChatOpen(false);
+    setSelectedAgent(null);
+  }, []);
+
   const handleNavigate = useCallback((v: View) => {
     setView(v);
     if (v === 'chat' && !selectedAgent) {
@@ -138,7 +143,7 @@ export default function App() {
     return <Onboarding onComplete={() => setHasCompletedOnboarding(true)} />;
   }
 
-  // Determine if we're showing an overlay view (dashboard/stats or marketplace or settings)
+  // Determine if we're showing an overlay view
   const showDashboardOverlay = view === 'dashboard';
   const showMarketplaceOverlay = view === 'marketplace';
   const showSettingsOverlay = view === 'settings';
@@ -158,22 +163,17 @@ export default function App() {
         onSelectAgent={handleSelectAgent}
       />
 
+      {/* Backdrop overlay when chat is open */}
+      {chatOpen && (
+        <div className="chat-backdrop" onClick={handleCloseChat} />
+      )}
+
       {/* Chat slide-in panel */}
-      <div className={`chat-slide-panel ${chatOpen ? 'open' : ''}`}>
-        <div className="chat-slide-header">
-          <h3>{selectedAgent ? `${selectedAgent.emoji} ${selectedAgent.name}` : 'Chat'}</h3>
-          <button className="chat-slide-close" onClick={() => { setChatOpen(false); setSelectedAgent(null); }}>
-            ✕
-          </button>
-        </div>
-        <div className="chat-slide-body">
-          <ChatPanel
-            agent={selectedAgent}
-            agents={agents}
-            onSelectAgent={setSelectedAgent}
-          />
-        </div>
-      </div>
+      <ChatPanel
+        agent={selectedAgent}
+        isOpen={chatOpen}
+        onClose={handleCloseChat}
+      />
 
       {/* Overlay views */}
       {showDashboardOverlay && (
