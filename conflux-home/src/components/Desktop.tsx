@@ -6,6 +6,7 @@ interface DesktopProps {
   agents: Agent[];
   selectedAgent: Agent | null;
   onSelectAgent: (agent: Agent | null) => void;
+  wallpaper?: string;
 }
 
 function getTimeAgo(dateStr?: string): string {
@@ -44,7 +45,7 @@ function StatusText({ agent }: { agent: Agent }) {
   return <div className="agent-status-text idle">Idle</div>;
 }
 
-export default function Desktop({ agents, selectedAgent, onSelectAgent }: DesktopProps) {
+export default function Desktop({ agents, selectedAgent, onSelectAgent, wallpaper }: DesktopProps) {
   const [, setTick] = useState(0);
 
   // Auto-update "last active" timestamps every 30s
@@ -54,7 +55,14 @@ export default function Desktop({ agents, selectedAgent, onSelectAgent }: Deskto
   }, []);
 
   return (
-    <div className="desktop-area">
+    <div
+      className="desktop-area"
+      style={wallpaper ? {
+        backgroundImage: `url('${wallpaper}')`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      } : undefined}
+    >
       <div className="desktop-bg-pattern" />
 
       <div className="desktop-agents">

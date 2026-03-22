@@ -47,6 +47,242 @@
   --glass-border: rgba(255, 255, 255, 0.06);
 }
 
+/* Accent color system — overrides accent-primary per color choice */
+[data-accent="blue"] {
+  --accent-primary: #0071e3;
+  --accent-glow: rgba(0, 113, 227, 0.3);
+}
+[data-accent="purple"] {
+  --accent-primary: #7b2fff;
+  --accent-glow: rgba(123, 47, 255, 0.3);
+}
+[data-accent="green"] {
+  --accent-primary: #00cc44;
+  --accent-glow: rgba(0, 204, 68, 0.3);
+}
+[data-accent="orange"] {
+  --accent-primary: #ff8800;
+  --accent-glow: rgba(255, 136, 0, 0.3);
+}
+[data-accent="pink"] {
+  --accent-primary: #ff2d78;
+  --accent-glow: rgba(255, 45, 120, 0.3);
+}
+[data-accent="cyan"] {
+  --accent-primary: #00b4d8;
+  --accent-glow: rgba(0, 180, 216, 0.3);
+}
+
+/* Dark mode accent overrides — brighter/pastel versions for dark backgrounds */
+.dark[data-accent="blue"],
+[data-theme='dark'][data-accent="blue"] {
+  --accent-primary: #0a84ff;
+  --accent-glow: rgba(10, 132, 255, 0.35);
+}
+.dark[data-accent="purple"],
+[data-theme='dark'][data-accent="purple"] {
+  --accent-primary: #bf5af2;
+  --accent-glow: rgba(191, 90, 242, 0.35);
+}
+.dark[data-accent="green"],
+[data-theme='dark'][data-accent="green"] {
+  --accent-primary: #30d158;
+  --accent-glow: rgba(48, 209, 88, 0.35);
+}
+.dark[data-accent="orange"],
+[data-theme='dark'][data-accent="orange"] {
+  --accent-primary: #ff9f0a;
+  --accent-glow: rgba(255, 159, 10, 0.35);
+}
+.dark[data-accent="pink"],
+[data-theme='dark'][data-accent="pink"] {
+  --accent-primary: #ff6482;
+  --accent-glow: rgba(255, 100, 130, 0.35);
+}
+.dark[data-accent="cyan"],
+[data-theme='dark'][data-accent="cyan"] {
+  --accent-primary: #64d2ff;
+  --accent-glow: rgba(100, 210, 255, 0.35);
+}
+
+/* === SETTINGS PAGE === */
+.settings-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.settings-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius);
+  padding: 24px;
+  box-shadow: var(--shadow);
+}
+
+.settings-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+.settings-section-title .settings-info {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.settings-row-label {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.settings-row-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.settings-tagline {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Toggle switch */
+.toggle-switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-switch label {
+  position: absolute;
+  inset: 0;
+  background: var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.toggle-switch label::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch input:checked + label {
+  background: var(--accent-primary);
+}
+
+.toggle-switch input:checked + label::after {
+  transform: translateX(20px);
+}
+
+/* Accent color circles */
+.accent-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  border: 2px solid transparent;
+}
+
+.accent-circle:hover {
+  transform: scale(1.1);
+}
+
+.accent-circle.selected {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4px var(--accent-primary);
+  transform: scale(1.1);
+}
+
+/* Wallpaper thumbnails */
+.wallpaper-thumb {
+  width: 160px;
+  height: 90px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--bg-hover);
+}
+
+.wallpaper-thumb:hover {
+  transform: scale(1.03);
+}
+
+.wallpaper-thumb.selected {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+/* Settings buttons */
+.settings-button {
+  padding: 10px 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.settings-button:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-primary);
+}
+
+.settings-danger {
+  color: var(--accent-error);
+  border-color: var(--accent-error);
+}
+
+.settings-danger:hover {
+  background: rgba(255, 59, 48, 0.08);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -978,7 +1214,7 @@ body {
 .goal-option:hover,
 .goal-option.selected {
   border-color: var(--accent-primary);
-  background: rgba(0, 113, 227, 0.08);
+  background: color-mix(in srgb, var(--accent-primary) 8%, transparent);
 }
 
 .next-btn {
