@@ -11,6 +11,7 @@ import WelcomeOverlay from './components/WelcomeOverlay';
 import Settings from './components/Settings';
 import { useGateway } from './hooks/useGateway';
 import type { AgentInfo } from './gateway-client';
+import { initTheme, getSavedWallpaper } from './lib/theme';
 
 // Map SDK AgentInfo → UI Agent type
 function mapAgentInfo(info: AgentInfo): Agent {
@@ -63,7 +64,48 @@ export default function App() {
   const [view, setView] = useState<View>('dashboard');
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
-  const [isDark, setIsDark] = useState(false);
+  const [wallpaper, setWallpaper] = useState(() => getSavedWallpaper());
+
+  // Initialize theme system once on mount
+  useEffect(() => {
+    initTheme();
+  }, []);
+
+  // Listen for custom events from Settings
+  useEffect(() => {
+    const onThemeChange = (e: Event) => {
+      const detail = (e as CustomEvent).detail as string;
+      // Settings dispatched event — applyTheme is already called in Settings handleThemeChange,
+      // but we listen here to stay in sync if anything else dispatches
+      if (detail === 'dark') {
+        document.body.classList.add('dark');
+      } else if (detail === 'light') {
+        document.body.classList.remove('dark');
+      } else if (detail === 'system') {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.body.classList.toggle('dark', prefersDark);
+      }
+    };
+
+    const onAccentChange = (e: Event) => {
+      const detail = (e as CustomEvent).detail as string;
+      document.body.setAttribute('data-accent', detail);
+    };
+
+    const onWallpaperChange = (e: Event) => {
+      const detail = (e as CustomEvent).detail as string;
+      setWallpaper(detail);
+    };
+
+    window.addEventListener('conflux:theme-change', onThemeChange);
+    window.addEventListener('conflux:accent-change', onAccentChange);
+    window.addEventListener('conflux:wallpaper-change', onWallpaperChange);
+    return () => {
+      window.removeEventListener('conflux:theme-change', onThemeChange);
+      window.removeEventListener('conflux:accent-change', onAccentChange);
+      window.removeEventListener('conflux:wallpaper-change', onWallpaperChange);
+    };
+  }, []);
 
   // Onboarding state — check localStorage on mount
   const [isOnboarded, setIsOnboarded] = useState(() => {
@@ -115,11 +157,6 @@ export default function App() {
     window.addEventListener('conflux:open-chat', handler);
     return () => window.removeEventListener('conflux:open-chat', handler);
   }, [agents]);
-
-  // Toggle dark mode on body
-  useEffect(() => {
-    document.body.classList.toggle('dark', isDark);
-  }, [isDark]);
 
   // Handle onboarding completion
   const handleOnboardingComplete = useCallback((goals: string[], agentIds: string[]) => {
@@ -203,14 +240,13 @@ export default function App() {
       <TopBar
         selectedAgent={selectedAgent}
         gatewayConnected={connected}
-        isDark={isDark}
-        onToggleTheme={() => setIsDark(d => !d)}
       />
 
       <Desktop
         agents={selectedAgentIds.length > 0 ? filteredAgents : agents}
         selectedAgent={selectedAgent}
         onSelectAgent={handleSelectAgent}
+        wallpaper={wallpaper || undefined}
       />
 
       {/* Backdrop overlay when chat is open */}
