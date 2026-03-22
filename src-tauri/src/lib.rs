@@ -4,7 +4,7 @@
 mod engine;
 
 use std::sync::OnceLock;
-use tauri::Manager;
+use tauri::{Manager, Emitter};
 use serde::{Deserialize, Serialize};
 
 // ── Global Engine Instance ──
@@ -72,6 +72,75 @@ async fn engine_chat(req: ChatRequest) -> Result<ChatResponse, String> {
         latency_ms: response.latency_ms,
         calls_remaining: (limit - calls).max(0),
     })
+}
+
+/// Streaming chat — processes the turn and emits the result via Tauri events.
+/// Uses non-streaming internally (tool calls require it), then emits chunks to simulate streaming.
+/// Events: "engine:thinking" {}, "engine:chunk" { text }, "engine:done" { response }, "engine:error" { message }
+#[tauri::command]
+async fn engine_chat_stream(window: tauri::Window, req: ChatRequest) -> Result<(), String> {
+    let engine = get_engine();
+
+    // Check quota
+    if !engine.has_quota("default").map_err(|e| e.to_string())? {
+        window.emit("engine:error", "Daily free limit reached. Upgrade to Pro for unlimited calls.")
+            .map_err(|e| e.to_string())?;
+        return Err("Daily free limit reached.".to_string());
+    }
+
+    // Notify frontend we're thinking
+    let _ = window.emit("engine:thinking", ());
+
+    // Process the turn (non-streaming — tool calls need full response capture)
+    let result = engine.chat(
+        &req.session_id,
+        &req.agent_id,
+        &req.message,
+        req.max_tokens,
+    ).await;
+
+    match result {
+        Ok(response) => {
+            // Increment quota
+            let calls = engine.increment_quota("default", response.tokens_used, &response.provider_id)
+                .map_err(|e| e.to_string())?;
+
+            let limit: i64 = engine.db().get_config("free_daily_limit")
+                .map_err(|e| e.to_string())?
+                .unwrap_or_else(|| "50".to_string())
+                .parse()
+                .unwrap_or(50);
+
+            // Emit the response in chunks to simulate streaming (better UX)
+            let content = &response.content;
+            let chunk_size = 4; // words per chunk
+            let words: Vec<&str> = content.split_whitespace().collect();
+            for chunk in words.chunks(chunk_size) {
+                let chunk_text = chunk.join(" ") + "";
+                let _ = window.emit("engine:chunk", serde_json::json!({ "text": chunk_text }));
+                // Small delay for streaming feel
+                tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            }
+
+            // Emit completion
+            window.emit("engine:done", serde_json::json!({
+                "content": response.content,
+                "model": response.model,
+                "provider_id": response.provider_id,
+                "provider_name": response.provider_name,
+                "tokens_used": response.tokens_used,
+                "latency_ms": response.latency_ms,
+                "calls_remaining": (limit - calls).max(0),
+            })).map_err(|e| e.to_string())?;
+
+            Ok(())
+        }
+        Err(e) => {
+            let msg = e.to_string();
+            window.emit("engine:error", &msg).map_err(|e| e.to_string())?;
+            Err(msg)
+        }
+    }
 }
 
 #[tauri::command]
@@ -181,6 +250,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             engine_chat,
+            engine_chat_stream,
             engine_create_session,
             engine_get_sessions,
             engine_get_messages,
