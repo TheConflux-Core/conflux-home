@@ -6,7 +6,8 @@ import Taskbar from './components/Taskbar';
 import ChatPanel from './components/ChatPanel';
 import Marketplace from './components/Marketplace';
 import Onboarding from './components/Onboarding';
-import { useGateway, getToken, saveToken } from './hooks/useGateway';
+import WelcomeOverlay from './components/WelcomeOverlay';
+import { useGateway } from './hooks/useGateway';
 import type { AgentInfo } from './gateway-client';
 
 // Map SDK AgentInfo → UI Agent type
@@ -23,88 +24,6 @@ function mapAgentInfo(info: AgentInfo): Agent {
     lastActive: info.lastActive,
     memorySize: info.memorySize,
   };
-}
-
-// ── Token Setup Screen ──
-
-function TokenSetup({ onTokenSaved }: { onTokenSaved: () => void }) {
-  const [tokenInput, setTokenInput] = useState('');
-  const [error, setError] = useState('');
-
-  const handleSave = () => {
-    const trimmed = tokenInput.trim();
-    if (!trimmed) {
-      setError('Please enter a token');
-      return;
-    }
-    saveToken(trimmed);
-    onTokenSaved();
-  };
-
-  return (
-    <div className="desktop-shell" style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}>
-      <div style={{
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border)',
-        borderRadius: 16,
-        padding: 48,
-        maxWidth: 440,
-        width: '100%',
-        textAlign: 'center',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-      }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>⚡</div>
-        <h2 style={{ margin: '0 0 8px', fontSize: 20 }}>Connect to Gateway</h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 24 }}>
-          Enter your OpenClaw gateway token to get started.
-        </p>
-        <input
-          type="password"
-          placeholder="Paste your gateway token..."
-          value={tokenInput}
-          onChange={e => { setTokenInput(e.target.value); setError(''); }}
-          onKeyDown={e => e.key === 'Enter' && handleSave()}
-          style={{
-            width: '100%',
-            padding: '12px 16px',
-            borderRadius: 8,
-            border: '1px solid var(--border)',
-            background: 'var(--bg-input, #1a1a2e)',
-            color: 'var(--text-primary)',
-            fontSize: 14,
-            outline: 'none',
-            boxSizing: 'border-box',
-            marginBottom: 12,
-          }}
-        />
-        {error && (
-          <div style={{ color: 'var(--accent-error, #ff4444)', fontSize: 13, marginBottom: 12 }}>
-            {error}
-          </div>
-        )}
-        <button
-          onClick={handleSave}
-          style={{
-            width: '100%',
-            padding: '12px',
-            borderRadius: 8,
-            border: 'none',
-            background: 'var(--accent-primary, #00d4ff)',
-            color: '#000',
-            fontWeight: 600,
-            fontSize: 14,
-            cursor: 'pointer',
-          }}
-        >
-          Connect
-        </button>
-      </div>
-    </div>
-  );
 }
 
 // ── Connecting Screen ──
@@ -136,15 +55,78 @@ function ConnectingScreen() {
   );
 }
 
+// ── Settings View ──
+
+function SettingsView() {
+  const [resetting, setResetting] = useState(false);
+
+  const handleReset = () => {
+    if (resetting) return;
+    setResetting(true);
+    localStorage.removeItem('conflux-onboarded');
+    localStorage.removeItem('conflux-welcomed');
+    localStorage.removeItem('conflux-goals');
+    localStorage.removeItem('conflux-selected-agents');
+    localStorage.removeItem('conflux-name');
+    localStorage.removeItem('conflux-gateway-url');
+    // Keep gateway token so user doesn't need to re-enter it
+    window.location.reload();
+  };
+
+  return (
+    <div style={{ textAlign: 'center', paddingTop: 100, color: 'var(--text-muted)' }}>
+      <p style={{ fontSize: 48 }}>⚙️</p>
+      <p style={{ marginTop: 16, fontSize: 16 }}>Settings</p>
+      <p style={{ fontSize: 13, marginTop: 8, marginBottom: 32 }}>API keys, model preferences, agent configs</p>
+
+      <button
+        onClick={handleReset}
+        disabled={resetting}
+        style={{
+          padding: '10px 24px',
+          borderRadius: 8,
+          border: '1px solid var(--border)',
+          background: 'var(--bg-card)',
+          color: resetting ? 'var(--text-muted)' : 'var(--accent-error)',
+          fontSize: 14,
+          fontWeight: 500,
+          cursor: resetting ? 'not-allowed' : 'pointer',
+          transition: 'all 0.15s ease',
+        }}
+      >
+        {resetting ? 'Resetting...' : 'Reset Onboarding'}
+      </button>
+    </div>
+  );
+}
+
 // ── Main App ──
 
 export default function App() {
   const [view, setView] = useState<View>('dashboard');
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
-  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
   const [isDark, setIsDark] = useState(false);
-  const [hasToken, setHasToken] = useState(() => !!getToken());
+
+  // Onboarding state — check localStorage on mount
+  const [isOnboarded, setIsOnboarded] = useState(() => {
+    return localStorage.getItem('conflux-onboarded') === 'true';
+  });
+  const [showWelcome, setShowWelcome] = useState(() => {
+    // Show welcome if onboarded but not yet welcomed (returning user, first welcome)
+    const onboarded = localStorage.getItem('conflux-onboarded') === 'true';
+    const welcomed = localStorage.getItem('conflux-welcomed') === 'true';
+    return onboarded && !welcomed;
+  });
+  const [userName, setUserName] = useState(() => localStorage.getItem('conflux-name') || 'there');
+  const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('conflux-selected-agents');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const { client, connected, agents: rawAgents, refresh } = useGateway();
 
@@ -165,6 +147,33 @@ export default function App() {
   useEffect(() => {
     document.body.classList.toggle('dark', isDark);
   }, [isDark]);
+
+  // Handle onboarding completion
+  const handleOnboardingComplete = useCallback((goals: string[], agentIds: string[]) => {
+    localStorage.setItem('conflux-onboarded', 'true');
+    localStorage.setItem('conflux-goals', JSON.stringify(goals));
+    localStorage.setItem('conflux-selected-agents', JSON.stringify(agentIds));
+
+    const name = localStorage.getItem('conflux-name') || 'there';
+    setUserName(name);
+    setSelectedAgentIds(agentIds);
+
+    // Show welcome if not already welcomed
+    const alreadyWelcomed = localStorage.getItem('conflux-welcomed') === 'true';
+    setShowWelcome(!alreadyWelcomed);
+    setIsOnboarded(true);
+  }, []);
+
+  // Handle welcome dismiss
+  const handleWelcomeComplete = useCallback(() => {
+    setShowWelcome(false);
+  }, []);
+
+  // Filter agents by selectedAgentIds if set
+  const filteredAgents = useMemo(() => {
+    if (selectedAgentIds.length === 0) return agents;
+    return agents.filter(a => selectedAgentIds.includes(a.id));
+  }, [agents, selectedAgentIds]);
 
   const handleSelectAgent = useCallback((agent: Agent | null) => {
     setSelectedAgent(agent);
@@ -190,23 +199,23 @@ export default function App() {
     }
   }, [agents, selectedAgent]);
 
-  const handleTokenSaved = useCallback(() => {
-    setHasToken(true);
-    // Gateway hook will pick up the token from localStorage on next render
-    window.location.reload();
-  }, []);
-
-  // Gate: no token → show setup screen
-  if (!hasToken) {
-    return <TokenSetup onTokenSaved={handleTokenSaved} />;
+  // ── Gate: Onboarding ──
+  if (!isOnboarded) {
+    return <Onboarding onComplete={handleOnboardingComplete} />;
   }
 
-  // Gate: onboarding
-  if (!hasCompletedOnboarding) {
-    return <Onboarding onComplete={() => setHasCompletedOnboarding(true)} />;
+  // ── Gate: Welcome overlay ──
+  if (showWelcome) {
+    return (
+      <WelcomeOverlay
+        userName={userName}
+        selectedAgentIds={selectedAgentIds}
+        onComplete={handleWelcomeComplete}
+      />
+    );
   }
 
-  // Gate: not connected to gateway yet → show connecting screen
+  // ── Gate: not connected to gateway yet → show connecting screen ──
   if (!connected) {
     return <ConnectingScreen />;
   }
@@ -226,7 +235,7 @@ export default function App() {
       />
 
       <Desktop
-        agents={agents}
+        agents={selectedAgentIds.length > 0 ? filteredAgents : agents}
         selectedAgent={selectedAgent}
         onSelectAgent={handleSelectAgent}
       />
@@ -251,7 +260,7 @@ export default function App() {
               Your AI Family
             </h3>
             <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-              {agents.filter(a => a.status === 'working' || a.status === 'thinking').length} agents working
+              {(selectedAgentIds.length > 0 ? filteredAgents : agents).filter(a => a.status === 'working' || a.status === 'thinking').length} agents working
               right now. Click any agent on the desktop to chat.
             </p>
           </div>
@@ -297,11 +306,7 @@ export default function App() {
 
       {showSettingsOverlay && (
         <div className="content-overlay">
-          <div style={{ textAlign: 'center', paddingTop: 100, color: 'var(--text-muted)' }}>
-            <p style={{ fontSize: 48 }}>⚙️</p>
-            <p style={{ marginTop: 16, fontSize: 16 }}>Settings coming soon</p>
-            <p style={{ fontSize: 13, marginTop: 8 }}>API keys, model preferences, agent configs</p>
-          </div>
+          <SettingsView />
         </div>
       )}
 
