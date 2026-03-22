@@ -25,6 +25,12 @@ pub async fn execute_tool(tool_name: &str, args: &Value) -> Result<ToolResult> {
         "time" => execute_time(),
         "memory_read" => execute_memory_read(args).await,
         "memory_write" => execute_memory_write(args).await,
+        // Google Workspace tools
+        "google_auth" | "gmail_send" | "gmail_search" | "google_drive_list" |
+        "google_doc_read" | "google_doc_write" | "google_sheet_read" | "google_sheet_write" => {
+            let engine = super::get_engine();
+            super::google::execute_google_tool(tool_name, args, engine.db()).await
+        }
         _ => Ok(ToolResult {
             success: false,
             output: String::new(),
@@ -99,6 +105,113 @@ pub fn get_tool_definitions() -> Vec<Value> {
                 "name": "time",
                 "description": "Get the current date and time",
                 "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        // ── Google Workspace Tools ──
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "gmail_send",
+                "description": "Send an email via Gmail",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "to": { "type": "string", "description": "Recipient email address" },
+                        "subject": { "type": "string", "description": "Email subject" },
+                        "body": { "type": "string", "description": "Email body text" }
+                    },
+                    "required": ["to", "subject", "body"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "gmail_search",
+                "description": "Search Gmail messages",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": { "type": "string", "description": "Gmail search query (same syntax as Gmail search)" },
+                        "max_results": { "type": "integer", "description": "Max results to return (default 5)" }
+                    },
+                    "required": ["query"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "google_drive_list",
+                "description": "List files in Google Drive",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": { "type": "string", "description": "Drive search query (e.g., \"name contains 'report'\")" },
+                        "max_results": { "type": "integer", "description": "Max files to list (default 10)" }
+                    },
+                    "required": []
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "google_doc_read",
+                "description": "Read the content of a Google Doc",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "document_id": { "type": "string", "description": "The Google Doc document ID (from the URL)" }
+                    },
+                    "required": ["document_id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "google_doc_write",
+                "description": "Append text to a Google Doc",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "document_id": { "type": "string", "description": "The Google Doc document ID" },
+                        "content": { "type": "string", "description": "Text to append to the document" }
+                    },
+                    "required": ["document_id", "content"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "google_sheet_read",
+                "description": "Read values from a Google Sheet",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "spreadsheet_id": { "type": "string", "description": "The spreadsheet ID (from the URL)" },
+                        "range": { "type": "string", "description": "A1 notation range (e.g., 'Sheet1!A1:C10')" }
+                    },
+                    "required": ["spreadsheet_id", "range"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "google_sheet_write",
+                "description": "Write values to a Google Sheet",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "spreadsheet_id": { "type": "string", "description": "The spreadsheet ID" },
+                        "range": { "type": "string", "description": "A1 notation range (e.g., 'Sheet1!A1')" },
+                        "values": { "type": "array", "description": "2D array of values to write" }
+                    },
+                    "required": ["spreadsheet_id", "range", "values"]
+                }
             }
         }),
     ]

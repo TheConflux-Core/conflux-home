@@ -240,6 +240,21 @@ CREATE TABLE IF NOT EXISTS providers (
 CREATE INDEX IF NOT EXISTS idx_providers_alias ON providers(model_alias);
 CREATE INDEX IF NOT EXISTS idx_providers_enabled ON providers(is_enabled);
 
+-- ============================================================
+-- GOOGLE OAUTH — Token Storage
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS google_tokens (
+    id              TEXT PRIMARY KEY DEFAULT 'default',
+    access_token    TEXT NOT NULL,
+    refresh_token   TEXT NOT NULL,
+    expires_at      TEXT NOT NULL,              -- ISO-8601 when access_token expires
+    scope           TEXT,                        -- granted scopes
+    email           TEXT,                        -- user's email once known
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
 -- Default config values
 INSERT OR IGNORE INTO config (key, value) VALUES
     ('engine_version', '1.0.0'),
