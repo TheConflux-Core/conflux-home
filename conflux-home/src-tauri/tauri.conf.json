@@ -1,8 +1,8 @@
 {
-  "$schema": "https://schema.tauri.app/config/2",
+  "$schema": "https://raw.githubusercontent.com/nicehash/tauri-schema/v2/schema.json",
   "productName": "Conflux Home",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "com.conflux.home",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -13,25 +13,38 @@
     "windows": [
       {
         "title": "Conflux Home — Your AI Family",
-        "width": 800,
-        "height": 600,
+        "width": 1280,
+        "height": 800,
+        "minWidth": 1024,
+        "minHeight": 700,
+        "center": true,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "decorations": true,
+        "transparent": false
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; connect-src 'self' http://localhost:18789 ws://localhost:18789; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; script-src 'self' 'unsafe-inline'"
     }
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["deb", "appimage"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "linux": {
+      "deb": {
+        "depends": []
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    }
   }
 }
