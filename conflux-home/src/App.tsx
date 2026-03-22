@@ -8,6 +8,7 @@ import Marketplace from './components/Marketplace';
 import AgentDetail from './components/AgentDetail';
 import Onboarding from './components/Onboarding';
 import WelcomeOverlay from './components/WelcomeOverlay';
+import Settings from './components/Settings';
 import { useGateway } from './hooks/useGateway';
 import type { AgentInfo } from './gateway-client';
 
@@ -52,51 +53,6 @@ function ConnectingScreen() {
         <div style={{ fontSize: 48, marginBottom: 16 }}>⚡</div>
         <div style={{ fontSize: 18 }}>Connecting to gateway{dots}</div>
       </div>
-    </div>
-  );
-}
-
-// ── Settings View ──
-
-function SettingsView() {
-  const [resetting, setResetting] = useState(false);
-
-  const handleReset = () => {
-    if (resetting) return;
-    setResetting(true);
-    localStorage.removeItem('conflux-onboarded');
-    localStorage.removeItem('conflux-welcomed');
-    localStorage.removeItem('conflux-goals');
-    localStorage.removeItem('conflux-selected-agents');
-    localStorage.removeItem('conflux-name');
-    localStorage.removeItem('conflux-gateway-url');
-    // Keep gateway token so user doesn't need to re-enter it
-    window.location.reload();
-  };
-
-  return (
-    <div style={{ textAlign: 'center', paddingTop: 100, color: 'var(--text-muted)' }}>
-      <p style={{ fontSize: 48 }}>⚙️</p>
-      <p style={{ marginTop: 16, fontSize: 16 }}>Settings</p>
-      <p style={{ fontSize: 13, marginTop: 8, marginBottom: 32 }}>API keys, model preferences, agent configs</p>
-
-      <button
-        onClick={handleReset}
-        disabled={resetting}
-        style={{
-          padding: '10px 24px',
-          borderRadius: 8,
-          border: '1px solid var(--border)',
-          background: 'var(--bg-card)',
-          color: resetting ? 'var(--text-muted)' : 'var(--accent-error)',
-          fontSize: 14,
-          fontWeight: 500,
-          cursor: resetting ? 'not-allowed' : 'pointer',
-          transition: 'all 0.15s ease',
-        }}
-      >
-        {resetting ? 'Resetting...' : 'Reset Onboarding'}
-      </button>
     </div>
   );
 }
@@ -323,7 +279,7 @@ export default function App() {
 
       {showSettingsOverlay && (
         <div className="content-overlay">
-          <SettingsView />
+          <Settings />
         </div>
       )}
 
