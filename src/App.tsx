@@ -21,6 +21,7 @@ import ParentDashboard from './components/ParentDashboard';
 import VoiceChat from './components/VoiceChat';
 import KitchenView from './components/KitchenView';
 import BudgetView from './components/BudgetView';
+import FeedView from './components/FeedView';
 import { useEngine } from './hooks/useEngine';
 import { useConfluxChat } from './hooks/useConfluxChat';
 import { useToast } from './hooks/useToast';
@@ -525,6 +526,13 @@ export default function App() {
       {view === 'budget' && (
         <div className="content-overlay">
           <BudgetView />
+        </div>
+      )}
+
+      {/* Feed View */}
+      {view === 'feed' && (
+        <div className="content-overlay">
+          <FeedView />
         </div>
       )}
 

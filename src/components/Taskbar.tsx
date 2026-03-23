@@ -12,6 +12,7 @@ const ITEMS: { view: View; icon: string; label: string }[] = [
   { view: 'games', icon: '📖', label: 'Games' },
   { view: 'kitchen', icon: '🍳', label: 'Kitchen' },
   { view: 'budget', icon: '💰', label: 'Budget' },
+  { view: 'feed', icon: '📰', label: 'Feed' },
   { view: 'marketplace', icon: '🛒', label: 'Market' },
   { view: 'settings', icon: '⚙️', label: 'Settings' },
 ];
