@@ -159,6 +159,64 @@ CREATE TABLE IF NOT EXISTS cron_jobs (
 CREATE INDEX IF NOT EXISTS idx_cron_enabled ON cron_jobs(is_enabled);
 CREATE INDEX IF NOT EXISTS idx_cron_next_run ON cron_jobs(next_run_at) WHERE is_enabled = 1;
 
+-- Add run tracking columns
+ALTER TABLE cron_jobs ADD COLUMN last_run_status TEXT DEFAULT NULL;
+ALTER TABLE cron_jobs ADD COLUMN last_run_tokens INTEGER DEFAULT 0;
+ALTER TABLE cron_jobs ADD COLUMN last_run_error TEXT DEFAULT NULL;
+
+-- ============================================================
+-- WEBHOOKS — External Triggers
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS webhooks (
+    id              TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    agent_id        TEXT NOT NULL REFERENCES agents(id),
+    path            TEXT NOT NULL UNIQUE,       -- URL path: /webhook/order-received
+    secret          TEXT,                       -- optional auth token for verification
+    task_template   TEXT NOT NULL,              -- message template, {{body}} gets JSON payload
+    is_enabled      INTEGER NOT NULL DEFAULT 1,
+    call_count      INTEGER NOT NULL DEFAULT 0,
+    last_called_at  TEXT,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhooks_path ON webhooks(path);
+CREATE INDEX IF NOT EXISTS idx_webhooks_agent ON webhooks(agent_id);
+
+-- ============================================================
+-- EVENT BUS — Internal Agent Pub/Sub
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS events (
+    id              TEXT PRIMARY KEY,
+    event_type      TEXT NOT NULL,              -- 'task_completed', 'agent_error', 'cron_fired', etc.
+    source_agent    TEXT REFERENCES agents(id),
+    target_agent    TEXT REFERENCES agents(id),  -- NULL = broadcast
+    payload         TEXT,                        -- JSON
+    processed       INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type);
+CREATE INDEX IF NOT EXISTS idx_events_target ON events(target_agent) WHERE processed = 0;
+CREATE INDEX IF NOT EXISTS idx_events_unprocessed ON events(processed) WHERE processed = 0;
+
+-- ============================================================
+-- HEARTBEAT — System Health Checks
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS heartbeats (
+    id              TEXT PRIMARY KEY,
+    check_name      TEXT NOT NULL,              -- 'db_health', 'provider_health', 'scheduler_health'
+    status          TEXT NOT NULL,              -- 'ok' | 'warning' | 'error'
+    details         TEXT,                       -- JSON: latency, error message, etc.
+    checked_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_heartbeats_name ON heartbeats(check_name, checked_at DESC);
+
 -- ============================================================
 -- MISSIONS — Task Orchestration
 -- ============================================================

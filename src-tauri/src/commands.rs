@@ -492,6 +492,136 @@ pub fn engine_get_lessons(category: Option<String>) -> Result<serde_json::Value,
     Ok(serde_json::to_value(lessons).map_err(|e| e.to_string())?)
 }
 
+// ── Cron Jobs ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateCronRequest {
+    pub name: String,
+    pub agent_id: String,
+    pub schedule: String,
+    pub timezone: Option<String>,
+    pub task_message: String,
+}
+
+#[tauri::command]
+pub fn engine_create_cron(req: CreateCronRequest) -> Result<String, String> {
+    let engine = engine::get_engine();
+    engine.create_cron_job(
+        &req.name, &req.agent_id, &req.schedule,
+        &req.timezone.unwrap_or_else(|| "UTC".to_string()),
+        &req.task_message,
+    ).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_get_crons(enabled_only: Option<bool>) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let jobs = engine.get_cron_jobs(enabled_only.unwrap_or(false)).map_err(|e| e.to_string())?;
+
+    // Enrich with human-readable schedule descriptions
+    let enriched: Vec<serde_json::Value> = jobs.into_iter().map(|j| {
+        serde_json::json!({
+            "id": j.id, "name": j.name, "agent_id": j.agent_id,
+            "schedule": j.schedule,
+            "schedule_description": engine::cron::describe(&j.schedule),
+            "timezone": j.timezone, "task_message": j.task_message,
+            "is_enabled": j.is_enabled,
+            "last_run_at": j.last_run_at, "next_run_at": j.next_run_at,
+            "run_count": j.run_count, "error_count": j.error_count,
+            "created_at": j.created_at, "updated_at": j.updated_at,
+        })
+    }).collect();
+
+    Ok(serde_json::to_value(enriched).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub fn engine_toggle_cron(id: String, enabled: bool) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.toggle_cron_job(&id, enabled).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_delete_cron(id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.delete_cron_job(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn engine_tick_cron() -> Result<i64, String> {
+    let engine = engine::get_engine();
+    engine.tick_cron().await.map_err(|e| e.to_string())
+}
+
+// ── Webhooks ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateWebhookRequest {
+    pub name: String,
+    pub agent_id: String,
+    pub path: String,
+    pub secret: Option<String>,
+    pub task_template: String,
+}
+
+#[tauri::command]
+pub fn engine_create_webhook(req: CreateWebhookRequest) -> Result<String, String> {
+    let engine = engine::get_engine();
+    engine.create_webhook(
+        &req.name, &req.agent_id, &req.path,
+        req.secret.as_deref(), &req.task_template,
+    ).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_get_webhooks() -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let hooks = engine.get_webhooks().map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(hooks).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub fn engine_delete_webhook(id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.delete_webhook(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn engine_handle_webhook(path: String, body: String, auth: Option<String>) -> Result<String, String> {
+    let engine = engine::get_engine();
+    engine.handle_webhook(&path, &body, auth.as_deref()).await.map_err(|e| e.to_string())
+}
+
+// ── Events ──
+
+#[tauri::command]
+pub fn engine_get_events(target_agent: Option<String>) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let events = engine.get_unprocessed_events(target_agent.as_deref()).map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(events).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub fn engine_mark_event_processed(id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.mark_event_processed(&id).map_err(|e| e.to_string())
+}
+
+// ── Heartbeats ──
+
+#[tauri::command]
+pub fn engine_run_health_checks() -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    engine.run_health_checks().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_get_heartbeats() -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let records = engine.get_latest_heartbeats().map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(records).map_err(|e| e.to_string())?)
+}
+
 // ── Google Commands ──
 
 #[tauri::command]
