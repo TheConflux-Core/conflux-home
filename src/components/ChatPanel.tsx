@@ -65,7 +65,35 @@ export default function ChatPanel({ agent, isOpen, onClose }: ChatPanelProps) {
     return () => window.removeEventListener('keydown', handler);
   }, [isOpen, onClose]);
 
-  if (!agent) return null;
+  if (!agent) {
+    return (
+      <div className={`chat-panel ${isOpen ? 'open' : ''}`}>
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          height: '100%', gap: 16, padding: 40, textAlign: 'center',
+        }}>
+          <div style={{ fontSize: 48 }}>💬</div>
+          <h3 style={{ color: '#fff', fontSize: 18, fontWeight: 600 }}>No Agent Selected</h3>
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, maxWidth: 280 }}>
+            Install an agent from the Agent Library to start chatting.
+          </p>
+          <button
+            onClick={() => {
+              onClose();
+              window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: 'agents' }));
+            }}
+            style={{
+              marginTop: 12, padding: '10px 24px', borderRadius: 10,
+              background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.3)',
+              color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+            }}
+          >
+            Browse Agents →
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`chat-panel ${isOpen ? 'open' : ''}`}>
