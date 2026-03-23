@@ -26,6 +26,7 @@ import LifeAutopilotView from './components/LifeAutopilotView';
 import HomeHealthView from './components/HomeHealthView';
 import DreamBuilderView from './components/DreamBuilderView';
 import AgentDiaryView from './components/AgentDiaryView';
+import ImmersiveView from './components/ImmersiveView';
 import { useEngine } from './hooks/useEngine';
 import { useConfluxChat } from './hooks/useConfluxChat';
 import { useToast } from './hooks/useToast';
@@ -35,6 +36,22 @@ import { useLearningProgress, useLearningGoals } from './hooks/useLearning';
 import { initTheme, getSavedWallpaper } from './lib/theme';
 import { registerShortcuts } from './lib/shortcuts';
 import './styles/animations.css';
+
+// Background images for immersive views
+const VIEW_BACKGROUNDS: Record<string, string> = {
+  kitchen: '/backgrounds/kitchen-bg.png',
+  budget: '/backgrounds/budget-bg.png',
+  life: '/backgrounds/life-bg.png',
+  home: '/backgrounds/home-bg.png',
+  dreams: '/backgrounds/dreams-bg.png',
+  diary: '/backgrounds/diary-bg.png',
+  agents: '/backgrounds/agents-bg.png',
+  games: '/backgrounds/games-bg.png',
+  feed: '/backgrounds/feed-bg.png',
+  marketplace: '/backgrounds/marketplace-bg.png',
+  settings: '/backgrounds/settings-bg.png',
+  dashboard: '/backgrounds/dashboard-bg.png',
+};
 
 // Default wallpapers
 function getDefaultWallpaper(): string {
@@ -49,6 +66,7 @@ function getDefaultWallpaper(): string {
 
 export default function App() {
   const [view, setView] = useState<View>('dashboard');
+  const [immersiveView, setImmersiveView] = useState<View | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [voiceChatOpen, setVoiceChatOpen] = useState(false);
@@ -306,11 +324,16 @@ export default function App() {
 
   const handleNavigate = useCallback((v: View) => {
     setView(v);
-    if (v === 'chat' && !selectedAgent) {
-      // Auto-select first active agent when navigating to chat
-      const active = agents.find(a => a.status !== 'offline');
-      if (active) setSelectedAgent(active);
+    if (v === 'chat') {
+      if (!selectedAgent) {
+        // Auto-select first active agent when navigating to chat
+        const active = agents.find(a => a.status !== 'offline');
+        if (active) setSelectedAgent(active);
+      }
       setChatOpen(true);
+    } else {
+      // Open immersive view for all other navigation
+      setImmersiveView(v);
     }
   }, [agents, selectedAgent]);
 
@@ -357,11 +380,6 @@ export default function App() {
     );
   }
 
-  // Determine if we're showing an overlay view
-  const showDashboardOverlay = view === 'dashboard';
-  const showMarketplaceOverlay = view === 'marketplace';
-  const showSettingsOverlay = view === 'settings';
-
   return (
     <div className="desktop-shell">
       <TopBar
@@ -371,9 +389,8 @@ export default function App() {
 
       <Desktop
         agents={selectedAgentIds.length > 0 ? filteredAgents : agents}
-        selectedAgent={selectedAgent}
-        onSelectAgent={handleSelectAgent}
         wallpaper={wallpaper || undefined}
+        onNavigate={(v) => setImmersiveView(v)}
       />
 
       {/* Family Switcher — below TopBar, above content */}
@@ -385,6 +402,174 @@ export default function App() {
           onAddClick={() => setShowFamilySetup(true)}
           onProgressClick={(memberId) => setDashboardMemberId(memberId)}
         />
+      )}
+
+      {/* Immersive full-screen view — wraps app content with custom background */}
+      {immersiveView && (
+        <ImmersiveView
+          view={immersiveView}
+          backgroundUrl={VIEW_BACKGROUNDS[immersiveView] || '/backgrounds/dashboard-bg.png'}
+          onClose={() => setImmersiveView(null)}
+        >
+          {immersiveView === 'kitchen' && <KitchenView />}
+          {immersiveView === 'budget' && <BudgetView />}
+          {immersiveView === 'feed' && <FeedView />}
+          {immersiveView === 'life' && <LifeAutopilotView />}
+          {immersiveView === 'home' && <HomeHealthView />}
+          {immersiveView === 'dreams' && <DreamBuilderView />}
+          {immersiveView === 'diary' && <AgentDiaryView />}
+          {immersiveView === 'marketplace' && <Marketplace />}
+          {immersiveView === 'settings' && <Settings />}
+          {immersiveView === 'agents' && (
+            <div>
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <div>
+                    <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+                      🧩 Agent Library
+                    </h3>
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                      {activeMember
+                        ? `Age-appropriate agents for ${activeMember.name}`
+                        : 'Browse and install agent templates for your family'}
+                    </p>
+                  </div>
+                </div>
+                <AgentTemplateBrowser
+                  member={activeMember ?? null}
+                  onClose={() => setImmersiveView(null)}
+                  onInstalled={() => refresh()}
+                />
+              </div>
+            </div>
+          )}
+          {immersiveView === 'dashboard' && (
+            <div>
+              <h3 style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                Your AI Family
+              </h3>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 24 }}>
+                {(selectedAgentIds.length > 0 ? filteredAgents : agents).filter(a => a.status === 'working' || a.status === 'thinking').length} agents working
+                right now. Click any agent on the desktop to chat.
+              </p>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                gap: 16,
+                marginBottom: 24,
+              }}>
+                {[
+                  { label: 'Active Agents', value: liveAgents, emoji: '🤖', sub: 'online now' },
+                  { label: 'Products Built', value: '12', emoji: '📦', sub: 'across all niches' },
+                  { label: 'Missions Done', value: '14', emoji: '🎯', sub: 'completed' },
+                  { label: 'Engine Health', value: engineHealthy ? 'Healthy' : 'Check', emoji: engineHealthy ? '💚' : '⚠️', sub: 'all systems' },
+                ].map((stat) => (
+                  <div key={stat.label} style={{
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 14,
+                    padding: 20,
+                    textAlign: 'center',
+                    boxShadow: 'var(--shadow)',
+                  }}>
+                    <div style={{ fontSize: 24, marginBottom: 8 }}>{stat.emoji}</div>
+                    <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--accent-primary)' }}>
+                      {stat.value}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                      {stat.label}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, opacity: 0.7 }}>
+                      {stat.sub}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {immersiveView === 'games' && !activeGameId && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                  <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+                    📖 Conflux Stories
+                  </h3>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                    AI-generated interactive adventure puzzle games
+                  </p>
+                </div>
+                <button
+                  className="btn-primary"
+                  onClick={() => setShowGameLauncher(true)}
+                  style={{ padding: '10px 20px', borderRadius: 10, fontWeight: 600 }}
+                >
+                  + New Story
+                </button>
+              </div>
+              {storyGames.length > 0 ? (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                  gap: 16,
+                }}>
+                  {storyGames.map(game => (
+                    <div
+                      key={game.id}
+                      style={{
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 14,
+                        padding: 20,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onClick={() => setActiveGameId(game.id)}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 8 }}>
+                        <span style={{ fontSize: 24 }}>
+                          {game.genre === 'adventure' ? '⚔️' : game.genre === 'mystery' ? '🔍' : game.genre === 'fantasy' ? '🐉' : game.genre === 'scifi' ? '🚀' : '👻'}
+                        </span>
+                        <span style={{
+                          fontSize: 11, padding: '3px 8px', borderRadius: 6,
+                          background: game.status === 'active' ? 'var(--accent-success)' + '20' : 'var(--text-muted)' + '20',
+                          color: game.status === 'active' ? 'var(--accent-success)' : 'var(--text-muted)',
+                        }}>
+                          {game.status}
+                        </span>
+                      </div>
+                      <h4 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)' }}>
+                        {game.title}
+                      </h4>
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        Chapter {game.current_chapter} • {game.genre} • {game.difficulty}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{
+                  textAlign: 'center', padding: 60, color: 'var(--text-muted)',
+                  background: 'var(--bg-card)', borderRadius: 14, border: '1px solid var(--border)',
+                }}>
+                  <div style={{ fontSize: 48, marginBottom: 16 }}>📖</div>
+                  <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: 'var(--text-primary)' }}>
+                    No stories yet
+                  </h3>
+                  <p style={{ fontSize: 13, marginBottom: 20 }}>
+                    Start your first interactive adventure!
+                  </p>
+                  <button
+                    className="btn-primary"
+                    onClick={() => setShowGameLauncher(true)}
+                    style={{ padding: '10px 24px', borderRadius: 10, fontWeight: 600 }}
+                  >
+                    Browse Stories →
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </ImmersiveView>
       )}
 
       {/* Backdrop overlay when chat is open */}
@@ -406,294 +591,6 @@ export default function App() {
           onSendMessage={handleVoiceSend}
           onClose={handleCloseChat}
         />
-      )}
-
-      {/* Overlay views */}
-      {showDashboardOverlay && (
-        <div className="content-overlay">
-          <div style={{ marginBottom: 24 }}>
-            <h3 style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 4 }}>
-              Your AI Family
-            </h3>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-              {(selectedAgentIds.length > 0 ? filteredAgents : agents).filter(a => a.status === 'working' || a.status === 'thinking').length} agents working
-              right now. Click any agent on the desktop to chat.
-            </p>
-          </div>
-
-          {/* Quick Stats — Live Data */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-            gap: 16,
-            marginBottom: 24,
-          }}>
-            {[
-              { label: 'Active Agents', value: liveAgents, emoji: '🤖', sub: 'online now' },
-              { label: 'Products Built', value: '12', emoji: '📦', sub: 'across all niches' },
-              { label: 'Missions Done', value: '14', emoji: '🎯', sub: 'completed' },
-              { label: 'Engine Health', value: engineHealthy ? 'Healthy' : 'Check', emoji: engineHealthy ? '💚' : '⚠️', sub: 'all systems' },
-            ].map((stat) => (
-              <div key={stat.label} style={{
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border)',
-                borderRadius: 14,
-                padding: 20,
-                textAlign: 'center',
-                boxShadow: 'var(--shadow)',
-                transition: 'border-color 0.2s',
-              }}
-              onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent-primary)')}
-              onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
-              >
-                <div style={{ fontSize: 24, marginBottom: 8 }}>{stat.emoji}</div>
-                <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--accent-primary)' }}>
-                  {stat.value}
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                  {stat.label}
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, opacity: 0.7 }}>
-                  {stat.sub}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Quick Actions */}
-          <h3 style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 12 }}>
-            Quick Actions
-          </h3>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-            gap: 12,
-          }}>
-            {[
-              { label: 'View Tasks', emoji: '📋', view: 'settings' },
-              { label: 'Browse Skills', emoji: '🧩', view: 'settings' },
-              { label: 'Schedule Job', emoji: '🕐', view: 'settings' },
-              { label: 'Marketplace', emoji: '🛒', view: 'marketplace' },
-            ].map((action) => (
-              <button
-                key={action.label}
-                onClick={() => {
-                  window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: action.view }));
-                }}
-                style={{
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 12,
-                  padding: '16px 12px',
-                  cursor: 'pointer',
-                  textAlign: 'center',
-                  color: 'var(--text-primary)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  transition: 'all 0.15s ease',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.borderColor = 'var(--border)';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }}
-              >
-                <span style={{ fontSize: 24 }}>{action.emoji}</span>
-                {action.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {showMarketplaceOverlay && (
-        <div className="content-overlay">
-          <Marketplace />
-        </div>
-      )}
-
-      {/* Kitchen View */}
-      {view === 'kitchen' && (
-        <div className="content-overlay">
-          <KitchenView />
-        </div>
-      )}
-
-      {/* Budget View */}
-      {view === 'budget' && (
-        <div className="content-overlay">
-          <BudgetView />
-        </div>
-      )}
-
-      {/* Feed View */}
-      {view === 'feed' && (
-        <div className="content-overlay">
-          <FeedView />
-        </div>
-      )}
-
-      {/* Life Autopilot View */}
-      {view === 'life' && (
-        <div className="content-overlay">
-          <LifeAutopilotView />
-        </div>
-      )}
-
-      {/* Home Health View */}
-      {view === 'home' && (
-        <div className="content-overlay">
-          <HomeHealthView />
-        </div>
-      )}
-
-      {/* Dream Builder View */}
-      {view === 'dreams' && (
-        <div className="content-overlay">
-          <DreamBuilderView />
-        </div>
-      )}
-
-      {/* Agent Diary View */}
-      {view === 'diary' && (
-        <div className="content-overlay">
-          <AgentDiaryView />
-        </div>
-      )}
-
-      {showSettingsOverlay && (
-        <div className="content-overlay">
-          <Settings />
-        </div>
-      )}
-
-      {/* Agents Library View */}
-      {view === 'agents' && (
-        <div className="content-overlay">
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div>
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-                  🧩 Agent Library
-                </h3>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                  {activeMember
-                    ? `Age-appropriate agents for ${activeMember.name}`
-                    : 'Browse and install agent templates for your family'}
-                </p>
-              </div>
-            </div>
-
-            <AgentTemplateBrowser
-              member={activeMember ?? null}
-              onClose={() => setView('dashboard')}
-              onInstalled={() => refresh()}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Games View */}
-      {view === 'games' && !activeGameId && (
-        <div className="content-overlay">
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div>
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-                  📖 Conflux Stories
-                </h3>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                  AI-generated interactive adventure puzzle games
-                </p>
-              </div>
-              <button
-                className="btn-primary"
-                onClick={() => setShowGameLauncher(true)}
-                style={{ padding: '10px 20px', borderRadius: 10, fontWeight: 600 }}
-              >
-                + New Story
-              </button>
-            </div>
-
-            {/* Active Games */}
-            {storyGames.length > 0 ? (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                gap: 16,
-              }}>
-                {storyGames.map(game => (
-                  <div
-                    key={game.id}
-                    style={{
-                      background: 'var(--bg-card)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 14,
-                      padding: 20,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
-                    onClick={() => setActiveGameId(game.id)}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.borderColor = 'var(--accent-primary)';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.borderColor = 'var(--border)';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 8 }}>
-                      <span style={{ fontSize: 24 }}>
-                        {game.genre === 'adventure' ? '⚔️' : game.genre === 'mystery' ? '🔍' : game.genre === 'fantasy' ? '🐉' : game.genre === 'scifi' ? '🚀' : '👻'}
-                      </span>
-                      <span style={{
-                        fontSize: 11, padding: '3px 8px', borderRadius: 6,
-                        background: game.status === 'active' ? 'var(--accent-success)' + '20' : 'var(--text-muted)' + '20',
-                        color: game.status === 'active' ? 'var(--accent-success)' : 'var(--text-muted)',
-                      }}>
-                        {game.status}
-                      </span>
-                    </div>
-                    <h4 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)' }}>
-                      {game.title}
-                    </h4>
-                    <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                      Chapter {game.current_chapter} • {game.genre} • {game.difficulty}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{
-                textAlign: 'center', padding: 60, color: 'var(--text-muted)',
-                background: 'var(--bg-card)', borderRadius: 14, border: '1px solid var(--border)',
-              }}>
-                <div style={{ fontSize: 48, marginBottom: 16 }}>📖</div>
-                <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: 'var(--text-primary)' }}>
-                  No stories yet
-                </h3>
-                <p style={{ fontSize: 13, marginBottom: 20 }}>
-                  Start your first interactive adventure!
-                </p>
-                <button
-                  className="btn-primary"
-                  onClick={() => setShowGameLauncher(true)}
-                  style={{ padding: '10px 24px', borderRadius: 10, fontWeight: 600 }}
-                >
-                  Browse Stories →
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
       )}
 
       {/* Story Game Reader — full screen overlay when playing */}
