@@ -3,6 +3,7 @@
 
 use tauri::{Manager, Emitter};
 use serde::{Deserialize, Serialize};
+use chrono::Datelike;
 use super::engine;
 
 // ── Request/Response Types ──
@@ -1983,10 +1984,11 @@ pub fn fridge_shopping_for_meals() -> Result<Vec<engine::types::GroceryItem>, St
 pub async fn life_analyze_document(text: String, doc_type: Option<String>) -> Result<engine::types::LifeDocument, String> {
     let engine = engine::get_engine();
 
+    let doc_type_str = doc_type.as_deref().unwrap_or("unknown");
     let prompt = format!(
         "You are a family document analysis AI. Analyze this document and extract key information:
 
-Document type: {doc_type}
+Document type: {doc_type_str}
 Content: {text}
 
 Extract:
@@ -2046,9 +2048,9 @@ Be thorough but concise. Extract EVERY date and action item mentioned."
         tags: Vec<String>,
         knowledge: Vec<KnowledgeItem>,
     }
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, serde::Serialize)]
     struct DateItem { date: String, description: String, #[serde(rename = "type")] dtype: String }
-    #[derive(serde::Deserialize)]
+    #[derive(serde::Deserialize, serde::Serialize)]
     struct ActionItem { action: String, deadline: Option<String>, priority: Option<String> }
     #[derive(serde::Deserialize)]
     struct KnowledgeItem { category: String, key: String, value: String }
@@ -2173,4 +2175,188 @@ Provide a helpful, specific answer based on the information above. If you don't 
         .map_err(|e| format!("AI failed: {}", e))?;
 
     Ok(response.content)
+}
+// ── Home Health ──
+
+#[tauri::command]
+pub fn home_upsert_profile(id: String, address: Option<String>, year_built: Option<i64>, square_feet: Option<i64>,
+    hvac_type: Option<String>, hvac_filter_size: Option<String>, water_heater_type: Option<String>,
+    roof_type: Option<String>, window_type: Option<String>, insulation_type: Option<String>) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().upsert_home_profile(&id, address.as_deref(), year_built, square_feet,
+        hvac_type.as_deref(), hvac_filter_size.as_deref(), water_heater_type.as_deref(),
+        roof_type.as_deref(), window_type.as_deref(), insulation_type.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn home_get_dashboard() -> Result<engine::types::HomeDashboard, String> {
+    let engine = engine::get_engine();
+    engine.db().get_home_dashboard().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn home_add_bill(id: String, bill_type: String, amount: f64, usage: Option<f64>, billing_month: String, notes: Option<String>) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().add_home_bill(&id, &bill_type, amount, usage, &billing_month, notes.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn home_get_bills(bill_type: Option<String>, limit: Option<i64>) -> Result<Vec<engine::types::HomeBill>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_home_bills(bill_type.as_deref(), limit.unwrap_or(24)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn home_delete_bill(id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().delete_home_bill(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn home_add_maintenance(id: String, task: String, category: String, last_completed: Option<String>, interval_months: Option<i64>, priority: Option<String>, estimated_cost: Option<f64>, notes: Option<String>) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().add_home_maintenance(&id, &task, &category, last_completed.as_deref(), interval_months, priority.as_deref(), estimated_cost, notes.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn home_get_maintenance(category: Option<String>) -> Result<Vec<engine::types::HomeMaintenance>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_home_maintenance(category.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn home_add_appliance(id: String, name: String, category: String, model: Option<String>, installed_date: Option<String>, expected_lifespan_years: Option<f64>, warranty_expiry: Option<String>, estimated_replacement_cost: Option<f64>, notes: Option<String>) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().add_home_appliance(&id, &name, &category, model.as_deref(), installed_date.as_deref(), expected_lifespan_years, warranty_expiry.as_deref(), estimated_replacement_cost, notes.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn home_get_appliances() -> Result<Vec<engine::types::HomeAppliance>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_home_appliances().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn home_get_insights() -> Result<Vec<engine::types::HomeInsight>, String> {
+    let engine = engine::get_engine();
+    let dashboard = engine.db().get_home_dashboard().map_err(|e| e.to_string())?;
+    let appliances = dashboard.appliances_needing_service;
+    let bills = engine.db().get_bill_trends(12).unwrap_or_default();
+    let mut parts = Vec::new();
+    if let Some(ref profile) = dashboard.profile {
+        if let Some(yr) = profile.year_built {
+            let age = chrono::Utc::now().year() - yr as i32;
+            parts.push(format!("Home age: {} years (built {})", age, yr));
+        }
+        if let Some(ref ht) = profile.hvac_type { parts.push(format!("HVAC: {}", ht)); }
+        if let Some(ref fs) = profile.hvac_filter_size { parts.push(format!("Filter: {}", fs)); }
+    }
+    for bill in &bills {
+        parts.push(format!("{}: ${:.2}", bill.month, bill.total));
+    }
+    for app in &appliances {
+        parts.push(format!("{} ({}): age ~{}yrs, replacement ${:.0}", app.name, app.category,
+            app.installed_date.as_deref().map(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok().map(|dd| ((chrono::Utc::now().date_naive() - dd).num_days() as f64 / 365.25) as i32).unwrap_or(0)).unwrap_or(0),
+            app.estimated_replacement_cost.unwrap_or(0.0)));
+    }
+    for m in &dashboard.upcoming_maintenance {
+        parts.push(format!("Maintenance: {} (due {:?})", m.task, m.next_due));
+    }
+    let prompt = format!("You are a home health AI. Based on this data, provide 3-5 specific actionable insights.\n\n{}\n\nRespond as JSON array (no markdown):\n[{{\"title\":\"...\",\"description\":\"...\",\"estimated_impact\":\"$X/month\",\"priority\":\"normal\",\"category\":\"efficiency|maintenance|financial|safety\"}}]", parts.join("\n"));
+    let messages = vec![engine::router::OpenAIMessage { role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None }];
+    let response = engine::router::chat("core", messages, Some(2000), None, None).await.map_err(|e| format!("AI failed: {}", e))?;
+    let content = response.content.trim();
+    let json_str = content.strip_prefix("```json").unwrap_or(content).strip_prefix("```").unwrap_or(content).strip_suffix("```").unwrap_or(content).trim();
+    serde_json::from_str(json_str).map_err(|e| format!("Parse error: {}", e))
+}
+
+// ── Dream Builder ──
+
+#[tauri::command]
+pub fn dream_add(id: String, member_id: Option<String>, title: String, description: Option<String>, category: String, target_date: Option<String>) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().add_dream(&id, member_id.as_deref(), &title, description.as_deref(), &category, target_date.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn dream_get_all(status: Option<String>) -> Result<Vec<engine::types::Dream>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_dreams(status.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn dream_get_dashboard() -> Result<engine::types::DreamDashboard, String> {
+    let engine = engine::get_engine();
+    engine.db().get_dream_dashboard().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn dream_add_milestone(id: String, dream_id: String, title: String, description: Option<String>, target_date: Option<String>, sort_order: i64) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().add_milestone(&id, &dream_id, &title, description.as_deref(), target_date.as_deref(), sort_order).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn dream_complete_milestone(id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().complete_milestone(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn dream_add_task(id: String, dream_id: String, milestone_id: Option<String>, title: String, description: Option<String>, due_date: Option<String>, frequency: Option<String>) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().add_dream_task(&id, &dream_id, milestone_id.as_deref(), &title, description.as_deref(), due_date.as_deref(), frequency.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn dream_get_tasks(dream_id: String) -> Result<Vec<engine::types::DreamTask>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_dream_tasks(&dream_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn dream_complete_task(id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().complete_dream_task(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn dream_add_progress(id: String, dream_id: String, note: Option<String>, progress_change: Option<f64>, ai_insight: Option<String>) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().add_dream_progress(&id, &dream_id, note.as_deref(), progress_change, ai_insight.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn dream_delete(id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().delete_dream(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn dream_ai_plan(dream_id: String, title: String, description: Option<String>, category: String, target_date: Option<String>) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let prompt = format!(
+        "You are a goal achievement AI. A family wants to achieve:\n\nTitle: {title}\nCategory: {category}\nDescription: {}\nTarget: {}\n\nReverse-engineer into concrete plan. Respond as JSON (no markdown):\n{{\"analysis\":\"...\",\"milestones\":[{{\"title\":\"...\",\"description\":\"...\",\"target_date\":\"2026-06-01\",\"sort_order\":0}}],\"immediate_tasks\":[{{\"title\":\"...\",\"description\":\"...\",\"due_date\":\"2026-03-25\",\"frequency\":\"one-time\"}}],\"habit\":{{\"title\":\"...\",\"description\":\"...\"}},\"metrics\":[\"...\"]}}",
+        description.as_deref().unwrap_or("No description"), target_date.as_deref().unwrap_or("No deadline")
+    );
+    let messages = vec![engine::router::OpenAIMessage { role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None }];
+    let response = engine::router::chat("core", messages, Some(2000), None, None).await.map_err(|e| format!("AI failed: {}", e))?;
+    let content = response.content.trim();
+    let json_str = content.strip_prefix("```json").unwrap_or(content).strip_prefix("```").unwrap_or(content).strip_suffix("```").unwrap_or(content).trim();
+    let plan: serde_json::Value = serde_json::from_str(json_str).map_err(|e| format!("Parse error: {}", e))?;
+    engine.db().update_dream_ai_plan(&dream_id, json_str, "AI-generated plan").map_err(|e| e.to_string())?;
+    if let Some(ms) = plan["milestones"].as_array() {
+        for (i, m) in ms.iter().enumerate() {
+            let mid = uuid::Uuid::new_v4().to_string();
+            engine.db().add_milestone(&mid, &dream_id, m["title"].as_str().unwrap_or("Milestone"), m["description"].as_str(), m["target_date"].as_str(), i as i64).ok();
+        }
+    }
+    if let Some(tasks) = plan["immediate_tasks"].as_array() {
+        for t in tasks {
+            let tid = uuid::Uuid::new_v4().to_string();
+            engine.db().add_dream_task(&tid, &dream_id, None, t["title"].as_str().unwrap_or("Task"), t["description"].as_str(), t["due_date"].as_str(), t["frequency"].as_str()).ok();
+        }
+    }
+    Ok(plan)
 }

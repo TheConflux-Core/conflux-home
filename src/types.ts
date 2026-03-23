@@ -44,7 +44,7 @@ export interface PipelineStatus {
   uptime: string;
 }
 
-export type View = 'dashboard' | 'chat' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen' | 'budget' | 'feed' | 'life';
+export type View = 'dashboard' | 'chat' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen' | 'budget' | 'feed' | 'life' | 'home' | 'dreams';
 
 // Agent accent colors for avatar rendering
 export const AGENT_COLORS: Record<string, string> = {
@@ -533,4 +533,146 @@ export interface LifeAutopilotDashboard {
   knowledge_count: number;
   documents_count: number;
   overdue_reminders: LifeReminder[];
+}
+
+// ── Home Health ──
+
+export interface HomeProfile {
+  id: string;
+  address: string | null;
+  year_built: number | null;
+  square_feet: number | null;
+  hvac_type: string | null;
+  hvac_filter_size: string | null;
+  water_heater_type: string | null;
+  roof_type: string | null;
+  window_type: string | null;
+  insulation_type: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HomeBill {
+  id: string;
+  bill_type: string;
+  amount: number;
+  usage: number | null;
+  billing_month: string;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface HomeMaintenance {
+  id: string;
+  task: string;
+  category: string;
+  last_completed: string | null;
+  interval_months: number | null;
+  next_due: string | null;
+  priority: string;
+  estimated_cost: number | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface HomeAppliance {
+  id: string;
+  name: string;
+  category: string;
+  model: string | null;
+  installed_date: string | null;
+  expected_lifespan_years: number | null;
+  warranty_expiry: string | null;
+  estimated_replacement_cost: number | null;
+  notes: string | null;
+  last_service: string | null;
+  next_service: string | null;
+  created_at: string;
+}
+
+export interface BillTrendPoint {
+  month: string;
+  electric: number | null;
+  gas: number | null;
+  water: number | null;
+  total: number;
+}
+
+export interface HomeDashboard {
+  profile: HomeProfile | null;
+  upcoming_maintenance: HomeMaintenance[];
+  overdue_maintenance: HomeMaintenance[];
+  appliances_needing_service: HomeAppliance[];
+  bill_trend: BillTrendPoint[];
+  total_monthly_utilities: number;
+  health_score: number;
+  ai_alerts: string[];
+}
+
+export interface HomeInsight {
+  title: string;
+  description: string;
+  estimated_impact: string | null;
+  priority: string;
+  category: string;
+}
+
+// ── Dream Builder ──
+
+export interface Dream {
+  id: string;
+  member_id: string | null;
+  title: string;
+  description: string | null;
+  category: string;
+  target_date: string | null;
+  status: string;
+  progress: number;
+  ai_plan: string | null;
+  ai_next_actions: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DreamMilestone {
+  id: string;
+  dream_id: string;
+  title: string;
+  description: string | null;
+  target_date: string | null;
+  completed_at: string | null;
+  is_completed: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface DreamTask {
+  id: string;
+  dream_id: string;
+  milestone_id: string | null;
+  title: string;
+  description: string | null;
+  due_date: string | null;
+  completed_at: string | null;
+  is_completed: boolean;
+  frequency: string | null;
+  created_at: string;
+}
+
+export interface DreamProgress {
+  id: string;
+  dream_id: string;
+  note: string | null;
+  progress_change: number | null;
+  ai_insight: string | null;
+  created_at: string;
+}
+
+export interface DreamDashboard {
+  dreams: Dream[];
+  active_dreams: number;
+  total_milestones: number;
+  completed_milestones: number;
+  upcoming_tasks: DreamTask[];
+  recent_progress: DreamProgress[];
 }
