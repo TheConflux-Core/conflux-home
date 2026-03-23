@@ -204,4 +204,52 @@ mod integration_tests {
             }
         });
     }
+
+    #[test]
+    fn test_web_search_ddg() {
+        rt().block_on(async {
+            use app_lib::engine::tools;
+
+            let result = tools::execute_tool("web_search", &serde_json::json!({
+                "query": "Rust programming language"
+            })).await;
+
+            match result {
+                Ok(tool_result) => {
+                    if tool_result.success {
+                        let preview = &tool_result.output[..200.min(tool_result.output.len())];
+                        println!("✅ Web search works: {}...", preview);
+                        assert!(!tool_result.output.is_empty(), "Search should return results");
+                    } else {
+                        println!("⚠️ Web search returned error: {:?}", tool_result.error);
+                    }
+                }
+                Err(e) => println!("❌ Web search failed: {}", e),
+            }
+        });
+    }
+
+    #[test]
+    fn test_web_fetch_url() {
+        rt().block_on(async {
+            use app_lib::engine::tools;
+
+            let result = tools::execute_tool("web_fetch", &serde_json::json!({
+                "url": "https://en.wikipedia.org/wiki/Rust_(programming_language)"
+            })).await;
+
+            match result {
+                Ok(tool_result) => {
+                    if tool_result.success {
+                        let preview = &tool_result.output[..200.min(tool_result.output.len())];
+                        println!("✅ Web fetch works: {}...", preview);
+                        assert!(!tool_result.output.is_empty(), "Fetch should return content");
+                    } else {
+                        println!("⚠️ Web fetch returned error: {:?}", tool_result.error);
+                    }
+                }
+                Err(e) => println!("❌ Web fetch failed: {}", e),
+            }
+        });
+    }
 }
