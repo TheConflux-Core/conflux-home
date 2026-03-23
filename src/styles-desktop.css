@@ -1,0 +1,222 @@
+/* ── Desktop Widget Grid ── */
+
+.desktop-widgets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ── Widget Card ── */
+
+.desktop-widget {
+  position: relative;
+  border-radius: 16px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  overflow: hidden;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-widget:hover {
+  transform: scale(1.03);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.desktop-widget:active {
+  transform: scale(0.98);
+}
+
+/* ── Widget Accent Line ── */
+
+.widget-accent {
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+/* ── Widget Inner Content ── */
+
+.widget-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.widget-icon {
+  font-size: 32px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.widget-label {
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--text-primary, #f0f0f5);
+  line-height: 1.2;
+}
+
+.widget-preview {
+  font-size: 13px;
+  color: var(--text-muted, #8888aa);
+  line-height: 1.4;
+  margin-top: auto;
+}
+
+/* ── Immersive Overlay ── */
+
+@keyframes immersive-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes immersive-exit {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+.immersive-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  animation: immersive-enter 0.3s ease-out forwards;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.immersive-overlay.immersive-exiting {
+  animation: immersive-exit 0.2s ease-in forwards;
+}
+
+.immersive-bg {
+  position: fixed;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  z-index: 0;
+}
+
+.immersive-gradient {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.5) 0%,
+    rgba(0, 0, 0, 0.2) 40%,
+    rgba(0, 0, 0, 0.3) 100%
+  );
+  z-index: 1;
+}
+
+.immersive-back-btn {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 110;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+  font-family: inherit;
+}
+
+.immersive-back-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: scale(1.03);
+}
+
+.immersive-back-btn:active {
+  transform: scale(0.97);
+}
+
+.immersive-content {
+  position: relative;
+  z-index: 2;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 72px 24px 48px;
+  min-height: 100vh;
+}
+
+/* ── Agents Bottom Bar ── */
+
+.agents-bottom-bar {
+  position: fixed;
+  bottom: 56px; /* above taskbar */
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.agents-bottom-bar .agent-avatar-mini {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  font-size: 12px;
+  color: var(--text-secondary, #c0c0d0);
+  white-space: nowrap;
+}
+
+.agents-bottom-bar .agent-avatar-mini:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.agents-bottom-bar .agent-avatar-mini .avatar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}

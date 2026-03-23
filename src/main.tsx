@@ -11,6 +11,7 @@ import './styles-feed.css'
 import './styles-life.css'
 import './styles-home.css'
 import './styles-diary.css'
+import './styles-desktop.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
