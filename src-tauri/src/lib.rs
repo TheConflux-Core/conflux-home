@@ -93,6 +93,13 @@ pub fn run() {
             // Heartbeats
             commands::engine_run_health_checks,
             commands::engine_get_heartbeats,
+            // Skills
+            commands::engine_get_skills,
+            commands::engine_get_skill,
+            commands::engine_get_skills_for_agent,
+            commands::engine_install_skill,
+            commands::engine_toggle_skill,
+            commands::engine_uninstall_skill,
             // Google
             commands::engine_google_is_connected,
             commands::engine_google_get_email,
