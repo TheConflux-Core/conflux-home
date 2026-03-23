@@ -368,27 +368,42 @@ fn builtin_providers() -> Vec<ModelProvider> {
             model_id: "gpt-4o-mini".into(),
             auth_method: AuthMethod::BearerToken,
             api_format: ApiFormat::OpenAI,
-            priority: 10, // lower priority than free pro models
+            priority: 10,
             is_free: false,
             cost_per_1k_tokens: 0.00015,
             max_tokens: 16384,
             rate_limit_rpm: 500,
-            is_enabled: false, // requires key configuration
+            is_enabled: false,
         },
         ModelProvider {
             id: "xiaomi-mimo-flash".into(),
             name: "MiMo v2 Flash".into(),
             tier: "pro".into(),
-            base_url: "https://api.xiaomi.com/v1".into(), // TODO: confirm actual endpoint
+            base_url: "https://api.xiaomimimo.com/v1".into(),
             model_id: "mimo-v2-flash".into(),
             auth_method: AuthMethod::BearerToken,
-            api_format: ApiFormat::OpenAI, // TODO: verify format
-            priority: 11,
-            is_free: false,
-            cost_per_1k_tokens: 0.0001,
+            api_format: ApiFormat::OpenAI,
+            priority: 5,
+            is_free: true,
+            cost_per_1k_tokens: 0.0,
             max_tokens: 8192,
             rate_limit_rpm: 60,
-            is_enabled: false, // requires key configuration
+            is_enabled: false,
+        },
+        ModelProvider {
+            id: "xiaomi-mimo-pro".into(),
+            name: "MiMo v2 Pro (1M ctx)".into(),
+            tier: "ultra".into(),
+            base_url: "https://api.xiaomimimo.com/v1".into(),
+            model_id: "mimo-v2-pro".into(),
+            auth_method: AuthMethod::BearerToken,
+            api_format: ApiFormat::OpenAI,
+            priority: 1,
+            is_free: true,
+            cost_per_1k_tokens: 0.0,
+            max_tokens: 32000,
+            rate_limit_rpm: 60,
+            is_enabled: false,
         },
 
         // ══════════════════════════════════════════════════════════════
@@ -403,12 +418,12 @@ fn builtin_providers() -> Vec<ModelProvider> {
             model_id: "claude-sonnet-4-20250514".into(),
             auth_method: AuthMethod::AnthropicKey,
             api_format: ApiFormat::Anthropic,
-            priority: 1,
+            priority: 2,
             is_free: false,
             cost_per_1k_tokens: 0.003,
             max_tokens: 16384,
             rate_limit_rpm: 50,
-            is_enabled: false, // requires key configuration
+            is_enabled: false,
         },
         ModelProvider {
             id: "openai-gpt4o".into(),
@@ -418,27 +433,12 @@ fn builtin_providers() -> Vec<ModelProvider> {
             model_id: "gpt-4o".into(),
             auth_method: AuthMethod::BearerToken,
             api_format: ApiFormat::OpenAI,
-            priority: 2,
+            priority: 3,
             is_free: false,
             cost_per_1k_tokens: 0.005,
             max_tokens: 16384,
             rate_limit_rpm: 500,
-            is_enabled: false, // requires key configuration
-        },
-        ModelProvider {
-            id: "xiaomi-mimo-pro".into(),
-            name: "MiMo v2 Pro".into(),
-            tier: "ultra".into(),
-            base_url: "https://api.xiaomi.com/v1".into(), // TODO: confirm actual endpoint
-            model_id: "mimo-v2-pro".into(),
-            auth_method: AuthMethod::BearerToken,
-            api_format: ApiFormat::OpenAI, // TODO: verify format
-            priority: 3,
-            is_free: false,
-            cost_per_1k_tokens: 0.005,
-            max_tokens: 1000000, // 1M context
-            rate_limit_rpm: 60,
-            is_enabled: false, // requires key configuration
+            is_enabled: false,
         },
         ModelProvider {
             id: "anthropic-claude-opus".into(),
@@ -453,7 +453,7 @@ fn builtin_providers() -> Vec<ModelProvider> {
             cost_per_1k_tokens: 0.015,
             max_tokens: 16384,
             rate_limit_rpm: 50,
-            is_enabled: false, // requires key configuration
+            is_enabled: false,
         },
     ]
 }
@@ -548,7 +548,7 @@ pub fn configure_provider(provider_id: &str, api_key: &str) -> Result<()> {
 // ── Chat Completion (non-streaming) ──
 
 /// Resolve legacy aliases to raw tier names.
-fn resolve_tier(alias: &str) -> &str {
+pub fn resolve_tier(alias: &str) -> &str {
     match alias {
         "conflux-core" | "conflux-fast" | "fast" => "core",
         "conflux-pro" | "conflux-smart" | "smart" => "pro",
