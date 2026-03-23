@@ -60,7 +60,7 @@ export default function AgentDiaryView() {
   if (loading) return (
     <div className="diary-view">
       <div className="diary-header"><h2 className="diary-title">📖 Agent Diary</h2>
-        <p style={{ color: 'var(--text-muted)' }}>Loading...</p></div>
+        <p style={{ color: 'rgba(255,255,255,0.6)' }}>Loading...</p></div>
     </div>
   );
 
