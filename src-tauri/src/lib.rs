@@ -58,6 +58,14 @@ pub fn run() {
             // Provider Templates
             commands::engine_get_provider_templates,
             commands::engine_install_template,
+            // Provider API Keys (direct — no middlemen)
+            commands::engine_set_openai_key,
+            commands::engine_get_openai_key_masked,
+            commands::engine_set_anthropic_key,
+            commands::engine_get_anthropic_key_masked,
+            commands::engine_set_xiaomi_key,
+            commands::engine_get_xiaomi_key_masked,
+            commands::engine_get_router_providers,
             // Agent Registry & Capabilities
             commands::engine_get_agent_capabilities,
             commands::engine_find_agents_by_capability,

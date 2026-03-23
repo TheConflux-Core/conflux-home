@@ -12,10 +12,9 @@ import WelcomeOverlay from './components/WelcomeOverlay';
 import Settings from './components/Settings';
 import SplashScreen from './components/SplashScreen';
 import ToastContainer from './components/Toast';
-import { useGateway } from './hooks/useGateway';
-import { useConfluxChat, hasConfluxKeys } from './hooks/useConfluxChat';
+import { useEngine } from './hooks/useEngine';
+import { useConfluxChat } from './hooks/useConfluxChat';
 import { useToast } from './hooks/useToast';
-import type { AgentInfo } from './gateway-client';
 import { initTheme, getSavedWallpaper } from './lib/theme';
 import { registerShortcuts } from './lib/shortcuts';
 import './styles/animations.css';
@@ -27,51 +26,6 @@ function getDefaultWallpaper(): string {
   const isDark = document.body.classList.contains('dark') ||
     window.matchMedia('(prefers-color-scheme: dark)').matches;
   return isDark ? '/wallpapers/wallpaper-dark.png' : '/wallpapers/desktop-wallpaper.png';
-}
-
-// Map SDK AgentInfo → UI Agent type
-function mapAgentInfo(info: AgentInfo): Agent {
-  return {
-    id: info.id,
-    name: info.name,
-    emoji: info.emoji,
-    role: info.role,
-    description: `${info.role} agent`,
-    status: info.status,
-    model: info.model || '',
-    currentTask: info.currentTask,
-    lastActive: info.lastActive,
-    memorySize: info.memorySize,
-  };
-}
-
-// ── Connecting Screen ──
-
-function ConnectingScreen() {
-  const [dots, setDots] = useState('');
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setDots(prev => prev.length >= 3 ? '' : prev + '.');
-    }, 500);
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <div className="desktop-shell" style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}>
-      <div style={{
-        textAlign: 'center',
-        color: 'var(--text-muted)',
-      }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>⚡</div>
-        <div style={{ fontSize: 18 }}>Connecting to gateway{dots}</div>
-      </div>
-    </div>
-  );
 }
 
 // ── Main App ──
@@ -180,10 +134,7 @@ export default function App() {
     }
   });
 
-  const { client, connected, agents: rawAgents, refresh } = useGateway();
-
-  // Map live agents to UI Agent type
-  const agents = useMemo(() => rawAgents.map(mapAgentInfo), [rawAgents]);
+  const { connected, agents, refresh } = useEngine();
 
   // Listen for settings nav from TopBar gear icon
   useEffect(() => {
@@ -264,7 +215,7 @@ export default function App() {
 
   // ── Keyboard shortcuts (FIX 10) ──
   useEffect(() => {
-    if (!isOnboarded || showWelcome || !connected) return;
+    if (!isOnboarded || showWelcome) return;
     const cleanup = registerShortcuts({
       onNavigate: (v) => handleNavigate(v),
       onClose: () => {
@@ -305,12 +256,6 @@ export default function App() {
     );
   }
 
-  // ── Gate: not connected to gateway yet → show connecting screen
-  //     (Skip this gate if Conflux Router has API keys — it's self-contained)
-  if (!connected && !hasConfluxKeys()) {
-    return <ConnectingScreen />;
-  }
-
   // Determine if we're showing an overlay view
   const showDashboardOverlay = view === 'dashboard';
   const showMarketplaceOverlay = view === 'marketplace';
@@ -320,7 +265,7 @@ export default function App() {
     <div className="desktop-shell">
       <TopBar
         selectedAgent={selectedAgent}
-        gatewayConnected={connected}
+        engineConnected={connected}
       />
 
       <Desktop

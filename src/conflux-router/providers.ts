@@ -1,142 +1,15 @@
-// Conflux Router — Provider Registry
-// All providers aggregated by Conflux Router. Free tier first.
+// Conflux Router — Provider Registry v4
+// All providers aggregated by Conflux Router. Direct API calls, no middlemen.
+// Free tier first. Paid providers require key configuration.
 
 import type { Provider } from './types';
 
-// ── Default Free Tier Providers ──
+// ── Core Tier — Free providers, $0 marginal cost ──
 
-export const FREE_PROVIDERS: Provider[] = [
+export const CORE_PROVIDERS: Provider[] = [
   {
-    id: 'google-gemini',
-    name: 'Google Gemini',
-    tier: 'free',
-    apiFormat: 'openai',
-    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-    apiKey: 'AIzaSyAwHEhai0OpKtEaK0cEvz0x-q6lyC6I8fE', // Pending: free tier needs enabling
-    models: [
-      {
-        id: 'gemini-2.0-flash',
-        alias: 'conflux-fast',
-        maxTokens: 8192,
-        costPer1kTokens: 0,
-        quality: 'good',
-      },
-      {
-        id: 'gemini-2.0-flash-lite',
-        alias: 'conflux-fast',
-        maxTokens: 4096,
-        costPer1kTokens: 0,
-        quality: 'basic',
-      },
-    ],
-    rateLimit: {
-      requestsPerMinute: 15,
-      requestsPerDay: 500,
-      tokensPerMinute: 1_000_000,
-    },
-    healthEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
-    priority: 1,
-    capabilities: ['chat'],
-  },
-  {
-    id: 'groq-llama',
-    name: 'Groq',
-    tier: 'free',
-    apiFormat: 'openai', // Groq is OpenAI-compatible
-    baseUrl: 'https://api.groq.com/openai/v1',
-    apiKey: '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',
-    models: [
-      {
-        id: 'llama-3.3-70b-versatile',
-        alias: 'conflux-fast',
-        maxTokens: 8192,
-        costPer1kTokens: 0,
-        quality: 'good',
-      },
-      {
-        id: 'llama-3.1-8b-instant',
-        alias: 'conflux-fast',
-        maxTokens: 8192,
-        costPer1kTokens: 0,
-        quality: 'basic',
-      },
-      {
-        id: 'deepseek-r1-distill-llama-70b',
-        alias: 'conflux-smart',
-        maxTokens: 8192,
-        costPer1kTokens: 0,
-        quality: 'excellent',
-      },
-    ],
-    rateLimit: {
-      requestsPerMinute: 30,
-      requestsPerDay: 250,
-      tokensPerMinute: 70_000,
-    },
-    healthEndpoint: 'https://api.groq.com/openai/v1/models',
-    priority: 2,
-    capabilities: ['chat'],
-  },
-  {
-    id: 'mistral',
-    name: 'Mistral',
-    tier: 'free',
-    apiFormat: 'openai', // Mistral has OpenAI-compatible endpoint
-    baseUrl: 'https://api.mistral.ai/v1',
-    apiKey: 'H24a3cJs3bTsWkYiVgmrYPr8Xs8T4ERE',
-    models: [
-      {
-        id: 'mistral-small-latest',
-        alias: 'conflux-creative',
-        maxTokens: 8192,
-        costPer1kTokens: 0,
-        quality: 'good',
-      },
-      {
-        id: 'open-mistral-nemo',
-        alias: 'conflux-fast',
-        maxTokens: 4096,
-        costPer1kTokens: 0,
-        quality: 'basic',
-      },
-    ],
-    rateLimit: {
-      requestsPerMinute: 60,
-      requestsPerDay: 1000,
-      tokensPerMinute: 500_000,
-    },
-    healthEndpoint: 'https://api.mistral.ai/v1/models',
-    priority: 3,
-    capabilities: ['chat'],
-  },
-  {
-    id: 'deepseek',
-    name: 'DeepSeek',
-    tier: 'free',
-    apiFormat: 'openai', // DeepSeek is OpenAI-compatible
-    baseUrl: 'https://api.deepseek.com/v1',
-    apiKey: 'sk-7e96dffa53324307b11da82b6ca4b934',
-    models: [
-      {
-        id: 'deepseek-chat',
-        alias: 'conflux-creative',
-        maxTokens: 8192,
-        costPer1kTokens: 0,
-        quality: 'good',
-      },
-    ],
-    rateLimit: {
-      requestsPerMinute: 60,
-      requestsPerDay: 500,
-      tokensPerMinute: 1_000_000,
-    },
-    healthEndpoint: 'https://api.deepseek.com/v1/models',
-    priority: 4,
-    capabilities: ['chat'],
-  },
-  {
-    id: 'cerebras',
-    name: 'Cerebras',
+    id: 'cerebras-llama-8b',
+    name: 'Cerebras Llama 3.1 8B',
     tier: 'free',
     apiFormat: 'openai',
     baseUrl: 'https://api.cerebras.ai/v1',
@@ -144,31 +17,83 @@ export const FREE_PROVIDERS: Provider[] = [
     models: [
       {
         id: 'llama3.1-8b',
-        alias: 'conflux-fast',
+        alias: 'conflux-core',
         maxTokens: 8192,
         costPer1kTokens: 0,
         quality: 'basic',
       },
-      {
-        id: 'qwen-3-235b-a22b-instruct-2507',
-        alias: 'conflux-smart',
-        maxTokens: 8192,
-        costPer1kTokens: 0,
-        quality: 'excellent',
-      },
     ],
-    rateLimit: {
-      requestsPerMinute: 30,
-      requestsPerDay: 500,
-      tokensPerMinute: 60_000,
-    },
+    rateLimit: { requestsPerMinute: 30, requestsPerDay: 500, tokensPerMinute: 60_000 },
     healthEndpoint: 'https://api.cerebras.ai/v1/models',
-    priority: 5,
+    priority: 1,
     capabilities: ['chat'],
   },
   {
-    id: 'cloudflare-workers-ai',
-    name: 'Cloudflare Workers AI',
+    id: 'groq-llama-8b',
+    name: 'Groq Llama 3.1 8B',
+    tier: 'free',
+    apiFormat: 'openai',
+    baseUrl: 'https://api.groq.com/openai/v1',
+    apiKey: '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',
+    models: [
+      {
+        id: 'llama-3.1-8b-instant',
+        alias: 'conflux-core',
+        maxTokens: 8192,
+        costPer1kTokens: 0,
+        quality: 'basic',
+      },
+    ],
+    rateLimit: { requestsPerMinute: 30, requestsPerDay: 250, tokensPerMinute: 70_000 },
+    healthEndpoint: 'https://api.groq.com/openai/v1/models',
+    priority: 2,
+    capabilities: ['chat'],
+  },
+  {
+    id: 'mistral-small',
+    name: 'Mistral Small',
+    tier: 'free',
+    apiFormat: 'openai',
+    baseUrl: 'https://api.mistral.ai/v1',
+    apiKey: 'H24a3cJs3bTsWkYiVgmrYPr8Xs8T4ERE',
+    models: [
+      {
+        id: 'mistral-small-latest',
+        alias: 'conflux-core',
+        maxTokens: 8192,
+        costPer1kTokens: 0,
+        quality: 'good',
+      },
+    ],
+    rateLimit: { requestsPerMinute: 60, requestsPerDay: 1000, tokensPerMinute: 500_000 },
+    healthEndpoint: 'https://api.mistral.ai/v1/models',
+    priority: 3,
+    capabilities: ['chat'],
+  },
+  {
+    id: 'deepseek-chat',
+    name: 'DeepSeek Chat',
+    tier: 'free',
+    apiFormat: 'openai',
+    baseUrl: 'https://api.deepseek.com/v1',
+    apiKey: 'sk-7e96dffa53324307b11da82b6ca4b934',
+    models: [
+      {
+        id: 'deepseek-chat',
+        alias: 'conflux-core',
+        maxTokens: 8192,
+        costPer1kTokens: 0,
+        quality: 'good',
+      },
+    ],
+    rateLimit: { requestsPerMinute: 60, requestsPerDay: 500, tokensPerMinute: 1_000_000 },
+    healthEndpoint: 'https://api.deepseek.com/v1/models',
+    priority: 4,
+    capabilities: ['chat'],
+  },
+  {
+    id: 'cloudflare-llama-8b',
+    name: 'Cloudflare Llama 3.1 8B',
     tier: 'free',
     apiFormat: 'openai',
     baseUrl: 'https://api.cloudflare.com/client/v4/accounts/36d37d313aa8598b2735b28b4211862b/ai/v1',
@@ -176,29 +101,136 @@ export const FREE_PROVIDERS: Provider[] = [
     models: [
       {
         id: '@cf/meta/llama-3.1-8b-instruct',
-        alias: 'conflux-fast',
+        alias: 'conflux-core',
         maxTokens: 4096,
         costPer1kTokens: 0,
         quality: 'basic',
       },
     ],
-    rateLimit: {
-      requestsPerMinute: 50,
-      requestsPerDay: 10000, // 10k neurons/day
-      tokensPerMinute: 100_000,
-    },
+    rateLimit: { requestsPerMinute: 50, requestsPerDay: 10000, tokensPerMinute: 100_000 },
     healthEndpoint: 'https://api.cloudflare.com/client/v4/user',
-    priority: 6,
+    priority: 5,
     capabilities: ['chat', 'image', 'stt'],
   },
 ];
 
-// ── Paid Tier Providers (Pro/Team only) ──
+// ── Pro Tier — Smart free models + low-cost premium ──
 
-export const PAID_PROVIDERS: Provider[] = [
+export const PRO_PROVIDERS: Provider[] = [
   {
-    id: 'openai',
-    name: 'OpenAI',
+    id: 'cerebras-qwen-235b',
+    name: 'Cerebras Qwen 3 235B',
+    tier: 'free',
+    apiFormat: 'openai',
+    baseUrl: 'https://api.cerebras.ai/v1',
+    apiKey: 'csk-2kpn9eycky4ycj2dd82n6jvmhc4tjnm4ykt2vxjfvkvv9fcf',
+    models: [
+      {
+        id: 'qwen-3-235b-a22b-instruct-2507',
+        alias: 'conflux-pro',
+        maxTokens: 8192,
+        costPer1kTokens: 0,
+        quality: 'excellent',
+      },
+    ],
+    rateLimit: { requestsPerMinute: 30, requestsPerDay: 500, tokensPerMinute: 60_000 },
+    healthEndpoint: 'https://api.cerebras.ai/v1/models',
+    priority: 1,
+    capabilities: ['chat'],
+  },
+  {
+    id: 'groq-llama-70b',
+    name: 'Groq Llama 3.3 70B',
+    tier: 'free',
+    apiFormat: 'openai',
+    baseUrl: 'https://api.groq.com/openai/v1',
+    apiKey: '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',
+    models: [
+      {
+        id: 'llama-3.3-70b-versatile',
+        alias: 'conflux-pro',
+        maxTokens: 8192,
+        costPer1kTokens: 0,
+        quality: 'excellent',
+      },
+    ],
+    rateLimit: { requestsPerMinute: 30, requestsPerDay: 250, tokensPerMinute: 70_000 },
+    healthEndpoint: 'https://api.groq.com/openai/v1/models',
+    priority: 2,
+    capabilities: ['chat'],
+  },
+  {
+    id: 'mistral-medium',
+    name: 'Mistral Medium',
+    tier: 'free',
+    apiFormat: 'openai',
+    baseUrl: 'https://api.mistral.ai/v1',
+    apiKey: 'H24a3cJs3bTsWkYiVgmrYPr8Xs8T4ERE',
+    models: [
+      {
+        id: 'mistral-medium-latest',
+        alias: 'conflux-pro',
+        maxTokens: 8192,
+        costPer1kTokens: 0,
+        quality: 'good',
+      },
+    ],
+    rateLimit: { requestsPerMinute: 60, requestsPerDay: 1000, tokensPerMinute: 500_000 },
+    healthEndpoint: 'https://api.mistral.ai/v1/models',
+    priority: 3,
+    capabilities: ['chat'],
+  },
+  {
+    id: 'groq-deepseek-70b',
+    name: 'Groq DeepSeek R1 70B',
+    tier: 'free',
+    apiFormat: 'openai',
+    baseUrl: 'https://api.groq.com/openai/v1',
+    apiKey: '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',
+    models: [
+      {
+        id: 'deepseek-r1-distill-llama-70b',
+        alias: 'conflux-pro',
+        maxTokens: 8192,
+        costPer1kTokens: 0,
+        quality: 'excellent',
+      },
+    ],
+    rateLimit: { requestsPerMinute: 30, requestsPerDay: 250, tokensPerMinute: 70_000 },
+    healthEndpoint: 'https://api.groq.com/openai/v1/models',
+    priority: 4,
+    capabilities: ['chat'],
+  },
+];
+
+// ── Ultra Tier — Premium models (require API key configuration) ──
+
+export const ULTRA_PROVIDERS: Provider[] = [
+  {
+    id: 'anthropic-claude-sonnet',
+    name: 'Claude Sonnet 4',
+    tier: 'paid',
+    apiFormat: 'openai', // We handle Anthropic format in Rust adapter
+    baseUrl: 'https://api.anthropic.com/v1',
+    apiKeyEnv: 'CONFLUX_ANTHROPIC_API_KEY',
+    models: [
+      {
+        id: 'claude-sonnet-4-20250514',
+        alias: 'conflux-ultra',
+        maxTokens: 16384,
+        costPer1kTokens: 0.003,
+        quality: 'excellent',
+      },
+    ],
+    rateLimit: { requestsPerMinute: 50, requestsPerDay: 1000, tokensPerMinute: 400_000 },
+    healthEndpoint: 'https://api.anthropic.com/v1/models',
+    priority: 1,
+    capabilities: ['chat'],
+    headers: { 'anthropic-version': '2023-06-01' },
+  },
+  {
+    id: 'openai-gpt4o',
+    name: 'GPT-4o',
     tier: 'paid',
     apiFormat: 'openai',
     baseUrl: 'https://api.openai.com/v1',
@@ -206,55 +238,37 @@ export const PAID_PROVIDERS: Provider[] = [
     models: [
       {
         id: 'gpt-4o',
-        alias: 'conflux-smart',
+        alias: 'conflux-ultra',
         maxTokens: 16384,
         costPer1kTokens: 0.005,
         quality: 'excellent',
       },
-      {
-        id: 'gpt-4o-mini',
-        alias: 'conflux-fast',
-        maxTokens: 16384,
-        costPer1kTokens: 0.00015,
-        quality: 'good',
-      },
     ],
-    rateLimit: {
-      requestsPerMinute: 500,
-      requestsPerDay: 10000,
-      tokensPerMinute: 2_000_000,
-    },
+    rateLimit: { requestsPerMinute: 500, requestsPerDay: 10000, tokensPerMinute: 2_000_000 },
     healthEndpoint: 'https://api.openai.com/v1/models',
-    priority: 1,
+    priority: 2,
     capabilities: ['chat', 'image', 'tts', 'stt'],
   },
   {
-    id: 'anthropic',
-    name: 'Anthropic',
+    id: 'xiaomi-mimo-pro',
+    name: 'MiMo v2 Pro',
     tier: 'paid',
-    apiFormat: 'native', // Anthropic uses a different API format
-    baseUrl: 'https://api.anthropic.com/v1',
-    apiKeyEnv: 'CONFLUX_ANTHROPIC_API_KEY',
+    apiFormat: 'openai',
+    baseUrl: 'https://api.xiaomi.com/v1', // TODO: confirm
+    apiKeyEnv: 'CONFLUX_XIAOMI_API_KEY',
     models: [
       {
-        id: 'claude-sonnet-4-20250514',
-        alias: 'conflux-smart',
-        maxTokens: 16384,
-        costPer1kTokens: 0.003,
+        id: 'mimo-v2-pro',
+        alias: 'conflux-ultra',
+        maxTokens: 1000000,
+        costPer1kTokens: 0.005,
         quality: 'excellent',
       },
     ],
-    rateLimit: {
-      requestsPerMinute: 50,
-      requestsPerDay: 1000,
-      tokensPerMinute: 400_000,
-    },
-    healthEndpoint: 'https://api.anthropic.com/v1/models',
-    priority: 2,
+    rateLimit: { requestsPerMinute: 60, requestsPerDay: 1000, tokensPerMinute: 1_000_000 },
+    healthEndpoint: 'https://api.xiaomi.com/v1/models',
+    priority: 3,
     capabilities: ['chat'],
-    headers: {
-      'anthropic-version': '2023-06-01',
-    },
   },
 ];
 
@@ -267,28 +281,12 @@ export const TTS_PROVIDERS: Provider[] = [
     tier: 'paid',
     apiFormat: 'openai',
     baseUrl: 'https://api.openai.com/v1',
-    apiKeyEnv: 'OPENAI_API_KEY',
+    apiKeyEnv: 'CONFLUX_OPENAI_API_KEY',
     models: [
-      {
-        id: 'tts-1',
-        alias: 'conflux-voice',
-        maxTokens: 4096,
-        costPer1kTokens: 0.015,  // $0.015 per 1K characters
-        quality: 'good',
-      },
-      {
-        id: 'tts-1-hd',
-        alias: 'conflux-voice-hd',
-        maxTokens: 4096,
-        costPer1kTokens: 0.030,
-        quality: 'excellent',
-      },
+      { id: 'tts-1', alias: 'conflux-voice', maxTokens: 4096, costPer1kTokens: 0.015, quality: 'good' },
+      { id: 'tts-1-hd', alias: 'conflux-voice-hd', maxTokens: 4096, costPer1kTokens: 0.030, quality: 'excellent' },
     ],
-    rateLimit: {
-      requestsPerMinute: 50,
-      requestsPerDay: 5000,
-      tokensPerMinute: 100_000,
-    },
+    rateLimit: { requestsPerMinute: 50, requestsPerDay: 5000, tokensPerMinute: 100_000 },
     healthEndpoint: 'https://api.openai.com/v1/models',
     priority: 1,
     capabilities: ['tts'],
@@ -299,35 +297,34 @@ export const TTS_PROVIDERS: Provider[] = [
 
 export const IMAGE_PROVIDERS: Provider[] = [
   {
+    id: 'cloudflare-image',
+    name: 'Cloudflare Workers AI',
+    tier: 'free',
+    apiFormat: 'openai',
+    baseUrl: 'https://api.cloudflare.com/client/v4/accounts/36d37d313aa8598b2735b28b4211862b/ai/v1',
+    apiKey: 'cfut_Ufhi1mcDzbLxwSNYZguzSlYsXy1GtAwzzo3mCir7fa5f5dab',
+    models: [
+      { id: '@cf/stabilityai/stable-diffusion-xl-base-1.0', alias: 'conflux-imagine', maxTokens: 0, costPer1kTokens: 0, quality: 'good' },
+    ],
+    rateLimit: { requestsPerMinute: 50, requestsPerDay: 10000, tokensPerMinute: 0 },
+    healthEndpoint: 'https://api.cloudflare.com/client/v4/user',
+    priority: 1,
+    capabilities: ['image'],
+  },
+  {
     id: 'openai-image',
     name: 'OpenAI Image Gen',
     tier: 'paid',
     apiFormat: 'openai',
     baseUrl: 'https://api.openai.com/v1',
-    apiKeyEnv: 'OPENAI_API_KEY',
+    apiKeyEnv: 'CONFLUX_OPENAI_API_KEY',
     models: [
-      {
-        id: 'gpt-image-1',
-        alias: 'conflux-image',
-        maxTokens: 0,
-        costPer1kTokens: 0.005,  // $0.005-0.052 per image depending on size/quality
-        quality: 'excellent',
-      },
-      {
-        id: 'dall-e-3',
-        alias: 'conflux-image',
-        maxTokens: 0,
-        costPer1kTokens: 0.040,  // $0.040 per 1024x1024 image
-        quality: 'good',
-      },
+      { id: 'gpt-image-1', alias: 'conflux-imagine', maxTokens: 0, costPer1kTokens: 0.005, quality: 'excellent' },
+      { id: 'dall-e-3', alias: 'conflux-imagine', maxTokens: 0, costPer1kTokens: 0.040, quality: 'good' },
     ],
-    rateLimit: {
-      requestsPerMinute: 5,
-      requestsPerDay: 500,
-      tokensPerMinute: 0,
-    },
+    rateLimit: { requestsPerMinute: 5, requestsPerDay: 500, tokensPerMinute: 0 },
     healthEndpoint: 'https://api.openai.com/v1/models',
-    priority: 1,
+    priority: 2,
     capabilities: ['image'],
   },
 ];
@@ -336,23 +333,26 @@ export const IMAGE_PROVIDERS: Provider[] = [
 // Maps our friendly aliases to which providers can serve them
 
 export const ALIAS_MAP: Record<string, string[]> = {
-  'conflux-fast':     ['groq-llama', 'cerebras', 'mistral', 'cloudflare-workers-ai'],
-  'conflux-smart':    ['groq-llama', 'mistral'],
-  'conflux-creative': ['mistral', 'groq-llama'],
-  'conflux-vision':   [], // No free vision providers yet
-  'conflux-imagine':  ['cloudflare-workers-ai', 'openai-image'], // Cloudflare free, OpenAI paid
-  'conflux-voice':    ['openai-tts'], // OpenAI TTS (paid), add Gemini free when adapter ready
-  'conflux-local':    [], // Ollama — handled separately
+  'conflux-core':      ['cerebras-llama-8b', 'groq-llama-8b', 'mistral-small', 'deepseek-chat', 'cloudflare-llama-8b'],
+  'conflux-fast':      ['cerebras-llama-8b', 'groq-llama-8b', 'mistral-small', 'cloudflare-llama-8b'], // legacy alias
+  'conflux-pro':       ['cerebras-qwen-235b', 'groq-llama-70b', 'mistral-medium', 'groq-deepseek-70b'],
+  'conflux-smart':     ['cerebras-qwen-235b', 'groq-llama-70b'], // legacy alias
+  'conflux-creative':  ['mistral-medium', 'deepseek-chat'],
+  'conflux-ultra':     ['anthropic-claude-sonnet', 'openai-gpt4o', 'xiaomi-mimo-pro'],
+  'conflux-vision':    [], // No free vision providers yet
+  'conflux-imagine':   ['cloudflare-image', 'openai-image'],
+  'conflux-voice':     ['openai-tts'],
+  'conflux-local':     [], // Ollama — handled separately
 };
 
 // ── Helpers ──
 
-/** Get all providers for a given tier */
+/** Get all providers for a given tier (free + paid if tier is pro/ultra) */
 export function getProvidersForTier(tier: 'free' | 'pro' | 'team'): Provider[] {
   if (tier === 'free') {
-    return [...FREE_PROVIDERS];
+    return [...CORE_PROVIDERS];
   }
-  return [...FREE_PROVIDERS, ...PAID_PROVIDERS];
+  return [...CORE_PROVIDERS, ...PRO_PROVIDERS, ...ULTRA_PROVIDERS];
 }
 
 /** Get providers that can serve a given alias */
