@@ -1,0 +1,25 @@
+{
+  "task_id": "mission-0601-task-002",
+  "mission_id": "mission-0601",
+  "product_id": "product-0603",
+  "type": "artifact_generation",
+  "title": "Product specification and architecture for CMMC Shield MVP",
+  "description": "Create the MVP product spec based on mission summary and research output. Define: (1) data model for control families and assessment responses, (2) SSP document template structure, (3) POA&M schema, (4) C3PAO readiness scoring algorithm, (5) tech stack recommendation (web framework, DB, auth, Stripe), (6) user flow wireframes for gap assessment \u2192 SSP \u2192 POA&M \u2192 dashboard. Target: 3-tier SaaS ($99/$199/$299/mo). Output: products/product-0603/specs/mvp_spec.md",
+  "status": "output_ready",
+  "assigned_role": "forge",
+  "claimed_by": "forge",
+  "depends_on": [
+    "mission-0601-task-001"
+  ],
+  "input_refs": [
+    "/home/calo/.openclaw/shared/missions/mission-0601.json",
+    "products/product-0603/research/cmmc_research_report.md"
+  ],
+  "output_refs": [
+    "products/product-0601/src/engine/assessment.js",
+    "products/product-0601/src/engine/controls.js",
+    "products/product-0601/src/engine/ssp-generator.js"
+  ],
+  "created_at": "2026-03-22T05:34:00Z",
+  "updated_at": "2026-03-23T18:53:00Z"
+}

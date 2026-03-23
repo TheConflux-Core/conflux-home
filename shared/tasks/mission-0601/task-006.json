@@ -1,0 +1,22 @@
+{
+  "task_id": "mission-0601-task-006",
+  "mission_id": "mission-0601",
+  "product_id": "product-0603",
+  "type": "launch_prep",
+  "title": "Create launch packet for CMMC Shield SaaS",
+  "description": "Prepare the launch packet for CMMC Shield. Include: (1) landing page copy targeting small defense contractors, (2) pricing page copy for 3 tiers, (3) feature comparison matrix, (4) go-to-market messaging around Oct 2026 CMMC deadline urgency, (5) social media launch posts, (6) Product Hunt launch description. Output: /home/calo/.openclaw/shared/marketing/launch_packets/launch-0601.json",
+  "status": "queued",
+  "assigned_role": "pulse",
+  "claimed_by": null,
+  "depends_on": ["mission-0601-task-005"],
+  "input_refs": [
+    "/home/calo/.openclaw/shared/missions/mission-0601.json",
+    "products/product-0603/specs/mvp_spec.md",
+    "products/product-0603/qa/qa_report.json"
+  ],
+  "output_refs": [
+    "/home/calo/.openclaw/shared/marketing/launch_packets/launch-0601.json"
+  ],
+  "created_at": "2026-03-22T05:34:00Z",
+  "updated_at": "2026-03-22T05:34:00Z"
+}

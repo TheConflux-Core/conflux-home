@@ -1,0 +1,70 @@
+{
+  "product_id": "product-0601",
+  "mission_id": "mission-0601",
+  "opportunity_id": "opp-0602",
+  "name": "CMMC Shield — AI Compliance Copilot for Small Defense Contractors",
+  "version": "1.0",
+  "status": "qa_pending",
+  "market": "cybersecurity_compliance",
+  "category": "micro_saas",
+  "launch_date": null,
+  "price": 99,
+  "pricing_tiers": {
+    "starter": 99,
+    "pro": 199,
+    "team": 299
+  },
+  "channels": [],
+  "created_at": "2026-03-23T18:49:00Z",
+  "updated_at": "2026-03-23T18:53:00Z",
+  "artifact_manifest": [
+    "src/engine/controls.js",
+    "src/engine/assessment.js",
+    "src/engine/ssp-generator.js",
+    "src/web/package.json",
+    "src/web/next.config.js",
+    "src/web/tailwind.config.ts",
+    "src/web/tsconfig.json",
+    "src/web/postcss.config.js",
+    "src/web/.env.example",
+    "src/web/prisma/schema.prisma",
+    "src/web/src/lib/prisma.ts",
+    "src/web/src/lib/auth.ts",
+    "src/web/src/lib/stripe.ts",
+    "src/web/src/lib/validate.ts",
+    "src/web/src/app/globals.css",
+    "src/web/src/app/layout.tsx",
+    "src/web/src/app/page.tsx",
+    "src/web/src/app/dashboard/page.tsx",
+    "src/web/src/app/assessment/page.tsx",
+    "src/web/src/app/login/page.tsx",
+    "src/web/src/app/register/page.tsx",
+    "src/web/src/app/api/auth/signin/route.ts",
+    "src/web/src/app/api/auth/register/route.ts",
+    "src/web/src/app/api/assessments/route.ts",
+    "src/web/src/app/api/billing/route.ts",
+    "src/web/src/app/api/webhooks/stripe/route.ts",
+    "src/web/src/app/api/documents/ssp/route.ts",
+    "src/web/src/app/api/documents/poam/route.ts",
+    "src/web/src/components/ScoreRing.tsx",
+    "src/web/src/components/FamilyProgressBar.tsx",
+    "src/web/src/components/GapCard.tsx",
+    "landing/index.html",
+    "docs/documentation.md",
+    "listings/gumroad.md",
+    "listings/etsy.md"
+  ],
+  "qa": {
+    "status": "pending",
+    "notes_ref": "products/product-0601/qa/qa_report.json"
+  },
+  "marketing": {
+    "launch_packet_ref": null
+  },
+  "metrics": {
+    "views": 0,
+    "clicks": 0,
+    "sales": 0,
+    "revenue": 0
+  }
+}

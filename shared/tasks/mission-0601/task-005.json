@@ -1,0 +1,22 @@
+{
+  "task_id": "mission-0601-task-005",
+  "mission_id": "mission-0601",
+  "product_id": "product-0603",
+  "type": "verification",
+  "title": "QA verification for CMMC Shield MVP",
+  "description": "Run full QA verification against the MVP spec and mission requirements. Verify: (1) all 110 controls are represented in the assessment, (2) SSP generation produces valid document output, (3) POA&M creation works for gap scenarios, (4) readiness scoring is mathematically sound, (5) auth flow and Stripe checkout work end-to-end, (6) dashboard renders correctly, (7) responsive design is functional. Output: products/product-0603/qa/qa_report.json with PASS/FAIL/PASS_WITH_NOTES result.",
+  "status": "queued",
+  "assigned_role": "quanta",
+  "claimed_by": null,
+  "depends_on": ["mission-0601-task-004"],
+  "input_refs": [
+    "products/product-0603/specs/mvp_spec.md",
+    "products/product-0603/src/engine/",
+    "products/product-0603/src/web/"
+  ],
+  "output_refs": [
+    "products/product-0603/qa/qa_report.json"
+  ],
+  "created_at": "2026-03-22T05:34:00Z",
+  "updated_at": "2026-03-22T05:34:00Z"
+}

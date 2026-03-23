@@ -1,0 +1,4 @@
+{"timestamp":"2026-03-17T07:39:00Z","mission_id":"mission-0003","from":"queued","to":"in_progress","actor":"luma","reason":"luma_launch_wave_1"}
+{"event_type":"mission_created","mission_id":"mission-0600","opportunity_id":"opp-0600","product_id":"product-0602","created_by":"prism","timestamp":"2026-03-21T23:06:00Z","priority":"high","source":"nightly_discovery_test"}
+{"event_type":"mission_transition","timestamp":"2026-03-22T05:15:00Z","agent":"prism","mission_id":"mission-0601","from_status":"none","to_status":"planning","trigger":"auto_creation_from_approved_opportunity"}
+{"event":"task_created","mission_id":"mission-1223","task_refs":["task-1223-001","task-1223-002","task-1223-003","task-1223-004"],"sprint":1,"agent":"prism","timestamp":"2026-03-22T08:45:00Z","message":"Sprint 1 task graph created — 4 tasks (3 FORGE build, 1 QUANTA verify). Foundation phase: Gateway SDK, Data Reader, Streaming Chat, API Tests."}
