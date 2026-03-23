@@ -76,6 +76,23 @@ pub fn run() {
             // Lessons Learned
             commands::engine_add_lesson,
             commands::engine_get_lessons,
+            // Cron Jobs
+            commands::engine_create_cron,
+            commands::engine_get_crons,
+            commands::engine_toggle_cron,
+            commands::engine_delete_cron,
+            commands::engine_tick_cron,
+            // Webhooks
+            commands::engine_create_webhook,
+            commands::engine_get_webhooks,
+            commands::engine_delete_webhook,
+            commands::engine_handle_webhook,
+            // Events
+            commands::engine_get_events,
+            commands::engine_mark_event_processed,
+            // Heartbeats
+            commands::engine_run_health_checks,
+            commands::engine_get_heartbeats,
             // Google
             commands::engine_google_is_connected,
             commands::engine_google_get_email,
