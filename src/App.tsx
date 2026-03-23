@@ -20,6 +20,7 @@ import AgentTemplateBrowser from './components/AgentTemplateBrowser';
 import ParentDashboard from './components/ParentDashboard';
 import VoiceChat from './components/VoiceChat';
 import KitchenView from './components/KitchenView';
+import BudgetView from './components/BudgetView';
 import { useEngine } from './hooks/useEngine';
 import { useConfluxChat } from './hooks/useConfluxChat';
 import { useToast } from './hooks/useToast';
@@ -517,6 +518,13 @@ export default function App() {
       {view === 'kitchen' && (
         <div className="content-overlay">
           <KitchenView />
+        </div>
+      )}
+
+      {/* Budget View */}
+      {view === 'budget' && (
+        <div className="content-overlay">
+          <BudgetView />
         </div>
       )}
 

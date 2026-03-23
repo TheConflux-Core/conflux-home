@@ -650,6 +650,22 @@ pub struct BudgetEntry {
     pub created_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CategoryTotal {
+    pub category: String,
+    pub total: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BudgetSummary {
+    pub month: String,
+    pub total_income: f64,
+    pub total_expenses: f64,
+    pub total_savings: f64,
+    pub net: f64,
+    pub categories: Vec<CategoryTotal>,
+}
+
 // ── Content Feed Item ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

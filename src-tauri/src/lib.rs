@@ -161,6 +161,11 @@ pub fn run() {
             commands::kitchen_toggle_grocery_item,
             commands::kitchen_add_inventory,
             commands::kitchen_get_inventory,
+            // Budget Tracker
+            commands::budget_add_entry,
+            commands::budget_get_entries,
+            commands::budget_get_summary,
+            commands::budget_delete_entry,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
