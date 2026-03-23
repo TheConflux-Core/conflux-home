@@ -65,6 +65,65 @@ const BACKGROUND_EMOJIS = AGENT_EMOJIS.map((emoji, i) => ({
   size: 28 + (i % 3) * 8,
 }));
 
+// ── Keyword-based conversation responses ──
+
+const KEYWORD_RESPONSES = [
+  {
+    keywords: ['business', 'startup', 'company', 'agency', 'scale', 'revenue', 'growth', 'marketing', 'clients', 'sales', 'money', 'earn', 'income'],
+    agents: ['zigbot', 'helix', 'forge', 'vector', 'pulse'],
+    response: "Got it. You're building something and you want to grow.\n\nI'm thinking:\n• Helix 🔬 — she'll dig into your market and find what your competitors are missing\n• Pulse 📣 — he handles all the marketing and launch strategy\n• Forge 🔨 — he builds. Landing pages, content, automation. Fast.\n\nAnd obviously me. I'm not going anywhere.",
+  },
+  {
+    keywords: ['learn', 'research', 'study', 'understand', 'knowledge', 'analysis', 'curious', 'interesting', 'read', 'explore', 'figure out'],
+    agents: ['zigbot', 'helix', 'quanta'],
+    response: "Love the curiosity. You want to dig deep and actually understand things.\n\nFor that:\n• Helix 🔬 — deep research specialist. Give her a question, she'll find answers nobody else has.\n• Quanta ✅ — she verifies everything. No fake facts.\n\nI'll be here to help you think through what you find.",
+  },
+  {
+    keywords: ['code', 'build', 'develop', 'app', 'software', 'automate', 'technical', 'programming', 'website', 'tool'],
+    agents: ['forge', 'quanta', 'spectra', 'prism'],
+    response: "A builder. I like it.\n\nYour crew:\n• Forge 🔨 — writes code, builds products. Fast.\n• Spectra 🧩 — breaks big goals into small steps.\n• Quanta ✅ — reviews everything before it ships.\n\nLet's build something great.",
+  },
+  {
+    keywords: ['write', 'content', 'creative', 'design', 'blog', 'article', 'story', 'brand', 'art', 'photo', 'video', 'music'],
+    agents: ['forge', 'pulse', 'helix'],
+    response: "Creative energy — I can feel it.\n\nYour creative team:\n• Forge 🔨 — content, design, creation.\n• Pulse 📣 — gets your work in front of the right people.\n• Helix 🔬 — researches what your audience wants.\n\nLet's make something people remember.",
+  },
+  {
+    keywords: ['family', 'kids', 'schedule', 'meal', 'home', 'dinner', 'planning', 'calendar', 'grocery', 'chores', 'clean', 'organize'],
+    agents: ['zigbot', 'catalyst', 'spectra'],
+    response: "Life gets busy. Let me help you take some of it back.\n\nYour daily team:\n• Catalyst ⚡ — she catches things before they slip through the cracks.\n• Spectra 🧩 — breaks overwhelming days into manageable pieces.\n\nAnd me — I'm always here when you need to think something through.",
+  },
+  {
+    keywords: ['overwhelmed', 'stressed', 'too much', 'burned out', 'exhausted', 'anxious', 'busy', 'chaos', 'drowning'],
+    agents: ['catalyst', 'spectra', 'zigbot'],
+    response: "I hear you. When everything feels like too much, that's usually because there's no system holding it together.\n\nLet's fix that:\n• Spectra 🧩 — she'll break the chaos into clear, doable pieces.\n• Catalyst ⚡ — she's your early warning system. Things stop falling through.\n\nAnd me — sometimes you just need someone to think with.",
+  },
+  {
+    keywords: ['health', 'fitness', 'workout', 'diet', 'exercise', 'weight', 'sleep', 'wellness', 'cook', 'recipe'],
+    agents: ['catalyst', 'zigbot', 'helix'],
+    response: "Taking care of yourself is the foundation for everything else.\n\nYour wellness team:\n• Catalyst ⚡ — she'll help you build habits that stick.\n• Helix 🔬 — she can research the best approaches for your goals.\n\nSmall steps, big results. Let's go.",
+  },
+  {
+    keywords: ['nothing', 'just looking', 'idk', "don't know", 'not sure', 'browsing', 'checking', 'playing around'],
+    agents: ['zigbot', 'helix', 'catalyst'],
+    response: "No worries — you don't need a big plan to get started. Sometimes the best things come from just exploring.\n\nI'll give you a versatile team:\n• Helix 🔬 — she's great at finding interesting things to dig into.\n• Catalyst ⚡ — she'll help you stay on top of the little stuff.\n\nWe'll figure it out together.",
+  },
+];
+
+// Agent personality one-liners
+const AGENT_HELLOS: Record<string, string> = {
+  zigbot: "I'm the one you come to when you need to think. Or when it's 2 AM and you have a crazy idea.",
+  helix: "I find things other people miss. Market signals, competitor moves, hidden opportunities.",
+  forge: "You describe it, I build it. Landing pages, content, code. I don't do slow.",
+  vector: "I'm the reality check. I'll tell you if your idea is gold or garbage.",
+  pulse: "I get your stuff in front of the right people. Marketing, launches, growth.",
+  quanta: "I check everything twice. Nothing ships without my sign-off.",
+  prism: "I keep the team organized. When 10 things need to happen at once, I'm your person.",
+  spectra: "I break big scary goals into small doable steps.",
+  luma: "I press the buttons. Launches, deployments, going live. That's me.",
+  catalyst: "I'm the early warning system. If something's about to break, I'll let you know.",
+};
+
 // BYOK providers
 const BYOK_PROVIDERS = [
   { id: 'openai', name: 'OpenAI', emoji: '🧠', placeholder: 'sk-...' },
@@ -202,8 +261,11 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [byokKeys, setByokKeys] = useState<Record<string, string>>({});
   const [activeModal, setActiveModal] = useState<string | null>(null);
 
-  // Step 2 — Goals
-  const [selectedGoals, setSelectedGoals] = useState<Set<string>>(new Set());
+  // Step 2 — Conversation
+  const [chatMessages, setChatMessages] = useState<Array<{role: 'zigbot' | 'user', text: string}>>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [conversationDone, setConversationDone] = useState(false);
+  const [selectedTeam, setSelectedTeam] = useState<string[]>([]);
 
   // Step 3 — Team
   const [selectedAgents, setSelectedAgents] = useState<Set<string>>(new Set());
@@ -215,17 +277,15 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Derive agents from goals ──
+  // ── Init chat on Step 2 ──
   useEffect(() => {
-    const agentSet = new Set<string>();
-    selectedGoals.forEach(goalId => {
-      const goal = GOALS.find(g => g.id === goalId);
-      if (goal) {
-        (GOAL_AGENT_MAP[goal.slug] || []).forEach(a => agentSet.add(a));
-      }
-    });
-    if (agentSet.size > 0) setSelectedAgents(agentSet);
-  }, [selectedGoals]);
+    if (step === 2 && chatMessages.length === 0) {
+      setChatMessages([{
+        role: 'zigbot',
+        text: "👋 Hey! I'm ZigBot.\n\nWhat do you wish you had more help with? Doesn't have to be big — even just day-to-day stuff counts.\n\nNo wrong answers here.",
+      }]);
+    }
+  }, [step]);
 
   // ── Navigation ──
   const goToStep = useCallback((nextStep: number) => {
@@ -273,17 +333,45 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   };
 
   // ── Goals ──
-  const toggleGoal = (id: string) => {
-    setSelectedGoals(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else if (next.size < 3) {
-        next.add(id);
-      }
-      return next;
-    });
-  };
+  // ── Conversation ──
+  const handleChatSend = useCallback(() => {
+    const msg = chatInput.trim();
+    if (!msg) return;
+
+    setChatMessages(prev => [...prev, { role: 'user', text: msg }]);
+    setChatInput('');
+
+    // Match keywords
+    const lower = msg.toLowerCase();
+    let matched = KEYWORD_RESPONSES.find(r =>
+      r.keywords.some(k => lower.includes(k))
+    );
+
+    if (!matched) {
+      matched = {
+        keywords: [],
+        agents: ['zigbot', 'helix', 'catalyst'],
+        response: "Interesting. I've got a good feeling about this.\n\nI'm starting you with a versatile team:\n• Helix 🔬 — she'll help you explore and figure things out.\n• Catalyst ⚡ — she keeps the day-to-day running smooth.\n\nAnd me, obviously. We'll figure out the rest as we go.",
+      };
+    }
+
+    setSelectedTeam(matched!.agents);
+    setSelectedAgents(new Set(matched!.agents));
+
+    setTimeout(() => {
+      setChatMessages(prev => [...prev, { role: 'zigbot', text: matched!.response }]);
+      setConversationDone(true);
+    }, 800);
+  }, [chatInput]);
+
+  const handleConversationContinue = useCallback(() => {
+    localStorage.setItem('conflux-user-profile', JSON.stringify({
+      name: userName,
+      messages: chatMessages,
+      recommendedAgents: selectedTeam,
+    }));
+    nextStep();
+  }, [userName, chatMessages, selectedTeam, nextStep]);
 
   // ── Team ──
   const toggleAgent = (id: string) => {
@@ -309,13 +397,12 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   // ── Enter home ──
   const handleEnter = () => {
-    const goalsArr = Array.from(selectedGoals);
     const agentsArr = Array.from(selectedAgents);
     localStorage.setItem('conflux-onboarded', 'true');
-    localStorage.setItem('conflux-goals', JSON.stringify(goalsArr));
+    localStorage.setItem('conflux-goals', JSON.stringify(selectedTeam));
     localStorage.setItem('conflux-selected-agents', JSON.stringify(agentsArr));
     localStorage.setItem('conflux-name', userName.trim() || 'there');
-    onComplete(goalsArr, agentsArr);
+    onComplete(selectedTeam, agentsArr);
   };
 
   // ── Alive animation ──
@@ -340,14 +427,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   // ── Derived ──
   const canNext = step === 0
     || step === 1  // always can proceed from provider (auto-connects)
-    || (step === 2 && selectedGoals.size >= 2)
-    || (step === 3 && selectedAgents.size >= 1);
+    || step === 4; // alive step always has continue
 
   // ── Background gradient for goals ──
-  const goalGradient = selectedGoals.size > 0
-    ? Array.from(selectedGoals).map(id => GOAL_GRADIENTS[id] || 'transparent').join(', ')
-    : 'transparent';
-
   // ── Render ──
 
   const renderStep = () => {
@@ -722,87 +804,112 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   );
 
   const renderGoals = () => (
-    <div style={{ textAlign: 'center', maxWidth: 520 }}>
+    <div style={{ textAlign: 'center', maxWidth: 520, width: '100%' }}>
       <h2
         className="animate-fade-in"
         style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}
       >
-        What do you want help with?
+        Let's get to know you
       </h2>
       <p
         className="animate-fade-in"
-        style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 32, '--stagger-delay': '100ms' } as React.CSSProperties}
+        style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20, '--stagger-delay': '100ms' } as React.CSSProperties}
       >
-        Select 2–3 goals. This helps us pick the right agents for you.
+        Chat with ZigBot and he'll put together your perfect team.
       </p>
 
+      {/* Chat messages */}
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-        gap: 12, marginBottom: 12, textAlign: 'left',
-        transition: 'background 1s ease',
-        background: goalGradient,
-        borderRadius: 16, padding: 4,
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border)',
+        borderRadius: 16,
+        padding: 16,
+        maxHeight: 320,
+        overflowY: 'auto',
+        marginBottom: 16,
+        textAlign: 'left',
       }}>
-        {GOALS.map((goal, i) => {
-          const isSelected = selectedGoals.has(goal.id);
-          return (
-            <div
-              key={goal.id}
-              className="animate-fade-in"
-              onClick={() => toggleGoal(goal.id)}
-              style={{
-                padding: '18px 16px',
-                background: 'var(--bg-card)',
-                border: `2px solid ${isSelected ? 'var(--accent-primary)' : 'var(--border)'}`,
-                borderRadius: 14,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                position: 'relative',
-                boxShadow: isSelected ? '0 0 0 1px var(--accent-primary), 0 0 20px var(--accent-primary)' : 'var(--shadow)',
-                '--stagger-delay': `${i * 80}ms`,
-              } as React.CSSProperties}
-            >
-              {isSelected && (
-                <div
-                  className="animate-scale-in"
-                  style={{
-                    position: 'absolute', top: 10, right: 12,
-                    width: 22, height: 22, borderRadius: '50%',
-                    background: 'var(--accent-primary)', color: '#fff',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, fontWeight: 700,
-                  }}
-                >✓</div>
-              )}
-              <div
-                className={isSelected ? '' : ''}
-                style={{
-                  fontSize: 28, marginBottom: 8,
-                  transition: 'transform 0.3s ease',
-                  transform: isSelected ? 'translateY(-4px)' : 'none',
-                }}
-              >{goal.emoji}</div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
-                {goal.title}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                {goal.description}
-              </div>
+        {chatMessages.map((msg, i) => (
+          <div
+            key={i}
+            className="animate-fade-in"
+            style={{
+              display: 'flex',
+              justifyContent: msg.role === 'zigbot' ? 'flex-start' : 'flex-end',
+              marginBottom: 12,
+            }}
+          >
+            {msg.role === 'zigbot' && (
+              <span style={{ fontSize: 20, marginRight: 8, flexShrink: 0, marginTop: 2 }}>🤖</span>
+            )}
+            <div style={{
+              maxWidth: '80%',
+              padding: '10px 14px',
+              borderRadius: 14,
+              background: msg.role === 'zigbot' ? 'var(--bg-primary)' : 'var(--accent-primary)',
+              color: msg.role === 'zigbot' ? 'var(--text-primary)' : '#fff',
+              fontSize: 14,
+              lineHeight: 1.5,
+              whiteSpace: 'pre-wrap',
+            }}>
+              {msg.text}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
 
-      <p style={{
-        fontSize: 12,
-        color: selectedGoals.size >= 2 ? '#10b981' : 'var(--text-muted)',
-        marginBottom: 8,
-      }}>
-        {selectedGoals.size < 2
-          ? `Select at least 2 (${selectedGoals.size}/2)`
-          : `${selectedGoals.size} selected ✓`}
-      </p>
+      {/* Input or Continue */}
+      {!conversationDone ? (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            type="text"
+            value={chatInput}
+            onChange={e => setChatInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleChatSend()}
+            placeholder="What do you wish you had more help with?"
+            autoFocus
+            style={{
+              flex: 1,
+              padding: '12px 16px',
+              borderRadius: 10,
+              border: '1px solid var(--border)',
+              background: 'var(--bg-primary)',
+              color: 'var(--text-primary)',
+              fontSize: 14,
+              outline: 'none',
+            }}
+          />
+          <button
+            onClick={handleChatSend}
+            style={{
+              padding: '12px 20px',
+              borderRadius: 10,
+              border: 'none',
+              background: 'var(--accent-primary)',
+              color: '#fff',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            Send
+          </button>
+        </div>
+      ) : (
+        <div>
+          <p style={{ fontSize: 13, color: '#10b981', marginBottom: 12 }}>
+            ✓ Your team has been selected based on our chat
+          </p>
+          <button
+            className="next-btn"
+            onClick={handleConversationContinue}
+            style={{ maxWidth: 280, margin: '0 auto' }}
+          >
+            Meet Your Team →
+          </button>
+        </div>
+      )}
     </div>
   );
 
@@ -863,7 +970,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                     </span>
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>
-                    Why this agent: {agent.why}
+                    {AGENT_HELLOS[agent.id] || agent.why}
                   </div>
                 </div>
                 {/* Toggle switch with bounce */}

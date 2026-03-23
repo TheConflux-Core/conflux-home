@@ -258,6 +258,80 @@ export const PAID_PROVIDERS: Provider[] = [
   },
 ];
 
+// ── TTS Providers ──
+
+export const TTS_PROVIDERS: Provider[] = [
+  {
+    id: 'openai-tts',
+    name: 'OpenAI TTS',
+    tier: 'paid',
+    apiFormat: 'openai',
+    baseUrl: 'https://api.openai.com/v1',
+    apiKeyEnv: 'OPENAI_API_KEY',
+    models: [
+      {
+        id: 'tts-1',
+        alias: 'conflux-voice',
+        maxTokens: 4096,
+        costPer1kTokens: 0.015,  // $0.015 per 1K characters
+        quality: 'good',
+      },
+      {
+        id: 'tts-1-hd',
+        alias: 'conflux-voice-hd',
+        maxTokens: 4096,
+        costPer1kTokens: 0.030,
+        quality: 'excellent',
+      },
+    ],
+    rateLimit: {
+      requestsPerMinute: 50,
+      requestsPerDay: 5000,
+      tokensPerMinute: 100_000,
+    },
+    healthEndpoint: 'https://api.openai.com/v1/models',
+    priority: 1,
+    capabilities: ['tts'],
+  },
+];
+
+// ── Image Generation Providers ──
+
+export const IMAGE_PROVIDERS: Provider[] = [
+  {
+    id: 'openai-image',
+    name: 'OpenAI Image Gen',
+    tier: 'paid',
+    apiFormat: 'openai',
+    baseUrl: 'https://api.openai.com/v1',
+    apiKeyEnv: 'OPENAI_API_KEY',
+    models: [
+      {
+        id: 'gpt-image-1',
+        alias: 'conflux-image',
+        maxTokens: 0,
+        costPer1kTokens: 0.005,  // $0.005-0.052 per image depending on size/quality
+        quality: 'excellent',
+      },
+      {
+        id: 'dall-e-3',
+        alias: 'conflux-image',
+        maxTokens: 0,
+        costPer1kTokens: 0.040,  // $0.040 per 1024x1024 image
+        quality: 'good',
+      },
+    ],
+    rateLimit: {
+      requestsPerMinute: 5,
+      requestsPerDay: 500,
+      tokensPerMinute: 0,
+    },
+    healthEndpoint: 'https://api.openai.com/v1/models',
+    priority: 1,
+    capabilities: ['image'],
+  },
+];
+
 // ── Model Alias Map ──
 // Maps our friendly aliases to which providers can serve them
 
@@ -266,8 +340,8 @@ export const ALIAS_MAP: Record<string, string[]> = {
   'conflux-smart':    ['groq-llama', 'mistral'],
   'conflux-creative': ['mistral', 'groq-llama'],
   'conflux-vision':   [], // No free vision providers yet
-  'conflux-imagine':  ['cloudflare-workers-ai'], // Cloudflare has image gen
-  'conflux-voice':    [], // No free TTS yet
+  'conflux-imagine':  ['cloudflare-workers-ai', 'openai-image'], // Cloudflare free, OpenAI paid
+  'conflux-voice':    ['openai-tts'], // OpenAI TTS (paid), add Gemini free when adapter ready
   'conflux-local':    [], // Ollama — handled separately
 };
 

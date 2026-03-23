@@ -147,3 +147,50 @@ export class ProviderError extends Error {
     this.name = 'ProviderError';
   }
 }
+
+// ── TTS Request / Response ──
+
+export interface RouterTTSRequest {
+  text: string;
+  voice?: string;          // voice id (provider-specific)
+  model?: string;          // e.g. "conflux-voice"
+  speed?: number;          // 0.25 to 4.0
+}
+
+export interface RouterTTSResponse {
+  audioUrl: string;        // data: URL or blob URL of the audio
+  durationMs: number;
+  format: 'mp3' | 'wav' | 'ogg';
+  _conflux: {
+    providerId: string;
+    providerName: string;
+    latencyMs: number;
+    charactersUsed: number;
+    quotaRemaining: number;
+  };
+}
+
+// ── Image Generation Request / Response ──
+
+export interface RouterImageRequest {
+  prompt: string;
+  size?: '256x256' | '512x512' | '1024x1024' | '1792x1024' | '1024x1792';
+  quality?: 'standard' | 'hd';
+  style?: 'vivid' | 'natural';
+  model?: string;          // e.g. "conflux-image"
+  n?: number;              // number of images (default 1)
+}
+
+export interface RouterImageResponse {
+  images: Array<{
+    url: string;           // data: URL or blob URL
+    revisedPrompt?: string;
+  }>;
+  _conflux: {
+    providerId: string;
+    providerName: string;
+    latencyMs: number;
+    imagesGenerated: number;
+    quotaRemaining: number;
+  };
+}
