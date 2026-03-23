@@ -12,9 +12,15 @@ import WelcomeOverlay from './components/WelcomeOverlay';
 import Settings from './components/Settings';
 import SplashScreen from './components/SplashScreen';
 import ToastContainer from './components/Toast';
+import FamilySwitcher from './components/FamilySwitcher';
+import FamilySetup from './components/FamilySetup';
+import GameLauncher from './components/GameLauncher';
+import StoryGameReader from './components/StoryGameReader';
 import { useEngine } from './hooks/useEngine';
 import { useConfluxChat } from './hooks/useConfluxChat';
 import { useToast } from './hooks/useToast';
+import { useFamily } from './hooks/useFamily';
+import { useStoryGames, useStoryGame, useStorySeeds } from './hooks/useStoryGame';
 import { initTheme, getSavedWallpaper } from './lib/theme';
 import { registerShortcuts } from './lib/shortcuts';
 import './styles/animations.css';
@@ -135,6 +141,26 @@ export default function App() {
   });
 
   const { connected, agents, refresh } = useEngine();
+
+  // Family profiles
+  const { members: familyMembers, create: createFamilyMember } = useFamily();
+  const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
+  const [showFamilySetup, setShowFamilySetup] = useState(false);
+
+  // Story games
+  const { games: storyGames, create: createStoryGame, reload: reloadGames } = useStoryGames(activeMemberId ?? undefined);
+  const [activeGameId, setActiveGameId] = useState<string | null>(null);
+  const [showGameLauncher, setShowGameLauncher] = useState(false);
+  const {
+    game: activeGame, chapters: activeGameChapters, currentChapter: activeGameCurrentChapter,
+    choosePath, solvePuzzle, generateNextChapter,
+  } = useStoryGame(activeGameId);
+  const { seeds: storySeeds } = useStorySeeds(
+    activeMemberId ? familyMembers.find(m => m.id === activeMemberId)?.age_group : undefined,
+  );
+
+  // Filter agents by active family member's age group
+  const activeMember = familyMembers.find(m => m.id === activeMemberId);
 
   // Listen for settings nav from TopBar gear icon
   useEffect(() => {
@@ -275,6 +301,16 @@ export default function App() {
         wallpaper={wallpaper || undefined}
       />
 
+      {/* Family Switcher — below TopBar, above content */}
+      {familyMembers.length > 0 && (
+        <FamilySwitcher
+          members={familyMembers}
+          activeMemberId={activeMemberId}
+          onSelect={(member) => setActiveMemberId(member?.id ?? null)}
+          onAddClick={() => setShowFamilySetup(true)}
+        />
+      )}
+
       {/* Backdrop overlay when chat is open */}
       {chatOpen && (
         <div className="chat-backdrop" onClick={handleCloseChat} />
@@ -402,6 +438,141 @@ export default function App() {
         <div className="content-overlay">
           <Settings />
         </div>
+      )}
+
+      {/* Games View */}
+      {view === 'games' && !activeGameId && (
+        <div className="content-overlay">
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+                  📖 Conflux Stories
+                </h3>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                  AI-generated interactive adventure puzzle games
+                </p>
+              </div>
+              <button
+                className="btn-primary"
+                onClick={() => setShowGameLauncher(true)}
+                style={{ padding: '10px 20px', borderRadius: 10, fontWeight: 600 }}
+              >
+                + New Story
+              </button>
+            </div>
+
+            {/* Active Games */}
+            {storyGames.length > 0 ? (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                gap: 16,
+              }}>
+                {storyGames.map(game => (
+                  <div
+                    key={game.id}
+                    style={{
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 14,
+                      padding: 20,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onClick={() => setActiveGameId(game.id)}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 8 }}>
+                      <span style={{ fontSize: 24 }}>
+                        {game.genre === 'adventure' ? '⚔️' : game.genre === 'mystery' ? '🔍' : game.genre === 'fantasy' ? '🐉' : game.genre === 'scifi' ? '🚀' : '👻'}
+                      </span>
+                      <span style={{
+                        fontSize: 11, padding: '3px 8px', borderRadius: 6,
+                        background: game.status === 'active' ? 'var(--accent-success)' + '20' : 'var(--text-muted)' + '20',
+                        color: game.status === 'active' ? 'var(--accent-success)' : 'var(--text-muted)',
+                      }}>
+                        {game.status}
+                      </span>
+                    </div>
+                    <h4 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)' }}>
+                      {game.title}
+                    </h4>
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      Chapter {game.current_chapter} • {game.genre} • {game.difficulty}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{
+                textAlign: 'center', padding: 60, color: 'var(--text-muted)',
+                background: 'var(--bg-card)', borderRadius: 14, border: '1px solid var(--border)',
+              }}>
+                <div style={{ fontSize: 48, marginBottom: 16 }}>📖</div>
+                <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: 'var(--text-primary)' }}>
+                  No stories yet
+                </h3>
+                <p style={{ fontSize: 13, marginBottom: 20 }}>
+                  Start your first interactive adventure!
+                </p>
+                <button
+                  className="btn-primary"
+                  onClick={() => setShowGameLauncher(true)}
+                  style={{ padding: '10px 24px', borderRadius: 10, fontWeight: 600 }}
+                >
+                  Browse Stories →
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Story Game Reader — full screen overlay when playing */}
+      {activeGame && activeGameId && (
+        <StoryGameReader
+          game={activeGame}
+          chapters={activeGameChapters}
+          currentChapter={activeGameCurrentChapter}
+          onChoose={choosePath}
+          onSolvePuzzle={solvePuzzle}
+          onClose={() => setActiveGameId(null)}
+          onGenerateNext={generateNextChapter}
+        />
+      )}
+
+      {/* Game Launcher Modal */}
+      {showGameLauncher && (
+        <GameLauncher
+          seeds={storySeeds}
+          memberAgeGroup={activeMember?.age_group}
+          onCreateGame={async (req) => {
+            const game = await createStoryGame(req);
+            setShowGameLauncher(false);
+            setActiveGameId(game.id);
+            return game;
+          }}
+          onClose={() => setShowGameLauncher(false)}
+        />
+      )}
+
+      {/* Family Setup Modal */}
+      {showFamilySetup && (
+        <FamilySetup
+          onSubmit={async (req) => {
+            await createFamilyMember(req);
+            setShowFamilySetup(false);
+          }}
+          onCancel={() => setShowFamilySetup(false)}
+        />
       )}
 
       <Taskbar currentView={view} onNavigate={handleNavigate} />
