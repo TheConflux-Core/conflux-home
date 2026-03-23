@@ -42,9 +42,14 @@ pub async fn process_turn(
     let mut messages: Vec<OpenAIMessage> = Vec::new();
 
     // System prompt: agent soul + instructions + memory + skills
-    let skill_context = match super::get_engine().build_skill_context(agent_id) {
-        Ok(ctx) => ctx,
-        Err(_) => String::new(),
+    let skill_context = match db.get_skills_for_agent(agent_id) {
+        Ok(skills) if !skills.is_empty() => {
+            let skill_lines: Vec<String> = skills.iter()
+                .map(|s| format!("{} {}: {}", s.emoji, s.name, s.instructions))
+                .collect();
+            format!("\n\nActive skills:\n{}", skill_lines.join("\n\n"))
+        }
+        _ => String::new(),
     };
     let system_prompt = build_system_prompt(&agent, &memory_context, &skill_context);
     messages.push(OpenAIMessage {
@@ -240,9 +245,14 @@ pub async fn process_turn_stream(
     // 4. Build messages
     let mut messages: Vec<OpenAIMessage> = Vec::new();
 
-    let skill_context = match super::get_engine().build_skill_context(agent_id) {
-        Ok(ctx) => ctx,
-        Err(_) => String::new(),
+    let skill_context = match db.get_skills_for_agent(agent_id) {
+        Ok(skills) if !skills.is_empty() => {
+            let skill_lines: Vec<String> = skills.iter()
+                .map(|s| format!("{} {}: {}", s.emoji, s.name, s.instructions))
+                .collect();
+            format!("\n\nActive skills:\n{}", skill_lines.join("\n\n"))
+        }
+        _ => String::new(),
     };
     let system_prompt = build_system_prompt(&agent, &memory_context, &skill_context);
     messages.push(OpenAIMessage {
