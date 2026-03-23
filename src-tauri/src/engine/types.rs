@@ -175,6 +175,19 @@ pub struct Usage {
     pub total_tokens: i64,
 }
 
+// ── Engine Response (internal) ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EngineResponse {
+    pub content: String,
+    pub model: String,
+    pub provider_id: String,
+    pub provider_name: String,
+    pub tokens_used: i64,
+    pub latency_ms: i64,
+    pub calls_remaining: i64,
+}
+
 // ── Provider Config ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -207,6 +220,96 @@ pub struct ProviderTemplate {
     pub docs_url: Option<String>,
     pub is_free: bool,
     pub sort_order: i64,
+}
+
+// ── Agent Capability ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentCapability {
+    pub agent_id: String,
+    pub capability: String,
+    pub proficiency: String,
+}
+
+// ── Agent Permissions ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentPermission {
+    pub agent_id: String,
+    pub can_talk_to: String, // JSON array or '*'
+    pub max_delegation_depth: i64,
+    pub max_tokens_per_session: i64,
+    pub can_create_tasks: bool,
+    pub can_delete_data: bool,
+    pub requires_verification: bool,
+    pub anti_hallucination: bool,
+}
+
+// ── Verification Record ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VerificationRecord {
+    pub id: String,
+    pub agent_id: String,
+    pub session_id: Option<String>,
+    pub claim_type: String,
+    pub claim: String,
+    pub verified_by: Option<String>,
+    pub verification: String,
+    pub evidence: Option<String>,
+    pub created_at: String,
+}
+
+// ── Agent Communication ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentCommunication {
+    pub id: String,
+    pub from_agent: String,
+    pub to_agent: String,
+    pub message_type: String,
+    pub content: String,
+    pub response: Option<String>,
+    pub status: String,
+    pub session_id: Option<String>,
+    pub tokens_used: i64,
+    pub created_at: String,
+    pub responded_at: Option<String>,
+}
+
+// ── Task ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Task {
+    pub id: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub agent_id: String,
+    pub status: String,
+    pub result: Option<String>,
+    pub parent_task_id: Option<String>,
+    pub session_id: Option<String>,
+    pub created_by: String,
+    pub priority: String,
+    pub requires_verify: bool,
+    pub verified: bool,
+    pub created_at: String,
+    pub updated_at: String,
+    pub completed_at: Option<String>,
+}
+
+// ── Lesson Learned ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LessonLearned {
+    pub id: String,
+    pub agent_id: Option<String>,
+    pub category: String,
+    pub lesson: String,
+    pub evidence: Option<String>,
+    pub action_taken: Option<String>,
+    pub is_active: bool,
+    pub created_at: String,
 }
 
 // ── Quota ──

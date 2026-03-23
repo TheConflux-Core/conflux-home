@@ -373,7 +373,170 @@ INSERT OR IGNORE INTO tools (id, name, description, parameters, category) VALUES
     ('memory_write','Memory Write','Store a memory',                '{"type":"object","properties":{"key":{"type":"string"},"content":{"type":"string"},"memory_type":{"type":"string"}},"required":["content"]}', 'builtin');
 
 -- ============================================================
--- TOOL PERMISSIONS — Per-agent tool access control
+-- AGENT CAPABILITIES — What each agent can do
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS agent_capabilities (
+    agent_id        TEXT NOT NULL REFERENCES agents(id),
+    capability      TEXT NOT NULL,  -- 'web_research', 'code_writing', 'market_analysis', etc.
+    proficiency     TEXT NOT NULL DEFAULT 'expert',  -- 'basic' | 'competent' | 'expert'
+    PRIMARY KEY (agent_id, capability)
+);
+
+-- Seed capabilities for our agent team
+INSERT OR IGNORE INTO agent_capabilities (agent_id, capability, proficiency) VALUES
+    ('zigbot',   'strategic_planning', 'expert'),
+    ('zigbot',   'decision_making', 'expert'),
+    ('zigbot',   'summarization', 'expert'),
+    ('zigbot',   'conversation', 'expert'),
+    ('helix',    'web_research', 'expert'),
+    ('helix',    'market_analysis', 'expert'),
+    ('helix',    'data_collection', 'expert'),
+    ('helix',    'trend_identification', 'expert'),
+    ('forge',    'code_writing', 'expert'),
+    ('forge',    'content_creation', 'expert'),
+    ('forge',    'document_generation', 'expert'),
+    ('forge',    'artifact_building', 'expert'),
+    ('quanta',   'quality_review', 'expert'),
+    ('quanta',   'verification', 'expert'),
+    ('quanta',   'testing', 'expert'),
+    ('quanta',   'accuracy_checking', 'expert'),
+    ('prism',    'orchestration', 'expert'),
+    ('prism',    'task_decomposition', 'expert'),
+    ('prism',    'workflow_management', 'expert'),
+    ('prism',    'resource_allocation', 'expert'),
+    ('pulse',    'marketing', 'expert'),
+    ('pulse',    'content_distribution', 'expert'),
+    ('pulse',    'audience_research', 'expert'),
+    ('pulse',    'growth_strategy', 'expert'),
+    ('vector',   'business_strategy', 'expert'),
+    ('vector',   'financial_analysis', 'expert'),
+    ('vector',   'opportunity_evaluation', 'expert'),
+    ('vector',   'risk_assessment', 'expert'),
+    ('spectra',  'task_decomposition', 'expert'),
+    ('spectra',  'planning', 'expert'),
+    ('spectra',  'dependency_mapping', 'expert'),
+    ('luma',     'execution', 'expert'),
+    ('luma',     'run_management', 'expert'),
+    ('luma',     'scheduling', 'expert'),
+    ('catalyst', 'conversation', 'expert'),
+    ('catalyst', 'everyday_tasks', 'expert'),
+    ('catalyst', 'quick_answers', 'expert');
+
+-- ============================================================
+-- AGENT PERMISSIONS — Who can talk to whom, who can do what
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS agent_permissions (
+    agent_id                TEXT NOT NULL REFERENCES agents(id) PRIMARY KEY,
+    can_talk_to             TEXT NOT NULL DEFAULT '*',  -- JSON array of agent IDs, or '*' for all
+    max_delegation_depth    INTEGER NOT NULL DEFAULT 2,
+    max_tokens_per_session  INTEGER NOT NULL DEFAULT 0,  -- 0 = unlimited
+    can_create_tasks        INTEGER NOT NULL DEFAULT 1,
+    can_delete_data         INTEGER NOT NULL DEFAULT 0,
+    requires_verification   INTEGER NOT NULL DEFAULT 0,  -- 1 = outputs must be verified by quanta
+    anti_hallucination      INTEGER NOT NULL DEFAULT 1,  -- 1 = must verify before claiming success
+    updated_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- Seed permissions with our hierarchy rules
+INSERT OR IGNORE INTO agent_permissions (agent_id, can_talk_to, can_create_tasks, requires_verification, anti_hallucination) VALUES
+    ('zigbot',   '["helix","forge","quanta","prism","pulse","vector","spectra","luma","catalyst"]', 1, 0, 1),
+    ('helix',    '["zigbot","prism","catalyst"]', 1, 0, 1),
+    ('forge',    '["zigbot","prism","quanta","catalyst"]', 0, 1, 1),   -- forge outputs need verification
+    ('quanta',   '["zigbot","prism","forge","catalyst"]', 0, 0, 1),
+    ('prism',    '*', 1, 0, 1),                                          -- prism can orchestrate everyone
+    ('pulse',    '["zigbot","prism","catalyst"]', 0, 1, 1),             -- pulse outputs need verification
+    ('vector',   '["zigbot","prism","helix","catalyst"]', 0, 0, 1),
+    ('spectra',  '["zigbot","prism","forge","catalyst"]', 1, 0, 1),
+    ('luma',     '["zigbot","prism","forge","quanta","spectra","catalyst"]', 0, 0, 1),
+    ('catalyst', '*', 1, 0, 1);                                          -- catalyst is the free-form assistant
+
+-- ============================================================
+-- VERIFICATION RECORDS — Anti-hallucination audit trail
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS verification_records (
+    id              TEXT PRIMARY KEY,
+    agent_id        TEXT NOT NULL REFERENCES agents(id),
+    session_id      TEXT,
+    claim_type      TEXT NOT NULL,  -- 'tool_result', 'task_completion', 'data_assertion', 'external_action'
+    claim           TEXT NOT NULL,  -- what was claimed
+    verified_by     TEXT,          -- agent ID that verified (e.g., 'quanta')
+    verification    TEXT,          -- 'verified' | 'failed' | 'unverified'
+    evidence        TEXT,          -- JSON: what evidence was checked
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_verification_agent ON verification_records(agent_id);
+CREATE INDEX IF NOT EXISTS idx_verification_status ON verification_records(verification);
+
+-- ============================================================
+-- AGENT COMMUNICATIONS LOG — Inter-agent message audit trail
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS agent_communications (
+    id              TEXT PRIMARY KEY,
+    from_agent      TEXT NOT NULL REFERENCES agents(id),
+    to_agent        TEXT NOT NULL REFERENCES agents(id),
+    message_type    TEXT NOT NULL,  -- 'ask' | 'delegate' | 'notify' | 'verify'
+    content         TEXT NOT NULL,
+    response        TEXT,
+    status          TEXT NOT NULL DEFAULT 'pending',  -- 'pending' | 'delivered' | 'responded' | 'failed'
+    session_id      TEXT,
+    tokens_used     INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    responded_at    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_comms_from ON agent_communications(from_agent);
+CREATE INDEX IF NOT EXISTS idx_comms_to ON agent_communications(to_agent);
+CREATE INDEX IF NOT EXISTS idx_comms_status ON agent_communications(status);
+
+-- ============================================================
+-- TASKS — Async work management
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS tasks (
+    id              TEXT PRIMARY KEY,
+    title           TEXT NOT NULL,
+    description     TEXT,
+    agent_id        TEXT NOT NULL REFERENCES agents(id),  -- assigned to
+    status          TEXT NOT NULL DEFAULT 'pending',  -- 'pending' | 'in_progress' | 'completed' | 'failed' | 'blocked'
+    result          TEXT,                               -- JSON: what the agent returned
+    parent_task_id  TEXT REFERENCES tasks(id),          -- for sub-tasks
+    session_id      TEXT REFERENCES sessions(id),       -- working session
+    created_by      TEXT NOT NULL REFERENCES agents(id),
+    priority        TEXT NOT NULL DEFAULT 'normal',     -- 'low' | 'normal' | 'high' | 'critical'
+    requires_verify INTEGER NOT NULL DEFAULT 0,         -- 1 = needs quanta verification before completion
+    verified        INTEGER NOT NULL DEFAULT 0,         -- 1 = verified by quanta
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    completed_at    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_tasks_agent ON tasks(agent_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+CREATE INDEX IF NOT EXISTS idx_tasks_created_by ON tasks(created_by);
+
+-- ============================================================
+-- LESSONS LEARNED — Anti-repetition memory
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS lessons_learned (
+    id              TEXT PRIMARY KEY,
+    agent_id        TEXT REFERENCES agents(id),
+    category        TEXT NOT NULL,  -- 'workflow_gap', 'bug_pattern', 'cost_waste', 'quality_issue'
+    lesson          TEXT NOT NULL,
+    evidence        TEXT,           -- JSON: what happened, what went wrong
+    action_taken    TEXT,           -- what fix was applied
+    is_active       INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- ============================================================
+-- TOOL PERMISSIONS — Extend from Phase 1
+-- ============================================================
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS tool_permissions (
