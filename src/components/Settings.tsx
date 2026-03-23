@@ -5,6 +5,12 @@ import Avatar from './Avatar';
 import ProviderSettings from './settings/ProviderSettings';
 import AgentEditor from './settings/AgentEditor';
 import GoogleSettings from './settings/GoogleSettings';
+import NotificationSettings from './settings/NotificationSettings';
+import EmailSettings from './settings/EmailSettings';
+import CronManager from './settings/CronManager';
+import TaskView from './settings/TaskView';
+import WebhookManager from './settings/WebhookManager';
+import SkillsBrowser from './settings/SkillsBrowser';
 
 // ── Constants ──
 
@@ -429,8 +435,17 @@ export default function Settings() {
       <ProviderSettings />
       <GoogleSettings />
       <AppearanceSection />
+      <NotificationSettings />
+      <EmailSettings />
       <AgentsSection />
       <AgentEditor />
+      <div className="settings-section">
+        <div className="settings-section-title">🔧 Engine</div>
+      </div>
+      <CronManager />
+      <TaskView />
+      <WebhookManager />
+      <SkillsBrowser />
       <DataSection />
       <AboutSection />
     </div>

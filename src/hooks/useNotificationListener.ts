@@ -34,7 +34,7 @@ export default function useNotificationListener() {
       });
 
       // Also listen for events from the engine
-      const unlisten2 = await listen<{ payload: string }>('engine:event', (event) => {
+      const unlisten2 = await listen<string>('engine:event', (event) => {
         try {
           const data = JSON.parse(event.payload);
           if (data.event_type === 'agent_notification' && data.payload) {
@@ -46,7 +46,9 @@ export default function useNotificationListener() {
         }
       });
 
-      unlisten = () => { unlisten(); unlisten2(); };
+      const cleanup1 = unlisten;
+      const cleanup2 = unlisten2;
+      unlisten = () => { cleanup1(); cleanup2(); };
     }
 
     setup();
