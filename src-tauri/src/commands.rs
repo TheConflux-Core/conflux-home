@@ -663,6 +663,62 @@ pub fn engine_uninstall_skill(id: String) -> Result<(), String> {
     engine.uninstall_skill(&id).map_err(|e| e.to_string())
 }
 
+// ── Notifications ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NotificationRequest {
+    pub title: String,
+    pub body: String,
+}
+
+#[tauri::command]
+pub fn engine_send_notification(req: NotificationRequest) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().emit_event("agent_notification", None, None,
+        Some(&serde_json::json!({"title": req.title, "body": req.body}).to_string()))
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+// ── Email Config ──
+
+#[tauri::command]
+pub fn engine_set_email_config(
+    smtp_host: Option<String>,
+    smtp_user: Option<String>,
+    smtp_pass: Option<String>,
+    smtp_from: Option<String>,
+    imap_host: Option<String>,
+    imap_port: Option<String>,
+    imap_user: Option<String>,
+    imap_pass: Option<String>,
+) -> Result<(), String> {
+    let engine = engine::get_engine();
+    if let Some(v) = smtp_host { engine.db().set_config("smtp_host", &v).map_err(|e| e.to_string())?; }
+    if let Some(v) = smtp_user { engine.db().set_config("smtp_user", &v).map_err(|e| e.to_string())?; }
+    if let Some(v) = smtp_pass { engine.db().set_config("smtp_pass", &v).map_err(|e| e.to_string())?; }
+    if let Some(v) = smtp_from { engine.db().set_config("smtp_from", &v).map_err(|e| e.to_string())?; }
+    if let Some(v) = imap_host { engine.db().set_config("imap_host", &v).map_err(|e| e.to_string())?; }
+    if let Some(v) = imap_port { engine.db().set_config("imap_port", &v).map_err(|e| e.to_string())?; }
+    if let Some(v) = imap_user { engine.db().set_config("imap_user", &v).map_err(|e| e.to_string())?; }
+    if let Some(v) = imap_pass { engine.db().set_config("imap_pass", &v).map_err(|e| e.to_string())?; }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn engine_get_email_config() -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    Ok(serde_json::json!({
+        "smtp_host": engine.db().get_config("smtp_host").unwrap_or(None),
+        "smtp_user": engine.db().get_config("smtp_user").unwrap_or(None),
+        "smtp_from": engine.db().get_config("smtp_from").unwrap_or(None),
+        "imap_host": engine.db().get_config("imap_host").unwrap_or(None),
+        "imap_port": engine.db().get_config("imap_port").unwrap_or(None),
+        "imap_user": engine.db().get_config("imap_user").unwrap_or(None),
+        "is_configured": engine.db().get_config("smtp_host").unwrap_or(None).is_some(),
+    }))
+}
+
 // ── Google Commands ──
 
 #[tauri::command]
