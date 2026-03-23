@@ -9,6 +9,7 @@ interface WidgetDef {
 }
 
 const WIDGETS: WidgetDef[] = [
+  { id: 'chat', icon: '💬', label: 'Chat', preview: 'Talk with your agents', color: '#06b6d4' },
   { id: 'budget', icon: '💰', label: 'Budget', preview: 'Weekly spend summary', color: '#10b981' },
   { id: 'kitchen', icon: '🍳', label: 'Kitchen', preview: "Tonight's meal plan", color: '#f59e0b' },
   { id: 'life', icon: '🧠', label: 'Life Autopilot', preview: 'Active reminders', color: '#6366f1' },
