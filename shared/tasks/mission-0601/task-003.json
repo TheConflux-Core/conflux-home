@@ -1,0 +1,23 @@
+{
+  "task_id": "mission-0601-task-003",
+  "mission_id": "mission-0601",
+  "product_id": "product-0603",
+  "type": "artifact_generation",
+  "title": "Build CMMC compliance engine (gap assessment, SSP, POA&M, readiness scorer)",
+  "description": "Build the core compliance engine as described in the MVP spec. Implement: (1) gap assessment questionnaire mapped to 110 NIST SP 800-171 controls across 14 families, (2) automated SSP document generator from assessment responses, (3) POA&M creator for identified gaps with remediation guidance, (4) C3PAO readiness score calculator. Include control family taxonomy data, assessment logic, and document generation templates. Output: source code in products/product-0603/src/engine/",
+  "status": "output_ready",
+  "assigned_role": "forge",
+  "claimed_by": "forge",
+  "depends_on": [
+    "mission-0601-task-002"
+  ],
+  "input_refs": [
+    "products/product-0603/specs/mvp_spec.md",
+    "products/product-0603/research/cmmc_research_report.md"
+  ],
+  "output_refs": [
+    "products/product-0601/src/engine/"
+  ],
+  "created_at": "2026-03-22T05:34:00Z",
+  "updated_at": "2026-03-23T18:53:00Z"
+}

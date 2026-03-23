@@ -1,0 +1,25 @@
+{
+  "task_id": "mission-0601-task-004",
+  "mission_id": "mission-0601",
+  "product_id": "product-0603",
+  "type": "artifact_generation",
+  "title": "Build CMMC Shield web application (auth, dashboard, Stripe, UI)",
+  "description": "Build the web application shell around the compliance engine. Implement: (1) user authentication and company onboarding, (2) main dashboard showing C3PAO readiness score and control family status, (3) interactive gap assessment wizard UI, (4) SSP/POA&M document viewer and export, (5) remediation tracker with status updates, (6) Stripe integration for 3-tier subscription (Starter $99, Pro $199, Team $299/mo), (7) responsive landing page. Output: products/product-0603/src/web/",
+  "status": "output_ready",
+  "assigned_role": "forge",
+  "claimed_by": "forge",
+  "depends_on": [
+    "mission-0601-task-003"
+  ],
+  "input_refs": [
+    "products/product-0603/specs/mvp_spec.md",
+    "products/product-0603/src/engine/"
+  ],
+  "output_refs": [
+    "products/product-0601/src/web/",
+    "products/product-0601/landing/index.html",
+    "products/product-0601/docs/documentation.md"
+  ],
+  "created_at": "2026-03-22T05:34:00Z",
+  "updated_at": "2026-03-23T18:53:00Z"
+}

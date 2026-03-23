@@ -1,0 +1,51 @@
+{
+  "mission_id": "mission-0601",
+  "product_id": "product-0603",
+  "opportunity_ref": "opp-0602",
+  "decision_ref": "dec-0602",
+  "title": "CMMC Shield — AI Compliance Copilot for Small Defense Contractors",
+  "market": "cybersecurity_compliance",
+  "segment": "cmmc_small_defense_contractors",
+  "format": "micro_saas",
+  "status": "queued",
+  "created_at": "2026-03-22T05:15:00Z",
+  "updated_at": "2026-03-22T05:34:00Z",
+  "created_by": "prism",
+  "source": "helix_nightly_discovery",
+  "summary": {
+    "problem": "CMMC 2.0 Level 2 becomes mandatory for all new DoD contracts by Oct 31, 2026. Only 0.5% of DIB is certified. Small contractors face $75K-$130K first-year costs and can't afford consultants or enterprise platforms.",
+    "solution": "AI-powered CMMC compliance navigator: automated gap assessment, SSP generation, POA&M creation, C3PAO readiness scoring, remediation tracking. Web-based, $99-$299/mo.",
+    "audience": "Small defense contractors (1-50 employees) in the U.S. Defense Industrial Base (~200,000 companies)"
+  },
+  "business_model": {
+    "type": "subscription_saas",
+    "pricing_tiers": [
+      { "name": "Starter", "price_monthly": 99 },
+      { "name": "Pro", "price_monthly": 199 },
+      { "name": "Team", "price_monthly": 299 }
+    ]
+  },
+  "revenue_potential": {
+    "year_1_target": 36000,
+    "year_3_target": 600000
+  },
+  "scores": {
+    "opportunity_score": 7.8,
+    "expected_value": 8.5
+  },
+  "build_estimate": {
+    "mvp_timeline": "6-8 weeks",
+    "mvp_cost": 5000
+  },
+  "locks": {},
+  "task_refs": [
+    "mission-0601-task-001",
+    "mission-0601-task-002",
+    "mission-0601-task-003",
+    "mission-0601-task-004",
+    "mission-0601-task-005",
+    "mission-0601-task-006"
+  ],
+  "output_refs": [],
+  "evidence": []
+}
