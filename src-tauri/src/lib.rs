@@ -172,6 +172,7 @@ pub fn run() {
             commands::feed_toggle_bookmark,
             commands::feed_add_item,
             commands::feed_generate,
+            commands::kitchen_recognize_meal,
             // Fridge Scanner
             commands::fridge_scan,
             commands::fridge_what_can_i_make,
