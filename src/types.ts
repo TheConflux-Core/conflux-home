@@ -44,14 +44,6 @@ export interface PipelineStatus {
   uptime: string;
 }
 
-// Gateway-specific re-exports (for React components to import)
-export type { GatewayClient } from './gateway-client';
-export type {
-  ChatMessage as GatewayChatMessage,
-  GatewayAgent,
-  HealthResponse,
-} from './gateway-client';
-
 export type View = 'dashboard' | 'chat' | 'marketplace' | 'settings' | 'onboarding';
 
 // Agent accent colors for avatar rendering

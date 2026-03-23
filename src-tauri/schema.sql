@@ -398,7 +398,7 @@ CREATE TABLE IF NOT EXISTS google_tokens (
 -- Default config values
 INSERT OR IGNORE INTO config (key, value) VALUES
     ('engine_version', '1.0.0'),
-    ('default_model', 'conflux-fast'),
+    ('default_model', 'conflux-core'),
     ('free_daily_limit', '50'),
     ('memory_search', 'fts5'),  -- 'fts5' | 'embeddings'
     ('created_at', (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')));
@@ -440,14 +440,14 @@ END;
 -- ============================================================
 
 INSERT OR IGNORE INTO agents (id, name, emoji, role, model_alias) VALUES
-    ('zigbot',    'ZigBot',    '🤖', 'Strategic Partner',          'conflux-fast'),
-    ('helix',     'Helix',     '🔬', 'Market Researcher',          'conflux-fast'),
-    ('forge',     'Forge',     '🔨', 'Builder',                    'conflux-fast'),
-    ('quanta',    'Quanta',    '✅', 'Quality Control',            'conflux-fast'),
-    ('prism',     'Prism',     '💎', 'System Orchestrator',        'conflux-fast'),
-    ('pulse',     'Pulse',     '📣', 'Growth Engine',              'conflux-fast'),
-    ('vector',    'Vector',    '🧭', 'Business Strategist',        'conflux-smart'),
-    ('spectra',   'Spectra',   '🧩', 'Task Decomposer',            'conflux-fast'),
+    ('zigbot',    'ZigBot',    '🤖', 'Strategic Partner',          'conflux-core'),
+    ('helix',     'Helix',     '🔬', 'Market Researcher',          'conflux-core'),
+    ('forge',     'Forge',     '🔨', 'Builder',                    'conflux-core'),
+    ('quanta',    'Quanta',    '✅', 'Quality Control',            'conflux-core'),
+    ('prism',     'Prism',     '💎', 'System Orchestrator',        'conflux-core'),
+    ('pulse',     'Pulse',     '📣', 'Growth Engine',              'conflux-core'),
+    ('vector',    'Vector',    '🧭', 'Business Strategist',        'conflux-pro'),
+    ('spectra',   'Spectra',   '🧩', 'Task Decomposer',            'conflux-core'),
     ('luma',      'Luma',      '🚀', 'Run Launcher',               'conflux-fast'),
     ('catalyst',  'Catalyst',  '⚡', 'Everyday Assistant',         'conflux-fast');
 

@@ -35,8 +35,9 @@ export {
 } from './types';
 
 export {
-  FREE_PROVIDERS,
-  PAID_PROVIDERS,
+  CORE_PROVIDERS,
+  PRO_PROVIDERS,
+  ULTRA_PROVIDERS,
   ALIAS_MAP,
   getProvidersForTier,
   getProvidersForAlias,

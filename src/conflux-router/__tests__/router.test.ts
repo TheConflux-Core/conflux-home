@@ -6,8 +6,9 @@ import {
   getProvidersForTier,
   getProvidersForAlias,
   findModelForAlias,
-  FREE_PROVIDERS,
-  PAID_PROVIDERS,
+  CORE_PROVIDERS,
+  PRO_PROVIDERS,
+  ULTRA_PROVIDERS,
   ALIAS_MAP,
 } from '../providers';
 import {
@@ -31,20 +32,24 @@ vi.stubGlobal('localStorage', {
 // ── Provider Registry Tests ──
 
 describe('Provider Registry', () => {
-  it('should have free providers', () => {
-    expect(FREE_PROVIDERS.length).toBeGreaterThanOrEqual(4);
+  it('should have core providers', () => {
+    expect(CORE_PROVIDERS.length).toBeGreaterThanOrEqual(4);
   });
 
-  it('should have paid providers', () => {
-    expect(PAID_PROVIDERS.length).toBeGreaterThanOrEqual(2);
+  it('should have pro providers', () => {
+    expect(PRO_PROVIDERS.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('free tier should only return free providers', () => {
+  it('should have ultra providers', () => {
+    expect(ULTRA_PROVIDERS.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('free tier should only return core providers', () => {
     const providers = getProvidersForTier('free');
     expect(providers.every(p => p.tier === 'free')).toBe(true);
   });
 
-  it('pro tier should return both free and paid', () => {
+  it('pro tier should return core, pro, and ultra providers', () => {
     const providers = getProvidersForTier('pro');
     const hasFree = providers.some(p => p.tier === 'free');
     const hasPaid = providers.some(p => p.tier === 'paid');
@@ -52,38 +57,38 @@ describe('Provider Registry', () => {
     expect(hasPaid).toBe(true);
   });
 
-  it('conflux-fast should have providers on free tier', () => {
-    const providers = getProvidersForAlias('conflux-fast', 'free');
+  it('conflux-core should have providers on free tier', () => {
+    const providers = getProvidersForAlias('conflux-core', 'free');
     expect(providers.length).toBeGreaterThan(0);
   });
 
-  it('conflux-smart should have more providers on pro tier', () => {
-    const free = getProvidersForAlias('conflux-smart', 'free');
-    const pro = getProvidersForAlias('conflux-smart', 'pro');
+  it('conflux-pro should have more providers on pro tier', () => {
+    const free = getProvidersForAlias('conflux-pro', 'free');
+    const pro = getProvidersForAlias('conflux-pro', 'pro');
     expect(pro.length).toBeGreaterThanOrEqual(free.length);
   });
 
   it('should find model for alias on a provider', () => {
-    const provider = FREE_PROVIDERS[0]; // Google Gemini
-    const model = findModelForAlias(provider, 'conflux-fast');
+    const provider = CORE_PROVIDERS[0];
+    const model = findModelForAlias(provider, 'conflux-core');
     expect(model).not.toBeNull();
-    expect(model?.alias).toBe('conflux-fast');
+    expect(model?.alias).toBe('conflux-core');
   });
 });
 
 // ── Alias Map Tests ──
 
 describe('Alias Map', () => {
-  it('conflux-fast should map to providers', () => {
-    expect(ALIAS_MAP['conflux-fast'].length).toBeGreaterThan(0);
+  it('conflux-core should map to providers', () => {
+    expect(ALIAS_MAP['conflux-core'].length).toBeGreaterThan(0);
   });
 
-  it('conflux-smart should map to providers', () => {
-    expect(ALIAS_MAP['conflux-smart'].length).toBeGreaterThan(0);
+  it('conflux-pro should map to providers', () => {
+    expect(ALIAS_MAP['conflux-pro'].length).toBeGreaterThan(0);
   });
 
   it('all mapped provider IDs should exist in providers', () => {
-    const allIds = [...FREE_PROVIDERS, ...PAID_PROVIDERS].map(p => p.id);
+    const allIds = [...CORE_PROVIDERS, ...PRO_PROVIDERS, ...ULTRA_PROVIDERS].map(p => p.id);
     for (const [alias, providerIds] of Object.entries(ALIAS_MAP)) {
       for (const id of providerIds) {
         expect(allIds, `Alias "${alias}" references unknown provider "${id}"`).toContain(id);
@@ -117,7 +122,6 @@ describe('Quota Tracker', () => {
 
   it('should enforce daily limit', () => {
     let quota = loadQuota('test-user', 'free');
-    // Simulate hitting the limit
     for (let i = 0; i < 50; i++) {
       quota = incrementQuota(quota, 10);
     }
@@ -130,7 +134,6 @@ describe('Quota Tracker', () => {
     expect(hasQuota(quota)).toBe(true);
     expect(quota.maxCallsPerDay).toBe(Infinity);
 
-    // Even after many calls
     let updated = quota;
     for (let i = 0; i < 1000; i++) {
       updated = incrementQuota(updated, 10);
