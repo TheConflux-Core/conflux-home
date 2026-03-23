@@ -146,6 +146,21 @@ pub fn run() {
             commands::learning_get_progress,
             commands::learning_create_goal,
             commands::learning_get_goals,
+            // Smart Kitchen
+            commands::kitchen_create_meal,
+            commands::kitchen_get_meals,
+            commands::kitchen_get_meal,
+            commands::kitchen_toggle_favorite,
+            commands::kitchen_add_ingredient,
+            commands::kitchen_ai_add_meal,
+            commands::kitchen_set_plan_entry,
+            commands::kitchen_get_weekly_plan,
+            commands::kitchen_clear_week_plan,
+            commands::kitchen_generate_grocery,
+            commands::kitchen_get_grocery,
+            commands::kitchen_toggle_grocery_item,
+            commands::kitchen_add_inventory,
+            commands::kitchen_get_inventory,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

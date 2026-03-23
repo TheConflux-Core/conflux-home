@@ -1067,3 +1067,101 @@ CREATE INDEX IF NOT EXISTS idx_budget_member ON budget_entries(member_id);
 CREATE INDEX IF NOT EXISTS idx_budget_date ON budget_entries(date);
 CREATE INDEX IF NOT EXISTS idx_budget_category ON budget_entries(category);
 
+-- ============================================================
+-- SMART KITCHEN — Meal Management System
+-- ============================================================
+
+-- Meals in the family's collection
+CREATE TABLE IF NOT EXISTS meals (
+    id              TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    description     TEXT,
+    cuisine         TEXT,           -- 'italian' | 'mexican' | 'american' | 'asian' | etc.
+    category        TEXT,           -- 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'dessert'
+    photo_url       TEXT,           -- path to photo
+    prep_time_min   INTEGER,
+    cook_time_min   INTEGER,
+    servings        INTEGER DEFAULT 4,
+    difficulty      TEXT DEFAULT 'normal',  -- 'easy' | 'normal' | 'hard'
+    instructions    TEXT,           -- full recipe steps
+    estimated_cost  REAL,           -- total cost for all ingredients
+    cost_per_serving REAL,          -- estimated_cost / servings
+    calories        INTEGER,        -- per serving estimate
+    tags            TEXT,           -- JSON array: ['quick', 'healthy', 'kid-friendly', 'comfort-food']
+    source          TEXT,           -- 'manual' | 'photo-ai' | 'imported'
+    is_favorite     INTEGER DEFAULT 0,
+    last_made       TEXT,           -- ISO date when this was last in the meal plan
+    times_made      INTEGER DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_meals_category ON meals(category);
+CREATE INDEX IF NOT EXISTS idx_meals_cuisine ON meals(cuisine);
+CREATE INDEX IF NOT EXISTS idx_meals_favorite ON meals(is_favorite);
+
+-- Ingredients for each meal
+CREATE TABLE IF NOT EXISTS meal_ingredients (
+    id              TEXT PRIMARY KEY,
+    meal_id         TEXT NOT NULL REFERENCES meals(id) ON DELETE CASCADE,
+    name            TEXT NOT NULL,
+    quantity        REAL,
+    unit            TEXT,           -- 'cups' | 'tbsp' | 'oz' | 'lbs' | 'pieces' | 'cloves'
+    estimated_cost  REAL,           -- cost of this ingredient
+    category        TEXT,           -- 'produce' | 'dairy' | 'meat' | 'pantry' | 'spice' | 'frozen'
+    is_optional     INTEGER DEFAULT 0,
+    notes           TEXT,           -- 'diced', 'minced', 'room temperature', etc.
+    sort_order      INTEGER DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_ingredients_meal ON meal_ingredients(meal_id);
+
+-- Weekly meal plan
+CREATE TABLE IF NOT EXISTS meal_plans_v2 (
+    id              TEXT PRIMARY KEY,
+    week_start      TEXT NOT NULL,   -- ISO date of Monday
+    day_of_week     INTEGER NOT NULL, -- 0=Mon, 1=Tue, ... 6=Sun
+    meal_slot       TEXT NOT NULL,   -- 'breakfast' | 'lunch' | 'dinner' | 'snack'
+    meal_id         TEXT REFERENCES meals(id),
+    notes           TEXT,           -- 'use leftover chicken', 'quick meal night'
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_plans_week ON meal_plans_v2(week_start);
+CREATE INDEX IF NOT EXISTS idx_plans_meal ON meal_plans_v2(meal_id);
+
+-- Grocery list (auto-generated from meal plan)
+CREATE TABLE IF NOT EXISTS grocery_items (
+    id              TEXT PRIMARY KEY,
+    member_id       TEXT REFERENCES family_members(id),  -- NULL = household
+    name            TEXT NOT NULL,
+    quantity        REAL,
+    unit            TEXT,
+    category        TEXT,           -- 'produce' | 'dairy' | 'meat' | 'pantry' | etc.
+    estimated_cost  REAL,
+    is_checked      INTEGER DEFAULT 0,
+    source_meal_id  TEXT REFERENCES meals(id),  -- which meal needs this
+    week_start      TEXT,           -- which week this is for
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_grocery_week ON grocery_items(week_start);
+CREATE INDEX IF NOT EXISTS idx_grocery_checked ON grocery_items(is_checked);
+
+-- Kitchen inventory (future: what's in stock)
+CREATE TABLE IF NOT EXISTS kitchen_inventory (
+    id              TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    quantity        REAL,
+    unit            TEXT,
+    category        TEXT,
+    expiry_date     TEXT,           -- ISO date
+    location        TEXT,           -- 'fridge' | 'freezer' | 'pantry'
+    last_restocked  TEXT,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_inventory_location ON kitchen_inventory(location);
+CREATE INDEX IF NOT EXISTS idx_inventory_expiry ON kitchen_inventory(expiry_date);
+
