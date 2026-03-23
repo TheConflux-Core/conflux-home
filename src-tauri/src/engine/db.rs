@@ -52,8 +52,28 @@ impl EngineDb {
     fn migrate(&self) -> Result<()> {
         let schema = include_str!("../../schema.sql");
         let conn = self.conn.lock().map_err(|_| anyhow::anyhow!("Database lock poisoned"))?;
-        conn.execute_batch(schema)
-            .context("Failed to run schema migration")?;
+        
+        // Split schema into individual statements and run each one.
+        // This allows us to gracefully handle "duplicate column" errors
+        // from ALTER TABLE statements that run against existing databases.
+        for statement in schema.split(';') {
+            let trimmed = statement.trim();
+            if trimmed.is_empty() || trimmed.starts_with("--") {
+                continue;
+            }
+            match conn.execute_batch(trimmed) {
+                Ok(_) => {}
+                Err(e) => {
+                    let msg = e.to_string().to_lowercase();
+                    if msg.contains("duplicate column") || msg.contains("already exists") {
+                        // Safe to ignore — migration already applied
+                        log::debug!("Schema migration: skipping (already applied): {}", &trimmed[..trimmed.len().min(60)]);
+                    } else {
+                        return Err(e).context("Failed to run schema migration");
+                    }
+                }
+            }
+        }
         Ok(())
     }
 

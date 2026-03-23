@@ -149,6 +149,9 @@ CREATE TABLE IF NOT EXISTS cron_jobs (
     task_message    TEXT NOT NULL,              -- what to tell the agent
     is_enabled      INTEGER NOT NULL DEFAULT 1,
     last_run_at     TEXT,
+    last_run_status TEXT DEFAULT NULL,
+    last_run_tokens INTEGER DEFAULT 0,
+    last_run_error  TEXT DEFAULT NULL,
     next_run_at     TEXT,
     run_count       INTEGER NOT NULL DEFAULT 0,
     error_count     INTEGER NOT NULL DEFAULT 0,
@@ -159,10 +162,8 @@ CREATE TABLE IF NOT EXISTS cron_jobs (
 CREATE INDEX IF NOT EXISTS idx_cron_enabled ON cron_jobs(is_enabled);
 CREATE INDEX IF NOT EXISTS idx_cron_next_run ON cron_jobs(next_run_at) WHERE is_enabled = 1;
 
--- Add run tracking columns
-ALTER TABLE cron_jobs ADD COLUMN last_run_status TEXT DEFAULT NULL;
-ALTER TABLE cron_jobs ADD COLUMN last_run_tokens INTEGER DEFAULT 0;
-ALTER TABLE cron_jobs ADD COLUMN last_run_error TEXT DEFAULT NULL;
+-- Note: last_run_status, last_run_tokens, last_run_error are in the CREATE TABLE above.
+-- Migration ALTER TABLE statements removed — columns are now part of the base schema.
 
 -- ============================================================
 -- WEBHOOKS — External Triggers
