@@ -3,8 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { Agent, View } from './types';
 import TopBar from './components/TopBar';
 import Desktop from './components/Desktop';
-import StartMenu from './components/StartMenu';
-import Dock from './components/Dock';
+import ConfluxBar from './components/ConfluxBar';
 import ChatPanel from './components/ChatPanel';
 import Marketplace from './components/Marketplace';
 import AgentDetail from './components/AgentDetail';
@@ -70,17 +69,6 @@ export default function App() {
   const [immersiveView, setImmersiveView] = useState<View | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
-  const [startMenuOpen, setStartMenuOpen] = useState(false);
-
-  // Close start menu on Escape
-  useEffect(() => {
-    if (!startMenuOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setStartMenuOpen(false);
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [startMenuOpen]);
   const [voiceChatOpen, setVoiceChatOpen] = useState(false);
   const [wallpaper, setWallpaper] = useState(() => getDefaultWallpaper());
   const [liveAgents, setLiveAgents] = useState(0);
@@ -655,16 +643,10 @@ export default function App() {
         />
       )}
 
-      <Dock
+      <ConfluxBar
         currentView={view}
+        agents={agents}
         pinnedApps={['chat', 'agents', 'kitchen', 'budget', 'settings']}
-        onNavigate={handleNavigate}
-        onOpenStartMenu={() => setStartMenuOpen(true)}
-      />
-
-      <StartMenu
-        isOpen={startMenuOpen}
-        onClose={() => setStartMenuOpen(false)}
         onNavigate={handleNavigate}
       />
 
