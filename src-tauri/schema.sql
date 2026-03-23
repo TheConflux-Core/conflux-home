@@ -373,7 +373,28 @@ INSERT OR IGNORE INTO tools (id, name, description, parameters, category) VALUES
     ('memory_write','Memory Write','Store a memory',                '{"type":"object","properties":{"key":{"type":"string"},"content":{"type":"string"},"memory_type":{"type":"string"}},"required":["content"]}', 'builtin');
 
 -- ============================================================
--- SEED: Default Providers
+-- TOOL PERMISSIONS — Per-agent tool access control
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS tool_permissions (
+    agent_id        TEXT NOT NULL REFERENCES agents(id),
+    tool_id         TEXT NOT NULL REFERENCES tools(id),
+    is_allowed      INTEGER NOT NULL DEFAULT 1,
+    max_calls_per_session INTEGER NOT NULL DEFAULT 0, -- 0 = unlimited
+    config          TEXT,                               -- JSON: tool-specific config (e.g., allowed paths)
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    PRIMARY KEY (agent_id, tool_id)
+);
+
+-- Seed: all agents can use all builtin tools by default
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'web_search' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'file_read' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'file_write' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'exec' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'calc' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'time' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'memory_read' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'memory_write' FROM agents;
 -- ============================================================
 
 INSERT OR IGNORE INTO providers (id, name, base_url, api_key, model_id, model_alias, priority) VALUES
