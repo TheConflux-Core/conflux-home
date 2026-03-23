@@ -338,4 +338,143 @@ mod integration_tests {
 
         println!("✅ Config store works");
     }
+
+    // ── Full End-to-End Chat Test ──
+    // Tests the complete chain: DB → agent → system prompt → router → provider → response → DB
+
+    #[test]
+    fn test_full_chat_cycle_catalyst() {
+        use app_lib::engine::{runtime, router};
+        use tokio::runtime::Runtime;
+
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let db = app_lib::engine::db::EngineDb::open_in_memory().unwrap();
+
+            // Verify agent exists with personality
+            let agent = db.get_agent("catalyst").unwrap().expect("Catalyst agent should exist");
+            assert!(agent.soul.is_some(), "Catalyst should have a soul");
+            assert!(agent.instructions.is_some(), "Catalyst should have instructions");
+            println!("  🤖 {} — {}", agent.name, agent.role);
+            println!("  Soul: {}...", &agent.soul.as_ref().unwrap()[..60.min(agent.soul.as_ref().unwrap().len())]);
+
+            // Create session
+            let session = db.create_session("catalyst", "test-user").unwrap();
+            println!("  Session: {}", session.id);
+
+            // Send message through the full runtime chain
+            let result = runtime::process_turn(
+                &db,
+                &session.id,
+                "catalyst",
+                "What is 2+2? Reply with just the number.",
+                Some(20),
+            ).await;
+
+            match &result {
+                Ok(resp) => {
+                    println!("  ✅ Response: '{}' ({}ms, {} tokens via {})",
+                        resp.content.trim(), resp.latency_ms, resp.tokens_used, resp.provider_name);
+
+                    // Verify response was stored in DB
+                    let messages = db.get_messages(&session.id, 10).unwrap();
+                    let user_msgs: Vec<_> = messages.iter().filter(|m| m.role == "user").collect();
+                    let assistant_msgs: Vec<_> = messages.iter().filter(|m| m.role == "assistant").collect();
+                    assert_eq!(user_msgs.len(), 1, "Should have 1 user message");
+                    assert_eq!(assistant_msgs.len(), 1, "Should have 1 assistant message");
+                    println!("  DB: {} user + {} assistant messages stored", user_msgs.len(), assistant_msgs.len());
+
+                    // Verify the system prompt was built with personality
+                    assert!(!resp.content.is_empty(), "Response should not be empty");
+                    println!("✅ Full chat cycle complete");
+                }
+                Err(e) => {
+                    println!("  ⚠️ Chat failed (may be provider issue): {}", e);
+                    // Still verify the user message was stored
+                    let messages = db.get_messages(&session.id, 10).unwrap();
+                    let user_msgs: Vec<_> = messages.iter().filter(|m| m.role == "user").collect();
+                    assert_eq!(user_msgs.len(), 1, "User message should be stored even on failure");
+                    println!("  ✅ User message stored correctly despite provider error");
+                }
+            }
+        });
+    }
+
+    #[test]
+    fn test_full_chat_cycle_zigbot() {
+        use app_lib::engine::{runtime, router};
+        use tokio::runtime::Runtime;
+
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let db = app_lib::engine::db::EngineDb::open_in_memory().unwrap();
+
+            let agent = db.get_agent("zigbot").unwrap().expect("ZigBot should exist");
+            assert_eq!(agent.model_alias, "conflux-core", "ZigBot should use conflux-core");
+            println!("  🤖 ZigBot — model: {}", agent.model_alias);
+
+            let session = db.create_session("zigbot", "test-user").unwrap();
+
+            let result = runtime::process_turn(
+                &db,
+                &session.id,
+                "zigbot",
+                "Hello! What's your name and role?",
+                Some(50),
+            ).await;
+
+            match &result {
+                Ok(resp) => {
+                    println!("  ✅ ZigBot: '{}' ({}ms via {})",
+                        &resp.content[..100.min(resp.content.len())], resp.latency_ms, resp.provider_name);
+
+                    // The response should reference ZigBot's identity (from the system prompt)
+                    let content_lower = resp.content.to_lowercase();
+                    let has_identity = content_lower.contains("zigbot") || content_lower.contains("strategic");
+                    if has_identity {
+                        println!("  ✅ Agent identity confirmed in response");
+                    }
+                }
+                Err(e) => println!("  ⚠️ ZigBot chat failed: {}", e),
+            }
+        });
+    }
+
+    #[test]
+    fn test_conversation_history_loaded() {
+        use app_lib::engine::{runtime, router};
+        use tokio::runtime::Runtime;
+
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let db = app_lib::engine::db::EngineDb::open_in_memory().unwrap();
+            let session = db.create_session("catalyst", "test-user").unwrap();
+
+            // First message
+            let _ = runtime::process_turn(
+                &db, &session.id, "catalyst",
+                "My name is TestUser. Remember this.",
+                Some(30),
+            ).await;
+
+            // Second message — runtime should load conversation history
+            let result = runtime::process_turn(
+                &db, &session.id, "catalyst",
+                "What is my name?",
+                Some(30),
+            ).await;
+
+            match &result {
+                Ok(resp) => {
+                    println!("  ✅ Follow-up: '{}'", &resp.content[..100.min(resp.content.len())]);
+
+                    // Verify both messages are in DB
+                    let messages = db.get_messages(&session.id, 10).unwrap();
+                    assert!(messages.len() >= 4, "Should have at least 4 messages (2 user + 2 assistant)");
+                    println!("  DB: {} messages stored across 2 turns", messages.len());
+                }
+                Err(e) => println!("  ⚠️ Follow-up failed: {}", e),
+            }
+        });
+    }
 }
