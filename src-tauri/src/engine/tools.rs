@@ -147,6 +147,7 @@ pub async fn execute_tool_for_agent(tool_name: &str, args: &Value, agent_id: &st
 
     match tool_name {
         "web_search" => execute_web_search(args).await,
+        "web_fetch" => execute_web_fetch(args).await,
         "file_read" => execute_file_read(args),
         "file_write" => execute_file_write(args),
         "exec" => execute_command(args),
@@ -174,13 +175,27 @@ pub fn get_tool_definitions() -> Vec<Value> {
             "type": "function",
             "function": {
                 "name": "web_search",
-                "description": "Search the web for information",
+                "description": "Search the web for information using DuckDuckGo and Wikipedia. Use this frequently to find current information, verify facts, and research topics. Always prefer searching over guessing.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "query": { "type": "string", "description": "The search query" }
                     },
                     "required": ["query"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "web_fetch",
+                "description": "Fetch and read the content of any URL. Use this to read articles, documentation, web pages, or any online content. Returns the readable text from the page.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "url": { "type": "string", "description": "The full URL to fetch (must include http:// or https://)" }
+                    },
+                    "required": ["url"]
                 }
             }
         }),
@@ -429,66 +444,366 @@ async fn execute_web_search(args: &Value) -> Result<ToolResult> {
         });
     }
 
-    // Use Brave Search API (if configured) or return a placeholder
-    let api_key = std::env::var("BRAVE_SEARCH_API_KEY").unwrap_or_default();
-    if api_key.is_empty() {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .user_agent("Mozilla/5.0 (Conflux Home)")
+        .build()?;
+
+    let mut results = Vec::new();
+
+    // Source 1: DuckDuckGo HTML lite (no API key, no JS)
+    match search_duckduckgo(&client, query).await {
+        Ok(ddg_results) if !ddg_results.is_empty() => {
+            results.push(format!("=== Web Results ===\n{}", ddg_results));
+        }
+        _ => {}
+    }
+
+    // Source 2: Wikipedia (free knowledge API)
+    match search_wikipedia(&client, query).await {
+        Ok(wiki_results) if !wiki_results.is_empty() => {
+            results.push(format!("=== Wikipedia ===\n{}", wiki_results));
+        }
+        _ => {}
+    }
+
+    if results.is_empty() {
         return Ok(ToolResult {
             success: true,
-            output: format!("[Web search not configured — would search for: '{}']", query),
+            output: format!("No results found for: '{}'", query),
             error: None,
         });
     }
 
+    Ok(ToolResult {
+        success: true,
+        output: results.join("\n\n"),
+        error: None,
+    })
+}
+
+/// Search DuckDuckGo via their lite HTML page (no API key needed).
+async fn search_duckduckgo(client: &reqwest::Client, query: &str) -> Result<String> {
     let url = format!(
-        "https://api.search.brave.com/res/v1/web/search?q={}&count=5",
+        "https://lite.duckduckgo.com/lite/?q={}",
         urlencoding::encode(query)
     );
 
-    let client = reqwest::Client::new();
-    match client
-        .get(&url)
-        .header("X-Subscription-Token", &api_key)
-        .header("Accept", "application/json")
-        .send()
-        .await
-    {
-        Ok(response) => {
-            if let Ok(json) = response.json::<Value>().await {
-                let results = json.get("web")
-                    .and_then(|w| w.get("results"))
-                    .and_then(|r| r.as_array())
-                    .map(|arr| {
-                        arr.iter()
-                            .take(5)
-                            .filter_map(|r| {
-                                let title = r.get("title").and_then(|t| t.as_str())?;
-                                let desc = r.get("description").and_then(|d| d.as_str())?;
-                                Some(format!("• {}\n  {}", title, desc))
-                            })
-                            .collect::<Vec<_>>()
-                            .join("\n\n")
-                    })
-                    .unwrap_or_else(|| "No results found".to_string());
+    let response = client.get(&url).send().await?;
+    let html = response.text().await?;
 
-                Ok(ToolResult {
-                    success: true,
-                    output: results,
-                    error: None,
-                })
-            } else {
-                Ok(ToolResult {
-                    success: false,
-                    output: String::new(),
-                    error: Some("Failed to parse search results".to_string()),
-                })
+    // Parse results from the lite page
+    // DuckDuckGo lite uses <a> tags with class="result-link" for results
+    // and <td class="result-snippet"> for descriptions
+    let mut results = Vec::new();
+    let mut lines = html.lines().peekable();
+
+    while let Some(line) = lines.next() {
+        let trimmed = line.trim();
+
+        // Look for result links: <a rel="nofollow" href="..." class="result-link">Title</a>
+        if trimmed.contains("class=\"result-link\"") {
+            // Extract URL from href
+            let url = extract_between(trimmed, "href=\"", "\"")
+                .unwrap_or_default();
+            // Extract title text
+            let title = extract_between(trimmed, ">", "</a>")
+                .unwrap_or_default();
+            let title = strip_html_tags(&title);
+
+            // Next few lines should have the snippet
+            let mut snippet = String::new();
+            for _ in 0..5 {
+                if let Some(next) = lines.next() {
+                    let next_trimmed = next.trim();
+                    if next_trimmed.contains("class=\"result-snippet\"") {
+                        snippet = strip_html_tags(
+                            extract_between(next_trimmed, ">", "</td>")
+                                .unwrap_or(next_trimmed)
+                        );
+                        break;
+                    }
+                    // Also try <td> with the snippet
+                    if !next_trimmed.is_empty() && !next_trimmed.starts_with('<') {
+                        snippet = strip_html_tags(next_trimmed);
+                        break;
+                    }
+                }
+            }
+
+            if !title.is_empty() {
+                let entry = if snippet.is_empty() {
+                    format!("• {} — {}", title, url)
+                } else {
+                    format!("• {}\n  {}\n  {}", title, snippet, url)
+                };
+                results.push(entry);
             }
         }
-        Err(e) => Ok(ToolResult {
+
+        if results.len() >= 5 {
+            break;
+        }
+    }
+
+    Ok(results.join("\n\n"))
+}
+
+/// Search Wikipedia via their free API (no key needed).
+async fn search_wikipedia(client: &reqwest::Client, query: &str) -> Result<String> {
+    let url = format!(
+        "https://en.wikipedia.org/w/api.php?action=opensearch&search={}&limit=3&format=json",
+        urlencoding::encode(query)
+    );
+
+    let response = client.get(&url).send().await?;
+    let json: Value = response.json().await?;
+
+    // opensearch returns [query, [titles], [descriptions], [urls]]
+    let titles = json.get(1).and_then(|v| v.as_array());
+    let descriptions_arr = json.get(2).and_then(|v| v.as_array());
+    let urls = json.get(3).and_then(|v| v.as_array());
+
+    if titles.is_none() || urls.is_none() {
+        return Ok(String::new());
+    }
+
+    let titles = titles.unwrap();
+    let urls = urls.unwrap();
+    let empty_vec = Vec::new();
+    let descriptions = descriptions_arr.unwrap_or(&empty_vec);
+
+    let mut results = Vec::new();
+    for i in 0..titles.len().min(3) {
+        let title = titles.get(i).and_then(|t| t.as_str()).unwrap_or("");
+        let url = urls.get(i).and_then(|u| u.as_str()).unwrap_or("");
+        let desc = descriptions.get(i).and_then(|d| d.as_str()).unwrap_or("");
+
+        if !title.is_empty() {
+            let entry = if desc.is_empty() {
+                format!("• {} — {}", title, url)
+            } else {
+                format!("• {}\n  {}\n  {}", title, desc, url)
+            };
+            results.push(entry);
+        }
+    }
+
+    // If we got results, also fetch the first article's intro paragraph
+    if let Some(first_url) = urls.get(0).and_then(|u| u.as_str()) {
+        if let Ok(summary) = fetch_wikipedia_summary(client, first_url).await {
+            if !summary.is_empty() {
+                results.push(format!("📖 Summary:\n{}", summary));
+            }
+        }
+    }
+
+    Ok(results.join("\n\n"))
+}
+
+/// Fetch the intro paragraph of a Wikipedia article.
+async fn fetch_wikipedia_summary(client: &reqwest::Client, article_url: &str) -> Result<String> {
+    // Extract article title from URL
+    let title = article_url.rsplit('/').next().unwrap_or("");
+    if title.is_empty() {
+        return Ok(String::new());
+    }
+
+    let api_url = format!(
+        "https://en.wikipedia.org/w/api.php?action=query&titles={}&prop=extracts&exintro&explaintext&format=json",
+        urlencoding::encode(title)
+    );
+
+    let response = client.get(&api_url).send().await?;
+    let json: Value = response.json().await?;
+
+    let pages = json.get("query").and_then(|q| q.get("pages"));
+    if let Some(pages) = pages.and_then(|p| p.as_object()) {
+        for (_, page) in pages {
+            if let Some(extract) = page.get("extract").and_then(|e| e.as_str()) {
+                // Return first 500 chars of the summary
+                let summary = if extract.len() > 500 {
+                    format!("{}...", &extract[..500])
+                } else {
+                    extract.to_string()
+                };
+                return Ok(summary);
+            }
+        }
+    }
+
+    Ok(String::new())
+}
+
+/// Fetch any URL and return readable text content.
+async fn execute_web_fetch(args: &Value) -> Result<ToolResult> {
+    let url = args.get("url")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    if url.is_empty() {
+        return Ok(ToolResult {
             success: false,
             output: String::new(),
-            error: Some(format!("Search failed: {}", e)),
-        }),
+            error: Some("No URL provided".to_string()),
+        });
     }
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .user_agent("Mozilla/5.0 (Conflux Home)")
+        .build()?;
+
+    let response = client.get(url).send().await?;
+    let status = response.status();
+    let content_type = response.headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+
+    if !status.is_success() {
+        return Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some(format!("HTTP {}: {}", status.as_u16(), status.canonical_reason().unwrap_or("error"))),
+        });
+    }
+
+    // Only parse HTML content
+    if content_type.contains("text/html") || content_type.contains("text/plain") {
+        let html = response.text().await?;
+        let text = html_to_text(&html);
+
+        // Truncate to 5000 chars to avoid overwhelming the context
+        let truncated = if text.len() > 5000 {
+            format!("{}...\n\n[Content truncated — {} chars total]", &text[..5000], text.len())
+        } else {
+            text
+        };
+
+        Ok(ToolResult {
+            success: true,
+            output: format!("📄 {} ({})\n\n{}", url, content_type.split(';').next().unwrap_or(""), truncated),
+            error: None,
+        })
+    } else {
+        Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some(format!("Unsupported content type: {}", content_type)),
+        })
+    }
+}
+
+// ── HTML parsing helpers ──
+
+/// Extract text between two delimiters in a string.
+fn extract_between<'a>(s: &'a str, start: &str, end: &str) -> Option<&'a str> {
+    let start_idx = s.find(start)? + start.len();
+    let end_idx = s[start_idx..].find(end)? + start_idx;
+    Some(&s[start_idx..end_idx])
+}
+
+/// Strip HTML tags from a string.
+fn strip_html_tags(html: &str) -> String {
+    let mut result = String::with_capacity(html.len());
+    let mut in_tag = false;
+    for ch in html.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => result.push(ch),
+            _ => {}
+        }
+    }
+    // Decode common HTML entities
+    result
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&nbsp;", " ")
+        .trim()
+        .to_string()
+}
+
+/// Convert HTML to readable plain text.
+fn html_to_text(html: &str) -> String {
+    let mut result = String::with_capacity(html.len());
+    let mut in_tag = false;
+    let mut in_script = false;
+    let mut in_style = false;
+    let mut tag_buffer = String::new();
+
+    for ch in html.chars() {
+        match ch {
+            '<' => {
+                in_tag = true;
+                tag_buffer.clear();
+            }
+            '>' => {
+                in_tag = false;
+                let tag_lower = tag_buffer.to_lowercase();
+
+                // Skip script and style content
+                if tag_lower.starts_with("script") {
+                    in_script = true;
+                } else if tag_lower.starts_with("/script") {
+                    in_script = false;
+                    continue;
+                } else if tag_lower.starts_with("style") {
+                    in_style = true;
+                } else if tag_lower.starts_with("/style") {
+                    in_style = false;
+                    continue;
+                }
+
+                // Add newlines for block elements
+                if tag_lower.starts_with("p") || tag_lower.starts_with("div") ||
+                   tag_lower.starts_with("br") || tag_lower.starts_with("li") ||
+                   tag_lower.starts_with("h1") || tag_lower.starts_with("h2") ||
+                   tag_lower.starts_with("h3") || tag_lower.starts_with("h4") ||
+                   tag_lower.starts_with("tr") {
+                    result.push('\n');
+                }
+            }
+            _ if in_tag => {
+                tag_buffer.push(ch);
+            }
+            _ if in_script || in_style => {}
+            _ => {
+                result.push(ch);
+            }
+        }
+    }
+
+    // Clean up whitespace
+    let mut cleaned = String::with_capacity(result.len());
+    let mut prev_was_newline = false;
+    for ch in result.chars() {
+        if ch == '\n' {
+            if !prev_was_newline {
+                cleaned.push('\n');
+            }
+            prev_was_newline = true;
+        } else {
+            prev_was_newline = false;
+            cleaned.push(ch);
+        }
+    }
+
+    // Decode common HTML entities
+    cleaned
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&nbsp;", " ")
+        .trim()
+        .to_string()
 }
 
 fn execute_file_read(args: &Value) -> Result<ToolResult> {
