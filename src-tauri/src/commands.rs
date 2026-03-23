@@ -326,6 +326,172 @@ pub fn engine_install_template(req: InstallTemplateRequest) -> Result<String, St
     ).map_err(|e| e.to_string())
 }
 
+// ── Agent Registry & Capabilities ──
+
+#[tauri::command]
+pub fn engine_get_agent_capabilities(agent_id: String) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let caps = engine.get_agent_capabilities(&agent_id).map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(caps).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub fn engine_find_agents_by_capability(capability: String) -> Result<Vec<String>, String> {
+    let engine = engine::get_engine();
+    engine.find_agents_by_capability(&capability).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_get_agent_permissions(agent_id: String) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let perms = engine.get_agent_permissions(&agent_id).map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(perms).map_err(|e| e.to_string())?)
+}
+
+// ── Inter-Agent Communication ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AgentAskRequest {
+    pub from_agent: String,
+    pub to_agent: String,
+    pub question: String,
+    pub session_id: Option<String>,
+}
+
+#[tauri::command]
+pub async fn engine_agent_ask(req: AgentAskRequest) -> Result<String, String> {
+    let engine = engine::get_engine();
+    engine.agent_ask(
+        &req.from_agent,
+        &req.to_agent,
+        &req.question,
+        req.session_id.as_deref(),
+    ).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_get_communications(agent_id: String, limit: Option<i64>) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let comms = engine.db().get_communications(&agent_id, limit.unwrap_or(20)).map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(comms).map_err(|e| e.to_string())?)
+}
+
+// ── Tasks ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateTaskRequest {
+    pub title: String,
+    pub description: Option<String>,
+    pub agent_id: String,
+    pub created_by: String,
+    pub priority: Option<String>,
+    pub requires_verify: Option<bool>,
+}
+
+#[tauri::command]
+pub fn engine_create_task(req: CreateTaskRequest) -> Result<String, String> {
+    let engine = engine::get_engine();
+    engine.create_task(
+        &req.title,
+        req.description.as_deref(),
+        &req.agent_id,
+        &req.created_by,
+        &req.priority.unwrap_or_else(|| "normal".to_string()),
+        req.requires_verify.unwrap_or(false),
+    ).map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateTaskRequest {
+    pub task_id: String,
+    pub status: String,
+    pub result: Option<String>,
+}
+
+#[tauri::command]
+pub fn engine_update_task(req: UpdateTaskRequest) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.update_task_status(&req.task_id, &req.status, req.result.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_get_task(task_id: String) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let task = engine.get_task(&task_id).map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(task).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub fn engine_get_tasks_for_agent(agent_id: String, status: Option<String>) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let tasks = engine.get_tasks_for_agent(&agent_id, status.as_deref()).map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(tasks).map_err(|e| e.to_string())?)
+}
+
+// ── Verification (Anti-Hallucination) ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateVerificationRequest {
+    pub agent_id: String,
+    pub session_id: Option<String>,
+    pub claim_type: String,
+    pub claim: String,
+}
+
+#[tauri::command]
+pub fn engine_create_verification(req: CreateVerificationRequest) -> Result<String, String> {
+    let engine = engine::get_engine();
+    engine.create_verification_claim(&req.agent_id, req.session_id.as_deref(), &req.claim_type, &req.claim)
+        .map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CompleteVerificationRequest {
+    pub id: String,
+    pub verified_by: String,
+    pub result: String,
+    pub evidence: Option<String>,
+}
+
+#[tauri::command]
+pub fn engine_complete_verification(req: CompleteVerificationRequest) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.complete_verification_claim(&req.id, &req.verified_by, &req.result, req.evidence.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_get_unverified_claims(agent_id: Option<String>) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let claims = engine.get_unverified_claims(agent_id.as_deref()).map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(claims).map_err(|e| e.to_string())?)
+}
+
+// ── Lessons Learned ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AddLessonRequest {
+    pub agent_id: Option<String>,
+    pub category: String,
+    pub lesson: String,
+    pub evidence: Option<String>,
+    pub action: Option<String>,
+}
+
+#[tauri::command]
+pub fn engine_add_lesson(req: AddLessonRequest) -> Result<String, String> {
+    let engine = engine::get_engine();
+    engine.add_lesson(req.agent_id.as_deref(), &req.category, &req.lesson, req.evidence.as_deref(), req.action.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_get_lessons(category: Option<String>) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let lessons = engine.get_active_lessons(category.as_deref()).map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(lessons).map_err(|e| e.to_string())?)
+}
+
 // ── Google Commands ──
 
 #[tauri::command]

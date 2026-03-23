@@ -57,6 +57,25 @@ pub fn run() {
             // Provider Templates
             commands::engine_get_provider_templates,
             commands::engine_install_template,
+            // Agent Registry & Capabilities
+            commands::engine_get_agent_capabilities,
+            commands::engine_find_agents_by_capability,
+            commands::engine_get_agent_permissions,
+            // Inter-Agent Communication
+            commands::engine_agent_ask,
+            commands::engine_get_communications,
+            // Tasks
+            commands::engine_create_task,
+            commands::engine_update_task,
+            commands::engine_get_task,
+            commands::engine_get_tasks_for_agent,
+            // Verification (Anti-Hallucination)
+            commands::engine_create_verification,
+            commands::engine_complete_verification,
+            commands::engine_get_unverified_claims,
+            // Lessons Learned
+            commands::engine_add_lesson,
+            commands::engine_get_lessons,
             // Google
             commands::engine_google_is_connected,
             commands::engine_google_get_email,

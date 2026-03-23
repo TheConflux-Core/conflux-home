@@ -919,4 +919,352 @@ impl EngineDb {
             Err(_) => Ok(0),
         }
     }
+
+    // ── Agent Capabilities ──
+
+    pub fn get_agent_capabilities(&self, agent_id: &str) -> Result<Vec<super::types::AgentCapability>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT agent_id, capability, proficiency FROM agent_capabilities WHERE agent_id = ?1"
+        )?;
+
+        let caps = stmt.query_map(params![agent_id], |row| {
+            Ok(super::types::AgentCapability {
+                agent_id: row.get(0)?,
+                capability: row.get(1)?,
+                proficiency: row.get(2)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for c in caps { result.push(c?); }
+        Ok(result)
+    }
+
+    pub fn find_agents_by_capability(&self, capability: &str) -> Result<Vec<String>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT DISTINCT agent_id FROM agent_capabilities WHERE capability = ?1 ORDER BY proficiency DESC"
+        )?;
+
+        let agents = stmt.query_map(params![capability], |row| row.get::<_, String>(0))?;
+        let mut result = Vec::new();
+        for a in agents { result.push(a?); }
+        Ok(result)
+    }
+
+    // ── Agent Permissions ──
+
+    pub fn get_agent_permissions(&self, agent_id: &str) -> Result<Option<super::types::AgentPermission>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT agent_id, can_talk_to, max_delegation_depth, max_tokens_per_session,
+                    can_create_tasks, can_delete_data, requires_verification, anti_hallucination
+             FROM agent_permissions WHERE agent_id = ?1"
+        )?;
+
+        let result = stmt.query_row(params![agent_id], |row| {
+            Ok(super::types::AgentPermission {
+                agent_id: row.get(0)?,
+                can_talk_to: row.get(1)?,
+                max_delegation_depth: row.get(2)?,
+                max_tokens_per_session: row.get(3)?,
+                can_create_tasks: row.get::<_, i64>(4)? != 0,
+                can_delete_data: row.get::<_, i64>(5)? != 0,
+                requires_verification: row.get::<_, i64>(6)? != 0,
+                anti_hallucination: row.get::<_, i64>(7)? != 0,
+            })
+        });
+
+        match result {
+            Ok(p) => Ok(Some(p)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn can_agent_talk_to(&self, from: &str, to: &str) -> Result<bool> {
+        let perms = self.get_agent_permissions(from)?;
+        match perms {
+            Some(p) => {
+                if p.can_talk_to == "*" {
+                    return Ok(true);
+                }
+                let allowed: Vec<String> = serde_json::from_str(&p.can_talk_to).unwrap_or_default();
+                Ok(allowed.contains(&to.to_string()))
+            }
+            None => Ok(true), // no permissions set = allow all
+        }
+    }
+
+    // ── Agent Communications ──
+
+    pub fn create_communication(&self, from: &str, to: &str, msg_type: &str, content: &str, session_id: Option<&str>) -> Result<String> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO agent_communications (id, from_agent, to_agent, message_type, content, session_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, from, to, msg_type, content, session_id],
+        )?;
+        Ok(id)
+    }
+
+    pub fn complete_communication(&self, id: &str, response: &str, tokens_used: i64) -> Result<()> {
+        let conn = self.conn();
+        let now = Self::now();
+        conn.execute(
+            "UPDATE agent_communications SET response = ?2, status = 'responded', tokens_used = ?3, responded_at = ?4 WHERE id = ?1",
+            params![id, response, tokens_used, now],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_communications(&self, agent_id: &str, limit: i64) -> Result<Vec<super::types::AgentCommunication>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, from_agent, to_agent, message_type, content, response, status, session_id, tokens_used, created_at, responded_at
+             FROM agent_communications
+             WHERE from_agent = ?1 OR to_agent = ?1
+             ORDER BY created_at DESC LIMIT ?2"
+        )?;
+
+        let comms = stmt.query_map(params![agent_id, limit], |row| {
+            Ok(super::types::AgentCommunication {
+                id: row.get(0)?,
+                from_agent: row.get(1)?,
+                to_agent: row.get(2)?,
+                message_type: row.get(3)?,
+                content: row.get(4)?,
+                response: row.get(5)?,
+                status: row.get(6)?,
+                session_id: row.get(7)?,
+                tokens_used: row.get(8)?,
+                created_at: row.get(9)?,
+                responded_at: row.get(10)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for c in comms { result.push(c?); }
+        Ok(result)
+    }
+
+    // ── Tasks ──
+
+    pub fn create_task(&self, title: &str, description: Option<&str>, agent_id: &str, created_by: &str, priority: &str, requires_verify: bool) -> Result<String> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let conn = self.conn();
+        let rv: i64 = if requires_verify { 1 } else { 0 };
+        conn.execute(
+            "INSERT INTO tasks (id, title, description, agent_id, created_by, priority, requires_verify)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![id, title, description, agent_id, created_by, priority, rv],
+        )?;
+        Ok(id)
+    }
+
+    pub fn update_task_status(&self, task_id: &str, status: &str, result: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        let now = Self::now();
+        match status {
+            "completed" | "failed" => {
+                conn.execute(
+                    "UPDATE tasks SET status = ?2, result = ?3, completed_at = ?4, updated_at = ?4 WHERE id = ?1",
+                    params![task_id, status, result, now],
+                )?;
+            }
+            _ => {
+                conn.execute(
+                    "UPDATE tasks SET status = ?2, updated_at = ?3 WHERE id = ?1",
+                    params![task_id, status, now],
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn verify_task(&self, task_id: &str, verified: bool) -> Result<()> {
+        let conn = self.conn();
+        let v: i64 = if verified { 1 } else { 0 };
+        conn.execute(
+            "UPDATE tasks SET verified = ?2, updated_at = ?3 WHERE id = ?1",
+            params![task_id, v, Self::now()],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_task(&self, task_id: &str) -> Result<Option<super::types::Task>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, title, description, agent_id, status, result, parent_task_id, session_id,
+                    created_by, priority, requires_verify, verified, created_at, updated_at, completed_at
+             FROM tasks WHERE id = ?1"
+        )?;
+
+        let result = stmt.query_row(params![task_id], |row| {
+            Ok(super::types::Task {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                description: row.get(2)?,
+                agent_id: row.get(3)?,
+                status: row.get(4)?,
+                result: row.get(5)?,
+                parent_task_id: row.get(6)?,
+                session_id: row.get(7)?,
+                created_by: row.get(8)?,
+                priority: row.get(9)?,
+                requires_verify: row.get::<_, i64>(10)? != 0,
+                verified: row.get::<_, i64>(11)? != 0,
+                created_at: row.get(12)?,
+                updated_at: row.get(13)?,
+                completed_at: row.get(14)?,
+            })
+        });
+
+        match result {
+            Ok(t) => Ok(Some(t)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn get_tasks_for_agent(&self, agent_id: &str, status_filter: Option<&str>) -> Result<Vec<super::types::Task>> {
+        let conn = self.conn();
+        let (query, params_vec): (String, Vec<String>) = match status_filter {
+            Some(status) => (
+                "SELECT id, title, description, agent_id, status, result, parent_task_id, session_id,
+                        created_by, priority, requires_verify, verified, created_at, updated_at, completed_at
+                 FROM tasks WHERE agent_id = ?1 AND status = ?2 ORDER BY created_at DESC".to_string(),
+                vec![agent_id.to_string(), status.to_string()],
+            ),
+            None => (
+                "SELECT id, title, description, agent_id, status, result, parent_task_id, session_id,
+                        created_by, priority, requires_verify, verified, created_at, updated_at, completed_at
+                 FROM tasks WHERE agent_id = ?1 ORDER BY created_at DESC".to_string(),
+                vec![agent_id.to_string()],
+            ),
+        };
+
+        let mut stmt = conn.prepare(&query)?;
+        let params_ref: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+
+        let tasks = stmt.query_map(rusqlite::params_from_iter(params_ref), |row| {
+            Ok(super::types::Task {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                description: row.get(2)?,
+                agent_id: row.get(3)?,
+                status: row.get(4)?,
+                result: row.get(5)?,
+                parent_task_id: row.get(6)?,
+                session_id: row.get(7)?,
+                created_by: row.get(8)?,
+                priority: row.get(9)?,
+                requires_verify: row.get::<_, i64>(10)? != 0,
+                verified: row.get::<_, i64>(11)? != 0,
+                created_at: row.get(12)?,
+                updated_at: row.get(13)?,
+                completed_at: row.get(14)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for t in tasks { result.push(t?); }
+        Ok(result)
+    }
+
+    // ── Verification Records ──
+
+    pub fn create_verification(&self, agent_id: &str, session_id: Option<&str>, claim_type: &str, claim: &str) -> Result<String> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO verification_records (id, agent_id, session_id, claim_type, claim, verification)
+             VALUES (?1, ?2, ?3, ?4, ?5, 'unverified')",
+            params![id, agent_id, session_id, claim_type, claim],
+        )?;
+        Ok(id)
+    }
+
+    pub fn complete_verification(&self, id: &str, verified_by: &str, result: &str, evidence: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        conn.execute(
+            "UPDATE verification_records SET verified_by = ?2, verification = ?3, evidence = ?4 WHERE id = ?1",
+            params![id, verified_by, result, evidence],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_unverified_claims(&self, agent_id: Option<&str>) -> Result<Vec<super::types::VerificationRecord>> {
+        let conn = self.conn();
+        let mut result = Vec::new();
+
+        match agent_id {
+            Some(aid) => {
+                let mut stmt = conn.prepare(
+                    "SELECT id, agent_id, session_id, claim_type, claim, verified_by, verification, evidence, created_at
+                     FROM verification_records WHERE agent_id = ?1 AND verification = 'unverified' ORDER BY created_at DESC"
+                )?;
+                let rows = stmt.query_map(params![aid], |row| {
+                    Ok(super::types::VerificationRecord {
+                        id: row.get(0)?, agent_id: row.get(1)?, session_id: row.get(2)?,
+                        claim_type: row.get(3)?, claim: row.get(4)?, verified_by: row.get(5)?,
+                        verification: row.get(6)?, evidence: row.get(7)?, created_at: row.get(8)?,
+                    })
+                })?;
+                for r in rows { result.push(r?); }
+            }
+            None => {
+                let mut stmt = conn.prepare(
+                    "SELECT id, agent_id, session_id, claim_type, claim, verified_by, verification, evidence, created_at
+                     FROM verification_records WHERE verification = 'unverified' ORDER BY created_at DESC"
+                )?;
+                let rows = stmt.query_map([], |row| {
+                    Ok(super::types::VerificationRecord {
+                        id: row.get(0)?, agent_id: row.get(1)?, session_id: row.get(2)?,
+                        claim_type: row.get(3)?, claim: row.get(4)?, verified_by: row.get(5)?,
+                        verification: row.get(6)?, evidence: row.get(7)?, created_at: row.get(8)?,
+                    })
+                })?;
+                for r in rows { result.push(r?); }
+            }
+        };
+
+        Ok(result)
+    }
+
+    // ── Lessons Learned ──
+
+    pub fn add_lesson(&self, agent_id: Option<&str>, category: &str, lesson: &str, evidence: Option<&str>, action: Option<&str>) -> Result<String> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO lessons_learned (id, agent_id, category, lesson, evidence, action_taken)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, agent_id, category, lesson, evidence, action],
+        )?;
+        Ok(id)
+    }
+
+    pub fn get_active_lessons(&self, category: Option<&str>) -> Result<Vec<super::types::LessonLearned>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, agent_id, category, lesson, evidence, action_taken, is_active, created_at
+             FROM lessons_learned WHERE is_active = 1 AND (?1 IS NULL OR category = ?1)
+             ORDER BY created_at DESC"
+        )?;
+
+        let lessons = stmt.query_map(params![category], |row| {
+            Ok(super::types::LessonLearned {
+                id: row.get(0)?, agent_id: row.get(1)?, category: row.get(2)?,
+                lesson: row.get(3)?, evidence: row.get(4)?, action_taken: row.get(5)?,
+                is_active: row.get::<_, i64>(6)? != 0, created_at: row.get(7)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for l in lessons { result.push(l?); }
+        Ok(result)
+    }
 }
