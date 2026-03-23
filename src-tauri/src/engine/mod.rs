@@ -216,6 +216,108 @@ impl ConfluxEngine {
         self.db.check_template_installed(template_id)
     }
 
+    // ── Agent Capabilities & Permissions ──
+
+    pub fn get_agent_capabilities(&self, agent_id: &str) -> Result<Vec<types::AgentCapability>> {
+        self.db.get_agent_capabilities(agent_id)
+    }
+
+    pub fn find_agents_by_capability(&self, capability: &str) -> Result<Vec<String>> {
+        self.db.find_agents_by_capability(capability)
+    }
+
+    pub fn get_agent_permissions(&self, agent_id: &str) -> Result<Option<types::AgentPermission>> {
+        self.db.get_agent_permissions(agent_id)
+    }
+
+    pub fn can_agent_talk_to(&self, from: &str, to: &str) -> Result<bool> {
+        self.db.can_agent_talk_to(from, to)
+    }
+
+    // ── Inter-Agent Communication ──
+
+    pub async fn agent_ask(&self, from_agent: &str, to_agent: &str, question: &str, session_id: Option<&str>) -> Result<String> {
+        // Check permissions
+        if !self.can_agent_talk_to(from_agent, to_agent)? {
+            anyhow::bail!("{} does not have permission to talk to {}", from_agent, to_agent);
+        }
+
+        // Log the communication
+        let comm_id = self.db.create_communication(from_agent, to_agent, "ask", question, session_id)?;
+
+        // Create a temporary session for the target agent
+        let temp_session = self.db.create_session(to_agent, "system")?;
+
+        // Build anti-hallucination preamble for the target agent
+        let verified_question = format!(
+            "You have been asked a question by {} (communication ID: {}).\n\
+             ANTI-HALLUCINATION RULES:\n\
+             - Read actual data before answering. Never invent information.\n\
+             - If you cannot verify something, say 'I cannot verify this.'\n\
+             - If you use tools, report the actual tool results, not summaries.\n\
+             - State your confidence level (high/medium/low) for factual claims.\n\n\
+             Question from {}:\n{}",
+            from_agent, comm_id, from_agent, question
+        );
+
+        // Process through the runtime's async process_turn
+        let response = runtime::process_turn(&self.db, &temp_session.id, to_agent, &verified_question, None).await?;
+
+        // Complete the communication
+        self.db.complete_communication(&comm_id, &response.content, response.tokens_used)?;
+
+        Ok(response.content)
+    }
+
+    // ── Verification (Anti-Hallucination Enforcement) ──
+
+    pub fn create_verification_claim(&self, agent_id: &str, session_id: Option<&str>, claim_type: &str, claim: &str) -> Result<String> {
+        self.db.create_verification(agent_id, session_id, claim_type, claim)
+    }
+
+    pub fn complete_verification_claim(&self, id: &str, verified_by: &str, result: &str, evidence: Option<&str>) -> Result<()> {
+        self.db.complete_verification(id, verified_by, result, evidence)
+    }
+
+    pub fn get_unverified_claims(&self, agent_id: Option<&str>) -> Result<Vec<types::VerificationRecord>> {
+        self.db.get_unverified_claims(agent_id)
+    }
+
+    // ── Tasks ──
+
+    pub fn create_task(&self, title: &str, description: Option<&str>, agent_id: &str, created_by: &str, priority: &str, requires_verify: bool) -> Result<String> {
+        // Check if creator can create tasks
+        let perms = self.db.get_agent_permissions(created_by)?;
+        if let Some(p) = perms {
+            if !p.can_create_tasks {
+                anyhow::bail!("{} does not have permission to create tasks", created_by);
+            }
+        }
+        self.db.create_task(title, description, agent_id, created_by, priority, requires_verify)
+    }
+
+    pub fn update_task_status(&self, task_id: &str, status: &str, result: Option<&str>) -> Result<()> {
+        self.db.update_task_status(task_id, status, result)
+    }
+
+    pub fn get_task(&self, task_id: &str) -> Result<Option<types::Task>> {
+        self.db.get_task(task_id)
+    }
+
+    pub fn get_tasks_for_agent(&self, agent_id: &str, status_filter: Option<&str>) -> Result<Vec<types::Task>> {
+        self.db.get_tasks_for_agent(agent_id, status_filter)
+    }
+
+    // ── Lessons Learned ──
+
+    pub fn add_lesson(&self, agent_id: Option<&str>, category: &str, lesson: &str, evidence: Option<&str>, action: Option<&str>) -> Result<String> {
+        self.db.add_lesson(agent_id, category, lesson, evidence, action)
+    }
+
+    pub fn get_active_lessons(&self, category: Option<&str>) -> Result<Vec<types::LessonLearned>> {
+        self.db.get_active_lessons(category)
+    }
+
     pub fn test_provider(&self, id: &str) -> Result<router::ModelResponse> {
         // Run a synchronous test call through the provider
         let rt = tokio::runtime::Runtime::new()?;
