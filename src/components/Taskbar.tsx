@@ -10,6 +10,7 @@ const ITEMS: { view: View; icon: string; label: string }[] = [
   { view: 'chat', icon: '💬', label: 'Chat' },
   { view: 'agents', icon: '🧩', label: 'Agents' },
   { view: 'games', icon: '📖', label: 'Games' },
+  { view: 'kitchen', icon: '🍳', label: 'Kitchen' },
   { view: 'marketplace', icon: '🛒', label: 'Market' },
   { view: 'settings', icon: '⚙️', label: 'Settings' },
 ];

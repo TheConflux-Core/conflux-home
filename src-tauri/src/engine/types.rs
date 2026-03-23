@@ -666,3 +666,116 @@ pub struct ContentFeedItem {
     pub created_at: String,
     pub expires_at: Option<String>,
 }
+
+// ── Smart Kitchen — Meals ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Meal {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub cuisine: Option<String>,
+    pub category: Option<String>,  // 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'dessert'
+    pub photo_url: Option<String>,
+    pub prep_time_min: Option<i64>,
+    pub cook_time_min: Option<i64>,
+    pub servings: i64,
+    pub difficulty: String,
+    pub instructions: Option<String>,
+    pub estimated_cost: Option<f64>,
+    pub cost_per_serving: Option<f64>,
+    pub calories: Option<i64>,
+    pub tags: Option<String>,  // JSON array
+    pub source: String,
+    pub is_favorite: bool,
+    pub last_made: Option<String>,
+    pub times_made: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MealIngredient {
+    pub id: String,
+    pub meal_id: String,
+    pub name: String,
+    pub quantity: Option<f64>,
+    pub unit: Option<String>,
+    pub estimated_cost: Option<f64>,
+    pub category: Option<String>,
+    pub is_optional: bool,
+    pub notes: Option<String>,
+    pub sort_order: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MealPlanEntry {
+    pub id: String,
+    pub week_start: String,
+    pub day_of_week: i64,   // 0=Mon ... 6=Sun
+    pub meal_slot: String,  // 'breakfast' | 'lunch' | 'dinner' | 'snack'
+    pub meal_id: Option<String>,
+    pub notes: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GroceryItem {
+    pub id: String,
+    pub member_id: Option<String>,
+    pub name: String,
+    pub quantity: Option<f64>,
+    pub unit: Option<String>,
+    pub category: Option<String>,
+    pub estimated_cost: Option<f64>,
+    pub is_checked: bool,
+    pub source_meal_id: Option<String>,
+    pub week_start: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KitchenInventoryItem {
+    pub id: String,
+    pub name: String,
+    pub quantity: Option<f64>,
+    pub unit: Option<String>,
+    pub category: Option<String>,
+    pub expiry_date: Option<String>,
+    pub location: Option<String>,  // 'fridge' | 'freezer' | 'pantry'
+    pub last_restocked: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+// ── Meal with ingredients (joined) ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MealWithIngredients {
+    pub meal: Meal,
+    pub ingredients: Vec<MealIngredient>,
+}
+
+// ── Weekly plan summary ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WeeklyPlan {
+    pub week_start: String,
+    pub days: Vec<DayPlan>,
+    pub total_estimated_cost: f64,
+    pub meal_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DayPlan {
+    pub day_of_week: i64,
+    pub day_name: String,
+    pub slots: Vec<PlanSlot>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlanSlot {
+    pub meal_slot: String,
+    pub meal: Option<Meal>,
+    pub notes: Option<String>,
+}

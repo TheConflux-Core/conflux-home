@@ -19,6 +19,7 @@ import StoryGameReader from './components/StoryGameReader';
 import AgentTemplateBrowser from './components/AgentTemplateBrowser';
 import ParentDashboard from './components/ParentDashboard';
 import VoiceChat from './components/VoiceChat';
+import KitchenView from './components/KitchenView';
 import { useEngine } from './hooks/useEngine';
 import { useConfluxChat } from './hooks/useConfluxChat';
 import { useToast } from './hooks/useToast';
@@ -509,6 +510,13 @@ export default function App() {
       {showMarketplaceOverlay && (
         <div className="content-overlay">
           <Marketplace />
+        </div>
+      )}
+
+      {/* Kitchen View */}
+      {view === 'kitchen' && (
+        <div className="content-overlay">
+          <KitchenView />
         </div>
       )}
 
