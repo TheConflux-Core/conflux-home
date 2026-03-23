@@ -65,20 +65,22 @@ const BACKGROUND_EMOJIS = AGENT_EMOJIS.map((emoji, i) => ({
   size: 28 + (i % 3) * 8,
 }));
 
-// Free-tier provider badges
-const FREE_PROVIDERS = [
-  { name: 'Cerebras', emoji: '⚡' },
-  { name: 'Groq', emoji: '🏎️' },
-  { name: 'Mistral', emoji: '🌊' },
-  { name: 'Cloudflare', emoji: '☁️' },
-];
-
 // BYOK providers
 const BYOK_PROVIDERS = [
   { id: 'openai', name: 'OpenAI', emoji: '🧠', placeholder: 'sk-...' },
   { id: 'anthropic', name: 'Anthropic', emoji: '🏛️', placeholder: 'sk-ant-...' },
   { id: 'gemini', name: 'Gemini', emoji: '💎', placeholder: 'AI...' },
   { id: 'ollama', name: 'Ollama', emoji: '🦙', placeholder: 'http://localhost:11434' },
+];
+
+// Setup facts
+const SETUP_FACTS = [
+  "Each agent has a soul — a unique personality that shapes how they think",
+  "Your team's heartbeat checks in to make sure everyone's okay",
+  "Your agents remember everything. The longer you use them, the smarter they get",
+  "Your data stays on your machine. Always.",
+  "Agents can collaborate — like a real team, but they never sleep",
+  "This isn't just software. It's a home for your AI family.",
 ];
 
 // Goal → gradient map
@@ -193,11 +195,12 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const typewriterPlaceholder = useTypewriterPlaceholder("What's your name?", isTyping, 80);
 
   // Step 1 — Provider
-  const [freeConnected, setFreeConnected] = useState(false);
-  const [byokExpanded, setByokExpanded] = useState(false);
+  const [setupPhase, setSetupPhase] = useState<'connecting' | 'alive' | 'done'>('connecting');
+  const [factIndex, setFactIndex] = useState(0);
+  const [heartbeatPulse, setHeartbeatPulse] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [byokKeys, setByokKeys] = useState<Record<string, string>>({});
   const [activeModal, setActiveModal] = useState<string | null>(null);
-  const [pingingAgents, setPingingAgents] = useState(false);
 
   // Step 2 — Goals
   const [selectedGoals, setSelectedGoals] = useState<Set<string>>(new Set());
@@ -234,30 +237,39 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   }, []);
 
   const nextStep = () => {
-    if (step === 0 && !freeConnected && Object.keys(byokKeys).length === 0) {
-      // Auto-connect free tier on first continue
-      handleFreeConnect();
+    // If still on 'connecting', skip to 'alive' immediately
+    if (step === 1 && setupPhase === 'connecting') {
+      setSetupPhase('alive');
+      setHeartbeatPulse(true);
+      localStorage.setItem('conflux-provider-setup', JSON.stringify({ type: 'free' }));
+      return;
     }
     goToStep(step + 1);
   };
   const prevStep = () => goToStep(step - 1);
 
-  // ── Provider: Free Tier ──
-  const handleFreeConnect = () => {
-    setFreeConnected(true);
-    setPingingAgents(true);
-    localStorage.setItem('conflux-provider-setup', JSON.stringify({ type: 'free' }));
-    setTimeout(() => setPingingAgents(false), 2500);
-  };
+  // ── Provider: Auto-advance through facts ──
+  useEffect(() => {
+    if (step !== 1 || setupPhase !== 'connecting') return;
+    const interval = setInterval(() => {
+      setFactIndex(prev => (prev + 1) % SETUP_FACTS.length);
+    }, 2200);
+    const timer = setTimeout(() => {
+      setSetupPhase('alive');
+      setHeartbeatPulse(true);
+      localStorage.setItem('conflux-provider-setup', JSON.stringify({ type: 'free' }));
+    }, 6000);
+    return () => { clearInterval(interval); clearTimeout(timer); };
+  }, [step, setupPhase]);
 
   // ── Provider: BYOK ──
   const handleByokConnect = (providerId: string) => {
     const key = byokKeys[providerId]?.trim();
     if (!key) return;
-    setPingingAgents(true);
-    localStorage.setItem('conflux-provider-setup', JSON.stringify({ type: 'byok', providers: Object.keys(byokKeys) }));
+    localStorage.setItem('conflux-provider-setup', JSON.stringify({ type: 'byok', providers: [providerId] }));
     setActiveModal(null);
-    setTimeout(() => setPingingAgents(false), 2500);
+    setSetupPhase('alive');
+    setHeartbeatPulse(true);
   };
 
   // ── Goals ──
@@ -326,9 +338,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   };
 
   // ── Derived ──
-  const isConnected = freeConnected || Object.keys(byokKeys).some(k => byokKeys[k]?.trim());
   const canNext = step === 0
-    || (step === 1 && isConnected)
+    || step === 1  // always can proceed from provider (auto-connects)
     || (step === 2 && selectedGoals.size >= 2)
     || (step === 3 && selectedAgents.size >= 1);
 
@@ -453,186 +464,206 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   );
 
   const renderProvider = () => (
-    <div style={{ textAlign: 'center', maxWidth: 480, width: '100%' }}>
-      <h2
-        className="animate-fade-in"
-        style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}
-      >
-        Connect your AI providers
-      </h2>
-      <p
-        className="animate-fade-in"
-        style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 28, '--stagger-delay': '100ms' } as React.CSSProperties}
-      >
-        Pick the path that works for you.
-      </p>
-
-      {/* Free Tier Card */}
-      <div
-        className="animate-slide-up"
-        style={{
-          background: 'var(--bg-card)',
-          border: `2px solid ${freeConnected ? '#10b981' : 'var(--border)'}`,
-          borderRadius: 16,
-          padding: 24,
-          marginBottom: 16,
-          textAlign: 'left',
-          position: 'relative',
-          boxShadow: freeConnected ? '0 0 0 1px #10b981' : 'var(--shadow)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <span style={{ fontSize: 20 }}>⚡</span>
-          <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>Start Free</span>
-          <span style={{
-            fontSize: 11, fontWeight: 600, color: '#10b981',
-            background: 'rgba(16,185,129,0.1)',
-            padding: '2px 8px', borderRadius: 10,
-          }}>
-            Recommended
-          </span>
-        </div>
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14 }}>
-          50 AI calls per day — no API key needed.
-        </p>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-          {FREE_PROVIDERS.map(p => (
-            <span key={p.name} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              fontSize: 11, color: 'var(--text-muted)',
-              background: 'var(--bg-primary)',
-              border: '1px solid var(--border)',
-              borderRadius: 8, padding: '4px 10px',
-            }}>
-              {p.emoji} {p.name}
-            </span>
-          ))}
-        </div>
-        {freeConnected ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              width: 24, height: 24, borderRadius: '50%',
-              background: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#fff', fontSize: 14, fontWeight: 700,
-              animation: 'scale-in-bounce 0.4s ease',
-            }}>✓</div>
-            <span style={{ fontSize: 14, fontWeight: 600, color: '#10b981' }}>Connected!</span>
-          </div>
-        ) : (
-          <button
-            className="next-btn"
-            onClick={handleFreeConnect}
-            style={{ width: 'auto', padding: '10px 24px' }}
-          >
-            Connect Free
-          </button>
-        )}
-      </div>
-
-      {/* BYOK Section */}
-      <div
-        className="animate-slide-up"
-        style={{
-          background: 'var(--bg-card)',
-          border: '1px solid var(--border)',
-          borderRadius: 16,
-          overflow: 'hidden',
-          boxShadow: 'var(--shadow)',
-        }}
-      >
-        <div
-          onClick={() => setByokExpanded(!byokExpanded)}
-          style={{
-            padding: '16px 20px',
-            cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 16 }}>🔑</span>
-            <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
-              Bring Your Own Key
-            </span>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>(Advanced)</span>
-          </div>
-          <span style={{
-            fontSize: 18, color: 'var(--text-muted)',
-            transform: byokExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: 'transform 0.2s ease',
-          }}>▾</span>
-        </div>
-
-        {byokExpanded && (
-          <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {BYOK_PROVIDERS.map(p => {
-              const hasKey = byokKeys[p.id]?.trim();
-              return (
-                <div
-                  key={p.id}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '10px 12px',
-                    background: 'var(--bg-primary)',
-                    border: `1px solid ${hasKey ? '#10b981' : 'var(--border)'}`,
-                    borderRadius: 12,
-                  }}
-                >
-                  <span style={{ fontSize: 20 }}>{p.emoji}</span>
-                  <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)', flex: 1 }}>
-                    {p.name}
-                  </span>
-                  {hasKey ? (
-                    <span style={{ fontSize: 13, color: '#10b981', fontWeight: 600 }}>✓ Connected</span>
-                  ) : (
-                    <button
-                      onClick={() => setActiveModal(p.id)}
-                      style={{
-                        background: 'none', border: '1px solid var(--border)',
-                        borderRadius: 8, padding: '6px 14px',
-                        color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer',
-                      }}
-                    >
-                      Connect
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Agent ping animation */}
-      {pingingAgents && (
+    <div style={{ textAlign: 'center', maxWidth: 480, width: '100%', position: 'relative' }}>
+      {setupPhase === 'connecting' && (
         <div style={{
-          display: 'flex', justifyContent: 'center', gap: 6,
-          marginTop: 20,
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          justifyContent: 'center', minHeight: 400, gap: 24,
         }}>
-          {Object.values(ALL_AGENTS).slice(0, 10).map((agent, i) => (
-            <span
-              key={agent.id}
+          {/* Heartbeat SVG — drawing animation */}
+          <svg viewBox="0 0 400 80" style={{ width: '100%', maxWidth: 400, height: 80 }}>
+            <path
+              d="M0,40 L60,40 L70,40 L80,20 L90,60 L100,10 L110,70 L120,40 L130,40 L200,40 L210,40 L220,20 L230,60 L240,10 L250,70 L260,40 L270,40 L340,40 L350,40 L360,20 L370,60 L380,10 L390,70 L400,40"
+              fill="none"
+              stroke="var(--accent-primary)"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
               style={{
-                fontSize: 18,
-                opacity: 0,
-                animation: `scale-in-bounce 0.3s ease ${i * 200}ms forwards`,
+                strokeDasharray: 800,
+                filter: 'drop-shadow(0 0 6px currentColor)',
+                animation: 'heartbeat-draw 2s linear infinite',
               }}
-            >
-              {agent.emoji}
-            </span>
-          ))}
+            />
+          </svg>
+
+          {/* "Waking up" text */}
+          <h2
+            className="animate-fade-in"
+            style={{
+              fontSize: 24, fontWeight: 700, color: 'var(--text-primary)',
+              marginBottom: 0,
+            }}
+          >
+            Your team is waking up...
+          </h2>
+
+          {/* Cycling facts */}
+          <p
+            key={factIndex}
+            className="animate-fade-in"
+            style={{
+              fontSize: 15, color: 'var(--text-secondary)', maxWidth: 340,
+              lineHeight: 1.6, minHeight: 48,
+            }}
+          >
+            {SETUP_FACTS[factIndex]}
+          </p>
         </div>
       )}
 
-      {/* BYOK Modal */}
+      {setupPhase === 'alive' && (
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          justifyContent: 'center', minHeight: 400, gap: 24,
+        }}>
+          {/* Heartbeat SVG — stable pulse, green */}
+          <svg viewBox="0 0 400 80" style={{ width: '100%', maxWidth: 400, height: 80 }}>
+            <path
+              d="M0,40 L60,40 L70,40 L80,20 L90,60 L100,10 L110,70 L120,40 L130,40 L200,40 L210,40 L220,20 L230,60 L240,10 L250,70 L260,40 L270,40 L340,40 L350,40 L360,20 L370,60 L380,10 L390,70 L400,40"
+              fill="none"
+              stroke="#10b981"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{
+                strokeDasharray: 800,
+                filter: 'drop-shadow(0 0 6px #10b981)',
+                animation: 'heartbeat-pulse 1.5s ease-in-out infinite',
+              }}
+            />
+          </svg>
+
+          {/* Alive text */}
+          <h2
+            className="animate-scale-in"
+            style={{
+              fontSize: 24, fontWeight: 700, color: '#10b981',
+              marginBottom: 0,
+            }}
+          >
+            Your team's heart is beating. ✨
+          </h2>
+
+          {/* Continue button */}
+          <button
+            className="next-btn animate-fade-in"
+            onClick={nextStep}
+            style={{
+              maxWidth: 280, width: '100%', padding: '12px 24px',
+              '--stagger-delay': '500ms',
+            } as React.CSSProperties}
+          >
+            Continue →
+          </button>
+
+          {/* Advanced setup link */}
+          <button
+            className="animate-fade-in"
+            onClick={() => setShowAdvanced(true)}
+            style={{
+              background: 'none', border: 'none',
+              color: 'var(--text-muted)', fontSize: 13,
+              cursor: 'pointer', marginTop: 8,
+              '--stagger-delay': '700ms',
+            } as React.CSSProperties}
+          >
+            ⚙️ I have my own setup
+          </button>
+        </div>
+      )}
+
+      {/* Advanced BYOK modal */}
+      {showAdvanced && (
+        <div
+          onClick={() => setShowAdvanced(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 100,
+            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+          }}
+        >
+          <div
+            className="animate-scale-in"
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'var(--bg-card)', border: '1px solid var(--border)',
+              borderRadius: 20, padding: 28, maxWidth: 420, width: '100%',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+            }}
+          >
+            {/* Close button */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
+                Bring Your Own Setup
+              </h3>
+              <button
+                onClick={() => setShowAdvanced(false)}
+                style={{
+                  background: 'none', border: 'none',
+                  color: 'var(--text-muted)', fontSize: 20,
+                  cursor: 'pointer', padding: 4, lineHeight: 1,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+              Connect your own provider to use your own API keys.
+            </p>
+
+            {/* Provider cards */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {BYOK_PROVIDERS.map(p => {
+                const hasKey = byokKeys[p.id]?.trim();
+                return (
+                  <div
+                    key={p.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '12px 14px',
+                      background: 'var(--bg-primary)',
+                      border: `1px solid ${hasKey ? '#10b981' : 'var(--border)'}`,
+                      borderRadius: 14,
+                    }}
+                  >
+                    <span style={{ fontSize: 24 }}>{p.emoji}</span>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>
+                      {p.name}
+                    </span>
+                    {hasKey ? (
+                      <span style={{ fontSize: 13, color: '#10b981', fontWeight: 600 }}>✓ Connected</span>
+                    ) : (
+                      <button
+                        onClick={() => setActiveModal(p.id)}
+                        style={{
+                          background: 'none', border: '1px solid var(--border)',
+                          borderRadius: 10, padding: '8px 18px',
+                          color: 'var(--text-secondary)', fontSize: 13, fontWeight: 500,
+                          cursor: 'pointer', transition: 'all 0.15s ease',
+                        }}
+                      >
+                        Connect
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BYOK key input modal */}
       {activeModal && (() => {
         const provider = BYOK_PROVIDERS.find(p => p.id === activeModal)!;
         return (
           <div
             onClick={() => setActiveModal(null)}
             style={{
-              position: 'fixed', inset: 0, zIndex: 100,
-              background: 'rgba(0,0,0,0.6)', display: 'flex',
-              alignItems: 'center', justifyContent: 'center', padding: 24,
+              position: 'fixed', inset: 0, zIndex: 110,
+              background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
             }}
           >
             <div
@@ -1097,7 +1128,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   cursor: canNext ? 'pointer' : 'not-allowed',
                 }}
               >
-                Next →
+                Continue →
               </button>
             )}
             {step === 2 && (
