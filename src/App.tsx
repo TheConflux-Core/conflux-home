@@ -18,6 +18,7 @@ import GameLauncher from './components/GameLauncher';
 import StoryGameReader from './components/StoryGameReader';
 import AgentTemplateBrowser from './components/AgentTemplateBrowser';
 import ParentDashboard from './components/ParentDashboard';
+import VoiceChat from './components/VoiceChat';
 import { useEngine } from './hooks/useEngine';
 import { useConfluxChat } from './hooks/useConfluxChat';
 import { useToast } from './hooks/useToast';
@@ -43,6 +44,7 @@ export default function App() {
   const [view, setView] = useState<View>('dashboard');
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [voiceChatOpen, setVoiceChatOpen] = useState(false);
   const [wallpaper, setWallpaper] = useState(() => getDefaultWallpaper());
   const [liveAgents, setLiveAgents] = useState(0);
   const [engineHealthy, setEngineHealthy] = useState(true);
@@ -171,6 +173,54 @@ export default function App() {
   const [dashboardMemberId, setDashboardMemberId] = useState<string | null>(null);
   const dashboardMember = familyMembers.find(m => m.id === dashboardMemberId);
 
+  // Voice chat session tracking
+  const [voiceSessionId, setVoiceSessionId] = useState<string | null>(null);
+
+  // Voice chat send handler — uses engine_chat directly
+  const handleVoiceSend = useCallback(async (message: string): Promise<string> => {
+    if (!selectedAgent) return "Oops! No agent selected.";
+
+    // Create session if needed
+    let sessionId = voiceSessionId;
+    if (!sessionId) {
+      sessionId = await invoke<string>('engine_create_session', {
+        agentId: selectedAgent.id,
+        userId: 'default',
+        title: null,
+      });
+      setVoiceSessionId(sessionId);
+    }
+
+    const result = await invoke<any>('engine_chat', {
+      req: {
+        session_id: sessionId,
+        agent_id: selectedAgent.id,
+        message,
+        max_tokens: 500, // shorter for kids
+      }
+    });
+
+    // Log learning activity for young kids
+    if (activeMemberId && activeMember && (activeMember.age_group === 'toddler' || activeMember.age_group === 'preschool')) {
+      try {
+        await invoke('learning_log_activity', {
+          req: {
+            member_id: activeMemberId,
+            agent_id: selectedAgent.id,
+            session_id: sessionId,
+            activity_type: 'language',
+            topic: message.slice(0, 50),
+            description: `Chat with ${selectedAgent.name}`,
+            difficulty: 'easy',
+            duration_sec: 10,
+          }
+        });
+      } catch { /* non-critical */ }
+    }
+
+    return result.content || "Hmm, let me think about that! 🤔";
+  }, [selectedAgent, voiceSessionId, activeMemberId, activeMember]);
+
   // Listen for settings nav from TopBar gear icon
   useEffect(() => {
     const handler = (e: Event) => {
@@ -227,14 +277,23 @@ export default function App() {
   const handleSelectAgent = useCallback((agent: Agent | null) => {
     setSelectedAgent(agent);
     if (agent) {
-      setChatOpen(true);
+      const isYoungKid = activeMember && (activeMember.age_group === 'toddler' || activeMember.age_group === 'preschool');
+      if (isYoungKid) {
+        setVoiceChatOpen(true);
+        setChatOpen(false);
+      } else {
+        setChatOpen(true);
+        setVoiceChatOpen(false);
+      }
     } else {
       setChatOpen(false);
+      setVoiceChatOpen(false);
     }
-  }, []);
+  }, [activeMember]);
 
   const handleCloseChat = useCallback(() => {
     setChatOpen(false);
+    setVoiceChatOpen(false);
     setSelectedAgent(null);
   }, []);
 
@@ -332,6 +391,15 @@ export default function App() {
         isOpen={chatOpen}
         onClose={handleCloseChat}
       />
+
+      {/* Voice Chat — for toddler/preschool agents */}
+      {voiceChatOpen && selectedAgent && (
+        <VoiceChat
+          agent={selectedAgent}
+          onSendMessage={handleVoiceSend}
+          onClose={handleCloseChat}
+        />
+      )}
 
       {/* Overlay views */}
       {showDashboardOverlay && (

@@ -4,6 +4,7 @@ import App from './App'
 import './index.css'
 import './styles-family.css'
 import './styles-story.css'
+import './styles-voice.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
