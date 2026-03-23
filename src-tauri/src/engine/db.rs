@@ -2959,7 +2959,7 @@ impl EngineDb {
         let desc = description.map(String::from);
         let td = target_date.map(String::from);
         conn.execute("INSERT INTO dreams (id, member_id, title, description, category, target_date, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
-            params![id, mid, desc, desc, category, td, now])?;
+            params![id, mid, title, desc, category, td, now])?;
         Ok(())
     }
     pub fn get_dreams(&self, status: Option<&str>) -> Result<Vec<super::types::Dream>> {
