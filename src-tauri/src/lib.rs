@@ -209,6 +209,12 @@ pub fn run() {
             commands::dream_add_progress,
             commands::dream_delete,
             commands::dream_ai_plan,
+            // Agent Diary
+            commands::diary_generate_entry,
+            commands::diary_get_entries,
+            commands::diary_get_all_entries,
+            commands::diary_get_today,
+            commands::diary_get_dashboard,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
