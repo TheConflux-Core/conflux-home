@@ -124,6 +124,22 @@ pub fn run() {
             commands::engine_google_get_credentials,
             // Health
             commands::engine_health,
+            // Family Members
+            commands::family_list,
+            commands::family_create,
+            commands::family_delete,
+            // Agent Templates
+            commands::agent_templates_list,
+            commands::agent_template_install,
+            // Story Games
+            commands::story_games_list,
+            commands::story_game_create,
+            commands::story_game_get,
+            commands::story_chapters_list,
+            commands::story_seeds_list,
+            commands::story_choose_path,
+            commands::story_solve_puzzle,
+            commands::story_generate_next_chapter,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
