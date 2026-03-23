@@ -17,11 +17,13 @@ import FamilySetup from './components/FamilySetup';
 import GameLauncher from './components/GameLauncher';
 import StoryGameReader from './components/StoryGameReader';
 import AgentTemplateBrowser from './components/AgentTemplateBrowser';
+import ParentDashboard from './components/ParentDashboard';
 import { useEngine } from './hooks/useEngine';
 import { useConfluxChat } from './hooks/useConfluxChat';
 import { useToast } from './hooks/useToast';
 import { useFamily } from './hooks/useFamily';
 import { useStoryGames, useStoryGame, useStorySeeds } from './hooks/useStoryGame';
+import { useLearningProgress, useLearningGoals } from './hooks/useLearning';
 import { initTheme, getSavedWallpaper } from './lib/theme';
 import { registerShortcuts } from './lib/shortcuts';
 import './styles/animations.css';
@@ -162,6 +164,12 @@ export default function App() {
 
   // Filter agents by active family member's age group
   const activeMember = familyMembers.find(m => m.id === activeMemberId);
+
+  // Learning progress for parent dashboard
+  const { progress: learningProgress } = useLearningProgress(activeMemberId);
+  const { goals: learningGoals, create: createLearningGoal } = useLearningGoals(activeMemberId);
+  const [dashboardMemberId, setDashboardMemberId] = useState<string | null>(null);
+  const dashboardMember = familyMembers.find(m => m.id === dashboardMemberId);
 
   // Listen for settings nav from TopBar gear icon
   useEffect(() => {
@@ -309,6 +317,7 @@ export default function App() {
           activeMemberId={activeMemberId}
           onSelect={(member) => setActiveMemberId(member?.id ?? null)}
           onAddClick={() => setShowFamilySetup(true)}
+          onProgressClick={(memberId) => setDashboardMemberId(memberId)}
         />
       )}
 
@@ -599,6 +608,17 @@ export default function App() {
             setShowFamilySetup(false);
           }}
           onCancel={() => setShowFamilySetup(false)}
+        />
+      )}
+
+      {/* Parent Dashboard */}
+      {dashboardMember && (
+        <ParentDashboard
+          member={dashboardMember}
+          progress={dashboardMemberId === activeMemberId ? learningProgress : null}
+          goals={dashboardMemberId === activeMemberId ? learningGoals : []}
+          onCreateGoal={createLearningGoal}
+          onClose={() => setDashboardMemberId(null)}
         />
       )}
 

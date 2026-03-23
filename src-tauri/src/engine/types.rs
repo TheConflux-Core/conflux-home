@@ -554,3 +554,115 @@ pub struct StorySeed {
     pub puzzle_types: String,    // JSON
     pub created_at: String,
 }
+
+// ── Learning Activity ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LearningActivity {
+    pub id: String,
+    pub member_id: String,
+    pub agent_id: String,
+    pub session_id: Option<String>,
+    pub activity_type: String,  // 'reading' | 'math' | 'science' | 'coding' | 'creative' | etc.
+    pub topic: Option<String>,
+    pub description: Option<String>,
+    pub difficulty: Option<String>,
+    pub score: Option<f64>,
+    pub duration_sec: Option<i64>,
+    pub tokens_used: i64,
+    pub metadata: Option<String>,  // JSON
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LearningGoal {
+    pub id: String,
+    pub member_id: String,
+    pub goal_type: String,  // 'streak' | 'mastery' | 'exploration' | 'custom'
+    pub activity_type: Option<String>,
+    pub title: String,
+    pub target_value: f64,
+    pub current_value: f64,
+    pub unit: Option<String>,
+    pub deadline: Option<String>,
+    pub is_complete: bool,
+    pub created_at: String,
+    pub completed_at: Option<String>,
+}
+
+// ── Learning Progress Summary (computed) ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LearningProgress {
+    pub member_id: String,
+    pub member_name: String,
+    pub total_activities: i64,
+    pub total_minutes: i64,
+    pub current_streak_days: i64,
+    pub longest_streak_days: i64,
+    pub activities_by_type: Vec<ActivityCount>,
+    pub recent_topics: Vec<String>,
+    pub average_score: Option<f64>,
+    pub goals: Vec<LearningGoal>,
+    pub weekly_summary: Vec<DailyActivity>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActivityCount {
+    pub activity_type: String,
+    pub count: i64,
+    pub total_minutes: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DailyActivity {
+    pub date: String,
+    pub count: i64,
+    pub minutes: i64,
+}
+
+// ── Meal Plan ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MealPlan {
+    pub id: String,
+    pub member_id: Option<String>,
+    pub week_start: String,
+    pub plan_data: String,   // JSON
+    pub grocery_list: Option<String>,  // JSON
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+// ── Budget Entry ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BudgetEntry {
+    pub id: String,
+    pub member_id: Option<String>,
+    pub entry_type: String,  // 'income' | 'expense' | 'savings' | 'goal'
+    pub category: String,
+    pub amount: f64,
+    pub description: Option<String>,
+    pub recurring: bool,
+    pub frequency: Option<String>,
+    pub date: String,
+    pub created_at: String,
+}
+
+// ── Content Feed Item ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContentFeedItem {
+    pub id: String,
+    pub member_id: Option<String>,
+    pub content_type: String,  // 'news' | 'tip' | 'challenge' | 'fun_fact' | 'reminder'
+    pub title: String,
+    pub body: String,
+    pub source_url: Option<String>,
+    pub category: Option<String>,
+    pub is_read: bool,
+    pub is_bookmarked: bool,
+    pub created_at: String,
+    pub expires_at: Option<String>,
+}

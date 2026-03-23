@@ -2026,4 +2026,211 @@ impl EngineDb {
         for r in rows { result.push(r?); }
         Ok(result)
     }
+
+    // ============================================================
+    // LEARNING ACTIVITIES
+    // ============================================================
+
+    pub fn log_learning_activity(&self, id: &str, member_id: &str, agent_id: &str,
+                                  session_id: Option<&str>, activity_type: &str,
+                                  topic: Option<&str>, description: Option<&str>,
+                                  difficulty: Option<&str>, score: Option<f64>,
+                                  duration_sec: Option<i64>, metadata: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO learning_activities (id, member_id, agent_id, session_id, activity_type, topic, description, difficulty, score, duration_sec, metadata)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            params![id, member_id, agent_id, session_id, activity_type, topic, description, difficulty, score, duration_sec, metadata],
+        )?;
+        // Update goals that match this activity type
+        self.update_goals_for_activity(member_id, activity_type)?;
+        Ok(())
+    }
+
+    fn update_goals_for_activity(&self, member_id: &str, activity_type: &str) -> Result<()> {
+        let conn = self.conn();
+        // Update streak goals
+        conn.execute(
+            "UPDATE learning_goals SET current_value = current_value + 1,
+             is_complete = CASE WHEN current_value + 1 >= target_value THEN 1 ELSE 0 END,
+             completed_at = CASE WHEN current_value + 1 >= target_value THEN ?3 ELSE NULL END
+             WHERE member_id = ?1 AND (activity_type = ?2 OR activity_type IS NULL) AND goal_type = 'streak' AND is_complete = 0",
+            params![member_id, activity_type, Self::now()],
+        )?;
+        // Update exploration goals (unique topics)
+        let unique_topics: i64 = conn.query_row(
+            "SELECT COUNT(DISTINCT topic) FROM learning_activities WHERE member_id = ?1 AND (activity_type = ?2 OR ?2 IS NULL) AND topic IS NOT NULL",
+            params![member_id, activity_type],
+            |row| row.get(0),
+        ).unwrap_or(0);
+        conn.execute(
+            "UPDATE learning_goals SET current_value = ?3,
+             is_complete = CASE WHEN ?3 >= target_value THEN 1 ELSE 0 END,
+             completed_at = CASE WHEN ?3 >= target_value THEN ?4 ELSE NULL END
+             WHERE member_id = ?1 AND goal_type = 'exploration' AND (activity_type = ?2 OR activity_type IS NULL) AND is_complete = 0",
+            params![member_id, activity_type, unique_topics as f64, Self::now()],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_learning_activities(&self, member_id: &str, limit: i64) -> Result<Vec<super::types::LearningActivity>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, member_id, agent_id, session_id, activity_type, topic, description, difficulty, score, duration_sec, tokens_used, metadata, created_at
+             FROM learning_activities WHERE member_id = ?1 ORDER BY created_at DESC LIMIT ?2"
+        )?;
+        let rows = stmt.query_map(params![member_id, limit], |row| {
+            Ok(super::types::LearningActivity {
+                id: row.get(0)?, member_id: row.get(1)?, agent_id: row.get(2)?, session_id: row.get(3)?,
+                activity_type: row.get(4)?, topic: row.get(5)?, description: row.get(6)?,
+                difficulty: row.get(7)?, score: row.get(8)?, duration_sec: row.get(9)?,
+                tokens_used: row.get(10)?, metadata: row.get(11)?, created_at: row.get(12)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+
+    pub fn get_learning_progress(&self, member_id: &str) -> Result<super::types::LearningProgress> {
+        let conn = self.conn();
+
+        // Get member name
+        let member_name: String = conn.query_row(
+            "SELECT name FROM family_members WHERE id = ?1", params![member_id], |row| row.get(0)
+        ).unwrap_or_else(|_| "Unknown".to_string());
+
+        // Total activities
+        let total_activities: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM learning_activities WHERE member_id = ?1",
+            params![member_id], |row| row.get(0)
+        ).unwrap_or(0);
+
+        // Total minutes
+        let total_minutes: i64 = conn.query_row(
+            "SELECT COALESCE(SUM(COALESCE(duration_sec, 0)) / 60, 0) FROM learning_activities WHERE member_id = ?1",
+            params![member_id], |row| row.get(0)
+        ).unwrap_or(0);
+
+        // Current streak (consecutive days with activity)
+        let current_streak: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM (
+                SELECT DISTINCT DATE(created_at) as d FROM learning_activities
+                WHERE member_id = ?1 AND DATE(created_at) >= DATE('now', '-' || (
+                    SELECT COUNT(DISTINCT DATE(created_at)) FROM learning_activities
+                    WHERE member_id = ?1 AND DATE(created_at) <= DATE('now')
+                    ORDER BY DATE(created_at) DESC
+                ) || ' days')
+                ORDER BY d DESC
+            )",
+            params![member_id], |row| row.get(0)
+        ).unwrap_or(0);
+
+        // Activities by type
+        let mut type_stmt = conn.prepare(
+            "SELECT activity_type, COUNT(*), COALESCE(SUM(COALESCE(duration_sec, 0)) / 60, 0)
+             FROM learning_activities WHERE member_id = ?1 GROUP BY activity_type ORDER BY COUNT(*) DESC"
+        )?;
+        let type_rows = type_stmt.query_map(params![member_id], |row| {
+            Ok(super::types::ActivityCount {
+                activity_type: row.get(0)?, count: row.get(1)?, total_minutes: row.get(2)?,
+            })
+        })?;
+        let mut activities_by_type = Vec::new();
+        for r in type_rows { activities_by_type.push(r?); }
+
+        // Recent topics (last 10 unique)
+        let mut topic_stmt = conn.prepare(
+            "SELECT DISTINCT topic FROM learning_activities WHERE member_id = ?1 AND topic IS NOT NULL ORDER BY created_at DESC LIMIT 10"
+        )?;
+        let topic_rows = topic_stmt.query_map(params![member_id], |row| Ok(row.get::<_, String>(0)?))?;
+        let mut recent_topics = Vec::new();
+        for r in topic_rows { recent_topics.push(r?); }
+
+        // Average score
+        let avg_score: Option<f64> = conn.query_row(
+            "SELECT AVG(score) FROM learning_activities WHERE member_id = ?1 AND score IS NOT NULL",
+            params![member_id], |row| row.get(0)
+        ).ok();
+
+        // Goals
+        let mut goal_stmt = conn.prepare(
+            "SELECT id, member_id, goal_type, activity_type, title, target_value, current_value, unit, deadline, is_complete, created_at, completed_at
+             FROM learning_goals WHERE member_id = ?1 ORDER BY is_complete ASC, created_at DESC"
+        )?;
+        let goal_rows = goal_stmt.query_map(params![member_id], |row| {
+            Ok(super::types::LearningGoal {
+                id: row.get(0)?, member_id: row.get(1)?, goal_type: row.get(2)?, activity_type: row.get(3)?,
+                title: row.get(4)?, target_value: row.get(5)?, current_value: row.get(6)?,
+                unit: row.get(7)?, deadline: row.get(8)?, is_complete: row.get::<_, i64>(9)? != 0,
+                created_at: row.get(10)?, completed_at: row.get(11)?,
+            })
+        })?;
+        let mut goals = Vec::new();
+        for r in goal_rows { goals.push(r?); }
+
+        // Weekly summary (last 7 days)
+        let mut daily_stmt = conn.prepare(
+            "SELECT DATE(created_at) as d, COUNT(*), COALESCE(SUM(COALESCE(duration_sec, 0)) / 60, 0)
+             FROM learning_activities WHERE member_id = ?1 AND DATE(created_at) >= DATE('now', '-7 days')
+             GROUP BY d ORDER BY d"
+        )?;
+        let daily_rows = daily_stmt.query_map(params![member_id], |row| {
+            Ok(super::types::DailyActivity {
+                date: row.get(0)?, count: row.get(1)?, minutes: row.get(2)?,
+            })
+        })?;
+        let mut weekly_summary = Vec::new();
+        for r in daily_rows { weekly_summary.push(r?); }
+
+        Ok(super::types::LearningProgress {
+            member_id: member_id.to_string(),
+            member_name,
+            total_activities,
+            total_minutes,
+            current_streak_days: current_streak,
+            longest_streak_days: current_streak, // simplified for now
+            activities_by_type,
+            recent_topics,
+            average_score: avg_score,
+            goals,
+            weekly_summary,
+        })
+    }
+
+    // ============================================================
+    // LEARNING GOALS
+    // ============================================================
+
+    pub fn create_learning_goal(&self, id: &str, member_id: &str, goal_type: &str,
+                                 activity_type: Option<&str>, title: &str,
+                                 target_value: f64, unit: Option<&str>,
+                                 deadline: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO learning_goals (id, member_id, goal_type, activity_type, title, target_value, unit, deadline)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![id, member_id, goal_type, activity_type, title, target_value, unit, deadline],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_learning_goals(&self, member_id: &str) -> Result<Vec<super::types::LearningGoal>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, member_id, goal_type, activity_type, title, target_value, current_value, unit, deadline, is_complete, created_at, completed_at
+             FROM learning_goals WHERE member_id = ?1 ORDER BY is_complete ASC, created_at DESC"
+        )?;
+        let rows = stmt.query_map(params![member_id], |row| {
+            Ok(super::types::LearningGoal {
+                id: row.get(0)?, member_id: row.get(1)?, goal_type: row.get(2)?, activity_type: row.get(3)?,
+                title: row.get(4)?, target_value: row.get(5)?, current_value: row.get(6)?,
+                unit: row.get(7)?, deadline: row.get(8)?, is_complete: row.get::<_, i64>(9)? != 0,
+                created_at: row.get(10)?, completed_at: row.get(11)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
 }
