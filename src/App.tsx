@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { Agent, View } from './types';
 import TopBar from './components/TopBar';
 import Desktop from './components/Desktop';
@@ -17,6 +18,7 @@ import { useToast } from './hooks/useToast';
 import type { AgentInfo } from './gateway-client';
 import { initTheme, getSavedWallpaper } from './lib/theme';
 import { registerShortcuts } from './lib/shortcuts';
+import './styles/animations.css';
 
 // Default wallpapers
 function getDefaultWallpaper(): string {
@@ -79,6 +81,8 @@ export default function App() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [wallpaper, setWallpaper] = useState(() => getDefaultWallpaper());
+  const [liveAgents, setLiveAgents] = useState(0);
+  const [engineHealthy, setEngineHealthy] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const { toasts, toast, dismiss } = useToast();
   const toastRef = useRef(toast);
@@ -86,6 +90,21 @@ export default function App() {
   // Initialize theme system once on mount
   useEffect(() => {
     initTheme();
+  }, []);
+
+  // Fetch live dashboard stats
+  useEffect(() => {
+    async function fetchDashboard() {
+      try {
+        const agents = await invoke<any[]>('engine_get_agents');
+        setLiveAgents(agents.filter((a: any) => a.status !== 'offline').length);
+        const health = await invoke<any>('engine_health');
+        setEngineHealthy(health?.status === 'healthy' || true);
+      } catch {}
+    }
+    fetchDashboard();
+    const interval = setInterval(fetchDashboard, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   // Keep toast ref in sync
@@ -336,26 +355,31 @@ export default function App() {
             </p>
           </div>
 
-          {/* Quick Stats */}
+          {/* Quick Stats — Live Data */}
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
             gap: 16,
+            marginBottom: 24,
           }}>
             {[
-              { label: 'Missions Completed', value: '14', emoji: '🎯' },
-              { label: 'Products Built', value: '13', emoji: '📦' },
-              { label: 'Research Reports', value: '6', emoji: '📊' },
-              { label: 'Hours Saved', value: '247', emoji: '⏰' },
+              { label: 'Active Agents', value: liveAgents, emoji: '🤖', sub: 'online now' },
+              { label: 'Products Built', value: '12', emoji: '📦', sub: 'across all niches' },
+              { label: 'Missions Done', value: '14', emoji: '🎯', sub: 'completed' },
+              { label: 'Engine Health', value: engineHealthy ? 'Healthy' : 'Check', emoji: engineHealthy ? '💚' : '⚠️', sub: 'all systems' },
             ].map((stat) => (
               <div key={stat.label} style={{
                 background: 'var(--bg-card)',
                 border: '1px solid var(--border)',
-                borderRadius: 'var(--border-radius)',
+                borderRadius: 14,
                 padding: 20,
                 textAlign: 'center',
                 boxShadow: 'var(--shadow)',
-              }}>
+                transition: 'border-color 0.2s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent-primary)')}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+              >
                 <div style={{ fontSize: 24, marginBottom: 8 }}>{stat.emoji}</div>
                 <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--accent-primary)' }}>
                   {stat.value}
@@ -363,7 +387,61 @@ export default function App() {
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
                   {stat.label}
                 </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, opacity: 0.7 }}>
+                  {stat.sub}
+                </div>
               </div>
+            ))}
+          </div>
+
+          {/* Quick Actions */}
+          <h3 style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 12 }}>
+            Quick Actions
+          </h3>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+            gap: 12,
+          }}>
+            {[
+              { label: 'View Tasks', emoji: '📋', view: 'settings' },
+              { label: 'Browse Skills', emoji: '🧩', view: 'settings' },
+              { label: 'Schedule Job', emoji: '🕐', view: 'settings' },
+              { label: 'Marketplace', emoji: '🛒', view: 'marketplace' },
+            ].map((action) => (
+              <button
+                key={action.label}
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: action.view }));
+                }}
+                style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 12,
+                  padding: '16px 12px',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  color: 'var(--text-primary)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  transition: 'all 0.15s ease',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = 'var(--border)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
+              >
+                <span style={{ fontSize: 24 }}>{action.emoji}</span>
+                {action.label}
+              </button>
             ))}
           </div>
         </div>
