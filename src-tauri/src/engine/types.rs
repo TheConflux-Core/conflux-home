@@ -342,6 +342,28 @@ pub struct Event {
     pub created_at: String,
 }
 
+// ── Skill ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Skill {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub emoji: String,
+    pub version: String,
+    pub author: Option<String>,
+    pub skill_type: String,
+    pub instructions: String,
+    pub triggers: Option<String>,
+    pub agents: String,
+    pub permissions: Option<String>,
+    pub is_active: bool,
+    pub install_source: Option<String>,
+    pub manifest_json: Option<String>,
+    pub installed_at: String,
+    pub updated_at: String,
+}
+
 // ── Heartbeat ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -398,21 +420,6 @@ pub struct Mission {
     pub created_at: String,
     pub updated_at: String,
     pub completed_at: Option<String>,
-}
-
-// ── Skill ──
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Skill {
-    pub id: String,
-    pub name: String,
-    pub description: Option<String>,
-    pub version: String,
-    pub author: Option<String>,
-    pub instructions: String,
-    pub triggers: Option<String>,
-    pub tools_used: Option<String>,
-    pub is_installed: bool,
 }
 
 // ── Telemetry ──

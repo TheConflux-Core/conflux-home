@@ -546,6 +546,92 @@ impl ConfluxEngine {
         Ok(serde_json::Value::Object(results))
     }
 
+    // ── Skills ──
+
+    pub fn get_skills(&self, active_only: bool) -> Result<Vec<types::Skill>> {
+        self.db.get_skills(active_only)
+    }
+
+    pub fn get_skill(&self, id: &str) -> Result<Option<types::Skill>> {
+        self.db.get_skill(id)
+    }
+
+    pub fn get_skills_for_agent(&self, agent_id: &str) -> Result<Vec<types::Skill>> {
+        self.db.get_skills_for_agent(agent_id)
+    }
+
+    /// Build the skill instructions block for an agent's system prompt.
+    /// This is called by the runtime when assembling context.
+    pub fn build_skill_context(&self, agent_id: &str) -> Result<String> {
+        let skills = self.db.get_skills_for_agent(agent_id)?;
+        if skills.is_empty() {
+            return Ok(String::new());
+        }
+
+        let mut ctx = String::from("\n## ACTIVE SKILLS\n\n");
+        for skill in &skills {
+            ctx.push_str(&format!("### {} {} (v{})\n", skill.emoji, skill.name, skill.version));
+            ctx.push_str(&skill.instructions);
+            ctx.push_str("\n\n");
+        }
+
+        // Add required permissions check
+        let mut needed_tools: Vec<String> = Vec::new();
+        for skill in &skills {
+            if let Some(ref perms) = skill.permissions {
+                if let Ok(tools) = serde_json::from_str::<Vec<String>>(perms) {
+                    for tool in tools {
+                        if !needed_tools.contains(&tool) {
+                            needed_tools.push(tool);
+                        }
+                    }
+                }
+            }
+        }
+
+        if !needed_tools.is_empty() {
+            ctx.push_str(&format!("Skills require tools: {}\n\n", needed_tools.join(", ")));
+        }
+
+        Ok(ctx)
+    }
+
+    pub fn install_skill_from_json(&self, json: &str) -> Result<String> {
+        let manifest: serde_json::Value = serde_json::from_str(json)?;
+
+        let id = manifest["id"].as_str().ok_or_else(|| anyhow::anyhow!("Missing 'id' in skill manifest"))?;
+        let name = manifest["name"].as_str().ok_or_else(|| anyhow::anyhow!("Missing 'name'"))?;
+        let instructions = manifest["instructions"].as_str()
+            .ok_or_else(|| anyhow::anyhow!("Missing 'instructions'"))?;
+
+        let emoji = manifest["emoji"].as_str().unwrap_or("🔌");
+        let version = manifest["version"].as_str().unwrap_or("1.0.0");
+        let description = manifest["description"].as_str();
+        let author = manifest["author"].as_str();
+        let triggers = manifest["triggers"].as_str().map(|s| s.to_string())
+            .or_else(|| if manifest["triggers"].is_null() { None } else { Some(manifest["triggers"].to_string()) });
+        let agents = manifest["agents"].as_str().map(|s| s.to_string())
+            .unwrap_or_else(|| if manifest["agents"].is_null() { "*".to_string() } else { manifest["agents"].to_string() });
+        let permissions = manifest["permissions"].as_str().map(|s| s.to_string())
+            .or_else(|| if manifest["permissions"].is_null() { None } else { Some(manifest["permissions"].to_string()) });
+
+        self.db.install_skill(id, name, description, emoji, version, author, instructions, triggers.as_deref(), &agents, permissions.as_deref(), "local", Some(json))?;
+
+        // Emit event
+        self.db.emit_event("skill_installed", Some("system"), None,
+            Some(&serde_json::json!({"id": id, "name": name}).to_string()))?;
+
+        Ok(id.to_string())
+    }
+
+    pub fn toggle_skill(&self, id: &str, active: bool) -> Result<()> {
+        self.db.toggle_skill(id, active)
+    }
+
+    pub fn uninstall_skill(&self, id: &str) -> Result<()> {
+        self.db.uninstall_skill(id)
+    }
+
     pub fn test_provider(&self, id: &str) -> Result<router::ModelResponse> {
         // Run a synchronous test call through the provider
         let rt = tokio::runtime::Runtime::new()?;

@@ -41,8 +41,12 @@ pub async fn process_turn(
     // 4. Build the message array
     let mut messages: Vec<OpenAIMessage> = Vec::new();
 
-    // System prompt: agent soul + instructions + memory
-    let system_prompt = build_system_prompt(&agent, &memory_context);
+    // System prompt: agent soul + instructions + memory + skills
+    let skill_context = match super::get_engine().build_skill_context(agent_id) {
+        Ok(ctx) => ctx,
+        Err(_) => String::new(),
+    };
+    let system_prompt = build_system_prompt(&agent, &memory_context, &skill_context);
     messages.push(OpenAIMessage {
         role: "system".to_string(),
         content: Some(system_prompt),
@@ -235,7 +239,11 @@ pub async fn process_turn_stream(
     // 4. Build messages
     let mut messages: Vec<OpenAIMessage> = Vec::new();
 
-    let system_prompt = build_system_prompt(&agent, &memory_context);
+    let skill_context = match super::get_engine().build_skill_context(agent_id) {
+        Ok(ctx) => ctx,
+        Err(_) => String::new(),
+    };
+    let system_prompt = build_system_prompt(&agent, &memory_context, &skill_context);
     messages.push(OpenAIMessage {
         role: "system".to_string(),
         content: Some(system_prompt),
@@ -380,6 +388,7 @@ pub async fn process_turn_stream(
 fn build_system_prompt(
     agent: &super::types::Agent,
     memory_context: &str,
+    skill_context: &str,
 ) -> String {
     let mut prompt = String::new();
 
@@ -403,6 +412,11 @@ fn build_system_prompt(
     if !memory_context.is_empty() {
         prompt.push_str(memory_context);
         prompt.push('\n');
+    }
+
+    // Active skills
+    if !skill_context.is_empty() {
+        prompt.push_str(skill_context);
     }
 
     // Tool usage instructions
