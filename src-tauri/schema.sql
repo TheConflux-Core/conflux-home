@@ -241,6 +241,53 @@ CREATE INDEX IF NOT EXISTS idx_providers_alias ON providers(model_alias);
 CREATE INDEX IF NOT EXISTS idx_providers_enabled ON providers(is_enabled);
 
 -- ============================================================
+-- PROVIDER TEMPLATES — Pre-built provider configurations
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS provider_templates (
+    id              TEXT PRIMARY KEY,           -- 'openai', 'anthropic', etc.
+    name            TEXT NOT NULL,              -- 'OpenAI'
+    emoji           TEXT NOT NULL DEFAULT '🔌', -- display emoji
+    description     TEXT NOT NULL,              -- short description
+    base_url        TEXT NOT NULL,              -- default API base URL
+    models          TEXT NOT NULL,              -- JSON array of model options
+    default_model   TEXT NOT NULL,              -- pre-selected model
+    model_alias     TEXT NOT NULL DEFAULT 'conflux-fast',
+    category        TEXT NOT NULL DEFAULT 'cloud', -- 'free' | 'cloud' | 'local'
+    docs_url        TEXT,                       -- link to get API key
+    is_free         INTEGER NOT NULL DEFAULT 0, -- 1 = no API key needed
+    sort_order      INTEGER NOT NULL DEFAULT 0
+);
+
+-- Seed provider templates
+INSERT OR IGNORE INTO provider_templates (id, name, emoji, description, base_url, models, default_model, model_alias, category, docs_url, is_free, sort_order) VALUES
+    ('free-tier',    'Free Tier (Conflux)', '⚡', 'Pre-configured. No setup needed. Just works.',
+     'built-in',
+     '["Cerebras Llama 3.1 8B", "Groq Llama 3.1 8B", "Mistral Small", "Cloudflare Llama 3.1 8B"]',
+     'Cerebras Llama 3.1 8B',
+     'conflux-fast', 'free', NULL, 1, 1),
+    ('openai',       'OpenAI',             '🟢', 'GPT-4o, GPT-4o-mini, and more.',
+     'https://api.openai.com/v1',
+     '["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"]',
+     'gpt-4o-mini',
+     'conflux-fast', 'cloud', 'https://platform.openai.com/api-keys', 0, 2),
+    ('anthropic',    'Anthropic',           '🟣', 'Claude Sonnet, Opus, and Haiku.',
+     'https://api.anthropic.com/v1',
+     '["claude-sonnet-4-20250514", "claude-haiku-3.5-20241022", "claude-opus-4-20250514"]',
+     'claude-sonnet-4-20250514',
+     'conflux-smart', 'cloud', 'https://console.anthropic.com/settings/keys', 0, 3),
+    ('gemini',       'Google Gemini',       '🔵', 'Gemini 2.0 Flash, 1.5 Pro, and more.',
+     'https://generativelanguage.googleapis.com/v1beta/openai',
+     '["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"]',
+     'gemini-2.0-flash',
+     'conflux-fast', 'cloud', 'https://aistudio.google.com/apikey', 0, 4),
+    ('ollama',       'Ollama (Local)',      '🟤', 'Run models on your own machine. Free, private, offline.',
+     'http://localhost:11434/v1',
+     '["llama3.1", "mistral", "codellama", "phi3", "gemma2"]',
+     'llama3.1',
+     'conflux-fast', 'local', 'https://ollama.com', 0, 5);
+
+-- ============================================================
 -- GOOGLE OAUTH — Token Storage
 -- ============================================================
 

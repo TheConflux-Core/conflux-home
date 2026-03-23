@@ -54,6 +54,9 @@ pub fn run() {
             commands::engine_update_provider,
             commands::engine_delete_provider,
             commands::engine_test_provider,
+            // Provider Templates
+            commands::engine_get_provider_templates,
+            commands::engine_install_template,
             // Google
             commands::engine_google_is_connected,
             commands::engine_google_get_email,
