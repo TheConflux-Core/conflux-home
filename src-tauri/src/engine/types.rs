@@ -312,6 +312,47 @@ pub struct LessonLearned {
     pub created_at: String,
 }
 
+// ── Webhook ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Webhook {
+    pub id: String,
+    pub name: String,
+    pub agent_id: String,
+    pub path: String,
+    pub secret: Option<String>,
+    pub task_template: String,
+    pub is_enabled: bool,
+    pub call_count: i64,
+    pub last_called_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+// ── Event ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Event {
+    pub id: String,
+    pub event_type: String,
+    pub source_agent: Option<String>,
+    pub target_agent: Option<String>,
+    pub payload: Option<String>,
+    pub processed: bool,
+    pub created_at: String,
+}
+
+// ── Heartbeat ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeartbeatRecord {
+    pub id: String,
+    pub check_name: String,
+    pub status: String,
+    pub details: Option<String>,
+    pub checked_at: String,
+}
+
 // ── Quota ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -338,6 +379,8 @@ pub struct CronJob {
     pub next_run_at: Option<String>,
     pub run_count: i64,
     pub error_count: i64,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 // ── Mission ──

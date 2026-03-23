@@ -8,6 +8,7 @@ pub mod runtime;
 pub mod tools;
 pub mod memory;
 pub mod google;
+pub mod cron;
 
 use anyhow::Result;
 use std::path::Path;
@@ -316,6 +317,233 @@ impl ConfluxEngine {
 
     pub fn get_active_lessons(&self, category: Option<&str>) -> Result<Vec<types::LessonLearned>> {
         self.db.get_active_lessons(category)
+    }
+
+    // ── Cron Jobs ──
+
+    pub fn create_cron_job(&self, name: &str, agent_id: &str, schedule: &str, timezone: &str, task_message: &str) -> Result<String> {
+        let id = self.db.create_cron_job(name, agent_id, schedule, timezone, task_message)?;
+
+        // Compute initial next run time
+        if let Some(next) = cron::next_run(schedule, chrono::Utc::now()) {
+            let next_str = next.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+            self.db.update_cron_next_run(&id, &next_str)?;
+        }
+
+        // Emit event
+        self.db.emit_event("cron_created", Some("system"), None, Some(&serde_json::json!({"id": id, "name": name}).to_string()))?;
+
+        Ok(id)
+    }
+
+    pub fn get_cron_jobs(&self, enabled_only: bool) -> Result<Vec<types::CronJob>> {
+        self.db.get_cron_jobs(enabled_only)
+    }
+
+    pub fn toggle_cron_job(&self, id: &str, enabled: bool) -> Result<()> {
+        self.db.toggle_cron_job(id, enabled)
+    }
+
+    pub fn delete_cron_job(&self, id: &str) -> Result<()> {
+        self.db.delete_cron_job(id)
+    }
+
+    /// Run any due cron jobs. Call this from the background scheduler.
+    pub async fn tick_cron(&self) -> Result<i64> {
+        let due_jobs = self.db.get_due_cron_jobs()?;
+        let mut executed = 0i64;
+
+        for job in due_jobs {
+            log::info!("[Cron] Running job '{}' ({}) → agent {}", job.name, job.id, job.agent_id);
+
+            // Create a temp session for this cron run
+            let session = match self.db.create_session(&job.agent_id, "cron") {
+                Ok(s) => s,
+                Err(e) => {
+                    log::error!("[Cron] Failed to create session for {}: {}", job.id, e);
+                    let _ = self.db.update_cron_run(&job.id, "error", 0, Some(&e.to_string()));
+                    continue;
+                }
+            };
+
+            // Inject anti-hallucination preamble
+            let message = format!(
+                "SCHEDULED TASK (cron: {}):\n{}\n\n\
+                 ANTI-HALLUCINATION RULES:\n\
+                 - This is a scheduled autonomous task.\n\
+                 - Read actual data before reporting results.\n\
+                 - If the task cannot be completed, explain why honestly.\n\
+                 - Log what you did in the session for audit purposes.",
+                job.schedule, job.task_message
+            );
+
+            // Execute through the runtime
+            match runtime::process_turn(&self.db, &session.id, &job.agent_id, &message, None).await {
+                Ok(response) => {
+                    let tokens = response.tokens_used;
+                    let _ = self.db.update_cron_run(&job.id, "success", tokens, None);
+                    self.db.emit_event("cron_fired", Some(&job.agent_id), None,
+                        Some(&serde_json::json!({"job_id": job.id, "tokens": tokens}).to_string()))?;
+                }
+                Err(e) => {
+                    log::error!("[Cron] Job {} failed: {}", job.id, e);
+                    let _ = self.db.update_cron_run(&job.id, "error", 0, Some(&e.to_string()));
+                    self.db.emit_event("cron_error", Some(&job.agent_id), None,
+                        Some(&serde_json::json!({"job_id": job.id, "error": e.to_string()}).to_string()))?;
+                }
+            }
+
+            executed += 1;
+        }
+
+        Ok(executed)
+    }
+
+    // ── Webhooks ──
+
+    pub fn create_webhook(&self, name: &str, agent_id: &str, path: &str, secret: Option<&str>, task_template: &str) -> Result<String> {
+        self.db.create_webhook(name, agent_id, path, secret, task_template)
+    }
+
+    pub fn get_webhooks(&self) -> Result<Vec<types::Webhook>> {
+        self.db.get_webhooks()
+    }
+
+    pub fn delete_webhook(&self, id: &str) -> Result<()> {
+        self.db.delete_webhook(id)
+    }
+
+    /// Process an incoming webhook request. Returns the agent's response.
+    pub async fn handle_webhook(&self, path: &str, body: &str, auth_header: Option<&str>) -> Result<String> {
+        let webhook = self.db.get_webhook_by_path(path)?
+            .ok_or_else(|| anyhow::anyhow!("No webhook registered for path: {}", path))?;
+
+        // Verify secret if set
+        if let Some(ref secret) = webhook.secret {
+            let provided = auth_header.unwrap_or("");
+            if provided != secret {
+                anyhow::bail!("Webhook auth failed for path: {}", path);
+            }
+        }
+
+        // Record the call
+        self.db.record_webhook_call(path)?;
+
+        // Build message from template
+        let message = webhook.task_template
+            .replace("{{body}}", body)
+            .replace("{{path}}", path);
+
+        // Add anti-hallucination preamble
+        let full_message = format!(
+            "WEBHOOK TRIGGER ({}):\n{}\n\n\
+             ANTI-HALLUCINATION RULES:\n\
+             - This was triggered by an external webhook.\n\
+             - Process the payload data accurately.\n\
+             - If you take any actions, report them with evidence.",
+            webhook.name, message
+        );
+
+        // Execute through the runtime
+        let session = self.db.create_session(&webhook.agent_id, "webhook")?;
+        let response = runtime::process_turn(&self.db, &session.id, &webhook.agent_id, &full_message, None).await?;
+
+        // Emit event
+        self.db.emit_event("webhook_fired", Some(&webhook.agent_id), None,
+            Some(&serde_json::json!({"path": path, "tokens": response.tokens_used}).to_string()))?;
+
+        Ok(response.content)
+    }
+
+    // ── Events ──
+
+    pub fn emit_event(&self, event_type: &str, source: Option<&str>, target: Option<&str>, payload: Option<&str>) -> Result<String> {
+        self.db.emit_event(event_type, source, target, payload)
+    }
+
+    pub fn get_unprocessed_events(&self, target_agent: Option<&str>) -> Result<Vec<types::Event>> {
+        self.db.get_unprocessed_events(target_agent)
+    }
+
+    pub fn mark_event_processed(&self, id: &str) -> Result<()> {
+        self.db.mark_event_processed(id)
+    }
+
+    pub fn cleanup_old_events(&self, days: i64) -> Result<i64> {
+        self.db.cleanup_old_events(days)
+    }
+
+    // ── Heartbeats ──
+
+    pub fn record_heartbeat(&self, check_name: &str, status: &str, details: Option<&str>) -> Result<String> {
+        self.db.record_heartbeat(check_name, status, details)
+    }
+
+    pub fn get_latest_heartbeats(&self) -> Result<Vec<types::HeartbeatRecord>> {
+        self.db.get_latest_heartbeats()
+    }
+
+    /// Run all health checks and record results.
+    pub fn run_health_checks(&self) -> Result<serde_json::Value> {
+        let mut results = serde_json::Map::new();
+
+        // 1. Database health
+        match self.db.conn().execute("SELECT 1", []) {
+            Ok(_) => {
+                self.db.record_heartbeat("database", "ok", None)?;
+                results.insert("database".into(), serde_json::json!("ok"));
+            }
+            Err(e) => {
+                self.db.record_heartbeat("database", "error", Some(&e.to_string()))?;
+                results.insert("database".into(), serde_json::json!({"error": e.to_string()}));
+            }
+        }
+
+        // 2. Provider health (check if any providers are configured)
+        match self.db.get_providers() {
+            Ok(providers) if !providers.is_empty() => {
+                let enabled = providers.iter().filter(|p| p.is_enabled).count();
+                self.db.record_heartbeat("providers", "ok", Some(&serde_json::json!({
+                    "total": providers.len(),
+                    "enabled": enabled
+                }).to_string()))?;
+                results.insert("providers".into(), serde_json::json!({"total": providers.len(), "enabled": enabled}));
+            }
+            Ok(_) => {
+                self.db.record_heartbeat("providers", "warning", Some("No providers configured"))?;
+                results.insert("providers".into(), serde_json::json!("warning: no providers"));
+            }
+            Err(e) => {
+                self.db.record_heartbeat("providers", "error", Some(&e.to_string()))?;
+                results.insert("providers".into(), serde_json::json!({"error": e.to_string()}));
+            }
+        }
+
+        // 3. Scheduler health (count active cron jobs)
+        match self.db.get_cron_jobs(true) {
+            Ok(jobs) => {
+                self.db.record_heartbeat("scheduler", "ok", Some(&serde_json::json!({"active_jobs": jobs.len()}).to_string()))?;
+                results.insert("scheduler".into(), serde_json::json!({"active_jobs": jobs.len()}));
+            }
+            Err(e) => {
+                self.db.record_heartbeat("scheduler", "error", Some(&e.to_string()))?;
+                results.insert("scheduler".into(), serde_json::json!({"error": e.to_string()}));
+            }
+        }
+
+        // 4. Agent health (count active agents)
+        match self.db.get_active_agents() {
+            Ok(agents) => {
+                self.db.record_heartbeat("agents", "ok", Some(&serde_json::json!({"active": agents.len()}).to_string()))?;
+                results.insert("agents".into(), serde_json::json!({"active": agents.len()}));
+            }
+            Err(e) => {
+                self.db.record_heartbeat("agents", "error", Some(&e.to_string()))?;
+                results.insert("agents".into(), serde_json::json!({"error": e.to_string()}));
+            }
+        }
+
+        Ok(serde_json::Value::Object(results))
     }
 
     pub fn test_provider(&self, id: &str) -> Result<router::ModelResponse> {

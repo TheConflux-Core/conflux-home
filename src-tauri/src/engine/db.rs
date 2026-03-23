@@ -1267,4 +1267,263 @@ impl EngineDb {
         for l in lessons { result.push(l?); }
         Ok(result)
     }
+
+    // ── Cron Jobs ──
+
+    pub fn create_cron_job(&self, name: &str, agent_id: &str, schedule: &str, timezone: &str, task_message: &str) -> Result<String> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO cron_jobs (id, name, agent_id, schedule, timezone, task_message)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, name, agent_id, schedule, timezone, task_message],
+        )?;
+        Ok(id)
+    }
+
+    pub fn get_cron_jobs(&self, enabled_only: bool) -> Result<Vec<super::types::CronJob>> {
+        let conn = self.conn();
+        let query = if enabled_only {
+            "SELECT id, name, agent_id, schedule, timezone, task_message, is_enabled, last_run_at, next_run_at, run_count, error_count, created_at, updated_at
+             FROM cron_jobs WHERE is_enabled = 1 ORDER BY next_run_at ASC"
+        } else {
+            "SELECT id, name, agent_id, schedule, timezone, task_message, is_enabled, last_run_at, next_run_at, run_count, error_count, created_at, updated_at
+             FROM cron_jobs ORDER BY created_at DESC"
+        };
+        let mut stmt = conn.prepare(query)?;
+        let jobs = stmt.query_map([], |row| {
+            Ok(super::types::CronJob {
+                id: row.get(0)?, name: row.get(1)?, agent_id: row.get(2)?,
+                schedule: row.get(3)?, timezone: row.get(4)?, task_message: row.get(5)?,
+                is_enabled: row.get::<_, i64>(6)? != 0, last_run_at: row.get(7)?,
+                next_run_at: row.get(8)?, run_count: row.get(9)?, error_count: row.get(10)?,
+                created_at: row.get(11)?, updated_at: row.get(12)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for j in jobs { result.push(j?); }
+        Ok(result)
+    }
+
+    pub fn get_due_cron_jobs(&self) -> Result<Vec<super::types::CronJob>> {
+        let conn = self.conn();
+        let now = Self::now();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, agent_id, schedule, timezone, task_message, is_enabled, last_run_at, next_run_at, run_count, error_count, created_at, updated_at
+             FROM cron_jobs
+             WHERE is_enabled = 1 AND (next_run_at IS NULL OR next_run_at <= ?1)
+             ORDER BY next_run_at ASC"
+        )?;
+        let jobs = stmt.query_map(params![now], |row| {
+            Ok(super::types::CronJob {
+                id: row.get(0)?, name: row.get(1)?, agent_id: row.get(2)?,
+                schedule: row.get(3)?, timezone: row.get(4)?, task_message: row.get(5)?,
+                is_enabled: row.get::<_, i64>(6)? != 0, last_run_at: row.get(7)?,
+                next_run_at: row.get(8)?, run_count: row.get(9)?, error_count: row.get(10)?,
+                created_at: row.get(11)?, updated_at: row.get(12)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for j in jobs { result.push(j?); }
+        Ok(result)
+    }
+
+    pub fn update_cron_run(&self, id: &str, status: &str, tokens: i64, error: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        let now = Self::now();
+
+        // Get the schedule to compute next run
+        let schedule: String = conn.query_row(
+            "SELECT schedule FROM cron_jobs WHERE id = ?1",
+            params![id],
+            |row| row.get(0),
+        )?;
+
+        let next = super::cron::next_run(&schedule, chrono::Utc::now())
+            .map(|dt| dt.format("%Y-%m-%dT%H:%M:%SZ").to_string());
+
+        conn.execute(
+            "UPDATE cron_jobs SET last_run_at = ?2, last_run_status = ?3, last_run_tokens = ?4, last_run_error = ?5,
+             run_count = run_count + 1, error_count = error_count + (CASE WHEN ?3 = 'error' THEN 1 ELSE 0 END),
+             next_run_at = ?6, updated_at = ?2
+             WHERE id = ?1",
+            params![id, now, status, tokens, error, next],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_cron_next_run(&self, id: &str, next_run: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute(
+            "UPDATE cron_jobs SET next_run_at = ?2, updated_at = ?3 WHERE id = ?1",
+            params![id, next_run, Self::now()],
+        )?;
+        Ok(())
+    }
+
+    pub fn toggle_cron_job(&self, id: &str, enabled: bool) -> Result<()> {
+        let conn = self.conn();
+        let e: i64 = if enabled { 1 } else { 0 };
+        conn.execute(
+            "UPDATE cron_jobs SET is_enabled = ?2, updated_at = ?3 WHERE id = ?1",
+            params![id, e, Self::now()],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_cron_job(&self, id: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute("DELETE FROM cron_jobs WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    // ── Webhooks ──
+
+    pub fn create_webhook(&self, name: &str, agent_id: &str, path: &str, secret: Option<&str>, task_template: &str) -> Result<String> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO webhooks (id, name, agent_id, path, secret, task_template)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, name, agent_id, path, secret, task_template],
+        )?;
+        Ok(id)
+    }
+
+    pub fn get_webhook_by_path(&self, path: &str) -> Result<Option<super::types::Webhook>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, agent_id, path, secret, task_template, is_enabled, call_count, last_called_at, created_at, updated_at
+             FROM webhooks WHERE path = ?1 AND is_enabled = 1"
+        )?;
+        let result = stmt.query_row(params![path], |row| {
+            Ok(super::types::Webhook {
+                id: row.get(0)?, name: row.get(1)?, agent_id: row.get(2)?,
+                path: row.get(3)?, secret: row.get(4)?, task_template: row.get(5)?,
+                is_enabled: row.get::<_, i64>(6)? != 0, call_count: row.get(7)?,
+                last_called_at: row.get(8)?, created_at: row.get(9)?, updated_at: row.get(10)?,
+            })
+        });
+        match result {
+            Ok(w) => Ok(Some(w)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn get_webhooks(&self) -> Result<Vec<super::types::Webhook>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, agent_id, path, secret, task_template, is_enabled, call_count, last_called_at, created_at, updated_at
+             FROM webhooks ORDER BY created_at DESC"
+        )?;
+        let hooks = stmt.query_map([], |row| {
+            Ok(super::types::Webhook {
+                id: row.get(0)?, name: row.get(1)?, agent_id: row.get(2)?,
+                path: row.get(3)?, secret: row.get(4)?, task_template: row.get(5)?,
+                is_enabled: row.get::<_, i64>(6)? != 0, call_count: row.get(7)?,
+                last_called_at: row.get(8)?, created_at: row.get(9)?, updated_at: row.get(10)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for h in hooks { result.push(h?); }
+        Ok(result)
+    }
+
+    pub fn record_webhook_call(&self, path: &str) -> Result<()> {
+        let conn = self.conn();
+        let now = Self::now();
+        conn.execute(
+            "UPDATE webhooks SET call_count = call_count + 1, last_called_at = ?2 WHERE path = ?1",
+            params![path, now],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_webhook(&self, id: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute("DELETE FROM webhooks WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    // ── Events ──
+
+    pub fn emit_event(&self, event_type: &str, source: Option<&str>, target: Option<&str>, payload: Option<&str>) -> Result<String> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO events (id, event_type, source_agent, target_agent, payload)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![id, event_type, source, target, payload],
+        )?;
+        Ok(id)
+    }
+
+    pub fn get_unprocessed_events(&self, target_agent: Option<&str>) -> Result<Vec<super::types::Event>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, event_type, source_agent, target_agent, payload, processed, created_at
+             FROM events WHERE processed = 0 AND (?1 IS NULL OR target_agent = ?1 OR target_agent IS NULL)
+             ORDER BY created_at ASC LIMIT 50"
+        )?;
+        let events = stmt.query_map(params![target_agent], |row| {
+            Ok(super::types::Event {
+                id: row.get(0)?, event_type: row.get(1)?, source_agent: row.get(2)?,
+                target_agent: row.get(3)?, payload: row.get(4)?,
+                processed: row.get::<_, i64>(5)? != 0, created_at: row.get(6)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for e in events { result.push(e?); }
+        Ok(result)
+    }
+
+    pub fn mark_event_processed(&self, id: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute("UPDATE events SET processed = 1 WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    pub fn cleanup_old_events(&self, days: i64) -> Result<i64> {
+        let conn = self.conn();
+        let deleted = conn.execute(
+            "DELETE FROM events WHERE processed = 1 AND created_at < datetime('now', ?1)",
+            params![format!("-{} days", days)],
+        )?;
+        Ok(deleted as i64)
+    }
+
+    // ── Heartbeats ──
+
+    pub fn record_heartbeat(&self, check_name: &str, status: &str, details: Option<&str>) -> Result<String> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO heartbeats (id, check_name, status, details) VALUES (?1, ?2, ?3, ?4)",
+            params![id, check_name, status, details],
+        )?;
+        Ok(id)
+    }
+
+    pub fn get_latest_heartbeats(&self) -> Result<Vec<super::types::HeartbeatRecord>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT h.id, h.check_name, h.status, h.details, h.checked_at
+             FROM heartbeats h
+             INNER JOIN (
+                 SELECT check_name, MAX(checked_at) as latest
+                 FROM heartbeats GROUP BY check_name
+             ) latest ON h.check_name = latest.check_name AND h.checked_at = latest.latest
+             ORDER BY h.check_name"
+        )?;
+        let records = stmt.query_map([], |row| {
+            Ok(super::types::HeartbeatRecord {
+                id: row.get(0)?, check_name: row.get(1)?, status: row.get(2)?,
+                details: row.get(3)?, checked_at: row.get(4)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in records { result.push(r?); }
+        Ok(result)
+    }
 }
