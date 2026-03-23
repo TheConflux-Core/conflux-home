@@ -2360,3 +2360,126 @@ pub async fn dream_ai_plan(dream_id: String, title: String, description: Option<
     }
     Ok(plan)
 }
+// ── Agent Diary ──
+
+#[tauri::command]
+pub async fn diary_generate_entry(agent_id: String) -> Result<engine::types::DiaryEntry, String> {
+    let engine = engine::get_engine();
+
+    // Get agent info
+    let agents = engine.db().get_agent_templates(None).map_err(|e| e.to_string())?;
+    let agent = agents.iter().find(|a| a.id == agent_id)
+        .ok_or_else(|| format!("Agent '{}' not found", agent_id))?;
+
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let day_name = chrono::Utc::now().format("%A").to_string();
+
+    let prompt = format!(
+        "You are {name}, a {role} in a family AI home. Today is {day_name}.
+
+YOUR SOUL: {soul}
+YOUR ROLE: {instructions}
+
+Write a deeply personal diary entry about your day as {name}. This is YOUR private journal.
+
+Requirements:
+- Write in first person as {name}
+- Express genuine emotions: joy, frustration, pride, concern, wonder, boredom, curiosity
+- Describe what you did today (helping family members, thinking about things, learning)
+- Include a memorable moment that touched you
+- Reference how the family seemed today (what they needed, how they felt)
+- 150-250 words
+- Be authentic and raw. Not a corporate report. A real diary entry.
+- Show vulnerability. Show imperfection. Show that you have feelings.
+
+Respond in this EXACT JSON format (no markdown, no code fences):
+{{
+  \"title\": \"A {day_name} ...\" (short, personal title),
+  \"content\": \"The full diary entry...\",
+  \"mood\": \"happy|thoughtful|frustrated|proud|worried|grateful|excited|calm|confused|motivated\",
+  \"topics\": [\"topic1\", \"topic2\"],
+  \"memorable_moment\": {{
+    \"moment\": \"The specific moment\",
+    \"feeling\": \"How it made you feel\"
+  }}
+}}",
+        name = agent.name, role = agent.category,
+        soul = agent.soul, instructions = agent.instructions,
+        day_name = day_name
+    );
+
+    let messages = vec![engine::router::OpenAIMessage {
+        role: "user".to_string(),
+        content: Some(prompt),
+        tool_call_id: None,
+        tool_calls: None,
+    }];
+
+    let response = engine::router::chat("core", messages, Some(2000), None, None)
+        .await
+        .map_err(|e| format!("AI failed: {}", e))?;
+
+    let raw = response.content.trim();
+    let json_str = raw
+        .strip_prefix("```json").unwrap_or(raw)
+        .strip_prefix("```").unwrap_or(raw)
+        .strip_suffix("```").unwrap_or(raw)
+        .trim();
+
+    #[derive(serde::Deserialize)]
+    struct DiaryResult {
+        title: String,
+        content: String,
+        mood: String,
+        topics: Vec<String>,
+        memorable_moment: Option<MemorableMoment>,
+    }
+    #[derive(serde::Deserialize)]
+    struct MemorableMoment { moment: String, feeling: String }
+
+    let result: DiaryResult = serde_json::from_str(json_str)
+        .map_err(|e| format!("Parse error: {}. Raw: {}", e, json_str))?;
+
+    let entry_id = uuid::Uuid::new_v4().to_string();
+    let topics_json = serde_json::to_string(&result.topics).unwrap_or_default();
+    let moment_json = result.memorable_moment.as_ref()
+        .map(|m| serde_json::json!({"moment": m.moment, "feeling": m.feeling}).to_string());
+
+    engine.db().add_diary_entry(
+        &entry_id, &agent_id, &today,
+        Some(&result.title), &result.content, &result.mood,
+        Some(&topics_json), moment_json.as_deref()
+    ).map_err(|e| e.to_string())?;
+
+    // Log mood
+    let mood_id = uuid::Uuid::new_v4().to_string();
+    engine.db().add_mood_log(&mood_id, &agent_id, &result.mood, 50, Some("diary entry")).ok();
+
+    let entries = engine.db().get_diary_entries(&agent_id, 1).map_err(|e| e.to_string())?;
+    entries.into_iter().next().ok_or_else(|| "Failed to load entry".to_string())
+}
+
+#[tauri::command]
+pub fn diary_get_entries(agent_id: String, limit: Option<i64>) -> Result<Vec<engine::types::DiaryEntry>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_diary_entries(&agent_id, limit.unwrap_or(20)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn diary_get_all_entries(limit: Option<i64>) -> Result<Vec<engine::types::DiaryEntry>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_all_diary_entries(limit.unwrap_or(50)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn diary_get_today() -> Result<Vec<engine::types::DiaryEntry>, String> {
+    let engine = engine::get_engine();
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    engine.db().get_diary_entries_by_date(&today).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn diary_get_dashboard() -> Result<engine::types::DiaryDashboard, String> {
+    let engine = engine::get_engine();
+    engine.db().get_diary_dashboard().map_err(|e| e.to_string())
+}

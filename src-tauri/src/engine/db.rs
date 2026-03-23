@@ -3120,4 +3120,80 @@ impl EngineDb {
         conn.execute("DELETE FROM dreams WHERE id = ?", [id])?;
         Ok(())
     }
+
+    // AGENT DIARY
+    pub fn add_diary_entry(&self, id: &str, agent_id: &str, entry_date: &str, title: Option<&str>,
+        content: &str, mood: &str, topics_discussed: Option<&str>, memorable_moment: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        let word_count = content.split_whitespace().count() as i64;
+        let tt = title.map(String::from);
+        let td = topics_discussed.map(String::from);
+        let mm = memorable_moment.map(String::from);
+        conn.execute(
+            "INSERT INTO diary_entries (id, agent_id, entry_date, title, content, mood, topics_discussed, memorable_moment, word_count)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![id, agent_id, entry_date, tt, content, mood, td, mm, word_count])?;
+        Ok(())
+    }
+    pub fn get_diary_entries(&self, agent_id: &str, limit: i64) -> Result<Vec<super::types::DiaryEntry>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT id, agent_id, entry_date, title, content, mood, topics_discussed, memorable_moment, word_count, created_at FROM diary_entries WHERE agent_id = ?1 ORDER BY entry_date DESC, created_at DESC LIMIT ?2")?;
+        let rows = stmt.query_map(params![agent_id, limit], Self::map_diary_entry)?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+    pub fn get_diary_entries_by_date(&self, date: &str) -> Result<Vec<super::types::DiaryEntry>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT id, agent_id, entry_date, title, content, mood, topics_discussed, memorable_moment, word_count, created_at FROM diary_entries WHERE entry_date = ?1 ORDER BY created_at DESC")?;
+        let rows = stmt.query_map(params![date], Self::map_diary_entry)?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+    pub fn get_all_diary_entries(&self, limit: i64) -> Result<Vec<super::types::DiaryEntry>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT id, agent_id, entry_date, title, content, mood, topics_discussed, memorable_moment, word_count, created_at FROM diary_entries ORDER BY entry_date DESC, created_at DESC LIMIT ?1")?;
+        let rows = stmt.query_map(params![limit], Self::map_diary_entry)?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+    fn map_diary_entry(row: &rusqlite::Row) -> rusqlite::Result<super::types::DiaryEntry> {
+        Ok(super::types::DiaryEntry {
+            id: row.get(0)?, agent_id: row.get(1)?, entry_date: row.get(2)?,
+            title: row.get(3)?, content: row.get(4)?, mood: row.get(5)?,
+            topics_discussed: row.get(6)?, memorable_moment: row.get(7)?,
+            word_count: row.get(8)?, created_at: row.get(9)?,
+        })
+    }
+    pub fn get_diary_dashboard(&self) -> Result<super::types::DiaryDashboard> {
+        let conn = self.conn();
+        let total: i64 = conn.query_row("SELECT COUNT(*) FROM diary_entries", [], |row| row.get(0)).unwrap_or(0);
+        let week_ago = (chrono::Utc::now() - chrono::Duration::days(7)).format("%Y-%m-%d").to_string();
+        let this_week: i64 = conn.query_row("SELECT COUNT(*) FROM diary_entries WHERE entry_date >= ?1", params![week_ago], |row| row.get(0)).unwrap_or(0);
+        let mut mood_stmt = conn.prepare("SELECT mood, COUNT(*) as cnt FROM diary_entries GROUP BY mood ORDER BY cnt DESC")?;
+        let mood_rows = mood_stmt.query_map([], |row| -> rusqlite::Result<super::types::MoodCount> {
+            Ok(super::types::MoodCount { mood: row.get(0)?, count: row.get(1)? })
+        })?;
+        let mut moods = Vec::new();
+        for r in mood_rows { moods.push(r?); }
+        let latest = self.get_all_diary_entries(5).unwrap_or_default();
+        let mut agents_stmt = conn.prepare("SELECT DISTINCT agent_id FROM diary_entries ORDER BY agent_id")?;
+        let agents_rows = agents_stmt.query_map([], |row| row.get::<_, String>(0))?;
+        let mut agents = Vec::new();
+        for r in agents_rows { agents.push(r?); }
+        Ok(super::types::DiaryDashboard {
+            total_entries: total, entries_this_week: this_week,
+            mood_distribution: moods, most_active_agent: agents.first().cloned(),
+            latest_entries: latest, agents_with_entries: agents,
+        })
+    }
+    pub fn add_mood_log(&self, id: &str, agent_id: &str, mood: &str, intensity: i64, trigger: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        let tr = trigger.map(String::from);
+        conn.execute("INSERT INTO diary_mood_log (id, agent_id, mood, intensity, trigger_event) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![id, agent_id, mood, intensity, tr])?;
+        Ok(())
+    }
 }

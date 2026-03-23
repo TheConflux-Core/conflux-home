@@ -1346,3 +1346,32 @@ CREATE TABLE IF NOT EXISTS dream_progress (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 CREATE INDEX IF NOT EXISTS idx_dream_progress_dream ON dream_progress(dream_id);
+
+-- ── Agent Diary ──
+
+CREATE TABLE IF NOT EXISTS diary_entries (
+  id TEXT PRIMARY KEY,
+  agent_id TEXT NOT NULL REFERENCES agent_templates(id),
+  entry_date TEXT NOT NULL,           -- YYYY-MM-DD
+  title TEXT,                         -- auto-generated like "A Tuesday with Sarah"
+  content TEXT NOT NULL,              -- the full diary text (AI's emotional writing)
+  mood TEXT NOT NULL,                 -- happy, thoughtful, frustrated, proud, worried, grateful, excited, calm, confused, motivated
+  topics_discussed TEXT,              -- JSON array of topics from conversations
+  memorable_moment TEXT,              -- JSON: {moment: "...", feeling: "..."}
+  word_count INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_diary_agent ON diary_entries(agent_id);
+CREATE INDEX IF NOT EXISTS idx_diary_date ON diary_entries(entry_date);
+CREATE INDEX IF NOT EXISTS idx_diary_mood ON diary_entries(mood);
+
+CREATE TABLE IF NOT EXISTS diary_mood_log (
+  id TEXT PRIMARY KEY,
+  agent_id TEXT NOT NULL REFERENCES agent_templates(id),
+  mood TEXT NOT NULL,
+  intensity INTEGER DEFAULT 50,       -- 0-100 how strongly felt
+  trigger_event TEXT,                 -- what caused this mood
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_mood_agent ON diary_mood_log(agent_id);
+CREATE INDEX IF NOT EXISTS idx_mood_date ON diary_mood_log(created_at);

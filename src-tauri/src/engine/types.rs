@@ -1036,3 +1036,45 @@ pub struct DreamDashboard {
     pub upcoming_tasks: Vec<DreamTask>,
     pub recent_progress: Vec<DreamProgress>,
 }
+
+// ── Agent Diary ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiaryEntry {
+    pub id: String,
+    pub agent_id: String,
+    pub entry_date: String,
+    pub title: Option<String>,
+    pub content: String,
+    pub mood: String,
+    pub topics_discussed: Option<String>,
+    pub memorable_moment: Option<String>,
+    pub word_count: i64,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiaryDashboard {
+    pub total_entries: i64,
+    pub entries_this_week: i64,
+    pub mood_distribution: Vec<MoodCount>,
+    pub most_active_agent: Option<String>,
+    pub latest_entries: Vec<DiaryEntry>,
+    pub agents_with_entries: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MoodCount {
+    pub mood: String,
+    pub count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiaryMoodLog {
+    pub id: String,
+    pub agent_id: String,
+    pub mood: String,
+    pub intensity: i64,
+    pub trigger_event: Option<String>,
+    pub created_at: String,
+}

@@ -11,6 +11,7 @@ const ITEMS: { view: View; icon: string; label: string }[] = [
   { view: 'life', icon: '🧠', label: 'Life' },
   { view: 'home', icon: '🏠', label: 'Home' },
   { view: 'dreams', icon: '🎯', label: 'Dreams' },
+  { view: 'diary', icon: '📖', label: 'Diary' },
   { view: 'agents', icon: '🧩', label: 'Agents' },
   { view: 'games', icon: '📖', label: 'Games' },
   { view: 'kitchen', icon: '🍳', label: 'Kitchen' },
