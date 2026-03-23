@@ -10,11 +10,11 @@ pub mod memory;
 pub mod google;
 pub mod cron;
 
+pub use db::EngineDb;
+
 use anyhow::Result;
 use std::path::Path;
 use std::sync::OnceLock;
-
-use db::EngineDb;
 
 /// Global engine instance.
 static ENGINE: OnceLock<ConfluxEngine> = OnceLock::new();

@@ -1,7 +1,7 @@
 // Conflux Home — Tauri Entry Point
 // Initializes the Conflux Engine and exposes commands to the frontend.
 
-mod engine;
+pub mod engine;
 mod commands;
 
 use tauri::Manager;
