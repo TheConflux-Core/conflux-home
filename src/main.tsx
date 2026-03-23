@@ -6,6 +6,7 @@ import './styles-family.css'
 import './styles-story.css'
 import './styles-voice.css'
 import './styles-kitchen.css'
+import './styles-budget.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

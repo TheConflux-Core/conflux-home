@@ -44,7 +44,7 @@ export interface PipelineStatus {
   uptime: string;
 }
 
-export type View = 'dashboard' | 'chat' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen';
+export type View = 'dashboard' | 'chat' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen' | 'budget';
 
 // Agent accent colors for avatar rendering
 export const AGENT_COLORS: Record<string, string> = {
@@ -365,3 +365,55 @@ export const INGREDIENT_CATEGORIES: Record<string, string> = {
   produce: '🥬 Produce', dairy: '🥛 Dairy', meat: '🥩 Meat', pantry: '🏪 Pantry',
   spice: '🧂 Spices', frozen: '🧊 Frozen', bakery: '🍞 Bakery', seafood: '🐟 Seafood',
 };
+
+// ── Budget Tracker ──
+
+export interface BudgetEntry {
+  id: string;
+  member_id: string | null;
+  entry_type: 'income' | 'expense' | 'savings' | 'goal';
+  category: string;
+  amount: number;
+  description: string | null;
+  recurring: boolean;
+  frequency: string | null;
+  date: string;
+  created_at: string;
+}
+
+export interface CategoryTotal {
+  category: string;
+  total: number;
+}
+
+export interface BudgetSummary {
+  month: string;
+  total_income: number;
+  total_expenses: number;
+  total_savings: number;
+  net: number;
+  categories: CategoryTotal[];
+}
+
+export const EXPENSE_CATEGORIES = [
+  { id: 'housing', label: '🏠 Housing', color: '#ef4444' },
+  { id: 'groceries', label: '🛒 Groceries', color: '#f59e0b' },
+  { id: 'transportation', label: '🚗 Transportation', color: '#3b82f6' },
+  { id: 'utilities', label: '💡 Utilities', color: '#8b5cf6' },
+  { id: 'healthcare', label: '🏥 Healthcare', color: '#ec4899' },
+  { id: 'dining', label: '🍽️ Dining Out', color: '#10b981' },
+  { id: 'entertainment', label: '🎬 Entertainment', color: '#06b6d4' },
+  { id: 'shopping', label: '🛍️ Shopping', color: '#f97316' },
+  { id: 'subscriptions', label: '📱 Subscriptions', color: '#a855f7' },
+  { id: 'education', label: '📚 Education', color: '#14b8a6' },
+  { id: 'personal', label: '💅 Personal Care', color: '#ec4899' },
+  { id: 'other', label: '📦 Other', color: '#6b7280' },
+];
+
+export const INCOME_CATEGORIES = [
+  { id: 'salary', label: '💰 Salary', color: '#10b981' },
+  { id: 'freelance', label: '💻 Freelance', color: '#3b82f6' },
+  { id: 'business', label: '🏢 Business', color: '#8b5cf6' },
+  { id: 'investments', label: '📈 Investments', color: '#f59e0b' },
+  { id: 'other_income', label: '💵 Other', color: '#6b7280' },
+];
