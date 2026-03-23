@@ -4,7 +4,7 @@ import { Theme, getEffectiveTheme, applyTheme, saveTheme } from '../lib/theme';
 
 interface TopBarProps {
   selectedAgent: Agent | null;
-  gatewayConnected: boolean;
+  engineConnected: boolean;
 }
 
 function getThemeIcon(preference: Theme): string {
@@ -29,7 +29,7 @@ function cycleTheme(current: Theme): Theme {
   return 'light';
 }
 
-export default function TopBar({ selectedAgent, gatewayConnected }: TopBarProps) {
+export default function TopBar({ selectedAgent, engineConnected }: TopBarProps) {
   const [clock, setClock] = useState('');
   const [themePref, setThemePref] = useState<Theme>(
     () => (localStorage.getItem('conflux-theme') as Theme) || 'system'
@@ -86,7 +86,7 @@ export default function TopBar({ selectedAgent, gatewayConnected }: TopBarProps)
       <div className="topbar-right">
         <span className="topbar-clock">{clock}</span>
         <div className="topbar-status">
-          <div className={`topbar-status-dot ${gatewayConnected ? '' : 'disconnected'}`} />
+          <div className={`topbar-status-dot ${engineConnected ? '' : 'disconnected'}`} />
         </div>
         <button
           className="topbar-theme-btn"

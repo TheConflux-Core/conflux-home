@@ -1,0 +1,32 @@
+{
+  "id": "product-0007",
+  "name": "Seeed Studio Business Website",
+  "description": "Full business website for Seeed Studio (IoT hardware manufacturer) - specification and demo site",
+  "status": "qa_pending",
+  "created_at": "2026-03-22T21:20:00Z",
+  "updated_at": "2026-03-22T21:45:00Z",
+  "artifacts": [
+    "artifacts/seeed-studio-website-spec.md"
+  ],
+  "demo_url": "https://seeed-studio-demo.vercel.app",
+  "source": {
+    "template": "NextJSTemplates/startup-nextjs",
+    "stack": "Next.js 16 + Tailwind CSS v4 + TypeScript",
+    "customized_from": "https://github.com/NextJSTemplates/startup-nextjs"
+  },
+  "pages": [
+    "/",
+    "/products",
+    "/solutions",
+    "/about",
+    "/blog",
+    "/community",
+    "/contact"
+  ],
+  "brand": {
+    "name": "Seeed Studio",
+    "tagline": "IoT Hardware Partner — From Prototype to Production",
+    "primary_color": "#6ab04c",
+    "founded": 2008
+  }
+}

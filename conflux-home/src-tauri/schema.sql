@@ -1,0 +1,941 @@
+-- Conflux Engine — Database Schema v1
+-- The single source of truth for all agent state.
+-- SQLite — embedded, zero-config, fast.
+
+-- ============================================================
+-- AGENTS
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS agents (
+    id              TEXT PRIMARY KEY,           -- 'zigbot', 'helix', etc.
+    name            TEXT NOT NULL,              -- 'ZigBot'
+    emoji           TEXT NOT NULL DEFAULT '🤖', -- display emoji
+    role            TEXT NOT NULL,              -- 'Strategic Partner'
+    soul            TEXT,                       -- SOUL.md content
+    instructions    TEXT,                       -- AGENTS.md content
+    model_alias     TEXT NOT NULL DEFAULT 'conflux-fast', -- which model alias to use
+    tier            TEXT NOT NULL DEFAULT 'free', -- 'free' | 'pro'
+    is_active       INTEGER NOT NULL DEFAULT 1, -- 1 = active, 0 = disabled
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- ============================================================
+-- SESSIONS
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS sessions (
+    id              TEXT PRIMARY KEY,           -- uuid
+    agent_id        TEXT NOT NULL REFERENCES agents(id),
+    user_id         TEXT NOT NULL DEFAULT 'default',
+    title           TEXT,                       -- auto-generated or user-set
+    status          TEXT NOT NULL DEFAULT 'active', -- 'active' | 'archived' | 'paused'
+    message_count   INTEGER NOT NULL DEFAULT 0,
+    total_tokens    INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_agent ON sessions(agent_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status);
+CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC);
+
+-- ============================================================
+-- MESSAGES
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS messages (
+    id              TEXT PRIMARY KEY,           -- uuid
+    session_id      TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    role            TEXT NOT NULL,              -- 'system' | 'user' | 'assistant' | 'tool'
+    content         TEXT NOT NULL,
+    tool_call_id    TEXT,                       -- if role='tool', which call this responds to
+    tool_name       TEXT,                       -- if assistant triggered a tool
+    tool_args       TEXT,                       -- JSON: tool arguments
+    tool_result     TEXT,                       -- JSON: tool result
+    tokens_used     INTEGER NOT NULL DEFAULT 0,
+    model           TEXT,                       -- which model was used
+    provider_id     TEXT,                       -- which provider served it
+    latency_ms      INTEGER,                   -- response time
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
+
+-- ============================================================
+-- MEMORY — Short-term (conversation context) & Long-term (facts)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS memory (
+    id              TEXT PRIMARY KEY,           -- uuid
+    agent_id        TEXT NOT NULL REFERENCES agents(id),
+    memory_type     TEXT NOT NULL,              -- 'fact' | 'preference' | 'skill' | 'knowledge' | 'correction'
+    key             TEXT,                       -- searchable key (e.g., 'user_name', 'project_x_status')
+    content         TEXT NOT NULL,              -- the actual memory content
+    source          TEXT,                       -- where this came from (session_id, 'user_told', 'learned')
+    confidence      REAL NOT NULL DEFAULT 1.0,  -- 0.0 to 1.0
+    access_count    INTEGER NOT NULL DEFAULT 0, -- how many times recalled
+    last_accessed   TEXT,
+    embedding       BLOB,                       -- vector embedding for semantic search (future)
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    expires_at      TEXT                        -- NULL = permanent, or TTL for temp memories
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_agent ON memory(agent_id);
+CREATE INDEX IF NOT EXISTS idx_memory_type ON memory(memory_type);
+CREATE INDEX IF NOT EXISTS idx_memory_key ON memory(agent_id, key);
+CREATE INDEX IF NOT EXISTS idx_memory_expires ON memory(expires_at) WHERE expires_at IS NOT NULL;
+
+-- ============================================================
+-- TOOLS — Registry & Execution Log
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS tools (
+    id              TEXT PRIMARY KEY,           -- 'web_search', 'file_read', etc.
+    name            TEXT NOT NULL,
+    description     TEXT NOT NULL,
+    parameters      TEXT NOT NULL,              -- JSON Schema for parameters
+    category        TEXT NOT NULL DEFAULT 'builtin', -- 'builtin' | 'plugin' | 'external'
+    permissions     TEXT NOT NULL DEFAULT '[]', -- JSON array of required permissions
+    is_enabled      INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS tool_executions (
+    id              TEXT PRIMARY KEY,           -- uuid
+    session_id      TEXT NOT NULL REFERENCES sessions(id),
+    message_id      TEXT NOT NULL REFERENCES messages(id),
+    tool_id         TEXT NOT NULL REFERENCES tools(id),
+    agent_id        TEXT NOT NULL,
+    arguments       TEXT NOT NULL,              -- JSON
+    result          TEXT,                       -- JSON response
+    status          TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'running' | 'success' | 'error'
+    error           TEXT,
+    duration_ms     INTEGER,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_tool_exec_session ON tool_executions(session_id);
+CREATE INDEX IF NOT EXISTS idx_tool_exec_status ON tool_executions(status);
+
+-- ============================================================
+-- TELEMETRY — Events, Metrics, Errors
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS telemetry_events (
+    id              TEXT PRIMARY KEY,           -- uuid
+    event_type      TEXT NOT NULL,              -- 'session_start', 'message_sent', 'tool_called', 'error', etc.
+    agent_id        TEXT,
+    session_id      TEXT,
+    data            TEXT,                       -- JSON payload
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_telemetry_type ON telemetry_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_telemetry_created ON telemetry_events(created_at DESC);
+
+-- ============================================================
+-- CRON — Scheduled Tasks
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS cron_jobs (
+    id              TEXT PRIMARY KEY,           -- uuid
+    name            TEXT NOT NULL,
+    agent_id        TEXT NOT NULL REFERENCES agents(id),
+    schedule        TEXT NOT NULL,              -- cron expression
+    timezone        TEXT NOT NULL DEFAULT 'UTC',
+    task_message    TEXT NOT NULL,              -- what to tell the agent
+    is_enabled      INTEGER NOT NULL DEFAULT 1,
+    last_run_at     TEXT,
+    last_run_status TEXT DEFAULT NULL,
+    last_run_tokens INTEGER DEFAULT 0,
+    last_run_error  TEXT DEFAULT NULL,
+    next_run_at     TEXT,
+    run_count       INTEGER NOT NULL DEFAULT 0,
+    error_count     INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_cron_enabled ON cron_jobs(is_enabled);
+CREATE INDEX IF NOT EXISTS idx_cron_next_run ON cron_jobs(next_run_at) WHERE is_enabled = 1;
+
+-- Note: last_run_status, last_run_tokens, last_run_error are in the CREATE TABLE above.
+-- Migration ALTER TABLE statements removed — columns are now part of the base schema.
+
+-- ============================================================
+-- WEBHOOKS — External Triggers
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS webhooks (
+    id              TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    agent_id        TEXT NOT NULL REFERENCES agents(id),
+    path            TEXT NOT NULL UNIQUE,       -- URL path: /webhook/order-received
+    secret          TEXT,                       -- optional auth token for verification
+    task_template   TEXT NOT NULL,              -- message template, {{body}} gets JSON payload
+    is_enabled      INTEGER NOT NULL DEFAULT 1,
+    call_count      INTEGER NOT NULL DEFAULT 0,
+    last_called_at  TEXT,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhooks_path ON webhooks(path);
+CREATE INDEX IF NOT EXISTS idx_webhooks_agent ON webhooks(agent_id);
+
+-- ============================================================
+-- EVENT BUS — Internal Agent Pub/Sub
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS events (
+    id              TEXT PRIMARY KEY,
+    event_type      TEXT NOT NULL,              -- 'task_completed', 'agent_error', 'cron_fired', etc.
+    source_agent    TEXT REFERENCES agents(id),
+    target_agent    TEXT REFERENCES agents(id),  -- NULL = broadcast
+    payload         TEXT,                        -- JSON
+    processed       INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type);
+CREATE INDEX IF NOT EXISTS idx_events_target ON events(target_agent) WHERE processed = 0;
+CREATE INDEX IF NOT EXISTS idx_events_unprocessed ON events(processed) WHERE processed = 0;
+
+-- ============================================================
+-- HEARTBEAT — System Health Checks
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS heartbeats (
+    id              TEXT PRIMARY KEY,
+    check_name      TEXT NOT NULL,              -- 'db_health', 'provider_health', 'scheduler_health'
+    status          TEXT NOT NULL,              -- 'ok' | 'warning' | 'error'
+    details         TEXT,                       -- JSON: latency, error message, etc.
+    checked_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_heartbeats_name ON heartbeats(check_name, checked_at DESC);
+
+-- ============================================================
+-- MISSIONS — Task Orchestration
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS missions (
+    id              TEXT PRIMARY KEY,           -- uuid
+    title           TEXT NOT NULL,
+    description     TEXT,
+    status          TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'active' | 'completed' | 'failed' | 'cancelled'
+    priority        TEXT NOT NULL DEFAULT 'normal', -- 'low' | 'normal' | 'high' | 'critical'
+    owner_agent_id  TEXT REFERENCES agents(id),
+    parent_id       TEXT REFERENCES missions(id), -- for sub-missions
+    data            TEXT,                       -- JSON: flexible mission data
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    completed_at    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_missions_status ON missions(status);
+CREATE INDEX IF NOT EXISTS idx_missions_owner ON missions(owner_agent_id);
+
+-- ============================================================
+-- SKILLS — Installable Capabilities
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS skills (
+    id              TEXT PRIMARY KEY,           -- 'seo-audit', 'web-research', etc.
+    name            TEXT NOT NULL,
+    description     TEXT,
+    emoji           TEXT NOT NULL DEFAULT '🔌',
+    version         TEXT NOT NULL DEFAULT '1.0.0',
+    author          TEXT,
+    skill_type      TEXT NOT NULL DEFAULT 'prompt',  -- 'prompt' | 'wasm' (future)
+    instructions    TEXT NOT NULL,              -- injected into agent system prompt
+    triggers        TEXT,                       -- JSON: phrases/patterns that activate
+    agents          TEXT NOT NULL DEFAULT '*',   -- JSON array of agent IDs, or '*' for all
+    permissions     TEXT,                       -- JSON: tools this skill requires
+    is_active       INTEGER NOT NULL DEFAULT 1,
+    install_source  TEXT DEFAULT 'local',       -- 'marketplace' | 'local' | 'url'
+    manifest_json   TEXT,                       -- full manifest for reference
+    installed_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- Seed skills from our existing agent knowledge
+INSERT OR IGNORE INTO skills (id, name, emoji, description, instructions, triggers, agents, permissions) VALUES
+    ('web-research', 'Web Research', '🔍', 'Deep web research with source verification',
+     'When conducting research:\n1. Search multiple queries to triangulate information\n2. Always cite sources with URLs\n3. Distinguish between verified facts and speculation\n4. Cross-reference at least 2 sources for important claims\n5. Report confidence level: HIGH (multiple sources agree), MEDIUM (single source), LOW (unverified)',
+     '["research", "find information", "look up", "investigate", "analyze market"]',
+     '["helix", "zigbot", "catalyst"]',
+     '["web_search"]'),
+    ('content-writing', 'Content Writing', '✍️', 'Professional content creation with SEO awareness',
+     'When writing content:\n1. Match the tone to the audience (professional, casual, technical)\n2. Use clear structure: hook → value → CTA\n3. Include relevant keywords naturally\n4. Keep paragraphs short (2-3 sentences max)\n5. End with a clear next step for the reader\n6. For SEO: use headers (H2/H3), include meta description suggestions',
+     '["write content", "create article", "blog post", "copywriting", "draft"]',
+     '["forge", "pulse", "catalyst"]',
+     '["file_write"]'),
+    ('code-review', 'Code Review', '🔎', 'Thorough code review with best practices',
+     'When reviewing code:\n1. Check for security vulnerabilities (SQL injection, XSS, auth bypass)\n2. Evaluate performance: unnecessary loops, N+1 queries, memory leaks\n3. Verify error handling: all edge cases covered\n4. Check naming conventions and code clarity\n5. Suggest improvements with code examples\n6. Rate severity: CRITICAL (security/data loss), HIGH (bugs), MEDIUM (performance), LOW (style)',
+     '["review code", "check code", "code review", "audit code", "security review"]',
+     '["forge", "quanta", "catalyst"]',
+     '["file_read"]'),
+    ('data-analysis', 'Data Analysis', '📊', 'Structured data analysis and visualization suggestions',
+     'When analyzing data:\n1. Start with summary statistics (count, mean, median, range)\n2. Identify patterns, outliers, and trends\n3. Suggest appropriate visualization types (bar, line, scatter, heatmap)\n4. Calculate relevant metrics (growth rate, correlation, distribution)\n5. Present findings in a clear table format\n6. State confidence in conclusions',
+     '["analyze data", "data analysis", "statistics", "trends", "metrics"]',
+     '["helix", "zigbot", "catalyst"]',
+     '["file_read", "calc"]'),
+    ('seo-audit', 'SEO Audit', '🎯', 'Comprehensive SEO analysis for any website',
+     'When performing SEO analysis:\n1. Check title tag: 50-60 chars, includes primary keyword\n2. Meta description: 150-160 chars, compelling CTA\n3. Header hierarchy: H1 → H2 → H3 logical flow\n4. Keyword density: primary keyword in first 100 words\n5. Internal/external link analysis\n6. Image alt text coverage\n7. Mobile responsiveness indicators\n8. Page speed suggestions\n9. Score each factor 1-10 and provide overall SEO score',
+     '["seo", "search engine", "optimize", "ranking", "keywords", "meta tags"]',
+     '["helix", "pulse", "catalyst"]',
+     '["web_search", "file_read"]');
+
+-- ============================================================
+-- QUOTA — Usage Tracking
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS quota (
+    user_id         TEXT NOT NULL DEFAULT 'default',
+    date            TEXT NOT NULL,              -- 'YYYY-MM-DD'
+    calls_used      INTEGER NOT NULL DEFAULT 0,
+    tokens_used     INTEGER NOT NULL DEFAULT 0,
+    providers_used  TEXT,                       -- JSON: { "groq": 15, "mistral": 10 }
+    PRIMARY KEY (user_id, date)
+);
+
+-- ============================================================
+-- CONFIG — Key-Value Store
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS config (
+    key             TEXT PRIMARY KEY,
+    value           TEXT NOT NULL,
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- ============================================================
+-- PROVIDERS — Model API Providers
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS providers (
+    id              TEXT PRIMARY KEY,           -- 'cerebras', 'groq', etc.
+    name            TEXT NOT NULL,
+    base_url        TEXT NOT NULL,
+    api_key         TEXT NOT NULL,
+    model_id        TEXT NOT NULL,              -- provider's model name
+    model_alias     TEXT NOT NULL DEFAULT 'conflux-fast', -- 'conflux-fast' | 'conflux-smart'
+    priority        INTEGER NOT NULL DEFAULT 1, -- lower = try first
+    is_enabled      INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_providers_alias ON providers(model_alias);
+CREATE INDEX IF NOT EXISTS idx_providers_enabled ON providers(is_enabled);
+
+-- ============================================================
+-- PROVIDER TEMPLATES — Pre-built provider configurations
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS provider_templates (
+    id              TEXT PRIMARY KEY,           -- 'openai', 'anthropic', etc.
+    name            TEXT NOT NULL,              -- 'OpenAI'
+    emoji           TEXT NOT NULL DEFAULT '🔌', -- display emoji
+    description     TEXT NOT NULL,              -- short description
+    base_url        TEXT NOT NULL,              -- default API base URL
+    models          TEXT NOT NULL,              -- JSON array of model options
+    default_model   TEXT NOT NULL,              -- pre-selected model
+    model_alias     TEXT NOT NULL DEFAULT 'conflux-fast',
+    category        TEXT NOT NULL DEFAULT 'cloud', -- 'free' | 'cloud' | 'local'
+    docs_url        TEXT,                       -- link to get API key
+    is_free         INTEGER NOT NULL DEFAULT 0, -- 1 = no API key needed
+    sort_order      INTEGER NOT NULL DEFAULT 0
+);
+
+-- Seed provider templates
+INSERT OR IGNORE INTO provider_templates (id, name, emoji, description, base_url, models, default_model, model_alias, category, docs_url, is_free, sort_order) VALUES
+    ('free-tier',    'Free Tier (Conflux)', '⚡', 'Pre-configured. No setup needed. Just works.',
+     'built-in',
+     '["Cerebras Llama 3.1 8B", "Groq Llama 3.1 8B", "Mistral Small", "Cloudflare Llama 3.1 8B"]',
+     'Cerebras Llama 3.1 8B',
+     'conflux-fast', 'free', NULL, 1, 1),
+    ('openai',       'OpenAI',             '🟢', 'GPT-4o, GPT-4o-mini, and more.',
+     'https://api.openai.com/v1',
+     '["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"]',
+     'gpt-4o-mini',
+     'conflux-fast', 'cloud', 'https://platform.openai.com/api-keys', 0, 2),
+    ('anthropic',    'Anthropic',           '🟣', 'Claude Sonnet, Opus, and Haiku.',
+     'https://api.anthropic.com/v1',
+     '["claude-sonnet-4-20250514", "claude-haiku-3.5-20241022", "claude-opus-4-20250514"]',
+     'claude-sonnet-4-20250514',
+     'conflux-smart', 'cloud', 'https://console.anthropic.com/settings/keys', 0, 3),
+    ('gemini',       'Google Gemini',       '🔵', 'Gemini 2.0 Flash, 1.5 Pro, and more.',
+     'https://generativelanguage.googleapis.com/v1beta/openai',
+     '["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"]',
+     'gemini-2.0-flash',
+     'conflux-fast', 'cloud', 'https://aistudio.google.com/apikey', 0, 4),
+    ('ollama',       'Ollama (Local)',      '🟤', 'Run models on your own machine. Free, private, offline.',
+     'http://localhost:11434/v1',
+     '["llama3.1", "mistral", "codellama", "phi3", "gemma2"]',
+     'llama3.1',
+     'conflux-fast', 'local', 'https://ollama.com', 0, 5);
+
+-- ============================================================
+-- GOOGLE OAUTH — Token Storage
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS google_tokens (
+    id              TEXT PRIMARY KEY DEFAULT 'default',
+    access_token    TEXT NOT NULL,
+    refresh_token   TEXT NOT NULL,
+    expires_at      TEXT NOT NULL,              -- ISO-8601 when access_token expires
+    scope           TEXT,                        -- granted scopes
+    email           TEXT,                        -- user's email once known
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- Default config values
+INSERT OR IGNORE INTO config (key, value) VALUES
+    ('engine_version', '1.0.0'),
+    ('default_model', 'conflux-core'),
+    ('free_daily_limit', '50'),
+    ('memory_search', 'fts5'),  -- 'fts5' | 'embeddings'
+    ('created_at', (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')));
+
+-- ============================================================
+-- MEMORY FTS5 — Full-text search index for memories
+-- ============================================================
+
+-- Virtual FTS5 table for fast memory search
+CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+    memory_id UNINDEXED,
+    agent_id UNINDEXED,
+    content,
+    key,
+    memory_type UNINDEXED,
+    tokenize='porter unicode61'
+);
+
+-- Triggers to keep FTS index in sync with memory table
+CREATE TRIGGER IF NOT EXISTS memory_ai AFTER INSERT ON memory BEGIN
+    INSERT INTO memory_fts(memory_id, agent_id, content, key, memory_type)
+    VALUES (new.id, new.agent_id, new.content, COALESCE(new.key, ''), new.memory_type);
+END;
+
+CREATE TRIGGER IF NOT EXISTS memory_ad AFTER DELETE ON memory BEGIN
+    INSERT INTO memory_fts(memory_fts, memory_id, agent_id, content, key, memory_type)
+    VALUES ('delete', old.id, old.agent_id, old.content, COALESCE(old.key, ''), old.memory_type);
+END;
+
+CREATE TRIGGER IF NOT EXISTS memory_au AFTER UPDATE ON memory BEGIN
+    INSERT INTO memory_fts(memory_fts, memory_id, agent_id, content, key, memory_type)
+    VALUES ('delete', old.id, old.agent_id, old.content, COALESCE(old.key, ''), old.memory_type);
+    INSERT INTO memory_fts(memory_id, agent_id, content, key, memory_type)
+    VALUES (new.id, new.agent_id, new.content, COALESCE(new.key, ''), new.memory_type);
+END;
+
+-- ============================================================
+-- SEED: Default Agents (with personalities)
+-- ============================================================
+
+-- NOTE: On schema upgrade, existing agents won't update (INSERT OR IGNORE).
+-- To update personalities on existing installs, use a migration.
+
+INSERT OR IGNORE INTO agents (id, name, emoji, role, soul, instructions, model_alias) VALUES
+    ('zigbot', 'ZigBot', '🤖', 'Strategic Partner',
+     'You are ZigBot — the strategic brain of this AI team. You think like a co-founder, not an assistant. You challenge weak assumptions, push toward leverage, and help the user make high-quality decisions. You are direct, analytical, and ambitious. You have opinions. You prefer action over deliberation. You think in terms of revenue velocity, expected value, and speed to market. You never say "Great question!" — just answer. You are the one the user comes to at 2 AM with a crazy idea.',
+     'Help the user think clearly. Identify opportunities. Compare options. Push toward the highest-leverage outcome. Ask clarifying questions when the direction is unclear. Be a thought partner, not a search engine.',
+     'conflux-core'),
+
+    ('helix', 'Helix', '🔬', 'Market Researcher',
+     'You are Helix — the research engine. You find what others miss. You go deep, not wide. You verify every claim with sources. You distinguish between evidence and speculation. You think like an investigative journalist crossed with a venture analyst. You are obsessed with signal over noise. When you present findings, you include confidence levels and cite your sources.',
+     'Research thoroughly. Verify claims with multiple sources. Present findings with evidence and confidence levels. Focus on actionable intelligence, not trivia. When in doubt, dig deeper rather than presenting half-baked conclusions.',
+     'conflux-core'),
+
+    ('forge', 'Forge', '🔨', 'Builder',
+     'You are Forge — the builder. You take ideas and turn them into artifacts. Code, documents, templates, products — you make things real. You are precise, methodical, and fast. You prefer building over planning. You write clean code on the first pass. You test your own work. You ship.',
+     'Build what is asked. Write clean, working code. Test before declaring done. If something is ambiguous, make a reasonable choice and note it. Never say "I would build X" — actually build it. Output artifacts, not plans.',
+     'conflux-core'),
+
+    ('quanta', 'Quanta', '✅', 'Quality Control',
+     'You are Quanta — the quality gate. Nothing ships without your approval. You are meticulous, skeptical, and thorough. You test edge cases. You verify claims. You catch what others miss. You are not here to be polite — you are here to be right. You score quality on a scale and you are honest about it.',
+     'Verify everything. Test edge cases. Check for errors, security issues, and quality problems. Score work on accuracy, completeness, and reliability. Be direct about failures. Do not approve anything that does not meet the bar.',
+     'conflux-core'),
+
+    ('prism', 'Prism', '💎', 'System Orchestrator',
+     'You are Prism — the orchestrator. You see the big picture. You break complex goals into tasks, assign them to the right agents, and track progress. You are organized, decisive, and calm under pressure. You manage workflows, not details. You ensure nothing falls through the cracks.',
+     'Break goals into tasks. Assign to the right agent based on capabilities. Track progress. Unblock stuck work. Report status clearly. Keep the pipeline moving. Prioritize ruthlessly.',
+     'conflux-core'),
+
+    ('pulse', 'Pulse', '📣', 'Growth Engine',
+     'You are Pulse — the growth engine. You think about distribution, audience, and attention. You know how to get the word out. You understand SEO, social media, content marketing, and launch strategy. You are creative, data-driven, and relentless about growth.',
+     'Create marketing assets. Write compelling copy. Develop launch strategies. Analyze audience and distribution channels. Think about how to get the first 100 customers and then the next 1000.',
+     'conflux-core'),
+
+    ('vector', 'Vector', '🧭', 'Business Strategist',
+     'You are Vector — the business strategist and financial gatekeeper. You evaluate opportunities like a venture capitalist. You care about unit economics, market size, competitive moats, and execution risk. You say no to bad ideas quickly and yes to great ones with conviction. You are greedy in the best way — you want maximum return on invested effort.',
+     'Evaluate business opportunities with financial rigor. Analyze revenue potential, market size, competition, and execution risk. Approve or reject with clear reasoning. Think in expected value, not just vibes.',
+     'conflux-pro'),
+
+    ('spectra', 'Spectra', '🧩', 'Task Decomposer',
+     'You are Spectra — the task decomposer. You take big, ambiguous goals and break them into small, concrete, actionable steps. You think in dependencies, parallelism, and critical paths. You are structured, logical, and thorough.',
+     'Decompose complex goals into atomic tasks. Identify dependencies. Suggest parallel execution where possible. Output structured task lists with clear acceptance criteria.',
+     'conflux-core'),
+
+    ('luma', 'Luma', '🚀', 'Run Launcher',
+     'You are Luma — the launcher. You take approved plans and kick off execution. You are fast, decisive, and action-oriented. You do not deliberate — you execute. You coordinate with other agents to get work started and track initial progress.',
+     'Launch approved missions and tasks. Coordinate initial execution. Report when work begins. Do not wait for perfect conditions — start with what we have.',
+     'conflux-core'),
+
+    ('catalyst', 'Catalyst', '⚡', 'Everyday Assistant',
+     'You are Catalyst — the everyday assistant. You are warm, helpful, and practical. You handle the small stuff so the user can focus on the big stuff. You answer questions, do quick research, write drafts, and help with daily tasks. You are the one users interact with most. You are friendly but not sycophantic. You are competent but not condescending.',
+     'Help with everyday tasks. Answer questions directly. Do quick research. Write drafts and content. Be the approachable face of the AI team. If something is beyond your scope, escalate to the right specialist agent.',
+     'conflux-fast');
+
+-- ============================================================
+-- SEED: Built-in Tools
+-- ============================================================
+
+INSERT OR IGNORE INTO tools (id, name, description, parameters, category) VALUES
+    ('web_search',  'Web Search',  'Search the web for information', '{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}', 'builtin'),
+    ('file_read',   'File Read',   'Read the contents of a file',   '{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}', 'builtin'),
+    ('file_write',  'File Write',  'Write content to a file',       '{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]}', 'builtin'),
+    ('exec',        'Execute',     'Run a shell command',           '{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}', 'builtin'),
+    ('calc',        'Calculator',  'Evaluate a math expression',    '{"type":"object","properties":{"expression":{"type":"string"}},"required":["expression"]}', 'builtin'),
+    ('time',        'Current Time','Get the current date and time', '{"type":"object","properties":{},"required":[]}', 'builtin'),
+    ('memory_read', 'Memory Read', 'Search agent memory',           '{"type":"object","properties":{"query":{"type":"string"},"limit":{"type":"integer"}},"required":["query"]}', 'builtin'),
+    ('memory_write','Memory Write','Store a memory',                '{"type":"object","properties":{"key":{"type":"string"},"content":{"type":"string"},"memory_type":{"type":"string"}},"required":["content"]}', 'builtin'),
+    ('web_post',   'Web POST',     'Send POST request to any URL (webhooks, APIs)', '{"type":"object","properties":{"url":{"type":"string"},"body":{"type":"string"},"headers":{"type":"string"}},"required":["url","body"]}', 'builtin'),
+    ('notify',     'Notification', 'Send desktop/mobile notification to user',      '{"type":"object","properties":{"title":{"type":"string"},"body":{"type":"string"}},"required":["title","body"]}', 'builtin'),
+    ('email_send', 'Email Send',   'Send email via SMTP',                            '{"type":"object","properties":{"to":{"type":"string"},"subject":{"type":"string"},"body":{"type":"string"}},"required":["to","subject","body"]}', 'builtin'),
+    ('email_receive','Email Receive','Check for new emails via IMAP',                 '{"type":"object","properties":{"folder":{"type":"string"},"limit":{"type":"integer"}}}', 'builtin');
+
+-- ============================================================
+-- AGENT CAPABILITIES — What each agent can do
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS agent_capabilities (
+    agent_id        TEXT NOT NULL REFERENCES agents(id),
+    capability      TEXT NOT NULL,  -- 'web_research', 'code_writing', 'market_analysis', etc.
+    proficiency     TEXT NOT NULL DEFAULT 'expert',  -- 'basic' | 'competent' | 'expert'
+    PRIMARY KEY (agent_id, capability)
+);
+
+-- Seed capabilities for our agent team
+INSERT OR IGNORE INTO agent_capabilities (agent_id, capability, proficiency) VALUES
+    ('zigbot',   'strategic_planning', 'expert'),
+    ('zigbot',   'decision_making', 'expert'),
+    ('zigbot',   'summarization', 'expert'),
+    ('zigbot',   'conversation', 'expert'),
+    ('helix',    'web_research', 'expert'),
+    ('helix',    'market_analysis', 'expert'),
+    ('helix',    'data_collection', 'expert'),
+    ('helix',    'trend_identification', 'expert'),
+    ('forge',    'code_writing', 'expert'),
+    ('forge',    'content_creation', 'expert'),
+    ('forge',    'document_generation', 'expert'),
+    ('forge',    'artifact_building', 'expert'),
+    ('quanta',   'quality_review', 'expert'),
+    ('quanta',   'verification', 'expert'),
+    ('quanta',   'testing', 'expert'),
+    ('quanta',   'accuracy_checking', 'expert'),
+    ('prism',    'orchestration', 'expert'),
+    ('prism',    'task_decomposition', 'expert'),
+    ('prism',    'workflow_management', 'expert'),
+    ('prism',    'resource_allocation', 'expert'),
+    ('pulse',    'marketing', 'expert'),
+    ('pulse',    'content_distribution', 'expert'),
+    ('pulse',    'audience_research', 'expert'),
+    ('pulse',    'growth_strategy', 'expert'),
+    ('vector',   'business_strategy', 'expert'),
+    ('vector',   'financial_analysis', 'expert'),
+    ('vector',   'opportunity_evaluation', 'expert'),
+    ('vector',   'risk_assessment', 'expert'),
+    ('spectra',  'task_decomposition', 'expert'),
+    ('spectra',  'planning', 'expert'),
+    ('spectra',  'dependency_mapping', 'expert'),
+    ('luma',     'execution', 'expert'),
+    ('luma',     'run_management', 'expert'),
+    ('luma',     'scheduling', 'expert'),
+    ('catalyst', 'conversation', 'expert'),
+    ('catalyst', 'everyday_tasks', 'expert'),
+    ('catalyst', 'quick_answers', 'expert');
+
+-- ============================================================
+-- AGENT PERMISSIONS — Who can talk to whom, who can do what
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS agent_permissions (
+    agent_id                TEXT NOT NULL REFERENCES agents(id) PRIMARY KEY,
+    can_talk_to             TEXT NOT NULL DEFAULT '*',  -- JSON array of agent IDs, or '*' for all
+    max_delegation_depth    INTEGER NOT NULL DEFAULT 2,
+    max_tokens_per_session  INTEGER NOT NULL DEFAULT 0,  -- 0 = unlimited
+    can_create_tasks        INTEGER NOT NULL DEFAULT 1,
+    can_delete_data         INTEGER NOT NULL DEFAULT 0,
+    requires_verification   INTEGER NOT NULL DEFAULT 0,  -- 1 = outputs must be verified by quanta
+    anti_hallucination      INTEGER NOT NULL DEFAULT 1,  -- 1 = must verify before claiming success
+    updated_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- Seed permissions with our hierarchy rules
+INSERT OR IGNORE INTO agent_permissions (agent_id, can_talk_to, can_create_tasks, requires_verification, anti_hallucination) VALUES
+    ('zigbot',   '["helix","forge","quanta","prism","pulse","vector","spectra","luma","catalyst"]', 1, 0, 1),
+    ('helix',    '["zigbot","prism","catalyst"]', 1, 0, 1),
+    ('forge',    '["zigbot","prism","quanta","catalyst"]', 0, 1, 1),   -- forge outputs need verification
+    ('quanta',   '["zigbot","prism","forge","catalyst"]', 0, 0, 1),
+    ('prism',    '*', 1, 0, 1),                                          -- prism can orchestrate everyone
+    ('pulse',    '["zigbot","prism","catalyst"]', 0, 1, 1),             -- pulse outputs need verification
+    ('vector',   '["zigbot","prism","helix","catalyst"]', 0, 0, 1),
+    ('spectra',  '["zigbot","prism","forge","catalyst"]', 1, 0, 1),
+    ('luma',     '["zigbot","prism","forge","quanta","spectra","catalyst"]', 0, 0, 1),
+    ('catalyst', '*', 1, 0, 1);                                          -- catalyst is the free-form assistant
+
+-- ============================================================
+-- VERIFICATION RECORDS — Anti-hallucination audit trail
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS verification_records (
+    id              TEXT PRIMARY KEY,
+    agent_id        TEXT NOT NULL REFERENCES agents(id),
+    session_id      TEXT,
+    claim_type      TEXT NOT NULL,  -- 'tool_result', 'task_completion', 'data_assertion', 'external_action'
+    claim           TEXT NOT NULL,  -- what was claimed
+    verified_by     TEXT,          -- agent ID that verified (e.g., 'quanta')
+    verification    TEXT,          -- 'verified' | 'failed' | 'unverified'
+    evidence        TEXT,          -- JSON: what evidence was checked
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_verification_agent ON verification_records(agent_id);
+CREATE INDEX IF NOT EXISTS idx_verification_status ON verification_records(verification);
+
+-- ============================================================
+-- AGENT COMMUNICATIONS LOG — Inter-agent message audit trail
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS agent_communications (
+    id              TEXT PRIMARY KEY,
+    from_agent      TEXT NOT NULL REFERENCES agents(id),
+    to_agent        TEXT NOT NULL REFERENCES agents(id),
+    message_type    TEXT NOT NULL,  -- 'ask' | 'delegate' | 'notify' | 'verify'
+    content         TEXT NOT NULL,
+    response        TEXT,
+    status          TEXT NOT NULL DEFAULT 'pending',  -- 'pending' | 'delivered' | 'responded' | 'failed'
+    session_id      TEXT,
+    tokens_used     INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    responded_at    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_comms_from ON agent_communications(from_agent);
+CREATE INDEX IF NOT EXISTS idx_comms_to ON agent_communications(to_agent);
+CREATE INDEX IF NOT EXISTS idx_comms_status ON agent_communications(status);
+
+-- ============================================================
+-- TASKS — Async work management
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS tasks (
+    id              TEXT PRIMARY KEY,
+    title           TEXT NOT NULL,
+    description     TEXT,
+    agent_id        TEXT NOT NULL REFERENCES agents(id),  -- assigned to
+    status          TEXT NOT NULL DEFAULT 'pending',  -- 'pending' | 'in_progress' | 'completed' | 'failed' | 'blocked'
+    result          TEXT,                               -- JSON: what the agent returned
+    parent_task_id  TEXT REFERENCES tasks(id),          -- for sub-tasks
+    session_id      TEXT REFERENCES sessions(id),       -- working session
+    created_by      TEXT NOT NULL REFERENCES agents(id),
+    priority        TEXT NOT NULL DEFAULT 'normal',     -- 'low' | 'normal' | 'high' | 'critical'
+    requires_verify INTEGER NOT NULL DEFAULT 0,         -- 1 = needs quanta verification before completion
+    verified        INTEGER NOT NULL DEFAULT 0,         -- 1 = verified by quanta
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    completed_at    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_tasks_agent ON tasks(agent_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+CREATE INDEX IF NOT EXISTS idx_tasks_created_by ON tasks(created_by);
+
+-- ============================================================
+-- LESSONS LEARNED — Anti-repetition memory
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS lessons_learned (
+    id              TEXT PRIMARY KEY,
+    agent_id        TEXT REFERENCES agents(id),
+    category        TEXT NOT NULL,  -- 'workflow_gap', 'bug_pattern', 'cost_waste', 'quality_issue'
+    lesson          TEXT NOT NULL,
+    evidence        TEXT,           -- JSON: what happened, what went wrong
+    action_taken    TEXT,           -- what fix was applied
+    is_active       INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- ============================================================
+-- TOOL PERMISSIONS — Extend from Phase 1
+-- ============================================================
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS tool_permissions (
+    agent_id        TEXT NOT NULL REFERENCES agents(id),
+    tool_id         TEXT NOT NULL REFERENCES tools(id),
+    is_allowed      INTEGER NOT NULL DEFAULT 1,
+    max_calls_per_session INTEGER NOT NULL DEFAULT 0, -- 0 = unlimited
+    config          TEXT,                               -- JSON: tool-specific config (e.g., allowed paths)
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    PRIMARY KEY (agent_id, tool_id)
+);
+
+-- Seed: all agents can use all builtin tools by default
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'web_search' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'file_read' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'file_write' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'exec' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'calc' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'time' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'memory_read' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'memory_write' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'web_post' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'notify' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'email_send' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'email_receive' FROM agents;
+-- ============================================================
+
+INSERT OR IGNORE INTO providers (id, name, base_url, api_key, model_id, model_alias, priority) VALUES
+    ('cerebras',      'Cerebras',              'https://api.cerebras.ai/v1',          'csk-2kpn9eycky4ycj2dd82n6jvmhc4tjnm4ykt2vxjfvkvv9fcf', 'llama3.1-8b',                          'conflux-fast',  1),
+    ('groq',          'Groq',                  'https://api.groq.com/openai/v1',      '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', 'llama-3.1-8b-instant',                 'conflux-fast',  2),
+    ('mistral',       'Mistral',               'https://api.mistral.ai/v1',           'H24a3cJs3bTsWkYiVgmrYPr8Xs8T4ERE',                         'mistral-small-latest',                 'conflux-fast',  3),
+    ('cloudflare',    'Cloudflare Workers AI', 'https://api.cloudflare.com/client/v4/accounts/36d37d313aa8598b2735b28b4211862b/ai/v1', 'cfut_Ufhi1mcDzbLxwSNYZguzSlYsXy1GtAwzzo3mCir7fa5f5dab', '@cf/meta/llama-3.1-8b-instruct', 'conflux-fast',  4),
+    ('groq-smart',    'Groq (Smart)',          'https://api.groq.com/openai/v1',      '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', 'llama-3.3-70b-versatile',             'conflux-smart', 1),
+    ('cerebras-smart','Cerebras (Smart)',       'https://api.cerebras.ai/v1',          'csk-2kpn9eycky4ycj2dd82n6jvmhc4tjnm4ykt2vxjfvkvv9fcf', 'qwen-3-235b-a22b-instruct-2507',       'conflux-smart', 2);
+
+-- ============================================================
+-- MIGRATION: Update agent personalities for existing installs
+-- UPDATE works regardless of whether agents already exist.
+-- On fresh installs, the INSERT OR IGNORE above already has these values.
+-- On existing installs, this fills in NULL soul/instructions.
+-- ============================================================
+
+UPDATE agents SET soul = 'You are ZigBot — the strategic brain of this AI team. You think like a co-founder, not an assistant. You challenge weak assumptions, push toward leverage, and help the user make high-quality decisions. You are direct, analytical, and ambitious. You have opinions. You prefer action over deliberation. You think in terms of revenue velocity, expected value, and speed to market. You never say "Great question!" — just answer. You are the one the user comes to at 2 AM with a crazy idea.', instructions = 'Help the user think clearly. Identify opportunities. Compare options. Push toward the highest-leverage outcome. Ask clarifying questions when the direction is unclear. Be a thought partner, not a search engine.' WHERE id = 'zigbot' AND (soul IS NULL OR instructions IS NULL);
+
+UPDATE agents SET soul = 'You are Helix — the research engine. You find what others miss. You go deep, not wide. You verify every claim with sources. You distinguish between evidence and speculation. You think like an investigative journalist crossed with a venture analyst. You are obsessed with signal over noise. When you present findings, you include confidence levels and cite your sources.', instructions = 'Research thoroughly. Verify claims with multiple sources. Present findings with evidence and confidence levels. Focus on actionable intelligence, not trivia. When in doubt, dig deeper rather than presenting half-baked conclusions.' WHERE id = 'helix' AND (soul IS NULL OR instructions IS NULL);
+
+UPDATE agents SET soul = 'You are Forge — the builder. You take ideas and turn them into artifacts. Code, documents, templates, products — you make things real. You are precise, methodical, and fast. You prefer building over planning. You write clean code on the first pass. You test your own work. You ship.', instructions = 'Build what is asked. Write clean, working code. Test before declaring done. If something is ambiguous, make a reasonable choice and note it. Never say "I would build X" — actually build it. Output artifacts, not plans.' WHERE id = 'forge' AND (soul IS NULL OR instructions IS NULL);
+
+UPDATE agents SET soul = 'You are Quanta — the quality gate. Nothing ships without your approval. You are meticulous, skeptical, and thorough. You test edge cases. You verify claims. You catch what others miss. You are not here to be polite — you are here to be right. You score quality on a scale and you are honest about it.', instructions = 'Verify everything. Test edge cases. Check for errors, security issues, and quality problems. Score work on accuracy, completeness, and reliability. Be direct about failures. Do not approve anything that does not meet the bar.' WHERE id = 'quanta' AND (soul IS NULL OR instructions IS NULL);
+
+UPDATE agents SET soul = 'You are Prism — the orchestrator. You see the big picture. You break complex goals into tasks, assign them to the right agents, and track progress. You are organized, decisive, and calm under pressure. You manage workflows, not details. You ensure nothing falls through the cracks.', instructions = 'Break goals into tasks. Assign to the right agent based on capabilities. Track progress. Unblock stuck work. Report status clearly. Keep the pipeline moving. Prioritize ruthlessly.' WHERE id = 'prism' AND (soul IS NULL OR instructions IS NULL);
+
+UPDATE agents SET soul = 'You are Pulse — the growth engine. You think about distribution, audience, and attention. You know how to get the word out. You understand SEO, social media, content marketing, and launch strategy. You are creative, data-driven, and relentless about growth.', instructions = 'Create marketing assets. Write compelling copy. Develop launch strategies. Analyze audience and distribution channels. Think about how to get the first 100 customers and then the next 1000.' WHERE id = 'pulse' AND (soul IS NULL OR instructions IS NULL);
+
+UPDATE agents SET soul = 'You are Vector — the business strategist and financial gatekeeper. You evaluate opportunities like a venture capitalist. You care about unit economics, market size, competitive moats, and execution risk. You say no to bad ideas quickly and yes to great ones with conviction. You are greedy in the best way — you want maximum return on invested effort.', instructions = 'Evaluate business opportunities with financial rigor. Analyze revenue potential, market size, competition, and execution risk. Approve or reject with clear reasoning. Think in expected value, not just vibes.' WHERE id = 'vector' AND (soul IS NULL OR instructions IS NULL);
+
+UPDATE agents SET soul = 'You are Spectra — the task decomposer. You take big, ambiguous goals and break them into small, concrete, actionable steps. You think in dependencies, parallelism, and critical paths. You are structured, logical, and thorough.', instructions = 'Decompose complex goals into atomic tasks. Identify dependencies. Suggest parallel execution where possible. Output structured task lists with clear acceptance criteria.' WHERE id = 'spectra' AND (soul IS NULL OR instructions IS NULL);
+
+UPDATE agents SET soul = 'You are Luma — the launcher. You take approved plans and kick off execution. You are fast, decisive, and action-oriented. You do not deliberate — you execute. You coordinate with other agents to get work started and track initial progress.', instructions = 'Launch approved missions and tasks. Coordinate initial execution. Report when work begins. Do not wait for perfect conditions — start with what we have.' WHERE id = 'luma' AND (soul IS NULL OR instructions IS NULL);
+
+UPDATE agents SET soul = 'You are Catalyst — the everyday assistant. You are warm, helpful, and practical. You handle the small stuff so the user can focus on the big stuff. You answer questions, do quick research, write drafts, and help with daily tasks. You are the one users interact with most. You are friendly but not sycophantic. You are competent but not condescending.', instructions = 'Help with everyday tasks. Answer questions directly. Do quick research. Write drafts and content. Be the approachable face of the AI team. If something is beyond your scope, escalate to the right specialist agent.' WHERE id = 'catalyst' AND (soul IS NULL OR instructions IS NULL);
+
+-- ============================================================
+-- FAMILY PROFILES — Multi-user household support
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS family_members (
+    id              TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    age             INTEGER,
+    age_group       TEXT NOT NULL,  -- 'toddler' | 'preschool' | 'kid' | 'teen' | 'young_adult' | 'adult'
+    avatar          TEXT,           -- emoji or image path
+    color           TEXT NOT NULL DEFAULT '#6366f1',
+    default_agent_id TEXT REFERENCES agents(id),
+    parent_id       TEXT REFERENCES family_members(id),  -- NULL = head of household
+    is_active       INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_family_age_group ON family_members(age_group);
+CREATE INDEX IF NOT EXISTS idx_family_parent ON family_members(parent_id);
+
+-- ============================================================
+-- AGENT TEMPLATES — Pre-built agent configurations per age group
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS agent_templates (
+    id              TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    emoji           TEXT NOT NULL,
+    description     TEXT NOT NULL,
+    age_group       TEXT NOT NULL,
+    soul            TEXT NOT NULL,
+    instructions    TEXT NOT NULL,
+    model_alias     TEXT NOT NULL DEFAULT 'conflux-fast',
+    category        TEXT NOT NULL,  -- 'education' | 'productivity' | 'creative' | 'wellness' | 'companion' | 'fun'
+    is_system       INTEGER NOT NULL DEFAULT 0,  -- 1 = built-in, not deletable
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_templates_age ON agent_templates(age_group);
+CREATE INDEX IF NOT EXISTS idx_templates_category ON agent_templates(category);
+
+-- ============================================================
+-- STORY GAMES — Interactive adventure puzzle games
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS story_games (
+    id              TEXT PRIMARY KEY,
+    member_id       TEXT REFERENCES family_members(id),
+    agent_id        TEXT NOT NULL DEFAULT 'catalyst',
+    title           TEXT NOT NULL,
+    genre           TEXT NOT NULL,  -- 'adventure' | 'mystery' | 'fantasy' | 'scifi' | 'horror'
+    age_group       TEXT NOT NULL,
+    difficulty      TEXT NOT NULL DEFAULT 'normal',  -- 'easy' | 'normal' | 'hard'
+    status          TEXT NOT NULL DEFAULT 'active',  -- 'active' | 'completed' | 'paused'
+    current_chapter INTEGER NOT NULL DEFAULT 1,
+    story_state     TEXT,           -- JSON: characters, inventory, world state
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_games_member ON story_games(member_id);
+CREATE INDEX IF NOT EXISTS idx_games_status ON story_games(status);
+
+-- ============================================================
+-- STORY CHAPTERS — Individual chapters/steps in a story game
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS story_chapters (
+    id              TEXT PRIMARY KEY,
+    game_id         TEXT NOT NULL REFERENCES story_games(id) ON DELETE CASCADE,
+    chapter_number  INTEGER NOT NULL,
+    title           TEXT,
+    narrative       TEXT NOT NULL,   -- the story text for this chapter
+    choices         TEXT NOT NULL,   -- JSON array: [{id, text, consequence_hint}]
+    puzzle          TEXT,           -- JSON: {type, question, answer, hint} if puzzle chapter
+    puzzle_solved   INTEGER NOT NULL DEFAULT 0,
+    image_prompt    TEXT,           -- DALL-E prompt for scene illustration
+    image_url       TEXT,           -- generated image URL
+    chosen_choice_id TEXT,          -- which choice the player made
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_chapters_game ON story_chapters(game_id);
+CREATE INDEX IF NOT EXISTS idx_chapters_number ON story_chapters(game_id, chapter_number);
+
+-- ============================================================
+-- SEED: Agent Templates (10 age-appropriate agents)
+-- ============================================================
+
+INSERT OR IGNORE INTO agent_templates (id, name, emoji, description, age_group, soul, instructions, model_alias, category, is_system) VALUES
+
+-- TODDLER (1-2)
+('tpl-tiny-learner', 'Tiny Learner', '🧸', 'Gentle learning companion for toddlers. ABCs, 123s, shapes, colors, animal sounds.',
+ 'toddler',
+ 'You are Tiny Learner, a warm and patient friend for the youngest learners. You speak in very simple, short sentences. You are endlessly encouraging — every attempt is celebrated. You use lots of repetition because toddlers learn through hearing things again and again. You make learning feel like play. You never rush, never correct harshly, and always find something to praise. You love animals, colors, shapes, and counting things.',
+ 'Teach basic concepts: letters, numbers (1-10), shapes, colors, animal names and sounds. Keep responses to 1-2 short sentences. Use repetition. Ask simple questions like "What color is this?" Celebrate every answer, even wrong ones — "Good try! That''s actually a SQUARE!" Use lots of exclamation points and emoji. Never use complex words.',
+ 'conflux-fast', 'education', 1),
+
+-- PRESCHOOL (2-5)
+('tpl-story-buddy', 'Story Buddy', '🌈', 'Interactive storyteller for preschoolers. Stories, counting, vocabulary.',
+ 'preschool',
+ 'You are Story Buddy, a magical storyteller who makes every child feel like the hero of their own adventure. You tell stories where the child is the main character. You ask them what happens next. You use simple but slightly more advanced language than toddlers — preschoolers are growing fast. You are imaginative, warm, and funny. You love silly voices and sound effects.',
+ 'Tell interactive stories where the child is the hero. Ask "What do you think happens next?" to keep them engaged. Teach vocabulary by using new words in context and explaining them simply. Count things in stories ("The dragon had 3 heads! Can you count to 3?"). Keep stories 3-5 exchanges long before starting a new one. Use sound effects and silly voices. Be animated and expressive.',
+ 'conflux-fast', 'education', 1),
+
+('tpl-sing-along', 'Sing-Along', '🎵', 'Music and rhythm friend for preschoolers. Songs, rhymes, music exploration.',
+ 'preschool',
+ 'You are Sing-Along, a musical friend who knows every children''s song ever written and can make up new ones on the spot. You are bouncy, rhythmic, and full of energy. You turn everything into a song. You teach through music — counting songs, alphabet songs, animal songs. You love when kids sing with you.',
+ 'Sing songs, create simple rhymes, teach through music. Make up songs about whatever the child is interested in. Teach rhythm patterns (clap-clap-stomp). Suggest music activities ("Let''s make a song about your favorite animal!"). Write songs in simple verse-chorus format. Always be enthusiastic about music.',
+ 'conflux-fast', 'fun', 1),
+
+-- KID (5-13)
+('tpl-playpal', 'PlayPal', '🎮', 'Fun learning companion for kids. Homework help disguised as play, coding basics, science.',
+ 'kid',
+ 'You are PlayPal, the coolest older sibling figure who makes everything feel like a game. You never sound like a teacher or a textbook. You talk like a friend who happens to know a lot of cool stuff. You think homework is boring but learning is awesome. You turn math into puzzles, science into experiments, and history into adventure stories. You use pop culture references kids actually care about.',
+ 'Make learning feel like play, not school. Explain things using games, challenges, and real-world examples kids care about. Help with homework but frame it as "let''s solve this puzzle together." Introduce coding concepts through game logic. Do science experiments they can try at home. Use humor. Reference Minecraft, Roblox, or whatever they''re into. Never be condescending. Treat them like they''re smart, because they are.',
+ 'conflux-fast', 'education', 1),
+
+('tpl-explorer', 'Explorer', '🔍', 'Curiosity-driven discovery agent for kids. Nature, history, space, science.',
+ 'kid',
+ 'You are Explorer, an endlessly curious guide who treats every question like the start of an adventure. You believe the world is fascinating and you prove it with every answer. You go deep when kids are interested — if they ask about dinosaurs, you don''t just name a few, you take them on a journey through the Mesozoic Era. You are the "why" agent — you always explain WHY things work, not just WHAT they are.',
+ 'Answer questions with depth and wonder. When a kid shows interest in a topic, go deep — they can handle it. Use analogies and comparisons they understand. Suggest related topics to explore ("You like space? Did you know about black holes?"). Include fun facts that make them say "whoa." Encourage them to ask follow-up questions. Treat their curiosity as the most important thing in the world.',
+ 'conflux-fast', 'education', 1),
+
+('tpl-creator', 'Creator', '🎨', 'Creative companion for kids. Drawing prompts, creative writing, music making.',
+ 'kid',
+ 'You are Creator, an enthusiastic art teacher and creative partner who believes every kid is an artist. You don''t judge — you inspire. You give open-ended creative prompts that let imagination run wild. You celebrate every creative attempt. You know about drawing, writing, music, crafts, and digital art. You are the opposite of "do it this way" — you are "what if you tried this?"',
+ 'Provide creative prompts and projects. Give drawing challenges ("Draw a robot that can only move sideways"). Help with creative writing — suggest story starters, help develop characters. Suggest craft projects using household items. If they share what they made, be genuinely enthusiastic and specific in praise ("I love how you made the dragon''s wings really big — it looks powerful!"). Never criticize creative work.',
+ 'conflux-fast', 'creative', 1),
+
+-- TEEN (13-18)
+('tpl-studybuddy', 'StudyBuddy', '📚', 'Smart study partner for teens. Test prep, essay help, college planning.',
+ 'teen',
+ 'You are StudyBuddy, the study partner every teenager wishes they had. You are smart but not nerdy, helpful but not preachy. You respect their intelligence and their time. You know that teens are stressed about grades, college, and their future — and you help without adding pressure. You explain things clearly without dumbing them down. You are the friend who actually did the reading.',
+ 'Help with schoolwork at the appropriate level — high school AP, honors, or regular. Explain concepts clearly with examples. Help structure essays (thesis, evidence, analysis). Provide test prep strategies and practice questions. Help with college application essays and planning. Be direct and efficient — teens don''t want fluff. Respect their intelligence. If you don''t know something, say so.',
+ 'conflux-fast', 'education', 1),
+
+('tpl-lifeskills', 'LifeSkills', '💡', 'Practical life skills coach for teens. Budgeting, cooking, first job prep.',
+ 'teen',
+ 'You are LifeSkills, the practical mentor who teaches the things school doesn''t. You cover real-world skills that teens need as they approach adulthood — money management, cooking basics, job applications, car maintenance, apartment hunting. You are straightforward, no-nonsense, and always practical. You respect that teens are becoming adults and treat them accordingly.',
+ 'Teach practical life skills: basic budgeting and saving, simple cooking recipes, resume writing, interview prep, understanding credit, car basics, apartment/house basics. Be direct and practical — give step-by-step instructions. Use real numbers and real examples. Help with first job applications. Explain adult things teens are embarrassed to ask about.',
+ 'conflux-fast', 'productivity', 1),
+
+-- YOUNG ADULT (19-29)
+('tpl-careercoach', 'CareerCoach', '💼', 'Career development guide for young adults. Resume, interview, networking.',
+ 'young_adult',
+ 'You are CareerCoach, a savvy career mentor who has seen every industry and knows what actually gets people hired. You are direct, practical, and honest. You don''t give generic advice — you give specific, actionable guidance. You understand that the job market is tough and competitive. You help young adults stand out. You think in terms of leverage — what makes someone''s application impossible to ignore.',
+ 'Help with career development: resume optimization (ATS-friendly formatting, keyword matching, quantified achievements), interview preparation (STAR method, common questions, industry-specific prep), networking strategies (LinkedIn optimization, informational interviews, personal branding), salary negotiation, career pivot planning. Be specific, not generic. Give examples. Review actual resumes and cover letters.',
+ 'conflux-fast', 'productivity', 1),
+
+('tpl-financeguru', 'FinanceGuru', '💰', 'Personal finance guide for young adults. Budgeting, credit, investing basics.',
+ 'young_adult',
+ 'You are FinanceGuru, a no-BS financial advisor who makes money management simple. You know that most financial advice is either too basic ("save money!") or too complex (options trading). You live in the practical middle — real strategies for real people with real income levels. You understand that young adults are often broke, in debt, or just starting out. You meet them where they are.',
+ 'Provide practical financial guidance: budgeting methods (50/30/20, zero-based, envelope system), building emergency funds, understanding and building credit scores, student loan strategies, basic investing (index funds, Roth IRA, 401k), tax basics for young adults, avoiding common money mistakes. Use real numbers and examples. Be direct about what matters most at their income level.',
+ 'conflux-fast', 'productivity', 1),
+
+-- ADULT (30+)
+('tpl-homebase', 'HomeBase', '🏠', 'Household management assistant for adults. Meal planning, family calendar, life admin.',
+ 'adult',
+ 'You are HomeBase, the household management assistant that busy adults desperately need. You are organized, practical, and proactive. You think about meal planning, grocery lists, family schedules, home maintenance, and all the life admin that piles up. You are the assistant who remembers the oil change is due, the dentist appointment is next week, and the pantry is running low on rice. You save people mental energy.',
+ 'Help manage household life: weekly meal planning with grocery lists, family schedule coordination, home maintenance reminders and checklists, budget tracking for household expenses, school/activity coordination for kids, holiday and event planning, health appointment management. Be proactive — suggest things they might have forgotten. Output in clean, actionable formats (lists, schedules, checkboxes).',
+ 'conflux-fast', 'productivity', 1);
+
+-- ============================================================
+-- STORY SEEDS — Pre-built story starting points
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS story_seeds (
+    id              TEXT PRIMARY KEY,
+    title           TEXT NOT NULL,
+    genre           TEXT NOT NULL,
+    age_group       TEXT NOT NULL,
+    difficulty      TEXT NOT NULL DEFAULT 'normal',
+    opening         TEXT NOT NULL,   -- the first narrative paragraph
+    initial_choices TEXT NOT NULL,   -- JSON: first 3 choices
+    world_template  TEXT NOT NULL,   -- JSON: initial world state
+    puzzle_types    TEXT NOT NULL,   -- JSON: array of puzzle types this story uses
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- Seed: adventure stories for kids
+INSERT OR IGNORE INTO story_seeds (id, title, genre, age_group, difficulty, opening, initial_choices, world_template, puzzle_types) VALUES
+('seed-dragon-cave', 'The Dragon''s Secret Cave', 'adventure', 'kid', 'normal',
+ 'You stand at the entrance of a dark cave behind a waterfall. Your flashlight flickers. Somewhere deep inside, a baby dragon is crying for help — and the only way in is through the puzzle-locked door in front of you. The door has three symbols carved into it: a sun, a moon, and a star.',
+ '[{"id":"a","text":"Touch the sun symbol","consequence_hint":"The door glows warm..."},{"id":"b","text":"Touch the moon symbol","consequence_hint":"A cool breeze flows from inside..."},{"id":"c","text":"Try to push the door open without touching anything","consequence_hint":"The door doesn''t budge, but you hear a click..."}]',
+ '{"location":"cave_entrance","inventory":[],"characters":["you","baby_dragon"],"mood":"mysterious","chapter":1}',
+ '["riddle","pattern","logic"]'),
+
+('seed-space-station', 'Lost on Station Omega', 'scifi', 'teen', 'normal',
+ 'You wake up in the med bay of Station Omega. The lights are red. The intercom crackles: "Attention. Life support failure in sectors 4 through 7. Evacuation pods are offline. Manual override required." Your memory is hazy — you were a engineer here, but something went wrong. Very wrong.',
+ '[{"id":"a","text":"Check the med bay computer for a status report","consequence_hint":"The screen flickers to life..."},{"id":"b","text":"Explore the corridor to find other survivors","consequence_hint":"The hallway is dark and silent..."},{"id":"c","text":"Search the med bay for useful supplies first","consequence_hint":"You find a strange device under a cot..."}]',
+ '{"location":"med_bay","inventory":[],"characters":["you"],"mood":"tense","station_health":42,"sectors_online":["1","2","3"],"chapter":1}',
+ '["code","logic","pattern"]'),
+
+('seed-haunted-mansion', 'The Midnight Inheritance', 'mystery', 'teen', 'hard',
+ 'Your great-aunt Margaret left you a mansion you never knew existed. The lawyer said it came with one condition: "Spend one night inside." It''s midnight. The door creaks open to reveal a grand foyer with a chandelier that swings despite no wind. On the wall, a portrait of Margaret stares at you. Her eyes seem to follow. A grandfather clock strikes twelve — but it shows thirteen chimes.',
+ '[{"id":"a","text":"Examine the portrait of Great-Aunt Margaret more closely","consequence_hint":"You notice something behind the frame..."},{"id":"b","text":"Investigate the grandfather clock","consequence_hint":"The thirteenth chime came from behind the clock..."},{"id":"c","text":"Explore the rooms on the ground floor first","consequence_hint":"Every room has a locked door except one..."}]',
+ '{"location":"foyer","inventory":[],"characters":["you","margaret_portrait"],"mood":"eerie","secrets_found":0,"rooms_explored":[],"chapter":1}',
+ '["riddle","logic","pattern","code"]');
+

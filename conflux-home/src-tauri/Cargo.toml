@@ -26,3 +26,23 @@ tauri-plugin-log = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
+
+# Conflux Engine dependencies
+rusqlite = { version = "0.31", features = ["bundled"] }  # SQLite (bundled = no system dep)
+uuid = { version = "1", features = ["v4"] }               # UUID generation
+chrono = { version = "0.4", features = ["serde"] }        # Timestamps
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls", "blocking"] }  # HTTP client (rustls, no OpenSSL)
+tokio = { version = "1", features = ["full"] }            # Async runtime
+anyhow = "1"                                               # Error handling
+thiserror = "1"                                            # Typed errors
+dashmap = "5"                                              # Concurrent hashmap
+once_cell = "1"                                            # Lazy init
+meval = "0.2"                                               # Math expression evaluator
+futures-util = "0.3"                                        # Stream utilities
+urlencoding = "2"                                           # URL encoding for search
+base64 = "0.22"                                             # Base64 encoding for Gmail
+open = "5"                                                  # Open URLs in browser
+tauri-plugin-notification = "2"                             # Native desktop/mobile notifications
+lettre = { version = "0.11", features = ["smtp-transport", "builder", "hostname", "rustls-tls"], default-features = false }  # Email sending (SMTP, rustls)
+# imap = "2"                                              # TODO: Add when OpenSSL available
+# native-tls = "0.2"                                      # TODO: Add when OpenSSL available
