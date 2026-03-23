@@ -46,6 +46,13 @@ impl ConfluxEngine {
     /// Initialize the engine with a database file path.
     pub fn new(db_path: &Path) -> Result<Self> {
         let db = EngineDb::open(db_path)?;
+
+        // Rebuild FTS index for existing memories (idempotent)
+        match db.rebuild_memory_fts() {
+            Ok(count) => log::info!("Memory FTS index: {} entries", count),
+            Err(e) => log::warn!("Memory FTS rebuild failed: {}", e),
+        }
+
         log::info!("Conflux Engine initialized at {:?}", db_path);
         Ok(ConfluxEngine { db })
     }
