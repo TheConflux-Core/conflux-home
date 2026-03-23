@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useGateway, getToken, saveToken } from '../hooks/useGateway';
+import { invoke } from '@tauri-apps/api/core';
 import { AGENT_PROFILES, AGENT_PROFILE_MAP } from '../data/agent-descriptions';
 import Avatar from './Avatar';
 import ProviderSettings from './settings/ProviderSettings';
@@ -47,89 +47,61 @@ function ToggleSwitch({
   );
 }
 
-// ── Section 1: Gateway Connection ──
+// ── Section 1: Engine Status ──
 
-function GatewaySection() {
-  const { connected, refresh, error } = useGateway();
-  const [gatewayUrl, setGatewayUrl] = useState(
-    () => localStorage.getItem('conflux-gateway-url') || 'http://localhost:18789'
-  );
-  const [showToken, setShowToken] = useState(false);
-  const [tokenValue, setTokenValue] = useState(() => getToken() || '');
-  const [editingToken, setEditingToken] = useState(false);
-  const [newToken, setNewToken] = useState('');
+function EngineSection() {
+  const [health, setHealth] = useState<{ status: string } | null>(null);
+  const [agentCount, setAgentCount] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  const handleSaveToken = () => {
-    if (!newToken.trim()) return;
-    saveToken(newToken.trim());
-    setTokenValue(newToken.trim());
-    setNewToken('');
-    setEditingToken(false);
-    refresh();
-  };
+  const checkEngine = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [h, agents] = await Promise.all([
+        invoke<any>('engine_health').catch(() => null),
+        invoke<any[]>('engine_get_agents').catch(() => []),
+      ]);
+      setHealth(h);
+      setAgentCount((agents ?? []).length);
+    } catch {
+      setHealth(null);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    checkEngine();
+  }, [checkEngine]);
+
+  const isHealthy = health?.status === 'healthy' || health !== null;
 
   return (
     <div className="settings-section">
-      <div className="settings-section-title">🔌 Gateway Connection</div>
-
-      <div className="settings-row">
-        <span className="settings-label">URL</span>
-        <span className="settings-value">{gatewayUrl}</span>
-      </div>
-
-      <div className="settings-row">
-        <span className="settings-label">Token</span>
-        <div className="settings-value" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontFamily: 'monospace', letterSpacing: 2 }}>
-            {showToken ? tokenValue : '••••••••••••'}
-          </span>
-          <button
-            className="settings-icon-btn"
-            onClick={() => setShowToken(s => !s)}
-            title={showToken ? 'Hide' : 'Show'}
-          >
-            {showToken ? '👁️' : '👁️‍🗨️'}
-          </button>
-        </div>
-      </div>
+      <div className="settings-section-title">⚡ Engine Status</div>
 
       <div className="settings-row">
         <span className="settings-label">Status</span>
         <div className="settings-value" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className={`status-dot ${connected ? 'connected' : 'disconnected'}`} />
-          <span>{connected ? 'Connected' : 'Disconnected'}</span>
-          {error && <span className="settings-error">{error}</span>}
+          <span className={`status-dot ${isHealthy ? 'connected' : 'disconnected'}`} />
+          <span>{loading ? 'Checking…' : isHealthy ? 'Running' : 'Unavailable'}</span>
         </div>
+      </div>
+
+      <div className="settings-row">
+        <span className="settings-label">Agents</span>
+        <span className="settings-value">{agentCount} installed</span>
+      </div>
+
+      <div className="settings-row">
+        <span className="settings-label">Mode</span>
+        <span className="settings-value">Embedded (standalone)</span>
       </div>
 
       <div className="settings-actions">
-        <button className="settings-button" onClick={refresh}>
-          ↻ Reconnect
-        </button>
-        <button
-          className="settings-button"
-          onClick={() => setEditingToken(e => !e)}
-        >
-          🔑 {editingToken ? 'Cancel' : 'Change Token'}
+        <button className="settings-button" onClick={checkEngine}>
+          ↻ Refresh
         </button>
       </div>
-
-      {editingToken && (
-        <div className="settings-token-edit">
-          <input
-            className="settings-input"
-            type="text"
-            placeholder="Paste new gateway token…"
-            value={newToken}
-            onChange={(e) => setNewToken(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSaveToken()}
-            autoFocus
-          />
-          <button className="settings-button primary" onClick={handleSaveToken}>
-            Save Token
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -401,7 +373,7 @@ function AboutSection() {
         <div className="settings-about-logo">⚡</div>
         <h2 className="settings-about-name">Conflux Home</h2>
         <p className="settings-about-version">v0.1.0-alpha</p>
-        <p className="settings-about-built">Built with: Tauri + React + OpenClaw Gateway</p>
+        <p className="settings-about-built">Built with: Tauri + React + Embedded Engine</p>
         <p className="settings-about-tagline">A home for your AI family</p>
 
         <div className="settings-about-links">
@@ -431,7 +403,7 @@ export default function Settings() {
 
   return (
     <div className="settings-page">
-      <GatewaySection />
+      <EngineSection />
       <ProviderSettings />
       <GoogleSettings />
       <AppearanceSection />

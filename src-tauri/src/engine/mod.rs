@@ -27,6 +27,37 @@ pub fn get_engine() -> &'static ConfluxEngine {
 /// Initialize the global engine. Call once during app setup.
 pub fn init_engine(db_path: &Path) -> Result<()> {
     let engine = ConfluxEngine::new(db_path)?;
+
+    // Load provider API keys from config
+    // Free providers ship with built-in keys (already active)
+    // Paid providers require user configuration
+    match engine.db.get_config("openai_api_key") {
+        Ok(Some(key)) if !key.is_empty() => {
+            router::configure_provider("openai-gpt4o", &key).ok();
+            router::configure_provider("openai-gpt4o-mini", &key).ok();
+            log::info!("[Engine] OpenAI API key loaded");
+        }
+        _ => {}
+    }
+    match engine.db.get_config("anthropic_api_key") {
+        Ok(Some(key)) if !key.is_empty() => {
+            router::configure_provider("anthropic-claude-sonnet", &key).ok();
+            router::configure_provider("anthropic-claude-opus", &key).ok();
+            log::info!("[Engine] Anthropic API key loaded");
+        }
+        _ => {}
+    }
+    match engine.db.get_config("xiaomi_api_key") {
+        Ok(Some(key)) if !key.is_empty() => {
+            router::configure_provider("xiaomi-mimo-flash", &key).ok();
+            router::configure_provider("xiaomi-mimo-pro", &key).ok();
+            log::info!("[Engine] Xiaomi API key loaded");
+        }
+        _ => {
+            log::info!("[Engine] No paid provider keys configured — Core tier only (free models)");
+        }
+    }
+
     ENGINE.set(engine)
         .map_err(|_| anyhow::anyhow!("Engine already initialized"))?;
     Ok(())
@@ -215,6 +246,67 @@ impl ConfluxEngine {
 
     pub fn is_template_installed(&self, template_id: &str) -> Result<bool> {
         self.db.check_template_installed(template_id)
+    }
+
+    // ── Provider API Keys ──
+
+    /// Set the OpenAI API key. Stores in DB and configures the router.
+    pub fn set_openai_key(&self, api_key: &str) -> Result<()> {
+        self.db.set_config("openai_api_key", api_key)?;
+        if !api_key.is_empty() {
+            router::configure_provider("openai-gpt4o", api_key)?;
+            router::configure_provider("openai-gpt4o-mini", api_key)?;
+        }
+        log::info!("[Engine] OpenAI API key updated");
+        Ok(())
+    }
+
+    /// Set the Anthropic API key. Stores in DB and configures the router.
+    pub fn set_anthropic_key(&self, api_key: &str) -> Result<()> {
+        self.db.set_config("anthropic_api_key", api_key)?;
+        if !api_key.is_empty() {
+            router::configure_provider("anthropic-claude-sonnet", api_key)?;
+            router::configure_provider("anthropic-claude-opus", api_key)?;
+        }
+        log::info!("[Engine] Anthropic API key updated");
+        Ok(())
+    }
+
+    /// Set the Xiaomi (MiMo) API key. Stores in DB and configures the router.
+    pub fn set_xiaomi_key(&self, api_key: &str) -> Result<()> {
+        self.db.set_config("xiaomi_api_key", api_key)?;
+        if !api_key.is_empty() {
+            router::configure_provider("xiaomi-mimo-flash", api_key)?;
+            router::configure_provider("xiaomi-mimo-pro", api_key)?;
+        }
+        log::info!("[Engine] Xiaomi API key updated");
+        Ok(())
+    }
+
+    /// Get a masked API key for display.
+    fn get_key_masked(&self, config_key: &str) -> Result<String> {
+        match self.db.get_config(config_key)? {
+            Some(key) if key.len() > 8 => Ok(format!("{}...{}", &key[..4], &key[key.len()-4..])),
+            Some(_) => Ok("••••".to_string()),
+            None => Ok(String::new()),
+        }
+    }
+
+    pub fn get_openai_key_masked(&self) -> Result<String> {
+        self.get_key_masked("openai_api_key")
+    }
+
+    pub fn get_anthropic_key_masked(&self) -> Result<String> {
+        self.get_key_masked("anthropic_api_key")
+    }
+
+    pub fn get_xiaomi_key_masked(&self) -> Result<String> {
+        self.get_key_masked("xiaomi_api_key")
+    }
+
+    /// Get the list of all router providers (for display in settings).
+    pub fn get_router_providers(&self) -> Vec<router::ModelProvider> {
+        router::get_all_providers()
     }
 
     // ── Agent Capabilities & Permissions ──
@@ -633,7 +725,7 @@ impl ConfluxEngine {
     }
 
     pub fn test_provider(&self, id: &str) -> Result<router::ModelResponse> {
-        // Run a synchronous test call through the provider
+        // Run a test call using the tier-based router
         let rt = tokio::runtime::Runtime::new()?;
         rt.block_on(async {
             let messages = vec![router::OpenAIMessage {
@@ -643,12 +735,8 @@ impl ConfluxEngine {
                 tool_calls: None,
             }];
 
-            // Get the provider directly
-            let provider = self.db.get_provider(id)?
-                .ok_or_else(|| anyhow::anyhow!("Provider not found: {}", id))?;
-
-            // Make a direct request
-            router::chat_with_provider(&provider, messages, Some(50)).await
+            // Test by calling through the core tier
+            router::chat("core", messages, Some(50), None, None).await
         })
     }
 

@@ -326,6 +326,52 @@ pub fn engine_install_template(req: InstallTemplateRequest) -> Result<String, St
     ).map_err(|e| e.to_string())
 }
 
+// ── Provider API Key Config ──
+// Direct API keys per provider — no middlemen.
+
+#[tauri::command]
+pub fn engine_set_openai_key(api_key: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.set_openai_key(&api_key).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_get_openai_key_masked() -> Result<String, String> {
+    let engine = engine::get_engine();
+    engine.get_openai_key_masked().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_set_anthropic_key(api_key: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.set_anthropic_key(&api_key).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_get_anthropic_key_masked() -> Result<String, String> {
+    let engine = engine::get_engine();
+    engine.get_anthropic_key_masked().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_set_xiaomi_key(api_key: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.set_xiaomi_key(&api_key).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_get_xiaomi_key_masked() -> Result<String, String> {
+    let engine = engine::get_engine();
+    engine.get_xiaomi_key_masked().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_get_router_providers() -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let providers = engine.get_router_providers();
+    Ok(serde_json::to_value(providers).map_err(|e| e.to_string())?)
+}
+
 // ── Agent Registry & Capabilities ──
 
 #[tauri::command]
