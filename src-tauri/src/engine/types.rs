@@ -433,3 +433,124 @@ pub struct TelemetryEvent {
     pub data: Option<String>,
     pub created_at: String,
 }
+
+// ── Family Member ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FamilyMember {
+    pub id: String,
+    pub name: String,
+    pub age: Option<i64>,
+    pub age_group: String,  // 'toddler' | 'preschool' | 'kid' | 'teen' | 'young_adult' | 'adult'
+    pub avatar: Option<String>,
+    pub color: String,
+    pub default_agent_id: Option<String>,
+    pub parent_id: Option<String>,
+    pub is_active: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateFamilyMember {
+    pub name: String,
+    pub age: Option<i64>,
+    pub age_group: String,
+    pub avatar: Option<String>,
+    pub color: Option<String>,
+    pub default_agent_id: Option<String>,
+    pub parent_id: Option<String>,
+}
+
+// ── Agent Template ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentTemplate {
+    pub id: String,
+    pub name: String,
+    pub emoji: String,
+    pub description: String,
+    pub age_group: String,
+    pub soul: String,
+    pub instructions: String,
+    pub model_alias: String,
+    pub category: String,
+    pub is_system: bool,
+    pub created_at: String,
+}
+
+// ── Story Game ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StoryGame {
+    pub id: String,
+    pub member_id: Option<String>,
+    pub agent_id: String,
+    pub title: String,
+    pub genre: String,       // 'adventure' | 'mystery' | 'fantasy' | 'scifi' | 'horror'
+    pub age_group: String,
+    pub difficulty: String,  // 'easy' | 'normal' | 'hard'
+    pub status: String,      // 'active' | 'completed' | 'paused'
+    pub current_chapter: i64,
+    pub story_state: Option<String>,  // JSON
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateStoryGame {
+    pub member_id: Option<String>,
+    pub title: String,
+    pub genre: String,
+    pub age_group: String,
+    pub difficulty: Option<String>,
+}
+
+// ── Story Chapter ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StoryChapter {
+    pub id: String,
+    pub game_id: String,
+    pub chapter_number: i64,
+    pub title: Option<String>,
+    pub narrative: String,
+    pub choices: String,      // JSON array
+    pub puzzle: Option<String>, // JSON
+    pub puzzle_solved: bool,
+    pub image_prompt: Option<String>,
+    pub image_url: Option<String>,
+    pub chosen_choice_id: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StoryChoice {
+    pub id: String,
+    pub text: String,
+    pub consequence_hint: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StoryPuzzle {
+    pub puzzle_type: String,  // 'riddle' | 'pattern' | 'logic' | 'word' | 'code'
+    pub question: String,
+    pub answer: String,
+    pub hint: Option<String>,
+}
+
+// ── Story Seed ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StorySeed {
+    pub id: String,
+    pub title: String,
+    pub genre: String,
+    pub age_group: String,
+    pub difficulty: String,
+    pub opening: String,
+    pub initial_choices: String, // JSON
+    pub world_template: String,  // JSON
+    pub puzzle_types: String,    // JSON
+    pub created_at: String,
+}

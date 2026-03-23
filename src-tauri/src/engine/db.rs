@@ -1728,4 +1728,302 @@ impl EngineDb {
         conn.execute("DELETE FROM skills WHERE id = ?1", params![id])?;
         Ok(())
     }
+
+    // ============================================================
+    // FAMILY MEMBERS
+    // ============================================================
+
+    pub fn create_family_member(&self, id: &str, name: &str, age: Option<i64>, age_group: &str,
+                                 avatar: Option<&str>, color: Option<&str>,
+                                 default_agent_id: Option<&str>, parent_id: Option<&str>) -> Result<super::types::FamilyMember> {
+        let conn = self.conn();
+        let now = Self::now();
+        let color = color.unwrap_or("#6366f1");
+        conn.execute(
+            "INSERT INTO family_members (id, name, age, age_group, avatar, color, default_agent_id, parent_id, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)",
+            params![id, name, age, age_group, avatar, color, default_agent_id, parent_id, now],
+        )?;
+        Ok(super::types::FamilyMember {
+            id: id.to_string(), name: name.to_string(), age, age_group: age_group.to_string(),
+            avatar: avatar.map(String::from), color: color.to_string(),
+            default_agent_id: default_agent_id.map(String::from), parent_id: parent_id.map(String::from),
+            is_active: true, created_at: now.clone(), updated_at: now,
+        })
+    }
+
+    pub fn get_family_members(&self) -> Result<Vec<super::types::FamilyMember>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, age, age_group, avatar, color, default_agent_id, parent_id, is_active, created_at, updated_at
+             FROM family_members WHERE is_active = 1 ORDER BY created_at"
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(super::types::FamilyMember {
+                id: row.get(0)?, name: row.get(1)?, age: row.get(2)?, age_group: row.get(3)?,
+                avatar: row.get(4)?, color: row.get(5)?, default_agent_id: row.get(6)?,
+                parent_id: row.get(7)?, is_active: row.get::<_, i64>(8)? != 0,
+                created_at: row.get(9)?, updated_at: row.get(10)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+
+    pub fn get_family_member(&self, id: &str) -> Result<Option<super::types::FamilyMember>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, age, age_group, avatar, color, default_agent_id, parent_id, is_active, created_at, updated_at
+             FROM family_members WHERE id = ?1"
+        )?;
+        let mut rows = stmt.query_map(params![id], |row| {
+            Ok(super::types::FamilyMember {
+                id: row.get(0)?, name: row.get(1)?, age: row.get(2)?, age_group: row.get(3)?,
+                avatar: row.get(4)?, color: row.get(5)?, default_agent_id: row.get(6)?,
+                parent_id: row.get(7)?, is_active: row.get::<_, i64>(8)? != 0,
+                created_at: row.get(9)?, updated_at: row.get(10)?,
+            })
+        })?;
+        Ok(rows.next().transpose()?)
+    }
+
+    pub fn delete_family_member(&self, id: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute("UPDATE family_members SET is_active = 0, updated_at = ?2 WHERE id = ?1",
+            params![id, Self::now()])?;
+        Ok(())
+    }
+
+    // ============================================================
+    // AGENT TEMPLATES
+    // ============================================================
+
+    pub fn get_agent_templates(&self, age_group: Option<&str>) -> Result<Vec<super::types::AgentTemplate>> {
+        let conn = self.conn();
+        let mapper = |row: &rusqlite::Row| -> rusqlite::Result<super::types::AgentTemplate> {
+            Ok(super::types::AgentTemplate {
+                id: row.get(0)?, name: row.get(1)?, emoji: row.get(2)?, description: row.get(3)?,
+                age_group: row.get(4)?, soul: row.get(5)?, instructions: row.get(6)?,
+                model_alias: row.get(7)?, category: row.get(8)?,
+                is_system: row.get::<_, i64>(9)? != 0, created_at: row.get(10)?,
+            })
+        };
+        let mut result = Vec::new();
+        if let Some(ag) = age_group {
+            let mut stmt = conn.prepare(
+                "SELECT id, name, emoji, description, age_group, soul, instructions, model_alias, category, is_system, created_at
+                 FROM agent_templates WHERE age_group = ?1 ORDER BY category, name"
+            )?;
+            let rows = stmt.query_map(params![ag], mapper)?;
+            for r in rows { result.push(r?); }
+        } else {
+            let mut stmt = conn.prepare(
+                "SELECT id, name, emoji, description, age_group, soul, instructions, model_alias, category, is_system, created_at
+                 FROM agent_templates ORDER BY age_group, category, name"
+            )?;
+            let rows = stmt.query_map([], mapper)?;
+            for r in rows { result.push(r?); }
+        }
+        Ok(result)
+    }
+
+    pub fn install_agent_from_template(&self, template_id: &str, member_id: Option<&str>) -> Result<Option<super::types::Agent>> {
+        let conn = self.conn();
+        // Get template
+        let mut stmt = conn.prepare(
+            "SELECT id, name, emoji, role_description, soul, instructions, model_alias, category
+             FROM agent_templates WHERE id = ?1"
+        )?;
+        // Actually we need the full template. Let's use a simpler approach — read from the full row
+        let mut stmt2 = conn.prepare(
+            "SELECT name, emoji, description, soul, instructions, model_alias FROM agent_templates WHERE id = ?1"
+        )?;
+        let mut rows = stmt2.query_map(params![template_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?, // name
+                row.get::<_, String>(1)?, // emoji
+                row.get::<_, String>(2)?, // description
+                row.get::<_, String>(3)?, // soul
+                row.get::<_, String>(4)?, // instructions
+                row.get::<_, String>(5)?, // model_alias
+            ))
+        })?;
+        let (name, emoji, description, soul, instructions, model_alias) = match rows.next() {
+            Some(row) => row?,
+            None => return Ok(None),
+        };
+        let agent_id = format!("tpl-{}", template_id);
+        let now = Self::now();
+        conn.execute(
+            "INSERT OR REPLACE INTO agents (id, name, emoji, role, soul, instructions, model_alias, tier, is_active, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'free', 1, ?8, ?8)",
+            params![agent_id, name, emoji, description, soul, instructions, model_alias, now],
+        )?;
+        Ok(Some(super::types::Agent {
+            id: agent_id, name, emoji, role: description, soul: Some(soul), instructions: Some(instructions),
+            model_alias, tier: "free".to_string(), is_active: true, created_at: now.clone(), updated_at: now,
+        }))
+    }
+
+    // ============================================================
+    // STORY GAMES
+    // ============================================================
+
+    pub fn create_story_game(&self, id: &str, member_id: Option<&str>, title: &str, genre: &str,
+                              age_group: &str, difficulty: &str, story_state: Option<&str>) -> Result<super::types::StoryGame> {
+        let conn = self.conn();
+        let now = Self::now();
+        conn.execute(
+            "INSERT INTO story_games (id, member_id, title, genre, age_group, difficulty, story_state, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)",
+            params![id, member_id, title, genre, age_group, difficulty, story_state, now],
+        )?;
+        Ok(super::types::StoryGame {
+            id: id.to_string(), member_id: member_id.map(String::from), agent_id: "catalyst".to_string(),
+            title: title.to_string(), genre: genre.to_string(), age_group: age_group.to_string(),
+            difficulty: difficulty.to_string(), status: "active".to_string(), current_chapter: 1,
+            story_state: story_state.map(String::from), created_at: now.clone(), updated_at: now,
+        })
+    }
+
+    pub fn get_story_games(&self, member_id: Option<&str>) -> Result<Vec<super::types::StoryGame>> {
+        let conn = self.conn();
+        let mapper = |row: &rusqlite::Row| -> rusqlite::Result<super::types::StoryGame> {
+            Ok(super::types::StoryGame {
+                id: row.get(0)?, member_id: row.get(1)?, agent_id: row.get(2)?, title: row.get(3)?,
+                genre: row.get(4)?, age_group: row.get(5)?, difficulty: row.get(6)?, status: row.get(7)?,
+                current_chapter: row.get(8)?, story_state: row.get(9)?, created_at: row.get(10)?, updated_at: row.get(11)?,
+            })
+        };
+        let mut result = Vec::new();
+        if let Some(mid) = member_id {
+            let mut stmt = conn.prepare(
+                "SELECT id, member_id, agent_id, title, genre, age_group, difficulty, status, current_chapter, story_state, created_at, updated_at FROM story_games WHERE member_id = ?1 ORDER BY updated_at DESC"
+            )?;
+            let rows = stmt.query_map(params![mid], mapper)?;
+            for r in rows { result.push(r?); }
+        } else {
+            let mut stmt = conn.prepare(
+                "SELECT id, member_id, agent_id, title, genre, age_group, difficulty, status, current_chapter, story_state, created_at, updated_at FROM story_games ORDER BY updated_at DESC"
+            )?;
+            let rows = stmt.query_map([], mapper)?;
+            for r in rows { result.push(r?); }
+        }
+        Ok(result)
+    }
+
+    pub fn get_story_game(&self, id: &str) -> Result<Option<super::types::StoryGame>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, member_id, agent_id, title, genre, age_group, difficulty, status, current_chapter, story_state, created_at, updated_at
+             FROM story_games WHERE id = ?1"
+        )?;
+        let mut rows = stmt.query_map(params![id], |row| {
+            Ok(super::types::StoryGame {
+                id: row.get(0)?, member_id: row.get(1)?, agent_id: row.get(2)?, title: row.get(3)?,
+                genre: row.get(4)?, age_group: row.get(5)?, difficulty: row.get(6)?, status: row.get(7)?,
+                current_chapter: row.get(8)?, story_state: row.get(9)?, created_at: row.get(10)?, updated_at: row.get(11)?,
+            })
+        })?;
+        Ok(rows.next().transpose()?)
+    }
+
+    // ============================================================
+    // STORY CHAPTERS
+    // ============================================================
+
+    pub fn add_story_chapter(&self, id: &str, game_id: &str, chapter_number: i64,
+                              title: Option<&str>, narrative: &str, choices: &str,
+                              puzzle: Option<&str>, image_prompt: Option<&str>) -> Result<super::types::StoryChapter> {
+        let conn = self.conn();
+        let now = Self::now();
+        conn.execute(
+            "INSERT INTO story_chapters (id, game_id, chapter_number, title, narrative, choices, puzzle, image_prompt, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![id, game_id, chapter_number, title, narrative, choices, puzzle, image_prompt, now],
+        )?;
+        // Update game chapter count
+        conn.execute(
+            "UPDATE story_games SET current_chapter = ?2, updated_at = ?3 WHERE id = ?1",
+            params![game_id, chapter_number, now],
+        )?;
+        Ok(super::types::StoryChapter {
+            id: id.to_string(), game_id: game_id.to_string(), chapter_number,
+            title: title.map(String::from), narrative: narrative.to_string(),
+            choices: choices.to_string(), puzzle: puzzle.map(String::from),
+            puzzle_solved: false, image_prompt: image_prompt.map(String::from),
+            image_url: None, chosen_choice_id: None, created_at: now,
+        })
+    }
+
+    pub fn get_story_chapters(&self, game_id: &str) -> Result<Vec<super::types::StoryChapter>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, game_id, chapter_number, title, narrative, choices, puzzle, puzzle_solved, image_prompt, image_url, chosen_choice_id, created_at
+             FROM story_chapters WHERE game_id = ?1 ORDER BY chapter_number"
+        )?;
+        let rows = stmt.query_map(params![game_id], |row| {
+            Ok(super::types::StoryChapter {
+                id: row.get(0)?, game_id: row.get(1)?, chapter_number: row.get(2)?,
+                title: row.get(3)?, narrative: row.get(4)?, choices: row.get(5)?,
+                puzzle: row.get(6)?, puzzle_solved: row.get::<_, i64>(7)? != 0,
+                image_prompt: row.get(8)?, image_url: row.get(9)?,
+                chosen_choice_id: row.get(10)?, created_at: row.get(11)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+
+    pub fn choose_story_path(&self, chapter_id: &str, choice_id: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute(
+            "UPDATE story_chapters SET chosen_choice_id = ?2 WHERE id = ?1",
+            params![chapter_id, choice_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn solve_puzzle(&self, chapter_id: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute(
+            "UPDATE story_chapters SET puzzle_solved = 1 WHERE id = ?1",
+            params![chapter_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_story_seeds(&self, age_group: Option<&str>, genre: Option<&str>) -> Result<Vec<super::types::StorySeed>> {
+        let conn = self.conn();
+        let mut conditions = Vec::new();
+        let mut params_vec: Vec<String> = Vec::new();
+        if let Some(ag) = age_group {
+            conditions.push("age_group = ?");
+            params_vec.push(ag.to_string());
+        }
+        if let Some(g) = genre {
+            conditions.push("genre = ?");
+            params_vec.push(g.to_string());
+        }
+        let where_clause = if conditions.is_empty() { String::new() } else { format!("WHERE {}", conditions.join(" AND ")) };
+        let query = format!(
+            "SELECT id, title, genre, age_group, difficulty, opening, initial_choices, world_template, puzzle_types, created_at
+             FROM story_seeds {} ORDER BY genre, title", where_clause
+        );
+        let conn2 = self.conn();
+        let mut stmt = conn2.prepare(&query)?;
+        let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
+        let rows = stmt.query_map(&params_refs[..], |row| {
+            Ok(super::types::StorySeed {
+                id: row.get(0)?, title: row.get(1)?, genre: row.get(2)?, age_group: row.get(3)?,
+                difficulty: row.get(4)?, opening: row.get(5)?, initial_choices: row.get(6)?,
+                world_template: row.get(7)?, puzzle_types: row.get(8)?, created_at: row.get(9)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
 }
