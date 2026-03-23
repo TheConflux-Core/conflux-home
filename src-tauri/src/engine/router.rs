@@ -547,6 +547,17 @@ pub fn configure_provider(provider_id: &str, api_key: &str) -> Result<()> {
 
 // ── Chat Completion (non-streaming) ──
 
+/// Resolve legacy aliases to raw tier names.
+fn resolve_tier(alias: &str) -> &str {
+    match alias {
+        "conflux-core" | "conflux-fast" | "fast" => "core",
+        "conflux-pro" | "conflux-smart" | "smart" => "pro",
+        "conflux-ultra" | "ultra" => "ultra",
+        "core" | "pro" | "ultra" => alias, // already raw
+        _ => alias,
+    }
+}
+
 /// Send a chat completion with automatic failover across providers in a tier.
 pub async fn chat(
     tier: &str,
@@ -555,6 +566,7 @@ pub async fn chat(
     temperature: Option<f64>,
     tools: Option<Vec<serde_json::Value>>,
 ) -> Result<ModelResponse> {
+    let tier = resolve_tier(tier);
     let providers = get_providers_for_tier(tier);
 
     if providers.is_empty() {
@@ -604,6 +616,7 @@ pub async fn chat_stream(
     tools: Option<Vec<serde_json::Value>>,
     on_chunk: &mut dyn FnMut(&str) -> Result<()>,
 ) -> Result<ModelResponse> {
+    let tier = resolve_tier(tier);
     let providers = get_providers_for_tier(tier);
 
     if providers.is_empty() {
