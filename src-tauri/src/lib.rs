@@ -166,6 +166,12 @@ pub fn run() {
             commands::budget_get_entries,
             commands::budget_get_summary,
             commands::budget_delete_entry,
+            // Content Feed
+            commands::feed_get_items,
+            commands::feed_mark_read,
+            commands::feed_toggle_bookmark,
+            commands::feed_add_item,
+            commands::feed_generate,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

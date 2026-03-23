@@ -44,7 +44,7 @@ export interface PipelineStatus {
   uptime: string;
 }
 
-export type View = 'dashboard' | 'chat' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen' | 'budget';
+export type View = 'dashboard' | 'chat' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen' | 'budget' | 'feed';
 
 // Agent accent colors for avatar rendering
 export const AGENT_COLORS: Record<string, string> = {
@@ -417,3 +417,27 @@ export const INCOME_CATEGORIES = [
   { id: 'investments', label: '📈 Investments', color: '#f59e0b' },
   { id: 'other_income', label: '💵 Other', color: '#6b7280' },
 ];
+
+// ── Content Feed ──
+
+export interface ContentFeedItem {
+  id: string;
+  member_id: string | null;
+  content_type: 'news' | 'tip' | 'challenge' | 'fun_fact' | 'reminder';
+  title: string;
+  body: string;
+  source_url: string | null;
+  category: string | null;
+  is_read: boolean;
+  is_bookmarked: boolean;
+  created_at: string;
+  expires_at: string | null;
+}
+
+export const FEED_TYPE_CONFIG: Record<string, { emoji: string; color: string }> = {
+  news:      { emoji: '📰', color: '#3b82f6' },
+  tip:       { emoji: '💡', color: '#f59e0b' },
+  challenge: { emoji: '🎯', color: '#ef4444' },
+  fun_fact:  { emoji: '🤯', color: '#8b5cf6' },
+  reminder:  { emoji: '⏰', color: '#10b981' },
+};
