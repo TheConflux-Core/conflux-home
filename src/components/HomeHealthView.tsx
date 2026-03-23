@@ -47,7 +47,7 @@ export default function HomeHealthView() {
     setInsightsLoaded(true);
   }, [loadInsights]);
 
-  if (loading) return <div className="kitchen-view"><div className="kitchen-header"><h2 className="kitchen-title">🏠 Home Health</h2><p style={{ color: 'var(--text-muted)' }}>Loading...</p></div></div>;
+  if (loading) return <div className="kitchen-view"><div className="kitchen-header"><h2 className="kitchen-title">🏠 Home Health</h2><p style={{ color: 'rgba(255,255,255,0.6)' }}>Loading...</p></div></div>;
 
   const healthScore = dashboard?.health_score ?? 0;
   const scoreColor = healthScore >= 80 ? '#10b981' : healthScore >= 60 ? '#f59e0b' : '#ef4444';
@@ -70,10 +70,10 @@ export default function HomeHealthView() {
       {tab === 'overview' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Health Score */}
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: 20, textAlign: 'center' }}>
+          <div style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: 20, textAlign: 'center' }}>
             <div style={{ fontSize: 48, fontWeight: 700, color: scoreColor }}>{healthScore.toFixed(0)}</div>
-            <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 12 }}>Home Health Score</div>
-            <div style={{ height: 6, borderRadius: 3, background: 'var(--bg-secondary)' }}>
+            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)', marginBottom: 12 }}>Home Health Score</div>
+            <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.06)' }}>
               <div style={{ height: '100%', borderRadius: 3, width: `${healthScore}%`, background: scoreColor, transition: 'width 0.3s' }} />
             </div>
           </div>
@@ -117,8 +117,8 @@ export default function HomeHealthView() {
 
           {/* Bill Trend Chart */}
           {dashboard && dashboard.bill_trend.length > 0 && (
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: 16 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)', margin: '0 0 12px 0' }}>📈 Utility Trend</h3>
+            <div style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: 16 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.75)', margin: '0 0 12px 0' }}>📈 Utility Trend</h3>
               <BillChart data={dashboard.bill_trend} />
             </div>
           )}
@@ -143,7 +143,7 @@ export default function HomeHealthView() {
             </div>
           </div>
           {dashboard && dashboard.bill_trend.length > 0 && (
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: 16 }}>
+            <div style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: 16 }}>
               <BillChart data={dashboard.bill_trend} />
             </div>
           )}
@@ -156,17 +156,17 @@ export default function HomeHealthView() {
           {dashboard?.overdue_maintenance.map(m => (
             <div key={m.id} style={{ padding: 12, borderRadius: 10, background: '#ef444410', border: '1px solid #ef444420' }}>
               <div style={{ fontWeight: 600, fontSize: 14 }}>🔴 {m.task}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{m.category} · Due {m.next_due}</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{m.category} · Due {m.next_due}</div>
             </div>
           ))}
           {dashboard?.upcoming_maintenance.map(m => (
-            <div key={m.id} style={{ padding: 12, borderRadius: 10, background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
+            <div key={m.id} style={{ padding: 12, borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
               <div style={{ fontWeight: 500, fontSize: 14 }}>🔔 {m.task}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{m.category} · Due {m.next_due} · {m.priority}</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{m.category} · Due {m.next_due} · {m.priority}</div>
             </div>
           ))}
           {dashboard && dashboard.overdue_maintenance.length === 0 && dashboard.upcoming_maintenance.length === 0 && (
-            <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 20 }}>No maintenance items yet. The AI will suggest items based on your home profile!</p>
+            <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.6)', padding: 20 }}>No maintenance items yet. The AI will suggest items based on your home profile!</p>
           )}
         </div>
       )}
@@ -179,27 +179,27 @@ export default function HomeHealthView() {
             const agePct = a.installed_date && a.expected_lifespan_years ? getAgePercent(a.installed_date, a.expected_lifespan_years) : 0;
             const ageColor = a.installed_date && a.expected_lifespan_years ? getAgeColor(a.installed_date, a.expected_lifespan_years) : '#10b981';
             return (
-              <div key={a.id} style={{ padding: 14, borderRadius: 10, background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
+              <div key={a.id} style={{ padding: 14, borderRadius: 10, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontWeight: 600, fontSize: 14 }}>{emoji} {a.name}</span>
                   <span style={{ fontSize: 12, color: ageColor, fontWeight: 600 }}>{agePct}% of life</span>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>
                   {a.category} · {a.model || 'No model'} · {a.installed_date ? `Installed ${a.installed_date}` : 'No install date'}
                 </div>
                 {a.expected_lifespan_years && (
-                  <div style={{ marginTop: 8, height: 4, borderRadius: 2, background: 'var(--bg-secondary)' }}>
+                  <div style={{ marginTop: 8, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.06)' }}>
                     <div style={{ height: '100%', borderRadius: 2, width: `${agePct}%`, background: ageColor }} />
                   </div>
                 )}
                 {a.estimated_replacement_cost && (
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Replacement: ${a.estimated_replacement_cost.toFixed(2)}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>Replacement: ${a.estimated_replacement_cost.toFixed(2)}</div>
                 )}
               </div>
             );
           })}
           {(!dashboard || dashboard.appliances_needing_service.length === 0) && (
-            <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 20 }}>No appliances tracked yet. Add your HVAC, water heater, etc. to get AI-powered predictions.</p>
+            <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.6)', padding: 20 }}>No appliances tracked yet. Add your HVAC, water heater, etc. to get AI-powered predictions.</p>
           )}
         </div>
       )}
@@ -209,14 +209,14 @@ export default function HomeHealthView() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {!insightsLoaded ? (
             <div style={{ textAlign: 'center', padding: 40 }}>
-              <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>Let AI analyze your home's health data</p>
+              <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: 16 }}>Let AI analyze your home's health data</p>
               <button className="btn-primary" onClick={handleLoadInsights}>🧠 Analyze My Home</button>
             </div>
           ) : (
             insights.map((ins, i) => (
-              <div key={i} style={{ padding: 16, borderRadius: 12, background: 'var(--bg-primary)', border: '1px solid var(--border)' }}>
+              <div key={i} style={{ padding: 16, borderRadius: 12, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
                 <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>{ins.title}</div>
-                <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)' }}>{ins.description}</div>
+                <div style={{ fontSize: 13, lineHeight: 1.6, color: 'rgba(255,255,255,0.75)' }}>{ins.description}</div>
                 {ins.estimated_impact && (
                   <div style={{ marginTop: 8, fontSize: 12, padding: '4px 10px', borderRadius: 6, background: '#10b98120', color: '#10b981', display: 'inline-block' }}>
                     💰 {ins.estimated_impact}
@@ -247,7 +247,7 @@ function BillChart({ data }: { data: { month: string; total: number; electric: n
             {d.gas != null && <div style={{ position: 'absolute', bottom: d.electric ? `${(d.electric / maxTotal) * 80}px` : 0, width: '100%', height: `${(d.gas / maxTotal) * 80}px`, background: '#f97316' }} />}
             {d.water != null && <div style={{ position: 'absolute', bottom: ((d.electric ?? 0) + (d.gas ?? 0)) / maxTotal * 80, width: '100%', height: `${(d.water / maxTotal) * 80}px`, background: '#3b82f6', borderRadius: '0 0 3px 3px' }} />}
           </div>
-          <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{d.month.slice(5)}</span>
+          <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.6)' }}>{d.month.slice(5)}</span>
         </div>
       ))}
     </div>
@@ -280,14 +280,14 @@ function HomeProfileForm({ profile, onSave }: { profile: { year_built: number | 
 
   const field = (label: string, value: string | number | undefined, onChange: (v: any) => void, type = 'text', placeholder = '') => (
     <div style={{ marginBottom: 12 }}>
-      <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>{label}</label>
+      <label style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: 4 }}>{label}</label>
       <input type={type} value={value ?? ''} onChange={e => onChange(type === 'number' ? (e.target.value ? parseInt(e.target.value) : undefined) : e.target.value)} placeholder={placeholder} className="ai-add-input" style={{ width: '100%' }} />
     </div>
   );
 
   const select = (label: string, value: string, onChange: (v: string) => void, options: [string, string][]) => (
     <div style={{ marginBottom: 12 }}>
-      <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>{label}</label>
+      <label style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: 4 }}>{label}</label>
       <select value={value} onChange={e => onChange(e.target.value)} className="kitchen-select" style={{ width: '100%' }}>
         <option value="">Not set</option>
         {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
@@ -296,7 +296,7 @@ function HomeProfileForm({ profile, onSave }: { profile: { year_built: number | 
   );
 
   return (
-    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: 20 }}>
+    <div style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: 20 }}>
       <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 16px 0' }}>🏠 Home Profile</h3>
       {field('Year Built', form.yearBuilt, v => setForm(s => ({ ...s, yearBuilt: v })), 'number', 'e.g. 2005')}
       {field('Square Feet', form.squareFeet, v => setForm(s => ({ ...s, squareFeet: v })), 'number', 'e.g. 2200')}

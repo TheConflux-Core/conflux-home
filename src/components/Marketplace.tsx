@@ -115,10 +115,10 @@ export default function Marketplace() {
     <div>
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
-        <h3 style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 4 }}>
+        <h3 style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)', marginBottom: 4 }}>
           Agent Marketplace
         </h3>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>
           Browse, install, and manage your AI agents.
         </p>
       </div>
@@ -147,8 +147,8 @@ export default function Marketplace() {
               width: '100%',
               padding: '10px 12px 10px 36px',
               borderRadius: 12,
-              border: '1px solid var(--border)',
-              background: 'var(--bg-card)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              background: 'rgba(255,255,255,0.08)',
               color: 'var(--text-primary)',
               fontSize: 13,
               outline: 'none',
@@ -173,13 +173,13 @@ export default function Marketplace() {
               style={{
                 padding: '6px 14px',
                 borderRadius: 20,
-                border: `1px solid ${selectedCategory === cat.id ? 'var(--accent-secondary)' : 'var(--border)'}`,
+                border: `1px solid ${selectedCategory === cat.id ? 'var(--accent-secondary)' : 'rgba(255,255,255,0.1)'}`,
                 background:
                   selectedCategory === cat.id ? 'rgba(123, 47, 255, 0.1)' : 'transparent',
                 color:
                   selectedCategory === cat.id
                     ? 'var(--accent-secondary)'
-                    : 'var(--text-secondary)',
+                    : 'rgba(255,255,255,0.75)',
                 cursor: 'pointer',
                 fontSize: 12,
                 whiteSpace: 'nowrap',
@@ -199,7 +199,7 @@ export default function Marketplace() {
           <h4
             style={{
               fontSize: 14,
-              color: 'var(--text-secondary)',
+              color: 'rgba(255,255,255,0.75)',
               marginBottom: 12,
               display: 'flex',
               alignItems: 'center',
@@ -234,7 +234,7 @@ export default function Marketplace() {
         <h4
           style={{
             fontSize: 14,
-            color: 'var(--text-secondary)',
+            color: 'rgba(255,255,255,0.75)',
             marginBottom: 12,
           }}
         >
@@ -342,7 +342,7 @@ function AgentCard({
         />
         <div>
           <h3>{agent.name}</h3>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{agent.tagline}</div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)' }}>{agent.tagline}</div>
         </div>
       </div>
 
@@ -368,8 +368,8 @@ function AgentCard({
             ? {
                 opacity: 0.5,
                 cursor: 'not-allowed',
-                borderColor: 'var(--text-muted)',
-                color: 'var(--text-muted)',
+                borderColor: 'rgba(255,255,255,0.4)',
+                color: 'rgba(255,255,255,0.6)',
               }
             : {}
         }

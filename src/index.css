@@ -429,7 +429,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-bottom: 72px; /* space for taskbar */
+  padding-bottom: 56px; /* space for dock */
 }
 
 .desktop-bg-pattern {
@@ -1998,6 +1998,14 @@ body {
 .marketplace-empty-btn:hover {
   background: var(--accent-secondary);
   color: white;
+}
+
+/* Cards should be semi-transparent by default for immersive compatibility */
+.bg-card,
+[style*="--bg-card"] {
+  background: var(--bg-card);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 /* About section */

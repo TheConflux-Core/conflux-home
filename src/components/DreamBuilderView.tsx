@@ -55,7 +55,7 @@ export default function DreamBuilderView() {
   if (loading) return (
     <div className="kitchen-view">
       <div className="kitchen-header"><h2 className="kitchen-title">🎯 Dream Builder</h2>
-        <p style={{ color: 'var(--text-muted)' }}>Loading...</p></div>
+        <p style={{ color: 'rgba(255,255,255,0.6)' }}>Loading...</p></div>
     </div>
   );
 
@@ -127,23 +127,23 @@ export default function DreamBuilderView() {
           {activeDreams.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40 }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>🎯</div>
-              <p style={{ color: 'var(--text-muted)' }}>No dreams yet. Create your first one!</p>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>"We want to buy a house in 3 years" → AI reverse-engineers it into daily actions</p>
+              <p style={{ color: 'rgba(255,255,255,0.6)' }}>No dreams yet. Create your first one!</p>
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 8 }}>"We want to buy a house in 3 years" → AI reverse-engineers it into daily actions</p>
             </div>
           ) : (
             activeDreams.map(d => {
               const cat = CATEGORY_CONFIG[d.category] ?? CATEGORY_CONFIG.personal;
               return (
                 <div key={d.id} onClick={() => setSelectedDream(d)}
-                  style={{ padding: 16, borderRadius: 12, background: 'var(--bg-primary)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                  style={{ padding: 16, borderRadius: 12, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                     <span style={{ fontWeight: 600, fontSize: 15 }}>{cat.emoji} {d.title}</span>
                     <span style={{ fontSize: 13, fontWeight: 600, color: cat.color }}>{d.progress.toFixed(0)}%</span>
                   </div>
-                  <div style={{ height: 4, borderRadius: 2, background: 'var(--bg-secondary)', marginBottom: 8 }}>
+                  <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.06)', marginBottom: 8 }}>
                     <div style={{ height: '100%', borderRadius: 2, width: `${d.progress}%`, background: cat.color }} />
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
                     <span>{cat.label}</span>
                     {d.target_date && <span>Target: {new Date(d.target_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>}
                   </div>
@@ -178,13 +178,13 @@ function DreamDetail({
         <button onClick={onBack} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer' }}>←</button>
         <div style={{ flex: 1 }}>
           <h3 style={{ margin: 0, fontSize: 18 }}>{cat.emoji} {dream.title}</h3>
-          {dream.description && <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>{dream.description}</p>}
+          {dream.description && <p style={{ margin: '4px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>{dream.description}</p>}
         </div>
         <span style={{ fontSize: 24, fontWeight: 700, color: cat.color }}>{dream.progress.toFixed(0)}%</span>
       </div>
 
       {/* Progress Bar */}
-      <div style={{ height: 6, borderRadius: 3, background: 'var(--bg-secondary)' }}>
+      <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.06)' }}>
         <div style={{ height: '100%', borderRadius: 3, width: `${dream.progress}%`, background: cat.color }} />
       </div>
 
@@ -199,13 +199,13 @@ function DreamDetail({
           {planResult?.analysis && <p style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 12 }}>{planResult.analysis}</p>}
           {planResult?.habit && (
             <div style={{ marginBottom: 12 }}>
-              <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--text-muted)' }}>Daily Habit</div>
+              <div style={{ fontWeight: 600, fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>Daily Habit</div>
               <div style={{ fontSize: 13 }}>🔄 {planResult.habit.title}: {planResult.habit.description}</div>
             </div>
           )}
           {planResult?.metrics && (
             <div style={{ marginBottom: 12 }}>
-              <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--text-muted)' }}>Track These</div>
+              <div style={{ fontWeight: 600, fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>Track These</div>
               {planResult.metrics.map((m: string, i: number) => (
                 <div key={i} style={{ fontSize: 13 }}>📊 {m}</div>
               ))}
@@ -220,7 +220,7 @@ function DreamDetail({
         <div className="ai-add-row">
           <input type="text" value={progressNote} onChange={e => setProgressNote(e.target.value)} placeholder="What did you do today?" className="ai-add-input" />
           <input type="number" value={progressPct} onChange={e => setProgressPct(e.target.value)} className="ai-add-input" style={{ width: 60 }} />
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>%</span>
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>%</span>
           <button className="btn-primary" onClick={onAddProgress} disabled={!progressNote.trim()}>Log</button>
         </div>
       </div>
