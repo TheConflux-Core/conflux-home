@@ -191,6 +191,24 @@ pub struct ProviderConfig {
     pub updated_at: String,
 }
 
+// ── Provider Template ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderTemplate {
+    pub id: String,
+    pub name: String,
+    pub emoji: String,
+    pub description: String,
+    pub base_url: String,
+    pub models: Vec<String>, // parsed from JSON array
+    pub default_model: String,
+    pub model_alias: String,
+    pub category: String, // 'free' | 'cloud' | 'local'
+    pub docs_url: Option<String>,
+    pub is_free: bool,
+    pub sort_order: i64,
+}
+
 // ── Quota ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

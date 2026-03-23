@@ -280,6 +280,52 @@ pub fn engine_test_provider(id: String) -> Result<serde_json::Value, String> {
     }
 }
 
+// ── Provider Template Commands ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InstallTemplateRequest {
+    pub template_id: String,
+    pub api_key: Option<String>,
+    pub model: Option<String>,
+}
+
+#[tauri::command]
+pub fn engine_get_provider_templates() -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let templates = engine.get_provider_templates().map_err(|e| e.to_string())?;
+
+    // Add installed status to each template
+    let result: Vec<serde_json::Value> = templates.into_iter().map(|t| {
+        let installed = engine.is_template_installed(&t.id).unwrap_or(false);
+        serde_json::json!({
+            "id": t.id,
+            "name": t.name,
+            "emoji": t.emoji,
+            "description": t.description,
+            "base_url": t.base_url,
+            "models": t.models,
+            "default_model": t.default_model,
+            "model_alias": t.model_alias,
+            "category": t.category,
+            "docs_url": t.docs_url,
+            "is_free": t.is_free,
+            "is_installed": installed,
+        })
+    }).collect();
+
+    Ok(serde_json::to_value(result).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub fn engine_install_template(req: InstallTemplateRequest) -> Result<String, String> {
+    let engine = engine::get_engine();
+    engine.install_provider_template(
+        &req.template_id,
+        req.api_key.as_deref(),
+        req.model.as_deref(),
+    ).map_err(|e| e.to_string())
+}
+
 // ── Google Commands ──
 
 #[tauri::command]

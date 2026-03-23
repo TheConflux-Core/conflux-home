@@ -686,4 +686,82 @@ impl EngineDb {
         conn.execute("DELETE FROM providers WHERE id = ?1", params![id])?;
         Ok(())
     }
+
+    // ── Provider Templates ──
+
+    pub fn get_provider_templates(&self) -> Result<Vec<super::types::ProviderTemplate>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, emoji, description, base_url, models, default_model, model_alias, category, docs_url, is_free, sort_order
+             FROM provider_templates ORDER BY sort_order ASC"
+        )?;
+
+        let templates = stmt.query_map([], |row| {
+            let models_json: String = row.get(5)?;
+            let models: Vec<String> = serde_json::from_str(&models_json).unwrap_or_default();
+            Ok(super::types::ProviderTemplate {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                emoji: row.get(2)?,
+                description: row.get(3)?,
+                base_url: row.get(4)?,
+                models,
+                default_model: row.get(6)?,
+                model_alias: row.get(7)?,
+                category: row.get(8)?,
+                docs_url: row.get(9)?,
+                is_free: row.get::<_, i64>(10)? != 0,
+                sort_order: row.get(11)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for t in templates {
+            result.push(t?);
+        }
+        Ok(result)
+    }
+
+    pub fn get_provider_template(&self, id: &str) -> Result<Option<super::types::ProviderTemplate>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, emoji, description, base_url, models, default_model, model_alias, category, docs_url, is_free, sort_order
+             FROM provider_templates WHERE id = ?1"
+        )?;
+
+        let result = stmt.query_row(params![id], |row| {
+            let models_json: String = row.get(5)?;
+            let models: Vec<String> = serde_json::from_str(&models_json).unwrap_or_default();
+            Ok(super::types::ProviderTemplate {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                emoji: row.get(2)?,
+                description: row.get(3)?,
+                base_url: row.get(4)?,
+                models,
+                default_model: row.get(6)?,
+                model_alias: row.get(7)?,
+                category: row.get(8)?,
+                docs_url: row.get(9)?,
+                is_free: row.get::<_, i64>(10)? != 0,
+                sort_order: row.get(11)?,
+            })
+        });
+
+        match result {
+            Ok(t) => Ok(Some(t)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn check_template_installed(&self, template_id: &str) -> Result<bool> {
+        let conn = self.conn();
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM providers WHERE id LIKE ?1",
+            params![format!("{}%", template_id)],
+            |row| row.get(0),
+        )?;
+        Ok(count > 0)
+    }
 }
