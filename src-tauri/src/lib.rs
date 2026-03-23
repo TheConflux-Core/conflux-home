@@ -140,6 +140,12 @@ pub fn run() {
             commands::story_choose_path,
             commands::story_solve_puzzle,
             commands::story_generate_next_chapter,
+            // Learning Tracking
+            commands::learning_log_activity,
+            commands::learning_get_activities,
+            commands::learning_get_progress,
+            commands::learning_create_goal,
+            commands::learning_get_goals,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
