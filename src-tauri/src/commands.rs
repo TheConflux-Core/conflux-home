@@ -1099,3 +1099,69 @@ pub async fn story_generate_next_chapter(game_id: String, choice_id: String) -> 
 
     Ok(chapter)
 }
+
+// ── Learning Tracking ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LogActivityRequest {
+    pub member_id: String,
+    pub agent_id: String,
+    pub session_id: Option<String>,
+    pub activity_type: String,
+    pub topic: Option<String>,
+    pub description: Option<String>,
+    pub difficulty: Option<String>,
+    pub score: Option<f64>,
+    pub duration_sec: Option<i64>,
+    pub metadata: Option<String>,
+}
+
+#[tauri::command]
+pub fn learning_log_activity(req: LogActivityRequest) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    engine.db().log_learning_activity(
+        &id, &req.member_id, &req.agent_id, req.session_id.as_deref(),
+        &req.activity_type, req.topic.as_deref(), req.description.as_deref(),
+        req.difficulty.as_deref(), req.score, req.duration_sec, req.metadata.as_deref(),
+    ).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn learning_get_activities(member_id: String, limit: Option<i64>) -> Result<Vec<engine::types::LearningActivity>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_learning_activities(&member_id, limit.unwrap_or(50)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn learning_get_progress(member_id: String) -> Result<engine::types::LearningProgress, String> {
+    let engine = engine::get_engine();
+    engine.db().get_learning_progress(&member_id).map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateGoalRequest {
+    pub member_id: String,
+    pub goal_type: String,
+    pub activity_type: Option<String>,
+    pub title: String,
+    pub target_value: f64,
+    pub unit: Option<String>,
+    pub deadline: Option<String>,
+}
+
+#[tauri::command]
+pub fn learning_create_goal(req: CreateGoalRequest) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    engine.db().create_learning_goal(
+        &id, &req.member_id, &req.goal_type, req.activity_type.as_deref(),
+        &req.title, req.target_value, req.unit.as_deref(), req.deadline.as_deref(),
+    ).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn learning_get_goals(member_id: String) -> Result<Vec<engine::types::LearningGoal>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_learning_goals(&member_id).map_err(|e| e.to_string())
+}

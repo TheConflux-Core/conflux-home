@@ -190,3 +190,89 @@ export interface CreateStoryGameRequest {
   age_group: AgeGroup;
   difficulty?: StoryDifficulty;
 }
+
+// ── Learning Tracking ──
+
+export type ActivityType = 'reading' | 'math' | 'science' | 'coding' | 'creative' | 'language' | 'life_skills' | 'story' | 'game';
+
+export const ACTIVITY_CONFIG: Record<ActivityType, { label: string; emoji: string; color: string }> = {
+  reading:     { label: 'Reading',     emoji: '📖', color: '#3b82f6' },
+  math:        { label: 'Math',        emoji: '🔢', color: '#8b5cf6' },
+  science:     { label: 'Science',     emoji: '🔬', color: '#10b981' },
+  coding:      { label: 'Coding',      emoji: '💻', color: '#f59e0b' },
+  creative:    { label: 'Creative',    emoji: '🎨', color: '#ec4899' },
+  language:    { label: 'Language',    emoji: '🌍', color: '#06b6d4' },
+  life_skills: { label: 'Life Skills', emoji: '🛠️', color: '#ef4444' },
+  story:       { label: 'Stories',     emoji: '📚', color: '#6366f1' },
+  game:        { label: 'Games',       emoji: '🎮', color: '#a855f7' },
+};
+
+export interface LearningActivity {
+  id: string;
+  member_id: string;
+  agent_id: string;
+  session_id: string | null;
+  activity_type: ActivityType;
+  topic: string | null;
+  description: string | null;
+  difficulty: string | null;
+  score: number | null;
+  duration_sec: number | null;
+  tokens_used: number;
+  metadata: string | null;
+  created_at: string;
+}
+
+export interface LearningGoal {
+  id: string;
+  member_id: string;
+  goal_type: 'streak' | 'mastery' | 'exploration' | 'custom';
+  activity_type: string | null;
+  title: string;
+  target_value: number;
+  current_value: number;
+  unit: string | null;
+  deadline: string | null;
+  is_complete: boolean;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface ActivityCount {
+  activity_type: string;
+  count: number;
+  total_minutes: number;
+}
+
+export interface DailyActivity {
+  date: string;
+  count: number;
+  minutes: number;
+}
+
+export interface LearningProgress {
+  member_id: string;
+  member_name: string;
+  total_activities: number;
+  total_minutes: number;
+  current_streak_days: number;
+  longest_streak_days: number;
+  activities_by_type: ActivityCount[];
+  recent_topics: string[];
+  average_score: number | null;
+  goals: LearningGoal[];
+  weekly_summary: DailyActivity[];
+}
+
+export interface LogActivityRequest {
+  member_id: string;
+  agent_id: string;
+  session_id?: string;
+  activity_type: ActivityType;
+  topic?: string;
+  description?: string;
+  difficulty?: string;
+  score?: number;
+  duration_sec?: number;
+  metadata?: string;
+}

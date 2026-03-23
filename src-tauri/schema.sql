@@ -963,3 +963,107 @@ INSERT OR IGNORE INTO story_seeds (id, title, genre, age_group, difficulty, open
  '{"location":"train_car_5","inventory":["notebook","magnifying_glass"],"characters":["you","conductor","six_passengers"],"mood":"suspenseful","suspects_interviewed":0,"evidence_found":[],"chapter":1}',
  '["logic","riddle","code"]');
 
+-- ============================================================
+-- LEARNING TRACKING — Parent Dashboard Data
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS learning_activities (
+    id              TEXT PRIMARY KEY,
+    member_id       TEXT NOT NULL REFERENCES family_members(id),
+    agent_id        TEXT NOT NULL,
+    session_id      TEXT,
+    activity_type   TEXT NOT NULL,  -- 'reading' | 'math' | 'science' | 'coding' | 'creative' | 'language' | 'life_skills' | 'story' | 'game'
+    topic           TEXT,           -- e.g., 'addition', 'vowels', 'dinosaurs', 'python loops'
+    description     TEXT,           -- human-readable: "Learned addition with carrying"
+    difficulty      TEXT,           -- 'easy' | 'normal' | 'hard'
+    score           REAL,           -- 0.0 - 1.0 if measurable (puzzle correct, quiz score), NULL if not scored
+    duration_sec    INTEGER,        -- how long the activity lasted
+    tokens_used     INTEGER DEFAULT 0,
+    metadata        TEXT,           -- JSON: extra data (e.g., {"puzzle_type":"riddle","solved":true})
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_learning_member ON learning_activities(member_id);
+CREATE INDEX IF NOT EXISTS idx_learning_type ON learning_activities(activity_type);
+CREATE INDEX IF NOT EXISTS idx_learning_date ON learning_activities(created_at);
+CREATE INDEX IF NOT EXISTS idx_learning_member_date ON learning_activities(member_id, created_at);
+
+-- Learning goals set by parents
+CREATE TABLE IF NOT EXISTS learning_goals (
+    id              TEXT PRIMARY KEY,
+    member_id       TEXT NOT NULL REFERENCES family_members(id),
+    goal_type       TEXT NOT NULL,  -- 'streak' | 'mastery' | 'exploration' | 'custom'
+    activity_type   TEXT,           -- which activity this applies to (NULL = all)
+    title           TEXT NOT NULL,  -- "Read 5 books this week"
+    target_value    REAL NOT NULL,  -- e.g., 5 for "5 books", 0.8 for "80% accuracy"
+    current_value   REAL DEFAULT 0,
+    unit            TEXT,           -- 'books' | 'sessions' | 'days' | 'accuracy' | 'topics'
+    deadline        TEXT,           -- ISO date, NULL = ongoing
+    is_complete     INTEGER DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    completed_at    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_goals_member ON learning_goals(member_id);
+CREATE INDEX IF NOT EXISTS idx_goals_active ON learning_goals(member_id, is_complete);
+
+-- ============================================================
+-- NEWS / CONTENT FEED
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS content_feed (
+    id              TEXT PRIMARY KEY,
+    member_id       TEXT REFERENCES family_members(id),  -- NULL = global/all
+    content_type    TEXT NOT NULL,  -- 'news' | 'tip' | 'challenge' | 'fun_fact' | 'reminder'
+    title           TEXT NOT NULL,
+    body            TEXT NOT NULL,
+    source_url      TEXT,
+    category        TEXT,           -- 'education' | 'tech' | 'health' | 'fun' | 'finance'
+    is_read         INTEGER DEFAULT 0,
+    is_bookmarked   INTEGER DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    expires_at      TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_feed_member ON content_feed(member_id);
+CREATE INDEX IF NOT EXISTS idx_feed_unread ON content_feed(member_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_feed_type ON content_feed(content_type);
+
+-- ============================================================
+-- MEAL PLANS
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS meal_plans (
+    id              TEXT PRIMARY KEY,
+    member_id       TEXT REFERENCES family_members(id),  -- NULL = household plan
+    week_start      TEXT NOT NULL,  -- ISO date of Monday
+    plan_data       TEXT NOT NULL,  -- JSON: {mon:{breakfast,lunch,dinner}, tue:...}
+    grocery_list    TEXT,           -- JSON: [{item, quantity, category, checked}]
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_meals_week ON meal_plans(week_start);
+CREATE INDEX IF NOT EXISTS idx_meals_member ON meal_plans(member_id);
+
+-- ============================================================
+-- BUDGET / FINANCE TRACKING
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS budget_entries (
+    id              TEXT PRIMARY KEY,
+    member_id       TEXT REFERENCES family_members(id),  -- NULL = household
+    entry_type      TEXT NOT NULL,  -- 'income' | 'expense' | 'savings' | 'goal'
+    category        TEXT NOT NULL,  -- 'groceries' | 'rent' | 'utilities' | 'entertainment' | 'salary' | etc.
+    amount          REAL NOT NULL,
+    description     TEXT,
+    recurring       INTEGER DEFAULT 0,  -- 1 = monthly recurring
+    frequency       TEXT,          -- 'weekly' | 'biweekly' | 'monthly' | 'yearly'
+    date            TEXT NOT NULL,  -- ISO date
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_budget_member ON budget_entries(member_id);
+CREATE INDEX IF NOT EXISTS idx_budget_date ON budget_entries(date);
+CREATE INDEX IF NOT EXISTS idx_budget_category ON budget_entries(category);
+
