@@ -1596,3 +1596,170 @@ pub fn budget_delete_entry(id: String) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     Ok(())
 }
+
+// ── Content Feed ──
+
+#[tauri::command]
+pub fn feed_get_items(member_id: Option<String>, content_type: Option<String>, unread_only: bool) -> Result<Vec<engine::types::ContentFeedItem>, String> {
+    let engine = engine::get_engine();
+    let conn = engine.db().conn();
+    let mut conditions = Vec::<String>::new();
+    let mut params_vec: Vec<String> = Vec::new();
+
+    if let Some(mid) = &member_id {
+        conditions.push("(member_id = ? OR member_id IS NULL)".to_string());
+        params_vec.push(mid.clone());
+    }
+    if let Some(ct) = &content_type {
+        conditions.push("content_type = ?".to_string());
+        params_vec.push(ct.clone());
+    }
+    if unread_only {
+        conditions.push("is_read = 0".to_string());
+    }
+
+    let where_clause = if conditions.is_empty() { String::new() } else { format!("WHERE {}", conditions.join(" AND ")) };
+    let query = format!(
+        "SELECT id, member_id, content_type, title, body, source_url, category, is_read, is_bookmarked, created_at, expires_at
+         FROM content_feed {} ORDER BY is_bookmarked DESC, is_read ASC, created_at DESC LIMIT 50", where_clause
+    );
+
+    let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
+    let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
+    let rows = stmt.query_map(&params_refs[..], |row| {
+        Ok(engine::types::ContentFeedItem {
+            id: row.get(0)?, member_id: row.get(1)?, content_type: row.get(2)?, title: row.get(3)?,
+            body: row.get(4)?, source_url: row.get(5)?, category: row.get(6)?,
+            is_read: row.get::<_, i64>(7)? != 0, is_bookmarked: row.get::<_, i64>(8)? != 0,
+            created_at: row.get(9)?, expires_at: row.get(10)?,
+        })
+    }).map_err(|e| e.to_string())?;
+    let mut result = Vec::new();
+    for r in rows { result.push(r.map_err(|e| e.to_string())?); }
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn feed_mark_read(id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().conn().execute("UPDATE content_feed SET is_read = 1 WHERE id = ?1", rusqlite::params![id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn feed_toggle_bookmark(id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().conn().execute(
+        "UPDATE content_feed SET is_bookmarked = CASE WHEN is_bookmarked = 1 THEN 0 ELSE 1 END WHERE id = ?1",
+        rusqlite::params![id],
+    ).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn feed_add_item(member_id: Option<String>, content_type: String, title: String, body: String,
+                      source_url: Option<String>, category: Option<String>) -> Result<engine::types::ContentFeedItem, String> {
+    let engine = engine::get_engine();
+    let conn = engine.db().conn();
+    let id = uuid::Uuid::new_v4().to_string();
+    let now = engine::db::EngineDb::now();
+    conn.execute(
+        "INSERT INTO content_feed (id, member_id, content_type, title, body, source_url, category, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        rusqlite::params![id, member_id, content_type, title, body, source_url, category, now],
+    ).map_err(|e| e.to_string())?;
+    Ok(engine::types::ContentFeedItem {
+        id, member_id, content_type, title, body, source_url, category,
+        is_read: false, is_bookmarked: false, created_at: now, expires_at: None,
+    })
+}
+
+#[tauri::command]
+pub async fn feed_generate(member_id: Option<String>, interests: Option<String>) -> Result<Vec<engine::types::ContentFeedItem>, String> {
+    let engine = engine::get_engine();
+
+    let interest_text = interests.unwrap_or_else(|| "general knowledge, technology, health, finance, fun facts".to_string());
+
+    let prompt = format!(
+        "Generate a personalized daily content feed for someone interested in: {interest_text}
+
+Create 5 diverse items. Each item should be one of these types:
+- news: A current event or trending topic (keep it timeless/general since I don't have live news)
+- tip: A useful life hack, productivity tip, or practical advice
+- challenge: A fun daily challenge or activity to try
+- fun_fact: An interesting or surprising fact
+- reminder: A seasonal or timely reminder
+
+For each item provide:
+1. content_type (one of: news, tip, challenge, fun_fact, reminder)
+2. title (catchy, under 60 chars)
+3. body (2-3 sentences, informative and engaging)
+4. category (education, tech, health, fun, finance, lifestyle)
+5. source_url (null is fine, or a real URL if applicable)
+
+Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
+[
+  {{
+    \"content_type\": \"tip\",
+    \"title\": \"Title here\",
+    \"body\": \"Body text here. 2-3 sentences.\",
+    \"category\": \"lifestyle\",
+    \"source_url\": null
+  }}
+]
+
+Make the content genuinely useful and interesting. Not generic filler."
+    );
+
+    let messages = vec![engine::router::OpenAIMessage {
+        role: "user".to_string(),
+        content: Some(prompt),
+        tool_call_id: None,
+        tool_calls: None,
+    }];
+
+    let response = engine::router::chat("core", messages, Some(1500), None, None)
+        .await
+        .map_err(|e| format!("AI failed: {}", e))?;
+
+    let content = response.content.trim();
+    let json_str = content
+        .strip_prefix("```json").unwrap_or(content)
+        .strip_prefix("```").unwrap_or(content)
+        .strip_suffix("```").unwrap_or(content)
+        .trim();
+
+    #[derive(serde::Deserialize)]
+    struct FeedItem {
+        content_type: String,
+        title: String,
+        body: String,
+        category: Option<String>,
+        source_url: Option<String>,
+    }
+
+    let items: Vec<FeedItem> = serde_json::from_str(json_str)
+        .map_err(|e| format!("Failed to parse AI response: {}. Raw: {}", e, json_str))?;
+
+    let conn = engine.db().conn();
+    let now = engine::db::EngineDb::now();
+    let mut result = Vec::new();
+
+    for item in &items {
+        let id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO content_feed (id, member_id, content_type, title, body, source_url, category, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            rusqlite::params![id, member_id, item.content_type, item.title, item.body, item.source_url, item.category, now],
+        ).map_err(|e| e.to_string())?;
+        result.push(engine::types::ContentFeedItem {
+            id, member_id: member_id.clone(), content_type: item.content_type.clone(),
+            title: item.title.clone(), body: item.body.clone(),
+            source_url: item.source_url.clone(), category: item.category.clone(),
+            is_read: false, is_bookmarked: false, created_at: now.clone(), expires_at: None,
+        });
+    }
+
+    Ok(result)
+}
