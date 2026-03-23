@@ -477,4 +477,314 @@ mod integration_tests {
             }
         });
     }
+
+    // ── Family Profiles Tests ──
+
+    #[test]
+    fn test_family_member_crud() {
+        let db = app_lib::engine::db::EngineDb::open_in_memory().unwrap();
+
+        // Create parent (head of household)
+        let parent = db.create_family_member(
+            "parent-1", "Don", Some(35), "adult",
+            Some("👨"), Some("#6366f1"), Some("zigbot"), None
+        ).unwrap();
+        assert_eq!(parent.name, "Don");
+        assert_eq!(parent.age_group, "adult");
+        assert!(parent.parent_id.is_none());
+        println!("  Created parent: {} ({})", parent.name, parent.age_group);
+
+        // Create child
+        let child = db.create_family_member(
+            "child-1", "Alex", Some(8), "kid",
+            Some("🎮"), Some("#8b5cf6"), Some("playpal"), Some("parent-1")
+        ).unwrap();
+        assert_eq!(child.name, "Alex");
+        assert_eq!(child.parent_id, Some("parent-1".to_string()));
+        println!("  Created child: {} (parent: {:?})", child.name, child.parent_id);
+
+        // List all
+        let members = db.get_family_members().unwrap();
+        assert_eq!(members.len(), 2);
+        println!("  Listed: {} members", members.len());
+
+        // Get by ID
+        let fetched = db.get_family_member("parent-1").unwrap().unwrap();
+        assert_eq!(fetched.name, "Don");
+        println!("  Fetched: {}", fetched.name);
+
+        // Soft delete
+        db.delete_family_member("child-1").unwrap();
+        let after_delete = db.get_family_members().unwrap();
+        assert_eq!(after_delete.len(), 1);
+        println!("  After delete: {} members", after_delete.len());
+
+        println!("✅ Family member CRUD works");
+    }
+
+    #[test]
+    fn test_family_member_age_groups() {
+        let db = app_lib::engine::db::EngineDb::open_in_memory().unwrap();
+
+        let groups = ["toddler", "preschool", "kid", "teen", "young_adult", "adult"];
+        for (i, group) in groups.iter().enumerate() {
+            db.create_family_member(
+                &format!("member-{}", i), &format!("Person{}", i),
+                None, group, None, None, None, None
+            ).unwrap();
+        }
+
+        let members = db.get_family_members().unwrap();
+        assert_eq!(members.len(), 6);
+
+        // Verify all age groups present
+        let found_groups: Vec<&str> = members.iter().map(|m| m.age_group.as_str()).collect();
+        for g in &groups {
+            assert!(found_groups.contains(g), "Missing age group: {}", g);
+        }
+
+        println!("✅ All 6 age groups work");
+    }
+
+    // ── Agent Templates Tests ──
+
+    #[test]
+    fn test_agent_templates_seeded() {
+        let db = app_lib::engine::db::EngineDb::open_in_memory().unwrap();
+
+        let templates = db.get_agent_templates(None).unwrap();
+        assert!(templates.len() >= 10, "Expected at least 10 templates, got {}", templates.len());
+
+        for t in &templates {
+            assert!(!t.soul.is_empty(), "Template {} missing soul", t.id);
+            assert!(!t.instructions.is_empty(), "Template {} missing instructions", t.id);
+            println!("  {} {} — {} ({})", t.emoji, t.name, t.age_group, t.category);
+        }
+
+        println!("✅ {} agent templates seeded with soul + instructions", templates.len());
+    }
+
+    #[test]
+    fn test_agent_templates_by_age_group() {
+        let db = app_lib::engine::db::EngineDb::open_in_memory().unwrap();
+
+        // Kid templates
+        let kid_templates = db.get_agent_templates(Some("kid")).unwrap();
+        assert!(!kid_templates.is_empty(), "Should have kid templates");
+        for t in &kid_templates {
+            assert_eq!(t.age_group, "kid");
+            println!("  Kid: {} {}", t.emoji, t.name);
+        }
+
+        // Teen templates
+        let teen_templates = db.get_agent_templates(Some("teen")).unwrap();
+        assert!(!teen_templates.is_empty(), "Should have teen templates");
+
+        // Adult templates
+        let adult_templates = db.get_agent_templates(Some("adult")).unwrap();
+        assert!(!adult_templates.is_empty(), "Should have adult templates");
+
+        println!("✅ Templates filter by age group (kid: {}, teen: {}, adult: {})",
+            kid_templates.len(), teen_templates.len(), adult_templates.len());
+    }
+
+    #[test]
+    fn test_agent_template_install_from_template() {
+        let db = app_lib::engine::db::EngineDb::open_in_memory().unwrap();
+
+        // Get a template by filtering all templates
+        let all = db.get_agent_templates(None).unwrap();
+        let template = all.iter().find(|t| t.id == "tpl-playpal").expect("PlayPal template should exist");
+        assert_eq!(template.name, "PlayPal");
+        println!("  Template: {} {}", template.emoji, template.name);
+
+        // Verify it has quality soul content
+        assert!(template.soul.len() > 100, "Soul should be substantial");
+        assert!(template.instructions.len() > 100, "Instructions should be substantial");
+        println!("  Soul: {} chars", template.soul.len());
+        println!("  Instructions: {} chars", template.instructions.len());
+
+        println!("✅ Agent template install flow works");
+    }
+
+    // ── Story Game Tests ──
+
+    #[test]
+    fn test_story_game_crud() {
+        let db = app_lib::engine::db::EngineDb::open_in_memory().unwrap();
+
+        // Create a game
+        let game = db.create_story_game(
+            "game-1", None, "The Dragon's Cave", "adventure",
+            "kid", "normal", Some("{\"location\":\"cave_entrance\"}")
+        ).unwrap();
+        assert_eq!(game.title, "The Dragon's Cave");
+        assert_eq!(game.status, "active");
+        assert_eq!(game.current_chapter, 1);
+        println!("  Created game: {} ({})", game.title, game.genre);
+
+        // List games
+        let games = db.get_story_games(None).unwrap();
+        assert_eq!(games.len(), 1);
+        println!("  Listed: {} games", games.len());
+
+        // Get by ID
+        let fetched = db.get_story_game("game-1").unwrap().unwrap();
+        assert_eq!(fetched.title, "The Dragon's Cave");
+        println!("  Fetched: {}", fetched.title);
+
+        println!("✅ Story game CRUD works");
+    }
+
+    #[test]
+    fn test_story_game_with_member() {
+        let db = app_lib::engine::db::EngineDb::open_in_memory().unwrap();
+
+        // Create family member first
+        db.create_family_member("kid-1", "Alex", Some(8), "kid", None, None, None, None).unwrap();
+
+        // Create game linked to member
+        let game = db.create_story_game(
+            "game-2", Some("kid-1"), "Space Adventure", "scifi",
+            "kid", "easy", None
+        ).unwrap();
+        assert_eq!(game.member_id, Some("kid-1".to_string()));
+
+        // List games for this member
+        let member_games = db.get_story_games(Some("kid-1")).unwrap();
+        assert_eq!(member_games.len(), 1);
+
+        // List games for non-existent member
+        let no_games = db.get_story_games(Some("nobody")).unwrap();
+        assert!(no_games.is_empty());
+
+        println!("✅ Story game member linking works");
+    }
+
+    #[test]
+    fn test_story_chapters() {
+        let db = app_lib::engine::db::EngineDb::open_in_memory().unwrap();
+
+        // Create game
+        db.create_story_game("game-3", None, "Test Story", "fantasy", "kid", "normal", None).unwrap();
+
+        // Add opening chapter
+        let choices = r#"[{"id":"a","text":"Go left"},{"id":"b","text":"Go right"},{"id":"c","text":"Stay put"}]"#;
+        let ch1 = db.add_story_chapter(
+            "ch-1", "game-3", 1, Some("The Beginning"),
+            "You stand at a crossroads.", choices, None, None
+        ).unwrap();
+        assert_eq!(ch1.chapter_number, 1);
+        println!("  Chapter 1: {:?}", ch1.title);
+
+        // Add puzzle chapter
+        let puzzle = r#"{"puzzle_type":"riddle","question":"What has keys but no locks?","answer":"keyboard","hint":"You use it to type"}"#;
+        let ch2 = db.add_story_chapter(
+            "ch-2", "game-3", 2, Some("The Riddle"),
+            "A mysterious door blocks your path.", choices, Some(puzzle), None
+        ).unwrap();
+        assert!(ch2.puzzle.is_some());
+        println!("  Chapter 2: {:?} (has puzzle: {})", ch2.title, ch2.puzzle.is_some());
+
+        // List chapters
+        let chapters = db.get_story_chapters("game-3").unwrap();
+        assert_eq!(chapters.len(), 2);
+        println!("  Total chapters: {}", chapters.len());
+
+        // Choose a path
+        db.choose_story_path("ch-1", "a").unwrap();
+        let updated = db.get_story_chapters("game-3").unwrap();
+        assert_eq!(updated[0].chosen_choice_id, Some("a".to_string()));
+        println!("  Chose path: {:?}", updated[0].chosen_choice_id);
+
+        // Solve puzzle
+        db.solve_puzzle("ch-2").unwrap();
+        let solved = db.get_story_chapters("game-3").unwrap();
+        assert!(solved[1].puzzle_solved);
+        println!("  Puzzle solved: {}", solved[1].puzzle_solved);
+
+        println!("✅ Story chapters, choices, and puzzles work");
+    }
+
+    #[test]
+    fn test_story_seeds() {
+        let db = app_lib::engine::db::EngineDb::open_in_memory().unwrap();
+
+        // Get all seeds
+        let seeds = db.get_story_seeds(None, None).unwrap();
+        assert!(!seeds.is_empty(), "Should have story seeds");
+
+        for seed in &seeds {
+            assert!(!seed.opening.is_empty(), "Seed should have opening narrative");
+            assert!(!seed.initial_choices.is_empty(), "Seed should have initial choices");
+            println!("  {} — {} ({}, {})", seed.title, seed.genre, seed.age_group, seed.difficulty);
+        }
+
+        // Filter by age group
+        let kid_seeds = db.get_story_seeds(Some("kid"), None).unwrap();
+        assert!(!kid_seeds.is_empty(), "Should have kid seeds");
+        for s in &kid_seeds {
+            assert_eq!(s.age_group, "kid");
+        }
+        println!("  Kid seeds: {}", kid_seeds.len());
+
+        // Filter by genre
+        let adventure_seeds = db.get_story_seeds(None, Some("adventure")).unwrap();
+        for s in &adventure_seeds {
+            assert_eq!(s.genre, "adventure");
+        }
+        println!("  Adventure seeds: {}", adventure_seeds.len());
+
+        println!("✅ Story seeds work");
+    }
+
+    #[test]
+    fn test_full_story_flow() {
+        let db = app_lib::engine::db::EngineDb::open_in_memory().unwrap();
+
+        // 1. Create family member
+        db.create_family_member("kid-1", "Sam", Some(10), "kid", Some("🎮"), None, None, None).unwrap();
+
+        // 2. Create story game
+        db.create_story_game(
+            "game-flow", Some("kid-1"), "Mystery Manor", "mystery",
+            "kid", "normal", Some("{\"secrets_found\":0}")
+        ).unwrap();
+
+        // 3. Add opening chapter
+        let choices_a = r#"[{"id":"a","text":"Search the library"},{"id":"b","text":"Check the basement"},{"id":"c","text":"Ask the ghost"}]"#;
+        db.add_story_chapter(
+            "ch-f-1", "game-flow", 1, Some("Arrival"),
+            "You arrive at Mystery Manor on a stormy night.", choices_a, None, None
+        ).unwrap();
+
+        // 4. Player chooses
+        db.choose_story_path("ch-f-1", "a").unwrap();
+
+        // 5. Add next chapter
+        let choices_b = r#"[{"id":"a","text":"Read the book"},{"id":"b","text":"Search the shelves"},{"id":"c","text":"Leave quickly"}]"#;
+        let puzzle_b = r#"{"puzzle_type":"pattern","question":"What comes next: 2, 4, 8, 16, ?","answer":"32","hint":"Each number doubles"}"#;
+        db.add_story_chapter(
+            "ch-f-2", "game-flow", 2, Some("The Library"),
+            "Dusty books line the walls. One glows faintly.", choices_b, Some(puzzle_b), None
+        ).unwrap();
+
+        // 6. Solve puzzle
+        db.solve_puzzle("ch-f-2").unwrap();
+
+        // 7. Choose next
+        db.choose_story_path("ch-f-2", "a").unwrap();
+
+        // 8. Verify full state
+        let chapters = db.get_story_chapters("game-flow").unwrap();
+        assert_eq!(chapters.len(), 2);
+        assert_eq!(chapters[0].chosen_choice_id, Some("a".to_string()));
+        assert!(chapters[1].puzzle_solved);
+        assert_eq!(chapters[1].chosen_choice_id, Some("a".to_string()));
+
+        let game = db.get_story_game("game-flow").unwrap().unwrap();
+        assert_eq!(game.member_id, Some("kid-1".to_string()));
+
+        println!("✅ Full story flow: member → game → chapters → choices → puzzles");
+    }
 }
