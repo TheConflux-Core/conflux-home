@@ -1474,3 +1474,125 @@ pub fn kitchen_get_inventory(location: Option<String>) -> Result<Vec<engine::typ
     let engine = engine::get_engine();
     engine.db().get_inventory(location.as_deref()).map_err(|e| e.to_string())
 }
+
+// ── Budget Tracker ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateBudgetEntryRequest {
+    pub member_id: Option<String>,
+    pub entry_type: String,  // 'income' | 'expense' | 'savings' | 'goal'
+    pub category: String,
+    pub amount: f64,
+    pub description: Option<String>,
+    pub recurring: bool,
+    pub frequency: Option<String>,
+    pub date: String,
+}
+
+#[tauri::command]
+pub fn budget_add_entry(req: CreateBudgetEntryRequest) -> Result<engine::types::BudgetEntry, String> {
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    let now = engine::db::EngineDb::now();
+    let conn = engine.db().conn();
+    conn.execute(
+        "INSERT INTO budget_entries (id, member_id, entry_type, category, amount, description, recurring, frequency, date, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        rusqlite::params![id, req.member_id, req.entry_type, req.category, req.amount, req.description,
+                          if req.recurring { 1i64 } else { 0 }, req.frequency, req.date, now],
+    ).map_err(|e| e.to_string())?;
+    Ok(engine::types::BudgetEntry {
+        id, member_id: req.member_id, entry_type: req.entry_type, category: req.category,
+        amount: req.amount, description: req.description, recurring: req.recurring,
+        frequency: req.frequency, date: req.date, created_at: now,
+    })
+}
+
+#[tauri::command]
+pub fn budget_get_entries(member_id: Option<String>, month: Option<String>) -> Result<Vec<engine::types::BudgetEntry>, String> {
+    let engine = engine::get_engine();
+    let conn = engine.db().conn();
+    let mut conditions = Vec::new();
+    let mut params_vec: Vec<String> = Vec::new();
+
+    if let Some(mid) = &member_id {
+        conditions.push("member_id = ?");
+        params_vec.push(mid.clone());
+    }
+    if let Some(m) = &month {
+        conditions.push("strftime('%Y-%m', date) = ?");
+        params_vec.push(m.clone());
+    }
+
+    let where_clause = if conditions.is_empty() { String::new() } else { format!("WHERE {}", conditions.join(" AND ")) };
+    let query = format!(
+        "SELECT id, member_id, entry_type, category, amount, description, recurring, frequency, date, created_at
+         FROM budget_entries {} ORDER BY date DESC, created_at DESC", where_clause
+    );
+
+    let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
+    let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
+    let rows = stmt.query_map(&params_refs[..], |row| {
+        Ok(engine::types::BudgetEntry {
+            id: row.get(0)?, member_id: row.get(1)?, entry_type: row.get(2)?, category: row.get(3)?,
+            amount: row.get(4)?, description: row.get(5)?, recurring: row.get::<_, i64>(6)? != 0,
+            frequency: row.get(7)?, date: row.get(8)?, created_at: row.get(9)?,
+        })
+    }).map_err(|e| e.to_string())?;
+    let mut result = Vec::new();
+    for r in rows { result.push(r.map_err(|e| e.to_string())?); }
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn budget_get_summary(month: String) -> Result<engine::types::BudgetSummary, String> {
+    let engine = engine::get_engine();
+    let conn = engine.db().conn();
+
+    let total_income: f64 = conn.query_row(
+        "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE entry_type = 'income' AND strftime('%Y-%m', date) = ?1",
+        rusqlite::params![month], |row| row.get(0)
+    ).unwrap_or(0.0);
+
+    let total_expenses: f64 = conn.query_row(
+        "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE entry_type = 'expense' AND strftime('%Y-%m', date) = ?1",
+        rusqlite::params![month], |row| row.get(0)
+    ).unwrap_or(0.0);
+
+    let total_savings: f64 = conn.query_row(
+        "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE entry_type = 'savings' AND strftime('%Y-%m', date) = ?1",
+        rusqlite::params![month], |row| row.get(0)
+    ).unwrap_or(0.0);
+
+    // Category breakdown for expenses
+    let mut cat_stmt = conn.prepare(
+        "SELECT category, SUM(amount) as total FROM budget_entries
+         WHERE entry_type = 'expense' AND strftime('%Y-%m', date) = ?1
+         GROUP BY category ORDER BY total DESC"
+    ).map_err(|e| e.to_string())?;
+    let cat_rows = cat_stmt.query_map(rusqlite::params![month], |row| {
+        Ok(engine::types::CategoryTotal {
+            category: row.get(0)?,
+            total: row.get(1)?,
+        })
+    }).map_err(|e| e.to_string())?;
+    let mut categories = Vec::new();
+    for r in cat_rows { categories.push(r.map_err(|e| e.to_string())?); }
+
+    Ok(engine::types::BudgetSummary {
+        month: month.clone(),
+        total_income,
+        total_expenses,
+        total_savings,
+        net: total_income - total_expenses - total_savings,
+        categories,
+    })
+}
+
+#[tauri::command]
+pub fn budget_delete_entry(id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().conn().execute("DELETE FROM budget_entries WHERE id = ?1", rusqlite::params![id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
