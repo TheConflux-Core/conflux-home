@@ -431,3 +431,236 @@
 .grocery-name { flex: 1; font-size: 14px; color: var(--text-primary); }
 .grocery-qty { font-size: 12px; color: var(--text-muted); }
 .grocery-cost { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+
+/* ============================================================
+   FRIDGE SCANNER
+   ============================================================ */
+
+.kitchen-fridge {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.fridge-scan-section {
+  background: linear-gradient(135deg, #06b6d410, #3b82f610);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.fridge-scan-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.fridge-scan-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0 0 12px 0;
+  line-height: 1.5;
+}
+
+.fridge-textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  font-size: 14px;
+  color: var(--text-primary);
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.fridge-textarea:focus { border-color: var(--accent-primary); }
+
+.fridge-results {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.fridge-summary p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 4px 0 16px 0;
+}
+
+.fridge-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.fridge-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.fridge-item-name { font-weight: 600; color: var(--text-primary); }
+.fridge-item-qty { color: var(--text-muted); }
+.fridge-item-expiry { font-size: 11px; color: #f59e0b; }
+
+.fridge-waste-risk {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #ef444408;
+  border-radius: 10px;
+  border: 1px solid #ef444420;
+}
+
+.fridge-waste-risk h4 {
+  font-size: 13px;
+  margin: 0 0 8px 0;
+  color: #ef4444;
+}
+
+.fridge-risk-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fridge-suggestions h4 {
+  font-size: 14px;
+  margin: 0 0 8px 0;
+}
+
+.fridge-meal-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fridge-meal-suggestion {
+  padding: 10px 14px;
+  background: var(--bg-primary);
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+/* Meal Matches */
+.fridge-matches {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.match-summary {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.match-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.match-card {
+  padding: 12px 14px;
+  background: var(--bg-primary);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.match-card.can-make {
+  border-color: #10b98140;
+  background: #10b98108;
+}
+
+.match-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.match-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.match-pct {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-primary);
+}
+
+.match-pct.full { color: #10b981; }
+
+.match-bar {
+  height: 4px;
+  background: var(--bg-hover);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.match-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-primary), #10b981);
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+.match-missing {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Expiring Soon */
+.fridge-expiring {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.expiring-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.expiring-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #f59e0b08;
+  border-radius: 8px;
+  border: 1px solid #f59e0b20;
+}
+
+.expiring-name {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.expiring-date {
+  font-size: 13px;
+  color: #f59e0b;
+  font-weight: 600;
+}

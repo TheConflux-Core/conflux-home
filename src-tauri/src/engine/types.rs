@@ -764,6 +764,34 @@ pub struct KitchenInventoryItem {
     pub updated_at: String,
 }
 
+// ── Fridge Scanner Results ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FridgeScanResult {
+    pub items: Vec<KitchenInventoryItem>,
+    pub summary: String,
+    pub waste_risk: Vec<String>,
+    pub suggested_meals: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MealMatch {
+    pub meal_id: String,
+    pub meal_name: String,
+    pub have_count: i64,
+    pub total_count: i64,
+    pub match_pct: f64,
+    pub missing_ingredients: Vec<String>,
+    pub can_make: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MealMatchResult {
+    pub matches: Vec<MealMatch>,
+    pub total_inventory_items: i64,
+    pub can_make_count: i64,
+}
+
 // ── Meal with ingredients (joined) ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

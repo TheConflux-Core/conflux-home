@@ -1763,3 +1763,216 @@ Make the content genuinely useful and interesting. Not generic filler."
 
     Ok(result)
 }
+
+// ── Fridge Scanner ──
+
+#[tauri::command]
+pub async fn fridge_scan(scan_description: String) -> Result<engine::types::FridgeScanResult, String> {
+    let engine = engine::get_engine();
+
+    let prompt = format!(
+        "You are a kitchen inventory AI. The user scanned their fridge/pantry and describes what they see: \"{scan_description}\"
+
+For each ingredient you can identify:
+1. Name (standard grocery name)
+2. Estimated quantity
+3. Unit (pieces, cups, lbs, oz, etc.)
+4. Category (produce, dairy, meat, pantry, spice, frozen)
+5. Estimated expiry: fresh (3-5 days), medium (1-2 weeks), long (1+ month)
+
+Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
+{{
+  \"items\": [
+    {{\"name\": \"chicken breast\", \"quantity\": 2, \"unit\": \"pieces\", \"category\": \"meat\", \"expiry_window\": \"fresh\"}},
+    {{\"name\": \"bell peppers\", \"quantity\": 3, \"unit\": \"pieces\", \"category\": \"produce\", \"expiry_window\": \"medium\"}}
+  ],
+  \"summary\": \"You have X items. Y are expiring soon.\",
+  \"waste_risk\": [\"items expiring within 3 days\"],
+  \"suggested_meals\": [\"3-5 specific meals you could make\"]
+}}
+
+Be specific with ingredient names. Use standard grocery terms."
+    );
+
+    let messages = vec![engine::router::OpenAIMessage {
+        role: "user".to_string(),
+        content: Some(prompt),
+        tool_call_id: None,
+        tool_calls: None,
+    }];
+
+    let response = engine::router::chat("core", messages, Some(1500), None, None)
+        .await
+        .map_err(|e| format!("AI failed: {}", e))?;
+
+    let content = response.content.trim();
+    let json_str = content
+        .strip_prefix("```json").unwrap_or(content)
+        .strip_prefix("```").unwrap_or(content)
+        .strip_suffix("```").unwrap_or(content)
+        .trim();
+
+    #[derive(serde::Deserialize)]
+    struct ScanResult {
+        items: Vec<ScanItem>,
+        summary: String,
+        waste_risk: Vec<String>,
+        suggested_meals: Vec<String>,
+    }
+    #[derive(serde::Deserialize)]
+    struct ScanItem {
+        name: String,
+        quantity: Option<f64>,
+        unit: Option<String>,
+        category: Option<String>,
+        expiry_window: Option<String>,
+    }
+
+    let scan: ScanResult = serde_json::from_str(json_str)
+        .map_err(|e| format!("Failed to parse scan: {}. Raw: {}", e, json_str))?;
+
+    let now = chrono::Utc::now();
+    let conn = engine.db().conn();
+    let mut added_items = Vec::new();
+
+    for item in &scan.items {
+        let id = uuid::Uuid::new_v4().to_string();
+        let expiry = match item.expiry_window.as_deref() {
+            Some("fresh") => Some((now + chrono::Duration::days(4)).format("%Y-%m-%d").to_string()),
+            Some("medium") => Some((now + chrono::Duration::days(14)).format("%Y-%m-%d").to_string()),
+            Some("long") => Some((now + chrono::Duration::days(60)).format("%Y-%m-%d").to_string()),
+            _ => None,
+        };
+        conn.execute(
+            "INSERT INTO kitchen_inventory (id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'fridge', ?7, ?7, ?7)",
+            rusqlite::params![id, item.name, item.quantity, item.unit, item.category, expiry, now.to_rfc3339()],
+        ).map_err(|e| e.to_string())?;
+        added_items.push(engine::types::KitchenInventoryItem {
+            id, name: item.name.clone(), quantity: item.quantity, unit: item.unit.clone(),
+            category: item.category.clone(), expiry_date: expiry, location: Some("fridge".to_string()),
+            last_restocked: Some(now.to_rfc3339()), created_at: now.to_rfc3339(), updated_at: now.to_rfc3339(),
+        });
+    }
+
+    Ok(engine::types::FridgeScanResult {
+        items: added_items,
+        summary: scan.summary,
+        waste_risk: scan.waste_risk,
+        suggested_meals: scan.suggested_meals,
+    })
+}
+
+#[tauri::command]
+pub fn fridge_what_can_i_make() -> Result<engine::types::MealMatchResult, String> {
+    let engine = engine::get_engine();
+    let conn = engine.db().conn();
+
+    let mut inv_stmt = conn.prepare("SELECT name, quantity FROM kitchen_inventory").map_err(|e| e.to_string())?;
+    let inv_rows = inv_stmt.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, Option<f64>>(1)?))
+    }).map_err(|e| e.to_string())?;
+    let mut inventory: std::collections::HashMap<String, Option<f64>> = std::collections::HashMap::new();
+    for r in inv_rows {
+        let (name, qty) = r.map_err(|e| e.to_string())?;
+        inventory.insert(name.to_lowercase(), qty);
+    }
+
+    let meals = engine.db().get_meals(None, None, false).map_err(|e| e.to_string())?;
+    let mut matches = Vec::new();
+
+    for meal in &meals {
+        let ingredients = engine.db().get_meal_ingredients(&meal.id).map_err(|e| e.to_string())?;
+        let mut have = 0i64;
+        let mut missing: Vec<String> = Vec::new();
+
+        for ing in &ingredients {
+            let ing_lower = ing.name.to_lowercase();
+            let has_it = inventory.keys().any(|inv| inv.contains(&ing_lower) || ing_lower.contains(inv));
+            if has_it { have += 1; } else { missing.push(ing.name.clone()); }
+        }
+
+        let total = ingredients.len() as i64;
+        if total > 0 {
+            let pct = (have as f64 / total as f64) * 100.0;
+            if pct >= 50.0 {
+                matches.push(engine::types::MealMatch {
+                    meal_id: meal.id.clone(), meal_name: meal.name.clone(),
+                    have_count: have, total_count: total, match_pct: pct,
+                    missing_ingredients: missing.clone(), can_make: missing.is_empty(),
+                });
+            }
+        }
+    }
+
+    matches.sort_by(|a, b| b.match_pct.partial_cmp(&a.match_pct).unwrap_or(std::cmp::Ordering::Equal));
+    let can_make_count = matches.iter().filter(|m| m.can_make).count() as i64;
+
+    Ok(engine::types::MealMatchResult {
+        matches,
+        total_inventory_items: inventory.len() as i64,
+        can_make_count,
+    })
+}
+
+#[tauri::command]
+pub fn fridge_expiring_soon(days: Option<i64>) -> Result<Vec<engine::types::KitchenInventoryItem>, String> {
+    let engine = engine::get_engine();
+    let conn = engine.db().conn();
+    let d = days.unwrap_or(3);
+    let future_date = (chrono::Utc::now() + chrono::Duration::days(d)).format("%Y-%m-%d").to_string();
+
+    let mut stmt = conn.prepare(
+        "SELECT id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at
+         FROM kitchen_inventory WHERE expiry_date IS NOT NULL AND expiry_date <= ?1 ORDER BY expiry_date"
+    ).map_err(|e| e.to_string())?;
+    let rows = stmt.query_map(rusqlite::params![future_date], |row| {
+        Ok(engine::types::KitchenInventoryItem {
+            id: row.get(0)?, name: row.get(1)?, quantity: row.get(2)?, unit: row.get(3)?,
+            category: row.get(4)?, expiry_date: row.get(5)?, location: row.get(6)?,
+            last_restocked: row.get(7)?, created_at: row.get(8)?, updated_at: row.get(9)?,
+        })
+    }).map_err(|e| e.to_string())?;
+    let mut result = Vec::new();
+    for r in rows { result.push(r.map_err(|e| e.to_string())?); }
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn fridge_shopping_for_meals() -> Result<Vec<engine::types::GroceryItem>, String> {
+    let engine = engine::get_engine();
+    let conn = engine.db().conn();
+
+    let mut inv_stmt = conn.prepare("SELECT LOWER(name) FROM kitchen_inventory").map_err(|e| e.to_string())?;
+    let inv_rows = inv_stmt.query_map([], |row| Ok(row.get::<_, String>(0)?)).map_err(|e| e.to_string())?;
+    let mut inventory_set = std::collections::HashSet::new();
+    for r in inv_rows { inventory_set.insert(r.map_err(|e| e.to_string())?); }
+
+    let mut ing_stmt = conn.prepare(
+        "SELECT DISTINCT i.name, i.quantity, i.unit, i.category, i.estimated_cost, i.meal_id
+         FROM meal_ingredients i INNER JOIN meals m ON i.meal_id = m.id WHERE m.is_favorite = 1 OR m.times_made > 0
+         ORDER BY i.category, i.name"
+    ).map_err(|e| e.to_string())?;
+    let ing_rows = ing_stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?, row.get::<_, Option<f64>>(1)?, row.get::<_, Option<String>>(2)?,
+            row.get::<_, Option<String>>(3)?, row.get::<_, Option<f64>>(4)?, row.get::<_, String>(5)?,
+        ))
+    }).map_err(|e| e.to_string())?;
+
+    let mut items = Vec::new();
+    for r in ing_rows {
+        let (name, qty, unit, category, cost, meal_id) = r.map_err(|e| e.to_string())?;
+        let name_lower = name.to_lowercase();
+        let has_it = inventory_set.iter().any(|inv| inv.contains(&name_lower) || name_lower.contains(inv));
+        if !has_it {
+            let id = uuid::Uuid::new_v4().to_string();
+            items.push(engine::types::GroceryItem {
+                id, member_id: None, name, quantity: qty, unit, category,
+                estimated_cost: cost, is_checked: false, source_meal_id: Some(meal_id),
+                week_start: None, created_at: engine::db::EngineDb::now(),
+            });
+        }
+    }
+    Ok(items)
+}

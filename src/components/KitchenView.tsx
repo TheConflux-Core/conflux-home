@@ -3,7 +3,8 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { useMeals, useWeeklyPlan, useGroceryList } from '../hooks/useKitchen';
-import type { Meal, GroceryItem } from '../types';
+import { useFridgeScanner } from '../hooks/useFridgeScanner';
+import type { Meal, GroceryItem, MealMatch, KitchenInventoryItem } from '../types';
 import { MEAL_CATEGORIES, MEAL_CUISINES, MEAL_CATEGORY_EMOJI, INGREDIENT_CATEGORIES } from '../types';
 
 function getWeekStart(): string {
@@ -22,10 +23,14 @@ function formatCost(n: number | null): string {
 const SLOTS = ['breakfast', 'lunch', 'dinner'] as const;
 
 export default function KitchenView() {
-  const [tab, setTab] = useState<'library' | 'plan' | 'grocery'>('library');
+  const [tab, setTab] = useState<'library' | 'plan' | 'grocery' | 'fridge'>('library');
   const [filterCat, setFilterCat] = useState<string>('all');
   const [filterCuisine, setFilterCuisine] = useState<string>('all');
   const [showFavorites, setShowFavorites] = useState(false);
+  const [scanText, setScanText] = useState('');
+  const [mealMatches, setMealMatches] = useState<MealMatch[]>([]);
+  const [expiringItems, setExpiringItems] = useState<KitchenInventoryItem[]>([]);
+  const [fridgeLoaded, setFridgeLoaded] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
@@ -39,6 +44,7 @@ export default function KitchenView() {
   );
   const { plan, setEntry } = useWeeklyPlan(weekStart);
   const { items: groceryItems, generate: generateGrocery, toggleItem, totalCost } = useGroceryList(weekStart);
+  const { scanResult, scanning, scan, whatCanIMake, expiringSoon } = useFridgeScanner();
 
   const handleAIAdd = useCallback(async () => {
     if (!aiPrompt.trim() || aiLoading) return;
@@ -70,6 +76,9 @@ export default function KitchenView() {
           </button>
           <button className={`kitchen-tab ${tab === 'grocery' ? 'active' : ''}`} onClick={() => setTab('grocery')}>
             🛒 Grocery
+          </button>
+          <button className={`kitchen-tab ${tab === 'fridge' ? 'active' : ''}`} onClick={() => setTab('fridge')}>
+            🧊 Fridge
           </button>
         </div>
       </div>
@@ -288,6 +297,141 @@ export default function KitchenView() {
                   ))}
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Fridge Scanner */}
+      {tab === 'fridge' && (
+        <div className="kitchen-fridge">
+          {/* Scan Input */}
+          <div className="fridge-scan-section">
+            <div className="fridge-scan-header">
+              <span className="ai-add-icon">📸</span>
+              <span>Scan Your Fridge</span>
+            </div>
+            <p className="fridge-scan-desc">
+              Describe what you see in your fridge/pantry, or paste a shopping list. AI will identify ingredients, estimate expiry, and suggest meals.
+            </p>
+            <div className="ai-add-row">
+              <textarea
+                value={scanText}
+                onChange={e => setScanText(e.target.value)}
+                placeholder="e.g., 2 chicken breasts, a bag of spinach, half an onion, leftover rice, bell peppers, soy sauce, eggs..."
+                className="fridge-textarea"
+                rows={3}
+              />
+              <button className="btn-primary" onClick={async () => {
+                if (!scanText.trim()) return;
+                await scan(scanText);
+                setScanText('');
+                const matches = await whatCanIMake();
+                setMealMatches(matches.matches);
+                const expiring = await expiringSoon(5);
+                setExpiringItems(expiring);
+                setFridgeLoaded(true);
+              }} disabled={scanning || !scanText.trim()}>
+                {scanning ? '✨ Scanning...' : 'Scan'}
+              </button>
+            </div>
+          </div>
+
+          {/* Scan Results */}
+          {scanResult && (
+            <div className="fridge-results">
+              <div className="fridge-summary">
+                <h3 className="section-title">🧊 Inventory Updated</h3>
+                <p>{scanResult.summary}</p>
+              </div>
+
+              {/* Added Items */}
+              <div className="fridge-items">
+                {scanResult.items.map(item => (
+                  <div key={item.id} className="fridge-item">
+                    <span className="fridge-item-name">{item.name}</span>
+                    <span className="fridge-item-qty">
+                      {item.quantity} {item.unit ?? ''}
+                    </span>
+                    {item.expiry_date && (
+                      <span className="fridge-item-expiry">
+                        exp: {new Date(item.expiry_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Waste Risk */}
+              {scanResult.waste_risk.length > 0 && (
+                <div className="fridge-waste-risk">
+                  <h4>⚠️ Use Soon (waste risk)</h4>
+                  <div className="fridge-risk-items">
+                    {scanResult.waste_risk.map((item, i) => (
+                      <span key={i} className="topic-tag" style={{ borderColor: '#ef4444', color: '#ef4444' }}>{item}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* AI Meal Suggestions */}
+              {scanResult.suggested_meals.length > 0 && (
+                <div className="fridge-suggestions">
+                  <h4>🍳 AI Suggests</h4>
+                  <div className="fridge-meal-suggestions">
+                    {scanResult.suggested_meals.map((meal, i) => (
+                      <div key={i} className="fridge-meal-suggestion">{meal}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* What Can I Make */}
+          {fridgeLoaded && mealMatches.length > 0 && (
+            <div className="fridge-matches">
+              <h3 className="section-title">🍳 What Can I Make?</h3>
+              <div className="match-summary">
+                <span>You can make <strong>{mealMatches.filter(m => m.can_make).length}</strong> meals with what you have</span>
+              </div>
+              <div className="match-list">
+                {mealMatches.map(match => (
+                  <div key={match.meal_id} className={`match-card ${match.can_make ? 'can-make' : ''}`}>
+                    <div className="match-header">
+                      <span className="match-name">{match.meal_name}</span>
+                      <span className={`match-pct ${match.can_make ? 'full' : ''}`}>
+                        {match.can_make ? '✅ Ready' : `${Math.round(match.match_pct)}%`}
+                      </span>
+                    </div>
+                    <div className="match-bar">
+                      <div className="match-bar-fill" style={{ width: `${match.match_pct}%` }} />
+                    </div>
+                    {match.missing_ingredients.length > 0 && (
+                      <div className="match-missing">
+                        Missing: {match.missing_ingredients.join(', ')}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Expiring Soon */}
+          {fridgeLoaded && expiringItems.length > 0 && (
+            <div className="fridge-expiring">
+              <h3 className="section-title">⏰ Expiring Soon</h3>
+              <div className="expiring-list">
+                {expiringItems.map(item => (
+                  <div key={item.id} className="expiring-item">
+                    <span className="expiring-name">{item.name}</span>
+                    <span className="expiring-date">
+                      {item.expiry_date && new Date(item.expiry_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
