@@ -185,6 +185,29 @@ pub fn run() {
             commands::life_get_knowledge,
             commands::life_add_reminder,
             commands::life_ask,
+            // Home Health
+            commands::home_upsert_profile,
+            commands::home_get_dashboard,
+            commands::home_add_bill,
+            commands::home_get_bills,
+            commands::home_delete_bill,
+            commands::home_add_maintenance,
+            commands::home_get_maintenance,
+            commands::home_add_appliance,
+            commands::home_get_appliances,
+            commands::home_get_insights,
+            // Dream Builder
+            commands::dream_add,
+            commands::dream_get_all,
+            commands::dream_get_dashboard,
+            commands::dream_add_milestone,
+            commands::dream_complete_milestone,
+            commands::dream_add_task,
+            commands::dream_get_tasks,
+            commands::dream_complete_task,
+            commands::dream_add_progress,
+            commands::dream_delete,
+            commands::dream_ai_plan,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

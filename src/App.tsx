@@ -23,6 +23,8 @@ import KitchenView from './components/KitchenView';
 import BudgetView from './components/BudgetView';
 import FeedView from './components/FeedView';
 import LifeAutopilotView from './components/LifeAutopilotView';
+import HomeHealthView from './components/HomeHealthView';
+import DreamBuilderView from './components/DreamBuilderView';
 import { useEngine } from './hooks/useEngine';
 import { useConfluxChat } from './hooks/useConfluxChat';
 import { useToast } from './hooks/useToast';
@@ -541,6 +543,20 @@ export default function App() {
       {view === 'life' && (
         <div className="content-overlay">
           <LifeAutopilotView />
+        </div>
+      )}
+
+      {/* Home Health View */}
+      {view === 'home' && (
+        <div className="content-overlay">
+          <HomeHealthView />
+        </div>
+      )}
+
+      {/* Dream Builder View */}
+      {view === 'dreams' && (
+        <div className="content-overlay">
+          <DreamBuilderView />
         </div>
       )}
 

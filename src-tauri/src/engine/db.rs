@@ -2747,4 +2747,377 @@ impl EngineDb {
             overdue_reminders: overdue,
         })
     }
+
+    // HOME HEALTH
+    pub fn upsert_home_profile(&self, id: &str, address: Option<&str>, year_built: Option<i64>, square_feet: Option<i64>,
+        hvac_type: Option<&str>, hvac_filter_size: Option<&str>, water_heater_type: Option<&str>,
+        roof_type: Option<&str>, window_type: Option<&str>, insulation_type: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        let now = Self::now();
+        conn.execute(
+            "INSERT INTO home_profiles (id, address, year_built, square_feet, hvac_type, hvac_filter_size, water_heater_type, roof_type, window_type, insulation_type, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11)
+             ON CONFLICT(id) DO UPDATE SET address=?2, year_built=?3, square_feet=?4, hvac_type=?5, hvac_filter_size=?6, water_heater_type=?7, roof_type=?8, window_type=?9, insulation_type=?10, updated_at=?11",
+            params![id, address, year_built, square_feet, hvac_type, hvac_filter_size, water_heater_type, roof_type, window_type, insulation_type, now],
+        )?;
+        Ok(())
+    }
+    pub fn get_home_profile(&self) -> Result<Option<super::types::HomeProfile>> {
+        let conn = self.conn();
+        let row = conn.query_row(
+            "SELECT id, address, year_built, square_feet, hvac_type, hvac_filter_size, water_heater_type, roof_type, window_type, insulation_type, created_at, updated_at FROM home_profiles LIMIT 1",
+            [], |row| Ok(super::types::HomeProfile {
+                id: row.get(0)?, address: row.get(1)?, year_built: row.get(2)?, square_feet: row.get(3)?,
+                hvac_type: row.get(4)?, hvac_filter_size: row.get(5)?, water_heater_type: row.get(6)?,
+                roof_type: row.get(7)?, window_type: row.get(8)?, insulation_type: row.get(9)?,
+                created_at: row.get(10)?, updated_at: row.get(11)?,
+            })
+        );
+        match row {
+            Ok(profile) => Ok(Some(profile)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+    pub fn add_home_bill(&self, id: &str, bill_type: &str, amount: f64, usage: Option<f64>, billing_month: &str, notes: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        let nts = notes.map(String::from);
+        conn.execute("INSERT INTO home_bills (id, bill_type, amount, usage, billing_month, notes) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, bill_type, amount, usage, billing_month, nts])?;
+        Ok(())
+    }
+    pub fn get_home_bills(&self, bill_type: Option<&str>, limit: i64) -> Result<Vec<super::types::HomeBill>> {
+        let conn = self.conn();
+        let mapper = |row: &rusqlite::Row| -> rusqlite::Result<super::types::HomeBill> {
+            Ok(super::types::HomeBill {
+                id: row.get(0)?, bill_type: row.get(1)?, amount: row.get(2)?, usage: row.get(3)?,
+                billing_month: row.get(4)?, notes: row.get(5)?, created_at: row.get(6)?,
+            })
+        };
+        let mut result = Vec::new();
+        if let Some(bt) = bill_type {
+            let mut stmt = conn.prepare("SELECT id, bill_type, amount, usage, billing_month, notes, created_at FROM home_bills WHERE bill_type = ?1 ORDER BY billing_month DESC LIMIT ?2")?;
+            let rows = stmt.query_map(params![bt, limit], mapper)?;
+            for r in rows { result.push(r?); }
+        } else {
+            let mut stmt = conn.prepare("SELECT id, bill_type, amount, usage, billing_month, notes, created_at FROM home_bills ORDER BY billing_month DESC LIMIT ?1")?;
+            let rows = stmt.query_map(params![limit], mapper)?;
+            for r in rows { result.push(r?); }
+        }
+        Ok(result)
+    }
+    pub fn get_bill_trends(&self, months: i64) -> Result<Vec<super::types::BillTrendPoint>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT billing_month, bill_type, SUM(amount) FROM home_bills GROUP BY billing_month, bill_type ORDER BY billing_month DESC LIMIT ?1")?;
+        let rows = stmt.query_map(params![months * 3], |row| -> rusqlite::Result<(String, String, f64)> {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?;
+        let mut trend_map: std::collections::HashMap<String, super::types::BillTrendPoint> = std::collections::HashMap::new();
+        for r in rows {
+            let (month, bt, amt) = r?;
+            let entry = trend_map.entry(month.clone()).or_insert(super::types::BillTrendPoint {
+                month: month.clone(), electric: None, gas: None, water: None, total: 0.0,
+            });
+            match bt.as_str() { "electric" => entry.electric = Some(amt), "gas" => entry.gas = Some(amt), "water" => entry.water = Some(amt), _ => {} }
+            entry.total += amt;
+        }
+        let mut result: Vec<_> = trend_map.into_values().collect();
+        result.sort_by(|a, b| b.month.cmp(&a.month));
+        result.truncate(months as usize);
+        result.reverse();
+        Ok(result)
+    }
+    pub fn add_home_maintenance(&self, id: &str, task: &str, category: &str, last_completed: Option<&str>, interval_months: Option<i64>, priority: Option<&str>, estimated_cost: Option<f64>, notes: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        let nts = notes.map(String::from);
+        let pri = priority.unwrap_or("normal");
+        let next_due = match (last_completed, interval_months) {
+            (Some(lc), Some(im)) => {
+                chrono::NaiveDate::parse_from_str(lc, "%Y-%m-%d").ok()
+                    .map(|d| (d + chrono::Duration::days(im * 30)).format("%Y-%m-%d").to_string())
+            }
+            _ => None,
+        };
+        let lc_owned = last_completed.map(String::from);
+        conn.execute("INSERT INTO home_maintenance (id, task, category, last_completed, interval_months, next_due, priority, estimated_cost, notes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![id, task, category, lc_owned, interval_months, next_due, pri, estimated_cost, nts])?;
+        Ok(())
+    }
+    pub fn get_home_maintenance(&self, category: Option<&str>) -> Result<Vec<super::types::HomeMaintenance>> {
+        let conn = self.conn();
+        let mapper = |row: &rusqlite::Row| -> rusqlite::Result<super::types::HomeMaintenance> {
+            Ok(super::types::HomeMaintenance {
+                id: row.get(0)?, task: row.get(1)?, category: row.get(2)?, last_completed: row.get(3)?,
+                interval_months: row.get(4)?, next_due: row.get(5)?, priority: row.get(6)?,
+                estimated_cost: row.get(7)?, notes: row.get(8)?, created_at: row.get(9)?,
+            })
+        };
+        let mut result = Vec::new();
+        if let Some(cat) = category {
+            let mut stmt = conn.prepare("SELECT id, task, category, last_completed, interval_months, next_due, priority, estimated_cost, notes, created_at FROM home_maintenance WHERE category = ?1 ORDER BY next_due")?;
+            let rows = stmt.query_map(params![cat], mapper)?;
+            for r in rows { result.push(r?); }
+        } else {
+            let mut stmt = conn.prepare("SELECT id, task, category, last_completed, interval_months, next_due, priority, estimated_cost, notes, created_at FROM home_maintenance ORDER BY next_due")?;
+            let rows = stmt.query_map([], mapper)?;
+            for r in rows { result.push(r?); }
+        }
+        Ok(result)
+    }
+    pub fn get_upcoming_maintenance(&self, days: i64) -> Result<Vec<super::types::HomeMaintenance>> {
+        let conn = self.conn();
+        let future = (chrono::Utc::now() + chrono::Duration::days(days)).format("%Y-%m-%d").to_string();
+        let mut stmt = conn.prepare("SELECT id, task, category, last_completed, interval_months, next_due, priority, estimated_cost, notes, created_at FROM home_maintenance WHERE next_due IS NOT NULL AND next_due <= ?1 ORDER BY priority DESC, next_due")?;
+        let rows = stmt.query_map(params![future], |row: &rusqlite::Row| -> rusqlite::Result<super::types::HomeMaintenance> {
+            Ok(super::types::HomeMaintenance {
+                id: row.get(0)?, task: row.get(1)?, category: row.get(2)?, last_completed: row.get(3)?,
+                interval_months: row.get(4)?, next_due: row.get(5)?, priority: row.get(6)?,
+                estimated_cost: row.get(7)?, notes: row.get(8)?, created_at: row.get(9)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+    pub fn get_overdue_maintenance(&self) -> Result<Vec<super::types::HomeMaintenance>> {
+        let conn = self.conn();
+        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        let mut stmt = conn.prepare("SELECT id, task, category, last_completed, interval_months, next_due, priority, estimated_cost, notes, created_at FROM home_maintenance WHERE next_due IS NOT NULL AND next_due < ?1 ORDER BY next_due")?;
+        let rows = stmt.query_map(params![today], |row: &rusqlite::Row| -> rusqlite::Result<super::types::HomeMaintenance> {
+            Ok(super::types::HomeMaintenance {
+                id: row.get(0)?, task: row.get(1)?, category: row.get(2)?, last_completed: row.get(3)?,
+                interval_months: row.get(4)?, next_due: row.get(5)?, priority: row.get(6)?,
+                estimated_cost: row.get(7)?, notes: row.get(8)?, created_at: row.get(9)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+    pub fn add_home_appliance(&self, id: &str, name: &str, category: &str, model: Option<&str>,
+        installed_date: Option<&str>, expected_lifespan_years: Option<f64>, warranty_expiry: Option<&str>,
+        estimated_replacement_cost: Option<f64>, notes: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        let mdl = model.map(String::from);
+        let nid = notes.map(String::from);
+        conn.execute("INSERT INTO home_appliances (id, name, category, model, installed_date, expected_lifespan_years, warranty_expiry, estimated_replacement_cost, notes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![id, name, category, mdl, installed_date, expected_lifespan_years, warranty_expiry, estimated_replacement_cost, nid])?;
+        Ok(())
+    }
+    pub fn get_home_appliances(&self) -> Result<Vec<super::types::HomeAppliance>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT id, name, category, model, installed_date, expected_lifespan_years, warranty_expiry, estimated_replacement_cost, notes, last_service, next_service, created_at FROM home_appliances ORDER BY category, name")?;
+        let rows = stmt.query_map([], |row: &rusqlite::Row| -> rusqlite::Result<super::types::HomeAppliance> {
+            Ok(super::types::HomeAppliance {
+                id: row.get(0)?, name: row.get(1)?, category: row.get(2)?, model: row.get(3)?,
+                installed_date: row.get(4)?, expected_lifespan_years: row.get(5)?, warranty_expiry: row.get(6)?,
+                estimated_replacement_cost: row.get(7)?, notes: row.get(8)?, last_service: row.get(9)?,
+                next_service: row.get(10)?, created_at: row.get(11)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+    pub fn get_home_dashboard(&self) -> Result<super::types::HomeDashboard> {
+        let profile = self.get_home_profile().ok().flatten();
+        let upcoming = self.get_upcoming_maintenance(30).unwrap_or_default();
+        let overdue = self.get_overdue_maintenance().unwrap_or_default();
+        let appliances = self.get_home_appliances().unwrap_or_default();
+        let bill_trend = self.get_bill_trends(6).unwrap_or_default();
+        let monthly = bill_trend.last().map(|b| b.total).unwrap_or(0.0);
+        let total_appliance_risk: f64 = appliances.iter().map(|a| {
+            if let (Some(lifespan), Some(installed)) = (a.expected_lifespan_years, a.installed_date.as_ref()) {
+                if let Ok(date) = chrono::NaiveDate::parse_from_str(installed, "%Y-%m-%d") {
+                    let age = (chrono::Utc::now().date_naive() - date).num_days() as f64 / 365.25;
+                    return ((age / lifespan) * 100.0).min(100.0);
+                }
+            }
+            0.0
+        }).sum();
+        let mut score = 100.0;
+        score -= overdue.len() as f64 * 10.0;
+        score -= (monthly - 300.0).max(0.0) / 10.0;
+        score -= total_appliance_risk / (appliances.len() as f64).max(1.0) / 5.0;
+        let health_score = score.max(0.0).min(100.0);
+        Ok(super::types::HomeDashboard {
+            profile, upcoming_maintenance: upcoming, overdue_maintenance: overdue,
+            appliances_needing_service: appliances, bill_trend, total_monthly_utilities: monthly,
+            health_score, ai_alerts: vec![],
+        })
+    }
+    pub fn delete_home_bill(&self, id: &str) -> Result<()> {
+        self.conn().execute("DELETE FROM home_bills WHERE id = ?", [id])?;
+        Ok(())
+    }
+
+    // DREAM BUILDER
+    pub fn add_dream(&self, id: &str, member_id: Option<&str>, title: &str, description: Option<&str>, category: &str, target_date: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        let now = Self::now();
+        let mid = member_id.map(String::from);
+        let desc = description.map(String::from);
+        let td = target_date.map(String::from);
+        conn.execute("INSERT INTO dreams (id, member_id, title, description, category, target_date, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
+            params![id, mid, desc, desc, category, td, now])?;
+        Ok(())
+    }
+    pub fn get_dreams(&self, status: Option<&str>) -> Result<Vec<super::types::Dream>> {
+        let conn = self.conn();
+        let mapper = |row: &rusqlite::Row| -> rusqlite::Result<super::types::Dream> {
+            Ok(super::types::Dream {
+                id: row.get(0)?, member_id: row.get(1)?, title: row.get(2)?, description: row.get(3)?,
+                category: row.get(4)?, target_date: row.get(5)?, status: row.get(6)?, progress: row.get(7)?,
+                ai_plan: row.get(8)?, ai_next_actions: row.get(9)?, created_at: row.get(10)?, updated_at: row.get(11)?,
+            })
+        };
+        let mut result = Vec::new();
+        if let Some(s) = status {
+            let mut stmt = conn.prepare("SELECT id, member_id, title, description, category, target_date, status, progress, ai_plan, ai_next_actions, created_at, updated_at FROM dreams WHERE status = ?1 ORDER BY created_at DESC")?;
+            let rows = stmt.query_map(params![s], mapper)?;
+            for r in rows { result.push(r?); }
+        } else {
+            let mut stmt = conn.prepare("SELECT id, member_id, title, description, category, target_date, status, progress, ai_plan, ai_next_actions, created_at, updated_at FROM dreams ORDER BY created_at DESC")?;
+            let rows = stmt.query_map([], mapper)?;
+            for r in rows { result.push(r?); }
+        }
+        Ok(result)
+    }
+    pub fn add_milestone(&self, id: &str, dream_id: &str, title: &str, description: Option<&str>, target_date: Option<&str>, sort_order: i64) -> Result<()> {
+        let conn = self.conn();
+        let desc = description.map(String::from);
+        let td = target_date.map(String::from);
+        conn.execute("INSERT INTO dream_milestones (id, dream_id, title, description, target_date, sort_order) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, dream_id, title, desc, td, sort_order])?;
+        Ok(())
+    }
+    pub fn get_milestones(&self, dream_id: &str) -> Result<Vec<super::types::DreamMilestone>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT id, dream_id, title, description, target_date, completed_at, is_completed, sort_order, created_at FROM dream_milestones WHERE dream_id = ?1 ORDER BY sort_order")?;
+        let rows = stmt.query_map(params![dream_id], |row: &rusqlite::Row| -> rusqlite::Result<super::types::DreamMilestone> {
+            Ok(super::types::DreamMilestone {
+                id: row.get(0)?, dream_id: row.get(1)?, title: row.get(2)?, description: row.get(3)?,
+                target_date: row.get(4)?, completed_at: row.get(5)?, is_completed: row.get::<_, i64>(6)? != 0,
+                sort_order: row.get(7)?, created_at: row.get(8)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+    pub fn complete_milestone(&self, id: &str) -> Result<()> {
+        let conn = self.conn();
+        let now = Self::now();
+        conn.execute("UPDATE dream_milestones SET is_completed = 1, completed_at = ?1 WHERE id = ?2", params![now, id])?;
+        Ok(())
+    }
+    pub fn add_dream_task(&self, id: &str, dream_id: &str, milestone_id: Option<&str>, title: &str, description: Option<&str>, due_date: Option<&str>, frequency: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        let mid = milestone_id.map(String::from);
+        let desc = description.map(String::from);
+        let dd = due_date.map(String::from);
+        let freq = frequency.map(String::from);
+        conn.execute("INSERT INTO dream_tasks (id, dream_id, milestone_id, title, description, due_date, frequency) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![id, dream_id, mid, title, desc, dd, freq])?;
+        Ok(())
+    }
+    pub fn get_dream_tasks(&self, dream_id: &str) -> Result<Vec<super::types::DreamTask>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT id, dream_id, milestone_id, title, description, due_date, completed_at, is_completed, frequency, created_at FROM dream_tasks WHERE dream_id = ?1 ORDER BY is_completed, due_date")?;
+        let rows = stmt.query_map(params![dream_id], |row: &rusqlite::Row| -> rusqlite::Result<super::types::DreamTask> {
+            Ok(super::types::DreamTask {
+                id: row.get(0)?, dream_id: row.get(1)?, milestone_id: row.get(2)?, title: row.get(3)?,
+                description: row.get(4)?, due_date: row.get(5)?, completed_at: row.get(6)?,
+                is_completed: row.get::<_, i64>(7)? != 0, frequency: row.get(8)?, created_at: row.get(9)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+    pub fn get_upcoming_dream_tasks(&self, days: i64) -> Result<Vec<super::types::DreamTask>> {
+        let conn = self.conn();
+        let future = (chrono::Utc::now() + chrono::Duration::days(days)).format("%Y-%m-%d").to_string();
+        let mut stmt = conn.prepare("SELECT id, dream_id, milestone_id, title, description, due_date, completed_at, is_completed, frequency, created_at FROM dream_tasks WHERE is_completed = 0 AND due_date IS NOT NULL AND due_date <= ?1 ORDER BY due_date")?;
+        let rows = stmt.query_map(params![future], |row: &rusqlite::Row| -> rusqlite::Result<super::types::DreamTask> {
+            Ok(super::types::DreamTask {
+                id: row.get(0)?, dream_id: row.get(1)?, milestone_id: row.get(2)?, title: row.get(3)?,
+                description: row.get(4)?, due_date: row.get(5)?, completed_at: row.get(6)?,
+                is_completed: row.get::<_, i64>(7)? != 0, frequency: row.get(8)?, created_at: row.get(9)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+    pub fn complete_dream_task(&self, id: &str) -> Result<()> {
+        let conn = self.conn();
+        let now = Self::now();
+        conn.execute("UPDATE dream_tasks SET is_completed = 1, completed_at = ?1 WHERE id = ?2", params![now, id])?;
+        Ok(())
+    }
+    pub fn add_dream_progress(&self, id: &str, dream_id: &str, note: Option<&str>, progress_change: Option<f64>, ai_insight: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        let n = note.map(String::from);
+        let ai = ai_insight.map(String::from);
+        conn.execute("INSERT INTO dream_progress (id, dream_id, note, progress_change, ai_insight) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![id, dream_id, n, progress_change, ai])?;
+        // Update dream progress
+        if let Some(pc) = progress_change {
+            conn.execute("UPDATE dreams SET progress = MIN(100, MAX(0, progress + ?1)), updated_at = ?2 WHERE id = ?3",
+                params![pc, Self::now(), dream_id])?;
+        }
+        Ok(())
+    }
+    pub fn get_dream_progress(&self, dream_id: &str) -> Result<Vec<super::types::DreamProgress>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT id, dream_id, note, progress_change, ai_insight, created_at FROM dream_progress WHERE dream_id = ?1 ORDER BY created_at DESC LIMIT 20")?;
+        let rows = stmt.query_map(params![dream_id], |row: &rusqlite::Row| -> rusqlite::Result<super::types::DreamProgress> {
+            Ok(super::types::DreamProgress {
+                id: row.get(0)?, dream_id: row.get(1)?, note: row.get(2)?, progress_change: row.get(3)?,
+                ai_insight: row.get(4)?, created_at: row.get(5)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+    pub fn get_dream_dashboard(&self) -> Result<super::types::DreamDashboard> {
+        let all_dreams = self.get_dreams(None).unwrap_or_default();
+        let active: Vec<_> = all_dreams.iter().filter(|d| d.status == "active").cloned().collect();
+        let mut total_ms = 0i64;
+        let mut completed_ms = 0i64;
+        let mut all_tasks = Vec::new();
+        let mut all_progress = Vec::new();
+        for d in &all_dreams {
+            let ms = self.get_milestones(&d.id).unwrap_or_default();
+            total_ms += ms.len() as i64;
+            completed_ms += ms.iter().filter(|m| m.is_completed).count() as i64;
+            let tasks = self.get_upcoming_dream_tasks(30).unwrap_or_default();
+            all_tasks.extend(tasks);
+            let prog = self.get_dream_progress(&d.id).unwrap_or_default();
+            all_progress.extend(prog);
+        }
+        all_tasks.sort_by(|a, b| a.due_date.as_deref().unwrap_or("9999").cmp(&b.due_date.as_deref().unwrap_or("9999")));
+        Ok(super::types::DreamDashboard {
+            dreams: all_dreams, active_dreams: active.len() as i64,
+            total_milestones: total_ms, completed_milestones: completed_ms,
+            upcoming_tasks: all_tasks.into_iter().take(10).collect(),
+            recent_progress: all_progress.into_iter().take(10).collect(),
+        })
+    }
+    pub fn update_dream_ai_plan(&self, id: &str, ai_plan: &str, ai_next_actions: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute("UPDATE dreams SET ai_plan = ?1, ai_next_actions = ?2, updated_at = ?3 WHERE id = ?4",
+            params![ai_plan, ai_next_actions, Self::now(), id])?;
+        Ok(())
+    }
+    pub fn delete_dream(&self, id: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute("DELETE FROM dream_tasks WHERE dream_id = ?", [id])?;
+        conn.execute("DELETE FROM dream_milestones WHERE dream_id = ?", [id])?;
+        conn.execute("DELETE FROM dream_progress WHERE dream_id = ?", [id])?;
+        conn.execute("DELETE FROM dreams WHERE id = ?", [id])?;
+        Ok(())
+    }
 }
