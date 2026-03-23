@@ -49,32 +49,105 @@ impl EngineDb {
     }
 
     /// Run the schema migration.
+    /// Runs the full schema as a batch. If it fails due to pre-existing
+    /// columns/tables, falls back to running statement-by-statement,
+    /// skipping "already exists" / "duplicate column" errors.
     fn migrate(&self) -> Result<()> {
         let schema = include_str!("../../schema.sql");
         let conn = self.conn.lock().map_err(|_| anyhow::anyhow!("Database lock poisoned"))?;
         
-        // Split schema into individual statements and run each one.
-        // This allows us to gracefully handle "duplicate column" errors
-        // from ALTER TABLE statements that run against existing databases.
-        for statement in schema.split(';') {
-            let trimmed = statement.trim();
-            if trimmed.is_empty() || trimmed.starts_with("--") {
-                continue;
+        // Try full batch first (fast path for fresh databases)
+        match conn.execute_batch(schema) {
+            Ok(_) => return Ok(()),
+            Err(e) => {
+                let msg = e.to_string().to_lowercase();
+                if msg.contains("duplicate column") || msg.contains("already exists") {
+                    // Existing database — run each complete statement individually
+                    log::debug!("Schema batch failed (existing DB), retrying statement-by-statement");
+                } else {
+                    return Err(e).context("Failed to run schema migration");
+                }
             }
-            match conn.execute_batch(trimmed) {
+        }
+
+        // Slow path: split on top-level semicolons (outside of parens/strings)
+        // and skip statements that fail with "already exists" errors.
+        let statements = Self::split_sql_statements(schema);
+        for statement in &statements {
+            match conn.execute_batch(statement) {
                 Ok(_) => {}
                 Err(e) => {
                     let msg = e.to_string().to_lowercase();
                     if msg.contains("duplicate column") || msg.contains("already exists") {
-                        // Safe to ignore — migration already applied
-                        log::debug!("Schema migration: skipping (already applied): {}", &trimmed[..trimmed.len().min(60)]);
+                        log::debug!("Skipping migration statement (already applied): {}", 
+                            &statement[..statement.len().min(60)]);
                     } else {
-                        return Err(e).context("Failed to run schema migration");
+                        return Err(e).context(format!(
+                            "Failed to run schema migration statement: {}", 
+                            &statement[..statement.len().min(80)]));
                     }
                 }
             }
         }
         Ok(())
+    }
+
+    /// Split SQL into complete statements, respecting parentheses depth.
+    /// SQLite semicolons inside CREATE TABLE (...) should not split.
+    fn split_sql_statements(sql: &str) -> Vec<String> {
+        let mut statements = Vec::new();
+        let mut current = String::new();
+        let mut paren_depth: u32 = 0;
+        let mut in_string = false;
+        let mut string_char = '\0';
+        let mut chars = sql.chars().peekable();
+
+        while let Some(ch) = chars.next() {
+            if in_string {
+                current.push(ch);
+                if ch == string_char {
+                    // Check for escaped quote ('' in SQL)
+                    if chars.peek() == Some(&string_char) {
+                        current.push(chars.next().unwrap());
+                    } else {
+                        in_string = false;
+                    }
+                }
+                continue;
+            }
+
+            match ch {
+                '\'' | '"' => {
+                    in_string = true;
+                    string_char = ch;
+                    current.push(ch);
+                }
+                '(' => {
+                    paren_depth += 1;
+                    current.push(ch);
+                }
+                ')' => {
+                    if paren_depth > 0 { paren_depth -= 1; }
+                    current.push(ch);
+                }
+                ';' if paren_depth == 0 => {
+                    let trimmed = current.trim().to_string();
+                    if !trimmed.is_empty() && !trimmed.starts_with("--") {
+                        statements.push(trimmed);
+                    }
+                    current.clear();
+                }
+                _ => current.push(ch),
+            }
+        }
+
+        // Don't forget the last statement if no trailing semicolon
+        let trimmed = current.trim().to_string();
+        if !trimmed.is_empty() && !trimmed.starts_with("--") {
+            statements.push(trimmed);
+        }
+
+        statements
     }
 
     /// Get a reference to the underlying connection.
