@@ -907,6 +907,10 @@ body {
   border-radius: 18px;
   box-shadow: var(--shadow-lg);
   z-index: 200;
+  max-width: calc(100vw - 32px);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
 
 .taskbar-item {
