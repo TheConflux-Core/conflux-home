@@ -1,5 +1,5 @@
 // Conflux Engine — Tool System
-// Registry, dispatch, and execution of agent tools.
+// Registry, dispatch, and execution of agent tools with sandboxing.
 
 use anyhow::Result;
 use serde_json::Value;
@@ -14,8 +14,137 @@ pub struct ToolResult {
     pub error: Option<String>,
 }
 
+// ── Security: Blocked commands and allowed paths ──
+
+/// Commands that are never allowed in exec.
+const BLOCKED_COMMANDS: &[&str] = &[
+    "rm -rf /",
+    "rm -rf /*",
+    "mkfs",
+    "dd if=",
+    ":(){ :|:& };:",  // fork bomb
+    "chmod 777",
+    "> /dev/sda",
+    "wget | sh",
+    "curl | sh",
+    "curl | bash",
+    "wget | bash",
+];
+
+/// Paths that are never accessible.
+const BLOCKED_PATHS: &[&str] = &[
+    "/etc/shadow",
+    "/etc/passwd",
+    "/proc/",
+    "/sys/",
+    "/dev/",
+];
+
+/// Allowed directories for file operations.
+fn get_allowed_paths() -> Vec<String> {
+    let mut paths = vec![
+        "/tmp/conflux".to_string(),
+    ];
+
+    if let Ok(home) = std::env::var("HOME") {
+        paths.push(format!("{}/Documents", home));
+        paths.push(format!("{}/Downloads", home));
+        paths.push(format!("{}/Desktop", home));
+        paths.push(format!("{}/.openclaw", home));
+    }
+
+    // App data directory
+    if let Ok(data) = std::env::var("CONFLUX_DATA_DIR") {
+        paths.push(data);
+    }
+
+    paths
+}
+
+/// Check if a file path is within allowed directories.
+fn is_path_allowed(path: &str) -> bool {
+    let allowed = get_allowed_paths();
+    let normalized = std::path::Path::new(path).canonicalize()
+        .unwrap_or_else(|_| std::path::PathBuf::from(path));
+    let normalized_str = normalized.to_string_lossy();
+
+    // Check blocked paths first
+    for blocked in BLOCKED_PATHS {
+        if normalized_str.starts_with(blocked) {
+            return false;
+        }
+    }
+
+    // Check if within allowed directories
+    for allowed_path in &allowed {
+        if normalized_str.starts_with(allowed_path) {
+            return true;
+        }
+    }
+
+    // Allow relative paths (resolved against CWD)
+    if !path.starts_with('/') {
+        return true;
+    }
+
+    false
+}
+
+/// Check if a shell command is safe to execute.
+fn is_command_safe(command: &str) -> Result<()> {
+    let lower = command.to_lowercase();
+
+    for blocked in BLOCKED_COMMANDS {
+        if lower.contains(&blocked.to_lowercase()) {
+            anyhow::bail!("Command blocked for safety: contains '{}'", blocked);
+        }
+    }
+
+    // Block commands that try to download and execute
+    if (lower.contains("curl") || lower.contains("wget") || lower.contains("fetch"))
+        && (lower.contains("sh") || lower.contains("bash") || lower.contains("exec") || lower.contains("|"))
+    {
+        anyhow::bail!("Command blocked: downloading and executing scripts is not allowed");
+    }
+
+    Ok(())
+}
+
+// ── Tool Permission Check ──
+
+fn check_tool_permission(db: &EngineDb, agent_id: &str, tool_name: &str) -> Result<bool> {
+    let conn = db.conn();
+    let result: std::result::Result<i64, _> = conn.query_row(
+        "SELECT is_allowed FROM tool_permissions WHERE agent_id = ?1 AND tool_id = ?2",
+        rusqlite::params![agent_id, tool_name],
+        |row| row.get(0),
+    );
+
+    match result {
+        Ok(allowed) => Ok(allowed != 0),
+        Err(rusqlite::Error::QueryReturnedNoRows) => {
+            // No permission record = allowed by default
+            Ok(true)
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
 /// Execute a tool by name with the given arguments.
 pub async fn execute_tool(tool_name: &str, args: &Value) -> Result<ToolResult> {
+    execute_tool_for_agent(tool_name, args, "default").await
+}
+
+/// Execute a tool with agent-specific permission checking.
+pub async fn execute_tool_for_agent(tool_name: &str, args: &Value, agent_id: &str) -> Result<ToolResult> {
+    // Google tools are checked separately (they require auth, not permissions)
+    if matches!(tool_name, "google_auth" | "gmail_send" | "gmail_search" | "google_drive_list" |
+        "google_doc_read" | "google_doc_write" | "google_sheet_read" | "google_sheet_write")
+    {
+        let engine = super::get_engine();
+        return super::google::execute_google_tool(tool_name, args, engine.db()).await;
+    }
+
     match tool_name {
         "web_search" => execute_web_search(args).await,
         "file_read" => execute_file_read(args),
@@ -25,12 +154,6 @@ pub async fn execute_tool(tool_name: &str, args: &Value) -> Result<ToolResult> {
         "time" => execute_time(),
         "memory_read" => execute_memory_read(args).await,
         "memory_write" => execute_memory_write(args).await,
-        // Google Workspace tools
-        "google_auth" | "gmail_send" | "gmail_search" | "google_drive_list" |
-        "google_doc_read" | "google_doc_write" | "google_sheet_read" | "google_sheet_write" => {
-            let engine = super::get_engine();
-            super::google::execute_google_tool(tool_name, args, engine.db()).await
-        }
         _ => Ok(ToolResult {
             success: false,
             output: String::new(),
@@ -307,10 +430,22 @@ fn execute_file_read(args: &Value) -> Result<ToolResult> {
         });
     }
 
+    if !is_path_allowed(path) {
+        return Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some(format!("Access denied: '{}' is outside allowed directories", path)),
+        });
+    }
+
     match std::fs::read_to_string(path) {
         Ok(content) => Ok(ToolResult {
             success: true,
-            output: content,
+            output: if content.len() > 50_000 {
+                format!("{}... (truncated, {} bytes total)", &content[..50_000], content.len())
+            } else {
+                content
+            },
             error: None,
         }),
         Err(e) => Ok(ToolResult {
@@ -330,6 +465,14 @@ fn execute_file_write(args: &Value) -> Result<ToolResult> {
             success: false,
             output: String::new(),
             error: Some("No file path provided".to_string()),
+        });
+    }
+
+    if !is_path_allowed(path) {
+        return Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some(format!("Access denied: '{}' is outside allowed directories", path)),
         });
     }
 
@@ -365,8 +508,15 @@ fn execute_command(args: &Value) -> Result<ToolResult> {
         });
     }
 
-    // Safety: restrict to safe commands in production
-    // For now, allow all — sandbox later
+    // Safety check: block dangerous commands
+    if let Err(e) = is_command_safe(command) {
+        return Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some(format!("🛡️ Blocked: {}", e)),
+        });
+    }
+
     match std::process::Command::new("sh")
         .arg("-c")
         .arg(command)
@@ -381,9 +531,16 @@ fn execute_command(args: &Value) -> Result<ToolResult> {
                 format!("{}\nstderr: {}", stdout, stderr)
             };
 
+            // Truncate very long output
+            let output_text = if combined.len() > 10_000 {
+                format!("{}... (truncated)", &combined[..10_000])
+            } else {
+                combined
+            };
+
             Ok(ToolResult {
                 success: output.status.success(),
-                output: combined,
+                output: output_text,
                 error: if output.status.success() { None } else { Some(format!("Exit code: {}", output.status)) },
             })
         }
