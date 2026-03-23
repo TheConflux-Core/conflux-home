@@ -324,16 +324,23 @@ export default function App() {
 
   const handleNavigate = useCallback((v: View) => {
     setView(v);
-    if (v === 'chat') {
+    if (v === 'dashboard') {
+      // Home → go to desktop (close any immersive view)
+      setImmersiveView(null);
+      setChatOpen(false);
+      setVoiceChatOpen(false);
+    } else if (v === 'chat') {
       if (!selectedAgent) {
         // Auto-select first active agent when navigating to chat
         const active = agents.find(a => a.status !== 'offline');
         if (active) setSelectedAgent(active);
       }
+      setImmersiveView(null);
       setChatOpen(true);
     } else {
       // Open immersive view for all other navigation
       setImmersiveView(v);
+      setChatOpen(false);
     }
   }, [agents, selectedAgent]);
 

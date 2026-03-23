@@ -1,5 +1,5 @@
 // Conflux Home — Dream Builder Hook
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { Dream, DreamDashboard, DreamTask, DreamProgress } from '../types';
 
@@ -12,9 +12,12 @@ export function useDreams() {
       setLoading(true);
       const d = await invoke<DreamDashboard>('dream_get_dashboard');
       setDashboard(d);
-    } catch (e) { console.error('Failed:', e); }
+    } catch (e) { console.error('Failed:', e); setDashboard(null); }
     finally { setLoading(false); }
   }, []);
+
+  // Load on mount
+  useEffect(() => { load(); }, [load]);
 
   const addDream = useCallback(async (title: string, category: string, description?: string, targetDate?: string, memberId?: string) => {
     await invoke('dream_add', {
