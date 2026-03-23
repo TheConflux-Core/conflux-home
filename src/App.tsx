@@ -22,6 +22,7 @@ import VoiceChat from './components/VoiceChat';
 import KitchenView from './components/KitchenView';
 import BudgetView from './components/BudgetView';
 import FeedView from './components/FeedView';
+import LifeAutopilotView from './components/LifeAutopilotView';
 import { useEngine } from './hooks/useEngine';
 import { useConfluxChat } from './hooks/useConfluxChat';
 import { useToast } from './hooks/useToast';
@@ -533,6 +534,13 @@ export default function App() {
       {view === 'feed' && (
         <div className="content-overlay">
           <FeedView />
+        </div>
+      )}
+
+      {/* Life Autopilot View */}
+      {view === 'life' && (
+        <div className="content-overlay">
+          <LifeAutopilotView />
         </div>
       )}
 

@@ -8,6 +8,7 @@ import './styles-voice.css'
 import './styles-kitchen.css'
 import './styles-budget.css'
 import './styles-feed.css'
+import './styles-life.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

@@ -177,6 +177,14 @@ pub fn run() {
             commands::fridge_what_can_i_make,
             commands::fridge_expiring_soon,
             commands::fridge_shopping_for_meals,
+            // Life Autopilot
+            commands::life_analyze_document,
+            commands::life_get_dashboard,
+            commands::life_get_documents,
+            commands::life_get_reminders,
+            commands::life_get_knowledge,
+            commands::life_add_reminder,
+            commands::life_ask,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
