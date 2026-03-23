@@ -1526,4 +1526,113 @@ impl EngineDb {
         for r in records { result.push(r?); }
         Ok(result)
     }
+
+    // ── Skills ──
+
+    pub fn get_skills(&self, active_only: bool) -> Result<Vec<super::types::Skill>> {
+        let conn = self.conn();
+        let query = if active_only {
+            "SELECT id, name, description, emoji, version, author, skill_type, instructions, triggers, agents, permissions, is_active, install_source, manifest_json, installed_at, updated_at
+             FROM skills WHERE is_active = 1 ORDER BY name"
+        } else {
+            "SELECT id, name, description, emoji, version, author, skill_type, instructions, triggers, agents, permissions, is_active, install_source, manifest_json, installed_at, updated_at
+             FROM skills ORDER BY name"
+        };
+        let mut stmt = conn.prepare(query)?;
+        let skills = stmt.query_map([], |row| {
+            Ok(super::types::Skill {
+                id: row.get(0)?, name: row.get(1)?, description: row.get(2)?,
+                emoji: row.get(3)?, version: row.get(4)?, author: row.get(5)?,
+                skill_type: row.get(6)?, instructions: row.get(7)?, triggers: row.get(8)?,
+                agents: row.get(9)?, permissions: row.get(10)?,
+                is_active: row.get::<_, i64>(11)? != 0, install_source: row.get(12)?,
+                manifest_json: row.get(13)?, installed_at: row.get(14)?, updated_at: row.get(15)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for s in skills { result.push(s?); }
+        Ok(result)
+    }
+
+    pub fn get_skill(&self, id: &str) -> Result<Option<super::types::Skill>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, description, emoji, version, author, skill_type, instructions, triggers, agents, permissions, is_active, install_source, manifest_json, installed_at, updated_at
+             FROM skills WHERE id = ?1"
+        )?;
+        let result = stmt.query_row(params![id], |row| {
+            Ok(super::types::Skill {
+                id: row.get(0)?, name: row.get(1)?, description: row.get(2)?,
+                emoji: row.get(3)?, version: row.get(4)?, author: row.get(5)?,
+                skill_type: row.get(6)?, instructions: row.get(7)?, triggers: row.get(8)?,
+                agents: row.get(9)?, permissions: row.get(10)?,
+                is_active: row.get::<_, i64>(11)? != 0, install_source: row.get(12)?,
+                manifest_json: row.get(13)?, installed_at: row.get(14)?, updated_at: row.get(15)?,
+            })
+        });
+        match result {
+            Ok(s) => Ok(Some(s)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Get skills applicable to a specific agent.
+    pub fn get_skills_for_agent(&self, agent_id: &str) -> Result<Vec<super::types::Skill>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, description, emoji, version, author, skill_type, instructions, triggers, agents, permissions, is_active, install_source, manifest_json, installed_at, updated_at
+             FROM skills
+             WHERE is_active = 1 AND (agents = '*' OR agents LIKE ?1)
+             ORDER BY name"
+        )?;
+        let pattern = format!("%\"{}\"%", agent_id);
+        let skills = stmt.query_map(params![pattern], |row| {
+            Ok(super::types::Skill {
+                id: row.get(0)?, name: row.get(1)?, description: row.get(2)?,
+                emoji: row.get(3)?, version: row.get(4)?, author: row.get(5)?,
+                skill_type: row.get(6)?, instructions: row.get(7)?, triggers: row.get(8)?,
+                agents: row.get(9)?, permissions: row.get(10)?,
+                is_active: row.get::<_, i64>(11)? != 0, install_source: row.get(12)?,
+                manifest_json: row.get(13)?, installed_at: row.get(14)?, updated_at: row.get(15)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for s in skills { result.push(s?); }
+        Ok(result)
+    }
+
+    pub fn install_skill(&self, id: &str, name: &str, description: Option<&str>, emoji: &str,
+                         version: &str, author: Option<&str>, instructions: &str,
+                         triggers: Option<&str>, agents: &str, permissions: Option<&str>,
+                         source: &str, manifest: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        let now = Self::now();
+        conn.execute(
+            "INSERT INTO skills (id, name, description, emoji, version, author, instructions, triggers, agents, permissions, install_source, manifest_json, installed_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?13)
+             ON CONFLICT(id) DO UPDATE SET
+                name = ?2, description = ?3, emoji = ?4, version = ?5, author = ?6,
+                instructions = ?7, triggers = ?8, agents = ?9, permissions = ?10,
+                install_source = ?11, manifest_json = ?12, is_active = 1, updated_at = ?13",
+            params![id, name, description, emoji, version, author, instructions, triggers, agents, permissions, source, manifest, now],
+        )?;
+        Ok(())
+    }
+
+    pub fn toggle_skill(&self, id: &str, active: bool) -> Result<()> {
+        let conn = self.conn();
+        let a: i64 = if active { 1 } else { 0 };
+        conn.execute(
+            "UPDATE skills SET is_active = ?2, updated_at = ?3 WHERE id = ?1",
+            params![id, a, Self::now()],
+        )?;
+        Ok(())
+    }
+
+    pub fn uninstall_skill(&self, id: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute("DELETE FROM skills WHERE id = ?1", params![id])?;
+        Ok(())
+    }
 }

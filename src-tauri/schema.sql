@@ -243,17 +243,51 @@ CREATE INDEX IF NOT EXISTS idx_missions_owner ON missions(owner_agent_id);
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS skills (
-    id              TEXT PRIMARY KEY,           -- 'web_research', 'code_review', etc.
+    id              TEXT PRIMARY KEY,           -- 'seo-audit', 'web-research', etc.
     name            TEXT NOT NULL,
     description     TEXT,
+    emoji           TEXT NOT NULL DEFAULT '🔌',
     version         TEXT NOT NULL DEFAULT '1.0.0',
     author          TEXT,
-    instructions    TEXT NOT NULL,              -- what the agent should do
-    triggers        TEXT,                       -- JSON: phrases/patterns that activate this skill
-    tools_used      TEXT,                       -- JSON: tool IDs this skill requires
-    is_installed    INTEGER NOT NULL DEFAULT 1,
-    installed_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    skill_type      TEXT NOT NULL DEFAULT 'prompt',  -- 'prompt' | 'wasm' (future)
+    instructions    TEXT NOT NULL,              -- injected into agent system prompt
+    triggers        TEXT,                       -- JSON: phrases/patterns that activate
+    agents          TEXT NOT NULL DEFAULT '*',   -- JSON array of agent IDs, or '*' for all
+    permissions     TEXT,                       -- JSON: tools this skill requires
+    is_active       INTEGER NOT NULL DEFAULT 1,
+    install_source  TEXT DEFAULT 'local',       -- 'marketplace' | 'local' | 'url'
+    manifest_json   TEXT,                       -- full manifest for reference
+    installed_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+
+-- Seed skills from our existing agent knowledge
+INSERT OR IGNORE INTO skills (id, name, emoji, description, instructions, triggers, agents, permissions) VALUES
+    ('web-research', 'Web Research', '🔍', 'Deep web research with source verification',
+     'When conducting research:\n1. Search multiple queries to triangulate information\n2. Always cite sources with URLs\n3. Distinguish between verified facts and speculation\n4. Cross-reference at least 2 sources for important claims\n5. Report confidence level: HIGH (multiple sources agree), MEDIUM (single source), LOW (unverified)',
+     '["research", "find information", "look up", "investigate", "analyze market"]',
+     '["helix", "zigbot", "catalyst"]',
+     '["web_search"]'),
+    ('content-writing', 'Content Writing', '✍️', 'Professional content creation with SEO awareness',
+     'When writing content:\n1. Match the tone to the audience (professional, casual, technical)\n2. Use clear structure: hook → value → CTA\n3. Include relevant keywords naturally\n4. Keep paragraphs short (2-3 sentences max)\n5. End with a clear next step for the reader\n6. For SEO: use headers (H2/H3), include meta description suggestions',
+     '["write content", "create article", "blog post", "copywriting", "draft"]',
+     '["forge", "pulse", "catalyst"]',
+     '["file_write"]'),
+    ('code-review', 'Code Review', '🔎', 'Thorough code review with best practices',
+     'When reviewing code:\n1. Check for security vulnerabilities (SQL injection, XSS, auth bypass)\n2. Evaluate performance: unnecessary loops, N+1 queries, memory leaks\n3. Verify error handling: all edge cases covered\n4. Check naming conventions and code clarity\n5. Suggest improvements with code examples\n6. Rate severity: CRITICAL (security/data loss), HIGH (bugs), MEDIUM (performance), LOW (style)',
+     '["review code", "check code", "code review", "audit code", "security review"]',
+     '["forge", "quanta", "catalyst"]',
+     '["file_read"]'),
+    ('data-analysis', 'Data Analysis', '📊', 'Structured data analysis and visualization suggestions',
+     'When analyzing data:\n1. Start with summary statistics (count, mean, median, range)\n2. Identify patterns, outliers, and trends\n3. Suggest appropriate visualization types (bar, line, scatter, heatmap)\n4. Calculate relevant metrics (growth rate, correlation, distribution)\n5. Present findings in a clear table format\n6. State confidence in conclusions',
+     '["analyze data", "data analysis", "statistics", "trends", "metrics"]',
+     '["helix", "zigbot", "catalyst"]',
+     '["file_read", "calc"]'),
+    ('seo-audit', 'SEO Audit', '🎯', 'Comprehensive SEO analysis for any website',
+     'When performing SEO analysis:\n1. Check title tag: 50-60 chars, includes primary keyword\n2. Meta description: 150-160 chars, compelling CTA\n3. Header hierarchy: H1 → H2 → H3 logical flow\n4. Keyword density: primary keyword in first 100 words\n5. Internal/external link analysis\n6. Image alt text coverage\n7. Mobile responsiveness indicators\n8. Page speed suggestions\n9. Score each factor 1-10 and provide overall SEO score',
+     '["seo", "search engine", "optimize", "ranking", "keywords", "meta tags"]',
+     '["helix", "pulse", "catalyst"]',
+     '["web_search", "file_read"]');
 
 -- ============================================================
 -- QUOTA — Usage Tracking

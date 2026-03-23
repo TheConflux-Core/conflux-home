@@ -622,6 +622,47 @@ pub fn engine_get_heartbeats() -> Result<serde_json::Value, String> {
     Ok(serde_json::to_value(records).map_err(|e| e.to_string())?)
 }
 
+// ── Skills ──
+
+#[tauri::command]
+pub fn engine_get_skills(active_only: Option<bool>) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let skills = engine.get_skills(active_only.unwrap_or(false)).map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(skills).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub fn engine_get_skill(id: String) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let skill = engine.get_skill(&id).map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(skill).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub fn engine_get_skills_for_agent(agent_id: String) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let skills = engine.get_skills_for_agent(&agent_id).map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(skills).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub fn engine_install_skill(manifest_json: String) -> Result<String, String> {
+    let engine = engine::get_engine();
+    engine.install_skill_from_json(&manifest_json).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_toggle_skill(id: String, active: bool) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.toggle_skill(&id, active).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_uninstall_skill(id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.uninstall_skill(&id).map_err(|e| e.to_string())
+}
+
 // ── Google Commands ──
 
 #[tauri::command]
