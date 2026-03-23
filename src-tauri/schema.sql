@@ -937,5 +937,29 @@ INSERT OR IGNORE INTO story_seeds (id, title, genre, age_group, difficulty, open
  'Your great-aunt Margaret left you a mansion you never knew existed. The lawyer said it came with one condition: "Spend one night inside." It''s midnight. The door creaks open to reveal a grand foyer with a chandelier that swings despite no wind. On the wall, a portrait of Margaret stares at you. Her eyes seem to follow. A grandfather clock strikes twelve — but it shows thirteen chimes.',
  '[{"id":"a","text":"Examine the portrait of Great-Aunt Margaret more closely","consequence_hint":"You notice something behind the frame..."},{"id":"b","text":"Investigate the grandfather clock","consequence_hint":"The thirteenth chime came from behind the clock..."},{"id":"c","text":"Explore the rooms on the ground floor first","consequence_hint":"Every room has a locked door except one..."}]',
  '{"location":"foyer","inventory":[],"characters":["you","margaret_portrait"],"mood":"eerie","secrets_found":0,"rooms_explored":[],"chapter":1}',
- '["riddle","logic","pattern","code"]');
+ '["riddle","logic","pattern","code"]'),
+
+('seed-underwater-city', 'The Sunken City of Lyra', 'fantasy', 'kid', 'normal',
+ 'You''re a marine biologist on a deep-sea dive when your submarine gets caught in a strange current. It pulls you down, down, down — until you see something impossible: a city made of crystal and coral, glowing with bioluminescent light. A voice echoes through your radio: "Welcome, surface-dweller. We''ve been waiting for someone brave enough to find us." The city of Lyra needs your help — their power crystal is fading, and without it, the city will sink into the abyss.',
+ '[{"id":"a","text":"Swim toward the glowing crystal tower at the center of the city","consequence_hint":"The light pulses brighter as you approach..."},{"id":"b","text":"Try to communicate with the voice on your radio","consequence_hint":"A friendly dolphin-like creature swims up to your window..."},{"id":"c","text":"Check your submarine''s systems and map the area first","consequence_hint":"Your instruments detect an unusual energy signature below..."}]',
+ '{"location":"lyra_entrance","inventory":["diving_suit","flashlight"],"characters":["you","lyran_guardian"],"mood":"wonder","crystal_power":30,"chapter":1}',
+ '["riddle","pattern","word"]'),
+
+('seed-robot-school', 'The Robot Who Wanted to Feel', 'scifi', 'kid', 'easy',
+ 'You''re a kid who just started at a new school where every student gets a robot companion. Your robot is different from the others — it asks questions nobody programmed it to ask. "What does happy feel like?" it whispers on your first day. The other robots just follow orders, but yours seems to be... learning. Growing. And the school principal has noticed.',
+ '[{"id":"a","text":"Help your robot understand feelings by sharing your own","consequence_hint":"Your robot''s eyes glow a new color..."},{"id":"b","text":"Hide your robot''s unusual behavior from the teachers","consequence_hint":"You notice a camera in the hallway watching..."},{"id":"c","text":"Ask the school''s tech teacher about it after class","consequence_hint":"The teacher''s face goes pale when you describe what''s happening..."}]',
+ '{"location":"school_hallway","inventory":[],"characters":["you","robot_buddy","principal"],"mood":"curious","robot_emotions":[],"chapter":1}',
+ '["pattern","riddle"]'),
+
+('seed-wild-west-witch', 'Hexes and Holsters', 'fantasy', 'young_adult', 'hard',
+ 'The town of Dusthollow hasn''t seen rain in three years. The preacher says it''s God''s will. The sheriff says it''s bad luck. But you — the new schoolteacher — noticed the symbols carved under every building. You came here to teach children, but the town has a secret older than the dust itself. Something is feeding on the water, and it knows you''ve seen the signs.',
+ '[{"id":"a","text":"Confront the preacher about the symbols you found","consequence_hint":"His hand moves to the gun on his hip..."},{"id":"b","text":"Investigate the old mine where the drought started","consequence_hint":"The entrance is sealed with iron and blessed salt..."},{"id":"c","text":"Visit the elderly Native woman at the edge of town","consequence_hint":"She''s been expecting you, and she knows your real name..."}]',
+ '{"location":"dusthollow_main_street","inventory":["journal","chalk"],"characters":["you","preacher","sheriff"],"mood":"tense","secrets_known":0,"trust_level":"stranger","chapter":1}',
+ '["code","logic","riddle"]'),
+
+('seed-murder-train', 'Murder on the Midnight Express', 'mystery', 'adult', 'hard',
+ 'The train from Paris to Istanbul has six passengers, one conductor, and a dead body in car three. The tracks ahead are washed out — the train won''t reach the next station for twelve hours. One of the passengers is a killer. You''re the only detective on board. The conductor locks the doors. Nobody leaves. Nobody sleeps. The question isn''t just who did it — it''s whether they''ll do it again before morning.',
+ '[{"id":"a","text":"Examine the crime scene in car three before evidence is disturbed","consequence_hint":"The body has a strange symbol burned into its palm..."},{"id":"b","text":"Interview each passenger while they''re still shaken","consequence_hint":"Two passengers have conflicting alibis for the same time..."},{"id":"c","text":"Search the victim''s belongings for a motive","consequence_hint":"You find a letter that implicates someone on this train..."}]',
+ '{"location":"train_car_5","inventory":["notebook","magnifying_glass"],"characters":["you","conductor","six_passengers"],"mood":"suspenseful","suspects_interviewed":0,"evidence_found":[],"chapter":1}',
+ '["logic","riddle","code"]');
 

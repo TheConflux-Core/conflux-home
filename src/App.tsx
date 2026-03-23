@@ -16,6 +16,7 @@ import FamilySwitcher from './components/FamilySwitcher';
 import FamilySetup from './components/FamilySetup';
 import GameLauncher from './components/GameLauncher';
 import StoryGameReader from './components/StoryGameReader';
+import AgentTemplateBrowser from './components/AgentTemplateBrowser';
 import { useEngine } from './hooks/useEngine';
 import { useConfluxChat } from './hooks/useConfluxChat';
 import { useToast } from './hooks/useToast';
@@ -437,6 +438,32 @@ export default function App() {
       {showSettingsOverlay && (
         <div className="content-overlay">
           <Settings />
+        </div>
+      )}
+
+      {/* Agents Library View */}
+      {view === 'agents' && (
+        <div className="content-overlay">
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+                  🧩 Agent Library
+                </h3>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                  {activeMember
+                    ? `Age-appropriate agents for ${activeMember.name}`
+                    : 'Browse and install agent templates for your family'}
+                </p>
+              </div>
+            </div>
+
+            <AgentTemplateBrowser
+              member={activeMember ?? null}
+              onClose={() => setView('dashboard')}
+              onInstalled={() => refresh()}
+            />
+          </div>
         </div>
       )}
 

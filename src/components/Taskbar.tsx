@@ -8,6 +8,7 @@ interface TaskbarProps {
 const ITEMS: { view: View; icon: string; label: string }[] = [
   { view: 'dashboard', icon: '🏠', label: 'Dash' },
   { view: 'chat', icon: '💬', label: 'Chat' },
+  { view: 'agents', icon: '🧩', label: 'Agents' },
   { view: 'games', icon: '📖', label: 'Games' },
   { view: 'marketplace', icon: '🛒', label: 'Market' },
   { view: 'settings', icon: '⚙️', label: 'Settings' },
