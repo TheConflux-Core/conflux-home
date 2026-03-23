@@ -852,3 +852,250 @@ fn get_daily_limit(engine: &engine::ConfluxEngine) -> i64 {
         .parse()
         .unwrap_or(50)
 }
+
+// ── Family Members ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateFamilyMemberRequest {
+    pub name: String,
+    pub age: Option<i64>,
+    pub age_group: String,
+    pub avatar: Option<String>,
+    pub color: Option<String>,
+    pub default_agent_id: Option<String>,
+    pub parent_id: Option<String>,
+}
+
+#[tauri::command]
+pub fn family_list() -> Result<Vec<engine::types::FamilyMember>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_family_members().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn family_create(req: CreateFamilyMemberRequest) -> Result<engine::types::FamilyMember, String> {
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    engine.db().create_family_member(
+        &id, &req.name, req.age, &req.age_group,
+        req.avatar.as_deref(), req.color.as_deref(),
+        req.default_agent_id.as_deref(), req.parent_id.as_deref(),
+    ).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn family_delete(id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().delete_family_member(&id).map_err(|e| e.to_string())
+}
+
+// ── Agent Templates ──
+
+#[tauri::command]
+pub fn agent_templates_list(age_group: Option<String>) -> Result<Vec<engine::types::AgentTemplate>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_agent_templates(age_group.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn agent_template_install(template_id: String, member_id: Option<String>) -> Result<Option<engine::types::Agent>, String> {
+    let engine = engine::get_engine();
+    engine.db().install_agent_from_template(&template_id, member_id.as_deref()).map_err(|e| e.to_string())
+}
+
+// ── Story Games ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateStoryGameRequest {
+    pub member_id: Option<String>,
+    pub title: String,
+    pub genre: String,
+    pub age_group: String,
+    pub difficulty: Option<String>,
+}
+
+#[tauri::command]
+pub fn story_games_list(member_id: Option<String>) -> Result<Vec<engine::types::StoryGame>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_story_games(member_id.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn story_game_create(req: CreateStoryGameRequest) -> Result<engine::types::StoryGame, String> {
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    let difficulty = req.difficulty.unwrap_or_else(|| "normal".to_string());
+    engine.db().create_story_game(
+        &id, req.member_id.as_deref(), &req.title, &req.genre, &req.age_group, &difficulty, None,
+    ).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn story_game_get(id: String) -> Result<Option<engine::types::StoryGame>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_story_game(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn story_chapters_list(game_id: String) -> Result<Vec<engine::types::StoryChapter>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_story_chapters(&game_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn story_seeds_list(age_group: Option<String>, genre: Option<String>) -> Result<Vec<engine::types::StorySeed>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_story_seeds(age_group.as_deref(), genre.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn story_choose_path(chapter_id: String, choice_id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().choose_story_path(&chapter_id, &choice_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn story_solve_puzzle(chapter_id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().solve_puzzle(&chapter_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn story_generate_next_chapter(game_id: String, choice_id: String) -> Result<engine::types::StoryChapter, String> {
+    let engine = engine::get_engine();
+
+    // Load game state
+    let game = engine.db().get_story_game(&game_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Game not found".to_string())?;
+
+    // Load all chapters so far
+    let chapters = engine.db().get_story_chapters(&game_id)
+        .map_err(|e| e.to_string())?;
+
+    // Mark the last chapter's choice
+    if let Some(last_chapter) = chapters.last() {
+        engine.db().choose_story_path(&last_chapter.id, &choice_id)
+            .map_err(|e| e.to_string())?;
+    }
+
+    // Build context for the AI
+    let mut story_context = String::new();
+    story_context.push_str(&format!(
+        "You are a master storyteller writing an interactive adventure puzzle game.\n\n\
+        Title: {}\nGenre: {}\nAge Group: {}\nDifficulty: {}\n\n",
+        game.title, game.genre, game.age_group, game.difficulty
+    ));
+
+    // Add previous chapters for continuity
+    for ch in &chapters {
+        if let Some(title) = &ch.title {
+            story_context.push_str(&format!("=== Chapter {}: {} ===\n", ch.chapter_number, title));
+        } else {
+            story_context.push_str(&format!("=== Chapter {} ===\n", ch.chapter_number));
+        }
+        story_context.push_str(&ch.narrative);
+        story_context.push_str("\n\n");
+
+        // Show what choice was made
+        if let Some(chosen_id) = &ch.chosen_choice_id {
+            let choices: Vec<engine::types::StoryChoice> = serde_json::from_str(&ch.choices)
+                .unwrap_or_default();
+            if let Some(chosen) = choices.iter().find(|c| &c.id == chosen_id) {
+                story_context.push_str(&format!("→ The player chose: {}\n\n", chosen.text));
+            }
+        }
+    }
+
+    // Get the chosen choice text for this turn
+    let last_chapter = chapters.last();
+    let chosen_text = if let Some(ch) = last_chapter {
+        let choices: Vec<engine::types::StoryChoice> = serde_json::from_str(&ch.choices)
+            .unwrap_or_default();
+        choices.iter().find(|c| c.id == choice_id)
+            .map(|c| c.text.clone())
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
+
+    // Build the AI prompt
+    let puzzle_instruction = if chapters.len() % 3 == 2 {
+        // Every 3rd chapter has a puzzle
+        "\nIMPORTANT: This chapter MUST include a puzzle. Add a \"puzzle\" field with type (riddle/pattern/logic/word/code), question, answer, and hint. Make it age-appropriate and solvable but challenging."
+    } else {
+        ""
+    };
+
+    let age_instruction = match game.age_group.as_str() {
+        "toddler" => "Use very simple words (1-2 syllables). Short sentences. Repetitive and encouraging. Keep it gentle and safe.",
+        "preschool" => "Use simple language. Be imaginative and fun. Include counting or color references when natural.",
+        "kid" => "Use age-appropriate language. Be adventurous and exciting. Include humor and wonder. Reference things kids love.",
+        "teen" => "Use sophisticated language. Be thrilling and engaging. Include real stakes and emotional depth.",
+        "young_adult" | "adult" => "Use rich, literary language. Complex characters. Moral ambiguity. Real consequences.",
+        _ => "Use age-appropriate language for the target audience.",
+    };
+
+    let full_prompt = format!(
+        "{story_context}\n\
+        The player chose: \"{chosen_text}\"\n\n\
+        Write the NEXT chapter of this story. {age_instruction}{puzzle_instruction}\n\n\
+        Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):\n\
+        {{\n  \"title\": \"Chapter title\",\n  \"narrative\": \"The story text for this chapter (2-4 paragraphs). Be vivid and immersive.\",\n  \"choices\": [\n    {{\"id\": \"a\", \"text\": \"First choice\", \"consequence_hint\": \"What might happen\"}},\n    {{\"id\": \"b\", \"text\": \"Second choice\", \"consequence_hint\": \"What might happen\"}},\n    {{\"id\": \"c\", \"text\": \"Third choice\", \"consequence_hint\": \"What might happen\"}}\n  ],\n  \"puzzle\": null,\n  \"image_prompt\": \"A vivid description for DALL-E to illustrate this scene\"\n}}\n\n\
+        Make sure the narrative continues from the previous chapter naturally. The choices should lead to meaningfully different outcomes."
+    );
+
+    // Call the AI
+    let messages = vec![engine::router::OpenAIMessage {
+        role: "user".to_string(),
+        content: Some(full_prompt),
+        tool_call_id: None,
+        tool_calls: None,
+    }];
+
+    let response = engine::router::chat("core", messages, Some(2000), None, None)
+        .await
+        .map_err(|e| format!("AI generation failed: {}", e))?;
+
+    // Parse the AI response as JSON
+    let content = response.content.trim();
+    // Strip markdown code fences if present
+    let json_str = content
+        .strip_prefix("```json").unwrap_or(content)
+        .strip_prefix("```").unwrap_or(content)
+        .strip_suffix("```").unwrap_or(content)
+        .trim();
+
+    #[derive(serde::Deserialize)]
+    struct ChapterGen {
+        title: Option<String>,
+        narrative: String,
+        choices: Vec<engine::types::StoryChoice>,
+        puzzle: Option<engine::types::StoryPuzzle>,
+        image_prompt: Option<String>,
+    }
+
+    let generated: ChapterGen = serde_json::from_str(json_str)
+        .map_err(|e| format!("Failed to parse AI response as JSON: {}. Response was: {}", e, json_str))?;
+
+    let choices_json = serde_json::to_string(&generated.choices)
+        .map_err(|e| e.to_string())?;
+    let puzzle_json = generated.puzzle
+        .and_then(|p| serde_json::to_string(&p).ok());
+
+    let chapter_number = game.current_chapter + 1;
+    let chapter_id = uuid::Uuid::new_v4().to_string();
+
+    let chapter = engine.db().add_story_chapter(
+        &chapter_id,
+        &game_id,
+        chapter_number,
+        generated.title.as_deref(),
+        &generated.narrative,
+        &choices_json,
+        puzzle_json.as_deref(),
+        generated.image_prompt.as_deref(),
+    ).map_err(|e| e.to_string())?;
+
+    Ok(chapter)
+}
