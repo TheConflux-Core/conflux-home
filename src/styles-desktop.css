@@ -286,243 +286,107 @@
   color: rgba(255, 255, 255, 0.6) !important;
 }
 
-/* ── Start Menu ── */
+/* ══════════════════════════════════════
+   Conflux Bar — Unified Bottom Bar
+   ══════════════════════════════════════ */
 
-.start-menu-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 190;
-}
-
-.start-menu {
-  position: fixed;
-  bottom: 64px;
-  left: 12px;
-  z-index: 200;
-  width: 560px;
-  max-height: 70vh;
-  background: rgba(15, 15, 25, 0.92);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  animation: start-menu-enter 0.2s ease-out;
-}
-
-@keyframes start-menu-enter {
-  from { opacity: 0; transform: translateY(20px) scale(0.96); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-.start-menu-search {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.start-menu-search-icon {
-  font-size: 18px;
-  opacity: 0.5;
-}
-
-.start-menu-search-input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  outline: none;
-  color: #fff;
-  font-size: 15px;
-  font-family: inherit;
-}
-
-.start-menu-search-input::placeholder {
-  color: rgba(255, 255, 255, 0.35);
-}
-
-.start-menu-categories {
-  display: flex;
-  gap: 4px;
-  padding: 12px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.start-menu-cat {
-  padding: 6px 14px;
-  border-radius: 999px;
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-  font-family: inherit;
-}
-
-.start-menu-cat:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.start-menu-cat.active {
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.start-menu-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 4px;
-  padding: 12px;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.start-menu-app {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: transparent;
-  border: 1px solid transparent;
-  cursor: pointer;
-  text-align: left;
-  transition: all 0.15s;
-  font-family: inherit;
-  width: 100%;
-}
-
-.start-menu-app:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-.start-menu-app-icon {
-  font-size: 28px;
-  flex-shrink: 0;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.start-menu-app-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.start-menu-app-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: #fff;
-}
-
-.start-menu-app-desc {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.45);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.start-menu-empty {
-  grid-column: 1 / -1;
-  text-align: center;
-  padding: 40px;
-  color: rgba(255, 255, 255, 0.3);
-  font-size: 14px;
-}
-
-/* ── Dock ── */
-
-.dock {
+.conflux-bar-wrapper {
   position: fixed;
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
   z-index: 150;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  background: rgba(15, 15, 25, 0.85);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-bottom: none;
-  border-radius: 16px 16px 0 0;
 }
 
-.dock-start-btn {
+/* ── The Bar ── */
+
+.conflux-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px 6px 6px;
+  background: rgba(12, 12, 22, 0.88);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: none;
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.3);
+  min-width: 360px;
+  transition: border-color 0.2s;
+}
+
+/* ── Home Button ── */
+
+.conflux-bar-home {
   width: 44px;
   height: 44px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background: transparent;
+  border: 1px solid transparent;
   font-size: 22px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.15s;
+  flex-shrink: 0;
 }
 
-.dock-start-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
+.conflux-bar-home:hover {
+  background: rgba(255, 255, 255, 0.08);
   transform: scale(1.1);
 }
 
-.dock-divider {
-  width: 1px;
-  height: 28px;
+.conflux-bar-home.active {
   background: rgba(255, 255, 255, 0.1);
-  margin: 0 6px;
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
-.dock-items {
+.conflux-bar-divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* ── Pinned Apps ── */
+
+.conflux-bar-apps {
   display: flex;
-  gap: 4px;
+  gap: 2px;
 }
 
-.dock-item {
+.conflux-bar-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 6px 10px;
+  gap: 1px;
+  padding: 6px 12px;
   border-radius: 12px;
   background: transparent;
   border: 1px solid transparent;
   cursor: pointer;
   transition: all 0.15s;
   font-family: inherit;
-  min-width: 52px;
+  min-width: 48px;
 }
 
-.dock-item:hover {
+.conflux-bar-item:hover {
   background: rgba(255, 255, 255, 0.08);
-  transform: scale(1.15) translateY(-4px);
+  transform: scale(1.15) translateY(-6px);
 }
 
-.dock-item.active {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.15);
+.conflux-bar-item.active {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
-.dock-item.active::after {
+.conflux-bar-item.active::after {
   content: '';
   display: block;
   width: 4px;
@@ -532,14 +396,247 @@
   margin-top: -2px;
 }
 
-.dock-item-icon {
-  font-size: 24px;
+.conflux-bar-item-icon {
+  font-size: 22px;
   line-height: 1;
 }
 
-.dock-item-label {
+.conflux-bar-item-label {
   font-size: 9px;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.45);
   font-weight: 500;
   white-space: nowrap;
+}
+
+.conflux-bar-spacer {
+  flex: 1;
+  min-width: 20px;
+}
+
+/* ── Search Button ── */
+
+.conflux-bar-search {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.conflux-bar-search:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: scale(1.1);
+}
+
+.conflux-bar-search.active {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+/* ══════════════════════════════════════
+   Conflux Menu — Rises from Bar
+   ══════════════════════════════════════ */
+
+.conflux-menu {
+  width: 480px;
+  max-height: 65vh;
+  background: rgba(12, 12, 22, 0.94);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: none;
+  border-radius: 20px 20px 0 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -12px 50px rgba(0, 0, 0, 0.4);
+  animation: conflux-menu-enter 0.25s ease-out;
+}
+
+@keyframes conflux-menu-enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ── Hero Section ── */
+
+.conflux-menu-hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.08));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.conflux-menu-hero-icon {
+  font-size: 28px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+}
+
+.conflux-menu-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.conflux-menu-hero-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.conflux-menu-hero-subtitle {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ── Search ── */
+
+.conflux-menu-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.conflux-menu-search-icon {
+  font-size: 16px;
+  opacity: 0.4;
+}
+
+.conflux-menu-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.conflux-menu-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* ── Categories ── */
+
+.conflux-menu-categories {
+  display: flex;
+  gap: 4px;
+  padding: 10px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.conflux-menu-cat {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.conflux-menu-cat:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.conflux-menu-cat.active {
+  background: rgba(99, 102, 241, 0.2);
+  color: #fff;
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+/* ── App Grid ── */
+
+.conflux-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 10px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.conflux-menu-app {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+  font-family: inherit;
+  width: 100%;
+}
+
+.conflux-menu-app:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.conflux-menu-app.active {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+.conflux-menu-app-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.conflux-menu-app-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.conflux-menu-app-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.conflux-menu-app-desc {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conflux-menu-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 30px;
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 13px;
 }
