@@ -882,3 +882,157 @@ pub struct PlanSlot {
     pub meal: Option<Meal>,
     pub notes: Option<String>,
 }
+
+// ── Home Health ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HomeProfile {
+    pub id: String,
+    pub address: Option<String>,
+    pub year_built: Option<i64>,
+    pub square_feet: Option<i64>,
+    pub hvac_type: Option<String>,
+    pub hvac_filter_size: Option<String>,
+    pub water_heater_type: Option<String>,
+    pub roof_type: Option<String>,
+    pub window_type: Option<String>,
+    pub insulation_type: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HomeBill {
+    pub id: String,
+    pub bill_type: String,
+    pub amount: f64,
+    pub usage: Option<f64>,
+    pub billing_month: String,
+    pub notes: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HomeMaintenance {
+    pub id: String,
+    pub task: String,
+    pub category: String,
+    pub last_completed: Option<String>,
+    pub interval_months: Option<i64>,
+    pub next_due: Option<String>,
+    pub priority: String,
+    pub estimated_cost: Option<f64>,
+    pub notes: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HomeAppliance {
+    pub id: String,
+    pub name: String,
+    pub category: String,
+    pub model: Option<String>,
+    pub installed_date: Option<String>,
+    pub expected_lifespan_years: Option<f64>,
+    pub warranty_expiry: Option<String>,
+    pub estimated_replacement_cost: Option<f64>,
+    pub notes: Option<String>,
+    pub last_service: Option<String>,
+    pub next_service: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HomeDashboard {
+    pub profile: Option<HomeProfile>,
+    pub upcoming_maintenance: Vec<HomeMaintenance>,
+    pub overdue_maintenance: Vec<HomeMaintenance>,
+    pub appliances_needing_service: Vec<HomeAppliance>,
+    pub bill_trend: Vec<BillTrendPoint>,
+    pub total_monthly_utilities: f64,
+    pub health_score: f64,
+    pub ai_alerts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BillTrendPoint {
+    pub month: String,
+    pub electric: Option<f64>,
+    pub gas: Option<f64>,
+    pub water: Option<f64>,
+    pub total: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HomeInsight {
+    pub title: String,
+    pub description: String,
+    pub estimated_impact: Option<String>,
+    pub priority: String,
+    pub category: String,
+}
+
+// ── Dream Builder ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Dream {
+    pub id: String,
+    pub member_id: Option<String>,
+    pub title: String,
+    pub description: Option<String>,
+    pub category: String,
+    pub target_date: Option<String>,
+    pub status: String,
+    pub progress: f64,
+    pub ai_plan: Option<String>,
+    pub ai_next_actions: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DreamMilestone {
+    pub id: String,
+    pub dream_id: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub target_date: Option<String>,
+    pub completed_at: Option<String>,
+    pub is_completed: bool,
+    pub sort_order: i64,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DreamTask {
+    pub id: String,
+    pub dream_id: String,
+    pub milestone_id: Option<String>,
+    pub title: String,
+    pub description: Option<String>,
+    pub due_date: Option<String>,
+    pub completed_at: Option<String>,
+    pub is_completed: bool,
+    pub frequency: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DreamProgress {
+    pub id: String,
+    pub dream_id: String,
+    pub note: Option<String>,
+    pub progress_change: Option<f64>,
+    pub ai_insight: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DreamDashboard {
+    pub dreams: Vec<Dream>,
+    pub active_dreams: i64,
+    pub total_milestones: i64,
+    pub completed_milestones: i64,
+    pub upcoming_tasks: Vec<DreamTask>,
+    pub recent_progress: Vec<DreamProgress>,
+}

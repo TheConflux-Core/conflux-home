@@ -1230,3 +1230,119 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_member ON life_knowledge(member_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_category ON life_knowledge(category);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_key ON life_knowledge(member_id, key);
 
+
+-- ── Home Health ──
+
+CREATE TABLE IF NOT EXISTS home_profiles (
+  id TEXT PRIMARY KEY,
+  address TEXT,
+  year_built INTEGER,
+  square_feet INTEGER,
+  hvac_type TEXT,
+  hvac_filter_size TEXT,
+  water_heater_type TEXT,
+  roof_type TEXT,
+  window_type TEXT,
+  insulation_type TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS home_bills (
+  id TEXT PRIMARY KEY,
+  bill_type TEXT NOT NULL,
+  amount REAL NOT NULL,
+  usage REAL,
+  billing_month TEXT NOT NULL,
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_home_bills_type ON home_bills(bill_type);
+CREATE INDEX IF NOT EXISTS idx_home_bills_month ON home_bills(billing_month);
+
+CREATE TABLE IF NOT EXISTS home_maintenance (
+  id TEXT PRIMARY KEY,
+  task TEXT NOT NULL,
+  category TEXT NOT NULL,
+  last_completed TEXT,
+  interval_months INTEGER,
+  next_due TEXT,
+  priority TEXT DEFAULT 'normal',
+  estimated_cost REAL,
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_home_maint_due ON home_maintenance(next_due);
+
+CREATE TABLE IF NOT EXISTS home_appliances (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  model TEXT,
+  installed_date TEXT,
+  expected_lifespan_years REAL,
+  warranty_expiry TEXT,
+  estimated_replacement_cost REAL,
+  notes TEXT,
+  last_service TEXT,
+  next_service TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_home_appliances_cat ON home_appliances(category);
+
+-- ── Dream Builder ──
+
+CREATE TABLE IF NOT EXISTS dreams (
+  id TEXT PRIMARY KEY,
+  member_id TEXT REFERENCES family_members(id),
+  title TEXT NOT NULL,
+  description TEXT,
+  category TEXT NOT NULL,     -- housing, education, health, career, travel, family, personal, financial
+  target_date TEXT,            -- YYYY-MM-DD
+  status TEXT DEFAULT 'active', -- active, completed, paused, cancelled
+  progress REAL DEFAULT 0,     -- 0-100 percentage
+  ai_plan TEXT,                -- JSON: reverse-engineered plan with milestones
+  ai_next_actions TEXT,        -- JSON: immediate next steps
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_dreams_member ON dreams(member_id);
+CREATE INDEX IF NOT EXISTS idx_dreams_status ON dreams(status);
+
+CREATE TABLE IF NOT EXISTS dream_milestones (
+  id TEXT PRIMARY KEY,
+  dream_id TEXT NOT NULL REFERENCES dreams(id),
+  title TEXT NOT NULL,
+  description TEXT,
+  target_date TEXT,
+  completed_at TEXT,
+  is_completed INTEGER DEFAULT 0,
+  sort_order INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_milestones_dream ON dream_milestones(dream_id);
+
+CREATE TABLE IF NOT EXISTS dream_tasks (
+  id TEXT PRIMARY KEY,
+  dream_id TEXT NOT NULL REFERENCES dreams(id),
+  milestone_id TEXT REFERENCES dream_milestones(id),
+  title TEXT NOT NULL,
+  description TEXT,
+  due_date TEXT,
+  completed_at TEXT,
+  is_completed INTEGER DEFAULT 0,
+  frequency TEXT,             -- daily, weekly, monthly, one-time
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_dream_tasks_dream ON dream_tasks(dream_id);
+CREATE INDEX IF NOT EXISTS idx_dream_tasks_due ON dream_tasks(due_date);
+
+CREATE TABLE IF NOT EXISTS dream_progress (
+  id TEXT PRIMARY KEY,
+  dream_id TEXT NOT NULL REFERENCES dreams(id),
+  note TEXT,
+  progress_change REAL,       -- percentage points changed
+  ai_insight TEXT,            -- AI's analysis of the update
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_dream_progress_dream ON dream_progress(dream_id);
