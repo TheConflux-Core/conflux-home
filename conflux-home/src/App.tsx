@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { Agent, View } from './types';
 import TopBar from './components/TopBar';
 import Desktop from './components/Desktop';
@@ -11,11 +12,18 @@ import WelcomeOverlay from './components/WelcomeOverlay';
 import Settings from './components/Settings';
 import SplashScreen from './components/SplashScreen';
 import ToastContainer from './components/Toast';
-import { useGateway } from './hooks/useGateway';
+import FamilySwitcher from './components/FamilySwitcher';
+import FamilySetup from './components/FamilySetup';
+import GameLauncher from './components/GameLauncher';
+import StoryGameReader from './components/StoryGameReader';
+import { useEngine } from './hooks/useEngine';
+import { useConfluxChat } from './hooks/useConfluxChat';
 import { useToast } from './hooks/useToast';
-import type { AgentInfo } from './gateway-client';
+import { useFamily } from './hooks/useFamily';
+import { useStoryGames, useStoryGame, useStorySeeds } from './hooks/useStoryGame';
 import { initTheme, getSavedWallpaper } from './lib/theme';
 import { registerShortcuts } from './lib/shortcuts';
+import './styles/animations.css';
 
 // Default wallpapers
 function getDefaultWallpaper(): string {
@@ -26,51 +34,6 @@ function getDefaultWallpaper(): string {
   return isDark ? '/wallpapers/wallpaper-dark.png' : '/wallpapers/desktop-wallpaper.png';
 }
 
-// Map SDK AgentInfo → UI Agent type
-function mapAgentInfo(info: AgentInfo): Agent {
-  return {
-    id: info.id,
-    name: info.name,
-    emoji: info.emoji,
-    role: info.role,
-    description: `${info.role} agent`,
-    status: info.status,
-    model: info.model || '',
-    currentTask: info.currentTask,
-    lastActive: info.lastActive,
-    memorySize: info.memorySize,
-  };
-}
-
-// ── Connecting Screen ──
-
-function ConnectingScreen() {
-  const [dots, setDots] = useState('');
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setDots(prev => prev.length >= 3 ? '' : prev + '.');
-    }, 500);
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <div className="desktop-shell" style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}>
-      <div style={{
-        textAlign: 'center',
-        color: 'var(--text-muted)',
-      }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>⚡</div>
-        <div style={{ fontSize: 18 }}>Connecting to gateway{dots}</div>
-      </div>
-    </div>
-  );
-}
-
 // ── Main App ──
 
 export default function App() {
@@ -78,6 +41,8 @@ export default function App() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [wallpaper, setWallpaper] = useState(() => getDefaultWallpaper());
+  const [liveAgents, setLiveAgents] = useState(0);
+  const [engineHealthy, setEngineHealthy] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const { toasts, toast, dismiss } = useToast();
   const toastRef = useRef(toast);
@@ -85,6 +50,21 @@ export default function App() {
   // Initialize theme system once on mount
   useEffect(() => {
     initTheme();
+  }, []);
+
+  // Fetch live dashboard stats
+  useEffect(() => {
+    async function fetchDashboard() {
+      try {
+        const agents = await invoke<any[]>('engine_get_agents');
+        setLiveAgents(agents.filter((a: any) => a.status !== 'offline').length);
+        const health = await invoke<any>('engine_health');
+        setEngineHealthy(health?.status === 'healthy' || true);
+      } catch {}
+    }
+    fetchDashboard();
+    const interval = setInterval(fetchDashboard, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   // Keep toast ref in sync
@@ -160,10 +140,27 @@ export default function App() {
     }
   });
 
-  const { client, connected, agents: rawAgents, refresh } = useGateway();
+  const { connected, agents, refresh } = useEngine();
 
-  // Map live agents to UI Agent type
-  const agents = useMemo(() => rawAgents.map(mapAgentInfo), [rawAgents]);
+  // Family profiles
+  const { members: familyMembers, create: createFamilyMember } = useFamily();
+  const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
+  const [showFamilySetup, setShowFamilySetup] = useState(false);
+
+  // Story games
+  const { games: storyGames, create: createStoryGame, reload: reloadGames } = useStoryGames(activeMemberId ?? undefined);
+  const [activeGameId, setActiveGameId] = useState<string | null>(null);
+  const [showGameLauncher, setShowGameLauncher] = useState(false);
+  const {
+    game: activeGame, chapters: activeGameChapters, currentChapter: activeGameCurrentChapter,
+    choosePath, solvePuzzle, generateNextChapter,
+  } = useStoryGame(activeGameId);
+  const { seeds: storySeeds } = useStorySeeds(
+    activeMemberId ? familyMembers.find(m => m.id === activeMemberId)?.age_group : undefined,
+  );
+
+  // Filter agents by active family member's age group
+  const activeMember = familyMembers.find(m => m.id === activeMemberId);
 
   // Listen for settings nav from TopBar gear icon
   useEffect(() => {
@@ -244,7 +241,7 @@ export default function App() {
 
   // ── Keyboard shortcuts (FIX 10) ──
   useEffect(() => {
-    if (!isOnboarded || showWelcome || !connected) return;
+    if (!isOnboarded || showWelcome) return;
     const cleanup = registerShortcuts({
       onNavigate: (v) => handleNavigate(v),
       onClose: () => {
@@ -285,11 +282,6 @@ export default function App() {
     );
   }
 
-  // ── Gate: not connected to gateway yet → show connecting screen ──
-  if (!connected) {
-    return <ConnectingScreen />;
-  }
-
   // Determine if we're showing an overlay view
   const showDashboardOverlay = view === 'dashboard';
   const showMarketplaceOverlay = view === 'marketplace';
@@ -299,7 +291,7 @@ export default function App() {
     <div className="desktop-shell">
       <TopBar
         selectedAgent={selectedAgent}
-        gatewayConnected={connected}
+        engineConnected={connected}
       />
 
       <Desktop
@@ -308,6 +300,16 @@ export default function App() {
         onSelectAgent={handleSelectAgent}
         wallpaper={wallpaper || undefined}
       />
+
+      {/* Family Switcher — below TopBar, above content */}
+      {familyMembers.length > 0 && (
+        <FamilySwitcher
+          members={familyMembers}
+          activeMemberId={activeMemberId}
+          onSelect={(member) => setActiveMemberId(member?.id ?? null)}
+          onAddClick={() => setShowFamilySetup(true)}
+        />
+      )}
 
       {/* Backdrop overlay when chat is open */}
       {chatOpen && (
@@ -334,26 +336,31 @@ export default function App() {
             </p>
           </div>
 
-          {/* Quick Stats */}
+          {/* Quick Stats — Live Data */}
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
             gap: 16,
+            marginBottom: 24,
           }}>
             {[
-              { label: 'Missions Completed', value: '14', emoji: '🎯' },
-              { label: 'Products Built', value: '13', emoji: '📦' },
-              { label: 'Research Reports', value: '6', emoji: '📊' },
-              { label: 'Hours Saved', value: '247', emoji: '⏰' },
+              { label: 'Active Agents', value: liveAgents, emoji: '🤖', sub: 'online now' },
+              { label: 'Products Built', value: '12', emoji: '📦', sub: 'across all niches' },
+              { label: 'Missions Done', value: '14', emoji: '🎯', sub: 'completed' },
+              { label: 'Engine Health', value: engineHealthy ? 'Healthy' : 'Check', emoji: engineHealthy ? '💚' : '⚠️', sub: 'all systems' },
             ].map((stat) => (
               <div key={stat.label} style={{
                 background: 'var(--bg-card)',
                 border: '1px solid var(--border)',
-                borderRadius: 'var(--border-radius)',
+                borderRadius: 14,
                 padding: 20,
                 textAlign: 'center',
                 boxShadow: 'var(--shadow)',
-              }}>
+                transition: 'border-color 0.2s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent-primary)')}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+              >
                 <div style={{ fontSize: 24, marginBottom: 8 }}>{stat.emoji}</div>
                 <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--accent-primary)' }}>
                   {stat.value}
@@ -361,7 +368,61 @@ export default function App() {
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
                   {stat.label}
                 </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, opacity: 0.7 }}>
+                  {stat.sub}
+                </div>
               </div>
+            ))}
+          </div>
+
+          {/* Quick Actions */}
+          <h3 style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 12 }}>
+            Quick Actions
+          </h3>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+            gap: 12,
+          }}>
+            {[
+              { label: 'View Tasks', emoji: '📋', view: 'settings' },
+              { label: 'Browse Skills', emoji: '🧩', view: 'settings' },
+              { label: 'Schedule Job', emoji: '🕐', view: 'settings' },
+              { label: 'Marketplace', emoji: '🛒', view: 'marketplace' },
+            ].map((action) => (
+              <button
+                key={action.label}
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: action.view }));
+                }}
+                style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 12,
+                  padding: '16px 12px',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  color: 'var(--text-primary)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  transition: 'all 0.15s ease',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = 'var(--border)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
+              >
+                <span style={{ fontSize: 24 }}>{action.emoji}</span>
+                {action.label}
+              </button>
             ))}
           </div>
         </div>
@@ -377,6 +438,141 @@ export default function App() {
         <div className="content-overlay">
           <Settings />
         </div>
+      )}
+
+      {/* Games View */}
+      {view === 'games' && !activeGameId && (
+        <div className="content-overlay">
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+                  📖 Conflux Stories
+                </h3>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                  AI-generated interactive adventure puzzle games
+                </p>
+              </div>
+              <button
+                className="btn-primary"
+                onClick={() => setShowGameLauncher(true)}
+                style={{ padding: '10px 20px', borderRadius: 10, fontWeight: 600 }}
+              >
+                + New Story
+              </button>
+            </div>
+
+            {/* Active Games */}
+            {storyGames.length > 0 ? (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                gap: 16,
+              }}>
+                {storyGames.map(game => (
+                  <div
+                    key={game.id}
+                    style={{
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 14,
+                      padding: 20,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onClick={() => setActiveGameId(game.id)}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.borderColor = 'var(--accent-primary)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 8 }}>
+                      <span style={{ fontSize: 24 }}>
+                        {game.genre === 'adventure' ? '⚔️' : game.genre === 'mystery' ? '🔍' : game.genre === 'fantasy' ? '🐉' : game.genre === 'scifi' ? '🚀' : '👻'}
+                      </span>
+                      <span style={{
+                        fontSize: 11, padding: '3px 8px', borderRadius: 6,
+                        background: game.status === 'active' ? 'var(--accent-success)' + '20' : 'var(--text-muted)' + '20',
+                        color: game.status === 'active' ? 'var(--accent-success)' : 'var(--text-muted)',
+                      }}>
+                        {game.status}
+                      </span>
+                    </div>
+                    <h4 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)' }}>
+                      {game.title}
+                    </h4>
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      Chapter {game.current_chapter} • {game.genre} • {game.difficulty}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{
+                textAlign: 'center', padding: 60, color: 'var(--text-muted)',
+                background: 'var(--bg-card)', borderRadius: 14, border: '1px solid var(--border)',
+              }}>
+                <div style={{ fontSize: 48, marginBottom: 16 }}>📖</div>
+                <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: 'var(--text-primary)' }}>
+                  No stories yet
+                </h3>
+                <p style={{ fontSize: 13, marginBottom: 20 }}>
+                  Start your first interactive adventure!
+                </p>
+                <button
+                  className="btn-primary"
+                  onClick={() => setShowGameLauncher(true)}
+                  style={{ padding: '10px 24px', borderRadius: 10, fontWeight: 600 }}
+                >
+                  Browse Stories →
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Story Game Reader — full screen overlay when playing */}
+      {activeGame && activeGameId && (
+        <StoryGameReader
+          game={activeGame}
+          chapters={activeGameChapters}
+          currentChapter={activeGameCurrentChapter}
+          onChoose={choosePath}
+          onSolvePuzzle={solvePuzzle}
+          onClose={() => setActiveGameId(null)}
+          onGenerateNext={generateNextChapter}
+        />
+      )}
+
+      {/* Game Launcher Modal */}
+      {showGameLauncher && (
+        <GameLauncher
+          seeds={storySeeds}
+          memberAgeGroup={activeMember?.age_group}
+          onCreateGame={async (req) => {
+            const game = await createStoryGame(req);
+            setShowGameLauncher(false);
+            setActiveGameId(game.id);
+            return game;
+          }}
+          onClose={() => setShowGameLauncher(false)}
+        />
+      )}
+
+      {/* Family Setup Modal */}
+      {showFamilySetup && (
+        <FamilySetup
+          onSubmit={async (req) => {
+            await createFamilyMember(req);
+            setShowFamilySetup(false);
+          }}
+          onCancel={() => setShowFamilySetup(false)}
+        />
       )}
 
       <Taskbar currentView={view} onNavigate={handleNavigate} />
