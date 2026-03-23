@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import Avatar from './Avatar';
 import { Agent, AGENT_COLORS } from '../types';
 
@@ -47,10 +48,32 @@ function StatusText({ agent }: { agent: Agent }) {
 
 export default function Desktop({ agents, selectedAgent, onSelectAgent, wallpaper }: DesktopProps) {
   const [, setTick] = useState(0);
+  const [liveStats, setLiveStats] = useState({
+    activeAgents: 0,
+    tasksRunning: 0,
+    tasksCompleted: 0,
+    nextCronRun: '—',
+  });
 
   // Auto-update "last active" timestamps every 30s
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fetch live stats from engine
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const engineAgents = await invoke<any[]>('engine_get_agents');
+        const active = engineAgents.filter((a: any) => a.status !== 'offline').length;
+        setLiveStats(prev => ({ ...prev, activeAgents: active }));
+      } catch {
+        // silently fail, show defaults
+      }
+    }
+    fetchStats();
+    const interval = setInterval(fetchStats, 30000);
     return () => clearInterval(interval);
   }, []);
 
