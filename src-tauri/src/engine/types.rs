@@ -792,6 +792,65 @@ pub struct MealMatchResult {
     pub can_make_count: i64,
 }
 
+// ── Life Autopilot ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LifeDocument {
+    pub id: String,
+    pub member_id: Option<String>,
+    pub doc_type: String,
+    pub title: String,
+    pub content: Option<String>,
+    pub ai_summary: Option<String>,
+    pub ai_key_dates: Option<String>,   // JSON
+    pub ai_action_items: Option<String>, // JSON
+    pub source: String,
+    pub file_url: Option<String>,
+    pub tags: Option<String>,
+    pub is_archived: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LifeReminder {
+    pub id: String,
+    pub member_id: Option<String>,
+    pub document_id: Option<String>,
+    pub reminder_type: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub due_date: String,
+    pub priority: String,
+    pub is_dismissed: bool,
+    pub is_completed: bool,
+    pub recurring: bool,
+    pub frequency: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LifeKnowledge {
+    pub id: String,
+    pub member_id: Option<String>,
+    pub category: String,
+    pub key: String,
+    pub value: String,
+    pub source_doc_id: Option<String>,
+    pub confidence: f64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LifeAutopilotDashboard {
+    pub upcoming_reminders: Vec<LifeReminder>,
+    pub recent_documents: Vec<LifeDocument>,
+    pub knowledge_count: i64,
+    pub documents_count: i64,
+    pub overdue_reminders: Vec<LifeReminder>,
+}
+
 // ── Meal with ingredients (joined) ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

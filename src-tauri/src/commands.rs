@@ -1976,3 +1976,201 @@ pub fn fridge_shopping_for_meals() -> Result<Vec<engine::types::GroceryItem>, St
     }
     Ok(items)
 }
+
+// ── Life Autopilot ──
+
+#[tauri::command]
+pub async fn life_analyze_document(text: String, doc_type: Option<String>) -> Result<engine::types::LifeDocument, String> {
+    let engine = engine::get_engine();
+
+    let prompt = format!(
+        "You are a family document analysis AI. Analyze this document and extract key information:
+
+Document type: {doc_type}
+Content: {text}
+
+Extract:
+1. A clear title for this document
+2. A 2-3 sentence summary
+3. Key dates mentioned (deadlines, expiry dates, appointment dates, renewal dates)
+4. Action items (things the family needs to DO based on this document)
+5. Tags for categorization
+
+Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
+{{
+  \"title\": \"Clear document title\",
+  \"summary\": \"2-3 sentence summary of what this document is about and why it matters\",
+  \"key_dates\": [
+    {{\"date\": \"2026-05-15\", \"description\": \"Warranty expires\", \"type\": \"expiry\"}},
+    {{\"date\": \"2026-04-01\", \"description\": \"Payment due\", \"type\": \"deadline\"}}
+  ],
+  \"action_items\": [
+    {{\"action\": \"Schedule HVAC maintenance before summer\", \"deadline\": \"2026-05-01\", \"priority\": \"normal\"}},
+    {{\"action\": \"Submit insurance claim\", \"deadline\": \"2026-04-15\", \"priority\": \"high\"}}
+  ],
+  \"doc_type\": \"bill|school|warranty|medical|insurance|tax|contract|receipt|other\",
+  \"tags\": [\"home\", \"maintenance\"],
+  \"knowledge\": [
+    {{\"category\": \"home\", \"key\": \"HVAC-filter-size\", \"value\": \"16x25x1\"}}
+  ]
+}}
+
+Be thorough but concise. Extract EVERY date and action item mentioned."
+    );
+
+    let messages = vec![engine::router::OpenAIMessage {
+        role: "user".to_string(),
+        content: Some(prompt),
+        tool_call_id: None,
+        tool_calls: None,
+    }];
+
+    let response = engine::router::chat("core", messages, Some(2000), None, None)
+        .await
+        .map_err(|e| format!("AI failed: {}", e))?;
+
+    let content = response.content.trim();
+    let json_str = content
+        .strip_prefix("```json").unwrap_or(content)
+        .strip_prefix("```").unwrap_or(content)
+        .strip_suffix("```").unwrap_or(content)
+        .trim();
+
+    #[derive(serde::Deserialize)]
+    struct DocAnalysis {
+        title: String,
+        summary: String,
+        key_dates: Vec<DateItem>,
+        action_items: Vec<ActionItem>,
+        doc_type: String,
+        tags: Vec<String>,
+        knowledge: Vec<KnowledgeItem>,
+    }
+    #[derive(serde::Deserialize)]
+    struct DateItem { date: String, description: String, #[serde(rename = "type")] dtype: String }
+    #[derive(serde::Deserialize)]
+    struct ActionItem { action: String, deadline: Option<String>, priority: Option<String> }
+    #[derive(serde::Deserialize)]
+    struct KnowledgeItem { category: String, key: String, value: String }
+
+    let analysis: DocAnalysis = serde_json::from_str(json_str)
+        .map_err(|e| format!("Failed to parse analysis: {}. Raw: {}", e, json_str))?;
+
+    let doc_id = uuid::Uuid::new_v4().to_string();
+    let key_dates_json = serde_json::to_string(&analysis.key_dates).unwrap_or_default();
+    let action_items_json = serde_json::to_string(&analysis.action_items).unwrap_or_default();
+
+    engine.db().add_document(
+        &doc_id, None, &analysis.doc_type, &analysis.title,
+        Some(&text), Some(&analysis.summary), Some(&key_dates_json),
+        Some(&action_items_json), "ai-analysis",
+    ).map_err(|e| e.to_string())?;
+
+    // Auto-create reminders from key dates
+    for date_item in &analysis.key_dates {
+        let reminder_id = uuid::Uuid::new_v4().to_string();
+        let priority = if date_item.dtype == "deadline" { "high" } else { "normal" };
+        let _ = engine.db().add_reminder(
+            &reminder_id, None, Some(&doc_id), &date_item.dtype,
+            &format!("{}: {}", date_item.description, date_item.date), None,
+            &date_item.date, priority,
+        );
+    }
+
+    // Auto-create reminders from action items
+    for action in &analysis.action_items {
+        let reminder_id = uuid::Uuid::new_v4().to_string();
+        let due = action.deadline.as_deref().unwrap_or("2026-12-31");
+        let pri = action.priority.as_deref().unwrap_or("normal");
+        let _ = engine.db().add_reminder(
+            &reminder_id, None, Some(&doc_id), "custom",
+            &action.action, None, due, pri,
+        );
+    }
+
+    // Store knowledge items
+    for know in &analysis.knowledge {
+        let know_id = uuid::Uuid::new_v4().to_string();
+        engine.db().add_knowledge(&know_id, None, &know.category, &know.key, &know.value).ok();
+    }
+
+    // Get the full document back
+    let docs = engine.db().get_documents(None, None).map_err(|e| e.to_string())?;
+    docs.into_iter().find(|d| d.id == doc_id)
+        .ok_or_else(|| "Failed to load created document".to_string())
+}
+
+#[tauri::command]
+pub fn life_get_dashboard() -> Result<engine::types::LifeAutopilotDashboard, String> {
+    let engine = engine::get_engine();
+    engine.db().get_life_dashboard().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn life_get_documents(member_id: Option<String>, doc_type: Option<String>) -> Result<Vec<engine::types::LifeDocument>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_documents(member_id.as_deref(), doc_type.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn life_get_reminders(days: Option<i64>) -> Result<Vec<engine::types::LifeReminder>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_upcoming_reminders(days.unwrap_or(30)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn life_get_knowledge(member_id: Option<String>, category: Option<String>) -> Result<Vec<engine::types::LifeKnowledge>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_knowledge(member_id.as_deref(), category.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn life_add_reminder(member_id: Option<String>, title: String, description: Option<String>, due_date: String, priority: Option<String>) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    engine.db().add_reminder(&id, member_id.as_deref(), None, "custom", &title, description.as_deref(), &due_date, priority.as_deref().unwrap_or("normal"))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn life_ask(question: String) -> Result<String, String> {
+    let engine = engine::get_engine();
+
+    // Gather context from all knowledge
+    let knowledge = engine.db().get_knowledge(None, None).map_err(|e| e.to_string())?;
+    let knowledge_context: String = knowledge.iter()
+        .map(|k| format!("{}: {} = {}", k.category, k.key, k.value))
+        .collect::<Vec<_>>().join("\n");
+
+    let reminders = engine.db().get_upcoming_reminders(60).map_err(|e| e.to_string())?;
+    let reminders_context: String = reminders.iter()
+        .map(|r| format!("[{}] {} (due: {}, priority: {})", r.reminder_type, r.title, r.due_date, r.priority))
+        .collect::<Vec<_>>().join("\n");
+
+    let prompt = format!(
+        "You are a family life management AI assistant. Answer the user's question using the knowledge base and reminders available.
+
+FAMILY KNOWLEDGE:
+{knowledge_context}
+
+UPCOMING REMINDERS:
+{reminders_context}
+
+USER QUESTION: {question}
+
+Provide a helpful, specific answer based on the information above. If you don't have the information, say so honestly and suggest how to find out."
+    );
+
+    let messages = vec![engine::router::OpenAIMessage {
+        role: "user".to_string(),
+        content: Some(prompt),
+        tool_call_id: None,
+        tool_calls: None,
+    }];
+
+    let response = engine::router::chat("core", messages, Some(1000), None, None)
+        .await
+        .map_err(|e| format!("AI failed: {}", e))?;
+
+    Ok(response.content)
+}

@@ -44,7 +44,7 @@ export interface PipelineStatus {
   uptime: string;
 }
 
-export type View = 'dashboard' | 'chat' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen' | 'budget' | 'feed';
+export type View = 'dashboard' | 'chat' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen' | 'budget' | 'feed' | 'life';
 
 // Agent accent colors for avatar rendering
 export const AGENT_COLORS: Record<string, string> = {
@@ -478,4 +478,59 @@ export interface MealMatchResult {
   matches: MealMatch[];
   total_inventory_items: number;
   can_make_count: number;
+}
+
+// ── Life Autopilot ──
+
+export interface LifeDocument {
+  id: string;
+  member_id: string | null;
+  doc_type: string;
+  title: string;
+  content: string | null;
+  ai_summary: string | null;
+  ai_key_dates: string | null;
+  ai_action_items: string | null;
+  source: string;
+  file_url: string | null;
+  tags: string | null;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LifeReminder {
+  id: string;
+  member_id: string | null;
+  document_id: string | null;
+  reminder_type: string;
+  title: string;
+  description: string | null;
+  due_date: string;
+  priority: string;
+  is_dismissed: boolean;
+  is_completed: boolean;
+  recurring: boolean;
+  frequency: string | null;
+  created_at: string;
+}
+
+export interface LifeKnowledge {
+  id: string;
+  member_id: string | null;
+  category: string;
+  key: string;
+  value: string;
+  source_doc_id: string | null;
+  confidence: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LifeAutopilotDashboard {
+  upcoming_reminders: LifeReminder[];
+  recent_documents: LifeDocument[];
+  knowledge_count: number;
+  documents_count: number;
+  overdue_reminders: LifeReminder[];
 }

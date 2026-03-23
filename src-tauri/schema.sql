@@ -1165,3 +1165,68 @@ CREATE TABLE IF NOT EXISTS kitchen_inventory (
 CREATE INDEX IF NOT EXISTS idx_inventory_location ON kitchen_inventory(location);
 CREATE INDEX IF NOT EXISTS idx_inventory_expiry ON kitchen_inventory(expiry_date);
 
+-- ============================================================
+-- LIFE AUTOPILOT — Document Management & Proactive Intelligence
+-- ============================================================
+
+-- Documents uploaded/scanned by the family
+CREATE TABLE IF NOT EXISTS life_documents (
+    id              TEXT PRIMARY KEY,
+    member_id       TEXT REFERENCES family_members(id),  -- NULL = household
+    doc_type        TEXT NOT NULL,  -- 'bill' | 'school' | 'warranty' | 'medical' | 'insurance' | 'tax' | 'contract' | 'receipt' | 'other'
+    title           TEXT NOT NULL,
+    content         TEXT,           -- extracted text / AI summary
+    raw_data        TEXT,           -- original text if scanned
+    ai_summary      TEXT,           -- AI-generated summary
+    ai_key_dates    TEXT,           -- JSON: [{date, description, type}]
+    ai_action_items TEXT,           -- JSON: [{action, deadline, priority}]
+    source          TEXT,           -- 'manual' | 'photo' | 'email' | 'scan'
+    file_url        TEXT,           -- path to uploaded file
+    tags            TEXT,           -- JSON array
+    is_archived     INTEGER DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_docs_member ON life_documents(member_id);
+CREATE INDEX IF NOT EXISTS idx_docs_type ON life_documents(doc_type);
+CREATE INDEX IF NOT EXISTS idx_docs_archived ON life_documents(is_archived);
+
+-- Proactive reminders extracted from documents or set manually
+CREATE TABLE IF NOT EXISTS life_reminders (
+    id              TEXT PRIMARY KEY,
+    member_id       TEXT REFERENCES family_members(id),
+    document_id     TEXT REFERENCES life_documents(id),  -- NULL = manual
+    reminder_type   TEXT NOT NULL,  -- 'deadline' | 'renewal' | 'appointment' | 'payment' | 'maintenance' | 'custom'
+    title           TEXT NOT NULL,
+    description     TEXT,
+    due_date        TEXT NOT NULL,  -- ISO date
+    priority        TEXT DEFAULT 'normal',  -- 'low' | 'normal' | 'high' | 'urgent'
+    is_dismissed    INTEGER DEFAULT 0,
+    is_completed    INTEGER DEFAULT 0,
+    recurring       INTEGER DEFAULT 0,
+    frequency       TEXT,           -- 'monthly' | 'quarterly' | 'yearly'
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_reminders_due ON life_reminders(due_date);
+CREATE INDEX IF NOT EXISTS idx_reminders_active ON life_reminders(is_dismissed, is_completed);
+CREATE INDEX IF NOT EXISTS idx_reminders_member ON life_reminders(member_id);
+
+-- Family knowledge base — things the AI "knows" about the family
+CREATE TABLE IF NOT EXISTS life_knowledge (
+    id              TEXT PRIMARY KEY,
+    member_id       TEXT REFERENCES family_members(id),  -- NULL = household
+    category        TEXT NOT NULL,  -- 'medical' | 'school' | 'home' | 'finance' | 'schedule' | 'personal' | 'preference'
+    key             TEXT NOT NULL,  -- 'Emma-allergies', 'HVAC-filter-size', 'dentist-phone'
+    value           TEXT NOT NULL,
+    source_doc_id   TEXT REFERENCES life_documents(id),
+    confidence      REAL DEFAULT 1.0,  -- 0.0 - 1.0 how confident the AI is
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_member ON life_knowledge(member_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_category ON life_knowledge(category);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_key ON life_knowledge(member_id, key);
+

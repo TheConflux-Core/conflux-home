@@ -2599,4 +2599,152 @@ impl EngineDb {
             last_restocked: row.get(7)?, created_at: row.get(8)?, updated_at: row.get(9)?,
         })
     }
+
+    // LIFE AUTOPILOT
+    pub fn add_document(&self, id: &str, member_id: Option<&str>, doc_type: &str, title: &str,
+                         content: Option<&str>, ai_summary: Option<&str>, ai_key_dates: Option<&str>,
+                         ai_action_items: Option<&str>, source: &str) -> Result<()> {
+        let conn = self.conn();
+        let now = Self::now();
+        let mid = member_id.map(String::from);
+        let cnt = content.map(String::from);
+        let summ = ai_summary.map(String::from);
+        let kd = ai_key_dates.map(String::from);
+        let ai = ai_action_items.map(String::from);
+        conn.execute(
+            "INSERT INTO life_documents (id, member_id, doc_type, title, content, ai_summary, ai_key_dates, ai_action_items, source, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)",
+            params![id, mid, doc_type, title, cnt, summ, kd, ai, source, now],
+        )?;
+        Ok(())
+    }
+    pub fn get_documents(&self, member_id: Option<&str>, doc_type: Option<&str>) -> Result<Vec<super::types::LifeDocument>> {
+        let conn = self.conn();
+        let mapper = |row: &rusqlite::Row| -> rusqlite::Result<super::types::LifeDocument> {
+            Ok(super::types::LifeDocument {
+                id: row.get(0)?, member_id: row.get(1)?, doc_type: row.get(2)?, title: row.get(3)?,
+                content: row.get(4)?, ai_summary: row.get(5)?, ai_key_dates: row.get(6)?,
+                ai_action_items: row.get(7)?, source: row.get(8)?, file_url: row.get(9)?,
+                tags: row.get(10)?, is_archived: row.get::<_, i64>(11)? != 0,
+                created_at: row.get(12)?, updated_at: row.get(13)?,
+            })
+        };
+        let base = "SELECT id, member_id, doc_type, title, content, ai_summary, ai_key_dates, ai_action_items, source, file_url, tags, is_archived, created_at, updated_at FROM life_documents WHERE is_archived = 0";
+        let mut result = Vec::new();
+        match (member_id, doc_type) {
+            (Some(mid), Some(dt)) => {
+                let mut stmt = conn.prepare(&format!("{} AND member_id = ?1 AND doc_type = ?2 ORDER BY created_at DESC LIMIT 50", base))?;
+                let rows = stmt.query_map(params![mid, dt], mapper)?;
+                for r in rows { result.push(r?); }
+            }
+            (Some(mid), None) => {
+                let mut stmt = conn.prepare(&format!("{} AND member_id = ?1 ORDER BY created_at DESC LIMIT 50", base))?;
+                let rows = stmt.query_map(params![mid], mapper)?;
+                for r in rows { result.push(r?); }
+            }
+            (None, Some(dt)) => {
+                let mut stmt = conn.prepare(&format!("{} AND doc_type = ?1 ORDER BY created_at DESC LIMIT 50", base))?;
+                let rows = stmt.query_map(params![dt], mapper)?;
+                for r in rows { result.push(r?); }
+            }
+            (None, None) => {
+                let mut stmt = conn.prepare(&format!("{} ORDER BY created_at DESC LIMIT 50", base))?;
+                let rows = stmt.query_map([], mapper)?;
+                for r in rows { result.push(r?); }
+            }
+        }
+        Ok(result)
+    }
+    pub fn add_reminder(&self, id: &str, member_id: Option<&str>, document_id: Option<&str>, reminder_type: &str, title: &str, description: Option<&str>, due_date: &str, priority: &str) -> Result<()> {
+        let conn = self.conn();
+        let mid = member_id.map(String::from);
+        let did = document_id.map(String::from);
+        let desc = description.map(String::from);
+        conn.execute("INSERT INTO life_reminders (id, member_id, document_id, reminder_type, title, description, due_date, priority) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![id, mid, did, reminder_type, title, desc, due_date, priority])?;
+        Ok(())
+    }
+    pub fn get_upcoming_reminders(&self, days: i64) -> Result<Vec<super::types::LifeReminder>> {
+        let conn = self.conn();
+        let future = (chrono::Utc::now() + chrono::Duration::days(days)).format("%Y-%m-%d").to_string();
+        let mut stmt = conn.prepare("SELECT id, member_id, document_id, reminder_type, title, description, due_date, priority, is_dismissed, is_completed, recurring, frequency, created_at FROM life_reminders WHERE is_dismissed = 0 AND is_completed = 0 AND due_date <= ?1 ORDER BY priority DESC, due_date")?;
+        let rows = stmt.query_map(params![future], Self::map_reminder)?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+    pub fn get_overdue_reminders(&self) -> Result<Vec<super::types::LifeReminder>> {
+        let conn = self.conn();
+        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        let mut stmt = conn.prepare("SELECT id, member_id, document_id, reminder_type, title, description, due_date, priority, is_dismissed, is_completed, recurring, frequency, created_at FROM life_reminders WHERE is_dismissed = 0 AND is_completed = 0 AND due_date < ?1 ORDER BY due_date")?;
+        let rows = stmt.query_map(params![today], Self::map_reminder)?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+    fn map_reminder(row: &rusqlite::Row) -> rusqlite::Result<super::types::LifeReminder> {
+        Ok(super::types::LifeReminder {
+            id: row.get(0)?, member_id: row.get(1)?, document_id: row.get(2)?, reminder_type: row.get(3)?,
+            title: row.get(4)?, description: row.get(5)?, due_date: row.get(6)?, priority: row.get(7)?,
+            is_dismissed: row.get::<_, i64>(8)? != 0, is_completed: row.get::<_, i64>(9)? != 0,
+            recurring: row.get::<_, i64>(10)? != 0, frequency: row.get(11)?, created_at: row.get(12)?,
+        })
+    }
+    pub fn add_knowledge(&self, id: &str, member_id: Option<&str>, category: &str, key: &str, value: &str) -> Result<()> {
+        let conn = self.conn();
+        let now = Self::now();
+        let mid = member_id.map(String::from);
+        conn.execute("INSERT OR REPLACE INTO life_knowledge (id, member_id, category, key, value, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
+            params![id, mid, category, key, value, now])?;
+        Ok(())
+    }
+    pub fn get_knowledge(&self, member_id: Option<&str>, category: Option<&str>) -> Result<Vec<super::types::LifeKnowledge>> {
+        let conn = self.conn();
+        let mapper = |row: &rusqlite::Row| -> rusqlite::Result<super::types::LifeKnowledge> {
+            Ok(super::types::LifeKnowledge {
+                id: row.get(0)?, member_id: row.get(1)?, category: row.get(2)?, key: row.get(3)?,
+                value: row.get(4)?, source_doc_id: row.get(5)?, confidence: row.get(6)?,
+                created_at: row.get(7)?, updated_at: row.get(8)?,
+            })
+        };
+        let base = "SELECT id, member_id, category, key, value, source_doc_id, confidence, created_at, updated_at FROM life_knowledge";
+        let mut result = Vec::new();
+        match (member_id, category) {
+            (Some(mid), Some(cat)) => {
+                let mut stmt = conn.prepare(&format!("{} WHERE member_id = ?1 AND category = ?2 ORDER BY category, key", base))?;
+                let rows = stmt.query_map(params![mid, cat], mapper)?;
+                for r in rows { result.push(r?); }
+            }
+            (Some(mid), None) => {
+                let mut stmt = conn.prepare(&format!("{} WHERE member_id = ?1 ORDER BY category, key", base))?;
+                let rows = stmt.query_map(params![mid], mapper)?;
+                for r in rows { result.push(r?); }
+            }
+            (None, Some(cat)) => {
+                let mut stmt = conn.prepare(&format!("{} WHERE category = ?1 ORDER BY category, key", base))?;
+                let rows = stmt.query_map(params![cat], mapper)?;
+                for r in rows { result.push(r?); }
+            }
+            (None, None) => {
+                let mut stmt = conn.prepare(&format!("{} ORDER BY category, key", base))?;
+                let rows = stmt.query_map([], mapper)?;
+                for r in rows { result.push(r?); }
+            }
+        }
+        Ok(result)
+    }
+    pub fn get_life_dashboard(&self) -> Result<super::types::LifeAutopilotDashboard> {
+        let upcoming = self.get_upcoming_reminders(30)?;
+        let overdue = self.get_overdue_reminders()?;
+        let docs = self.get_documents(None, None)?;
+        let doc_count = docs.len() as i64;
+        let knowledge = self.get_knowledge(None, None)?;
+        Ok(super::types::LifeAutopilotDashboard {
+            upcoming_reminders: upcoming,
+            recent_documents: docs.into_iter().take(10).collect(),
+            knowledge_count: knowledge.len() as i64,
+            documents_count: doc_count,
+            overdue_reminders: overdue,
+        })
+    }
 }
