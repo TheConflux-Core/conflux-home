@@ -44,7 +44,7 @@ export interface PipelineStatus {
   uptime: string;
 }
 
-export type View = 'dashboard' | 'chat' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen' | 'budget' | 'feed' | 'life' | 'home' | 'dreams';
+export type View = 'dashboard' | 'chat' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen' | 'budget' | 'feed' | 'life' | 'home' | 'dreams' | 'diary';
 
 // Agent accent colors for avatar rendering
 export const AGENT_COLORS: Record<string, string> = {
@@ -675,4 +675,33 @@ export interface DreamDashboard {
   completed_milestones: number;
   upcoming_tasks: DreamTask[];
   recent_progress: DreamProgress[];
+}
+
+// ── Agent Diary ──
+
+export interface DiaryEntry {
+  id: string;
+  agent_id: string;
+  entry_date: string;
+  title: string | null;
+  content: string;
+  mood: string;
+  topics_discussed: string | null;
+  memorable_moment: string | null;
+  word_count: number;
+  created_at: string;
+}
+
+export interface MoodCount {
+  mood: string;
+  count: number;
+}
+
+export interface DiaryDashboard {
+  total_entries: number;
+  entries_this_week: number;
+  mood_distribution: MoodCount[];
+  most_active_agent: string | null;
+  latest_entries: DiaryEntry[];
+  agents_with_entries: string[];
 }

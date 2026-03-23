@@ -25,6 +25,7 @@ import FeedView from './components/FeedView';
 import LifeAutopilotView from './components/LifeAutopilotView';
 import HomeHealthView from './components/HomeHealthView';
 import DreamBuilderView from './components/DreamBuilderView';
+import AgentDiaryView from './components/AgentDiaryView';
 import { useEngine } from './hooks/useEngine';
 import { useConfluxChat } from './hooks/useConfluxChat';
 import { useToast } from './hooks/useToast';
@@ -557,6 +558,13 @@ export default function App() {
       {view === 'dreams' && (
         <div className="content-overlay">
           <DreamBuilderView />
+        </div>
+      )}
+
+      {/* Agent Diary View */}
+      {view === 'diary' && (
+        <div className="content-overlay">
+          <AgentDiaryView />
         </div>
       )}
 
