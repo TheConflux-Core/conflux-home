@@ -1,0 +1,433 @@
+/* ============================================================
+   KITCHEN VIEW — Smart Meal Management
+   ============================================================ */
+
+.kitchen-view {
+  padding: 20px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.kitchen-header {
+  margin-bottom: 20px;
+}
+
+.kitchen-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 12px 0;
+  color: var(--text-primary);
+}
+
+.kitchen-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.kitchen-tab {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-secondary);
+}
+
+.kitchen-tab.active {
+  background: var(--accent-primary);
+  color: white;
+  border-color: var(--accent-primary);
+}
+
+/* AI Add */
+.kitchen-ai-add {
+  background: linear-gradient(135deg, #667eea10, #764ba210);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.ai-add-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ai-add-icon { font-size: 20px; }
+
+.ai-add-row {
+  display: flex;
+  gap: 8px;
+}
+
+.ai-add-input {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  font-size: 14px;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.ai-add-input:focus { border-color: var(--accent-primary); }
+
+/* Filters */
+.kitchen-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.kitchen-select {
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+/* Meal Grid */
+.kitchen-library {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.meal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+.meal-card {
+  padding: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.meal-card:hover { border-color: var(--accent-primary); }
+.meal-card.selected { border-color: var(--accent-primary); background: #0071e308; }
+
+.meal-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.meal-card-emoji { font-size: 28px; }
+
+.meal-fav-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 2px;
+  opacity: 0.6;
+  transition: all 0.2s;
+}
+
+.meal-fav-btn:hover { opacity: 1; transform: scale(1.2); }
+
+.meal-card-name {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+  color: var(--text-primary);
+}
+
+.meal-card-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0 0 10px 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.meal-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Meal Detail */
+.meal-detail {
+  margin-top: 20px;
+  padding: 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.meal-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.meal-detail-header h3 { margin: 0; font-size: 18px; }
+
+.meal-detail-desc {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 16px 0;
+}
+
+.meal-detail-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.meal-detail-stats .stat {
+  padding: 10px;
+  background: var(--bg-primary);
+  border-radius: 10px;
+  text-align: center;
+}
+
+.meal-detail-stats .stat-label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.meal-detail-section h4 {
+  font-size: 14px;
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
+}
+
+.meal-instructions {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.meal-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+/* Loading / Empty */
+.kitchen-loading, .kitchen-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+}
+
+.kitchen-empty-hint {
+  font-size: 13px;
+  margin-top: 8px;
+  opacity: 0.7;
+}
+
+/* ============================================================
+   WEEKLY PLAN
+   ============================================================ */
+
+.kitchen-plan {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.plan-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.plan-header h3 { margin: 0; font-size: 16px; }
+
+.plan-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.plan-grid {
+  overflow-x: auto;
+}
+
+.plan-grid-header {
+  display: grid;
+  grid-template-columns: 90px repeat(7, 1fr);
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.plan-day-header {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 8px 0;
+}
+
+.plan-grid-row {
+  display: grid;
+  grid-template-columns: 90px repeat(7, 1fr);
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.plan-slot-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+}
+
+.plan-cell {
+  min-height: 50px;
+  border-radius: 10px;
+  border: 1px dashed var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.plan-cell.filled {
+  border-style: solid;
+  background: var(--bg-card);
+}
+
+.plan-cell:hover { border-color: var(--accent-primary); }
+
+.plan-meal-chip {
+  padding: 6px 8px;
+  text-align: center;
+}
+
+.plan-meal-name {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
+}
+
+.plan-meal-cost {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.plan-add-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.plan-add-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+/* ============================================================
+   GROCERY LIST
+   ============================================================ */
+
+.kitchen-grocery {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.grocery-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.grocery-header h3 { margin: 0; font-size: 16px; }
+
+.grocery-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.grocery-total {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.grocery-category {
+  margin-bottom: 16px;
+}
+
+.grocery-cat-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0 0 8px 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.grocery-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.grocery-item:hover { background: var(--bg-hover); }
+
+.grocery-item.checked {
+  opacity: 0.5;
+}
+
+.grocery-item.checked .grocery-name {
+  text-decoration: line-through;
+}
+
+.grocery-check { font-size: 16px; }
+.grocery-name { flex: 1; font-size: 14px; color: var(--text-primary); }
+.grocery-qty { font-size: 12px; color: var(--text-muted); }
+.grocery-cost { font-size: 12px; color: var(--text-muted); font-weight: 500; }

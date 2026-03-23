@@ -2233,4 +2233,370 @@ impl EngineDb {
         for r in rows { result.push(r?); }
         Ok(result)
     }
+
+    // ============================================================
+    // SMART KITCHEN — Meals
+    // ============================================================
+
+    pub fn create_meal(&self, id: &str, name: &str, description: Option<&str>, cuisine: Option<&str>,
+                        category: Option<&str>, photo_url: Option<&str>, prep_time: Option<i64>,
+                        cook_time: Option<i64>, servings: i64, difficulty: &str,
+                        instructions: Option<&str>, tags: Option<&str>, source: &str) -> Result<super::types::Meal> {
+        let conn = self.conn();
+        let now = Self::now();
+        conn.execute(
+            "INSERT INTO meals (id, name, description, cuisine, category, photo_url, prep_time_min, cook_time_min, servings, difficulty, instructions, tags, source, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?14)",
+            params![id, name, description, cuisine, category, photo_url, prep_time, cook_time, servings, difficulty, instructions, tags, source, now],
+        )?;
+        Ok(super::types::Meal {
+            id: id.to_string(), name: name.to_string(), description: description.map(String::from),
+            cuisine: cuisine.map(String::from), category: category.map(String::from),
+            photo_url: photo_url.map(String::from), prep_time_min: prep_time, cook_time_min: cook_time,
+            servings, difficulty: difficulty.to_string(), instructions: instructions.map(String::from),
+            estimated_cost: None, cost_per_serving: None, calories: None, tags: tags.map(String::from),
+            source: source.to_string(), is_favorite: false, last_made: None, times_made: 0,
+            created_at: now.clone(), updated_at: now,
+        })
+    }
+
+    pub fn get_meals(&self, category: Option<&str>, cuisine: Option<&str>, favorites_only: bool) -> Result<Vec<super::types::Meal>> {
+        let conn = self.conn();
+        let mut conditions = Vec::new();
+        let mut params_vec: Vec<String> = Vec::new();
+
+        if let Some(c) = category {
+            conditions.push("category = ?");
+            params_vec.push(c.to_string());
+        }
+        if let Some(c) = cuisine {
+            conditions.push("cuisine = ?");
+            params_vec.push(c.to_string());
+        }
+        if favorites_only {
+            conditions.push("is_favorite = 1");
+        }
+
+        let where_clause = if conditions.is_empty() { String::new() } else { format!("WHERE {}", conditions.join(" AND ")) };
+        let query = format!(
+            "SELECT id, name, description, cuisine, category, photo_url, prep_time_min, cook_time_min, servings, difficulty, instructions, estimated_cost, cost_per_serving, calories, tags, source, is_favorite, last_made, times_made, created_at, updated_at
+             FROM meals {} ORDER BY is_favorite DESC, times_made DESC, name", where_clause
+        );
+
+        let mut stmt = conn.prepare(&query)?;
+        let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
+        let rows = stmt.query_map(&params_refs[..], Self::map_meal)?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+
+    fn map_meal(row: &rusqlite::Row) -> rusqlite::Result<super::types::Meal> {
+        Ok(super::types::Meal {
+            id: row.get(0)?, name: row.get(1)?, description: row.get(2)?, cuisine: row.get(3)?,
+            category: row.get(4)?, photo_url: row.get(5)?, prep_time_min: row.get(6)?,
+            cook_time_min: row.get(7)?, servings: row.get(8)?, difficulty: row.get(9)?,
+            instructions: row.get(10)?, estimated_cost: row.get(11)?, cost_per_serving: row.get(12)?,
+            calories: row.get(13)?, tags: row.get(14)?, source: row.get(15)?,
+            is_favorite: row.get::<_, i64>(16)? != 0, last_made: row.get(17)?, times_made: row.get(18)?,
+            created_at: row.get(19)?, updated_at: row.get(20)?,
+        })
+    }
+
+    pub fn get_meal(&self, id: &str) -> Result<Option<super::types::Meal>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, description, cuisine, category, photo_url, prep_time_min, cook_time_min, servings, difficulty, instructions, estimated_cost, cost_per_serving, calories, tags, source, is_favorite, last_made, times_made, created_at, updated_at
+             FROM meals WHERE id = ?1"
+        )?;
+        let mut rows = stmt.query_map(params![id], Self::map_meal)?;
+        Ok(rows.next().transpose()?)
+    }
+
+    pub fn get_meal_with_ingredients(&self, id: &str) -> Result<Option<super::types::MealWithIngredients>> {
+        let meal = match self.get_meal(id)? {
+            Some(m) => m,
+            None => return Ok(None),
+        };
+        let ingredients = self.get_meal_ingredients(id)?;
+        Ok(Some(super::types::MealWithIngredients { meal, ingredients }))
+    }
+
+    pub fn toggle_favorite(&self, id: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute(
+            "UPDATE meals SET is_favorite = CASE WHEN is_favorite = 1 THEN 0 ELSE 1 END, updated_at = ?2 WHERE id = ?1",
+            params![id, Self::now()],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_meal_costs(&self, id: &str) -> Result<()> {
+        let conn = self.conn();
+        let total: f64 = conn.query_row(
+            "SELECT COALESCE(SUM(estimated_cost), 0) FROM meal_ingredients WHERE meal_id = ?1",
+            params![id], |row| row.get(0)
+        ).unwrap_or(0.0);
+        let servings: i64 = conn.query_row(
+            "SELECT servings FROM meals WHERE id = ?1", params![id], |row| row.get(0)
+        ).unwrap_or(1);
+        let per_serving = if servings > 0 { total / servings as f64 } else { total };
+        conn.execute(
+            "UPDATE meals SET estimated_cost = ?2, cost_per_serving = ?3, updated_at = ?4 WHERE id = ?1",
+            params![id, total, per_serving, Self::now()],
+        )?;
+        Ok(())
+    }
+
+    // ============================================================
+    // Meal Ingredients
+    // ============================================================
+
+    pub fn add_meal_ingredient(&self, id: &str, meal_id: &str, name: &str, quantity: Option<f64>,
+                                unit: Option<&str>, estimated_cost: Option<f64>, category: Option<&str>,
+                                is_optional: bool, notes: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        let opt: i64 = if is_optional { 1 } else { 0 };
+        let max_order: i64 = conn.query_row(
+            "SELECT COALESCE(MAX(sort_order), 0) FROM meal_ingredients WHERE meal_id = ?1",
+            params![meal_id], |row| row.get(0)
+        ).unwrap_or(0);
+        conn.execute(
+            "INSERT INTO meal_ingredients (id, meal_id, name, quantity, unit, estimated_cost, category, is_optional, notes, sort_order)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![id, meal_id, name, quantity, unit, estimated_cost, category, opt, notes, max_order + 1],
+        )?;
+        self.update_meal_costs(meal_id)?;
+        Ok(())
+    }
+
+    pub fn get_meal_ingredients(&self, meal_id: &str) -> Result<Vec<super::types::MealIngredient>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, meal_id, name, quantity, unit, estimated_cost, category, is_optional, notes, sort_order
+             FROM meal_ingredients WHERE meal_id = ?1 ORDER BY sort_order"
+        )?;
+        let rows = stmt.query_map(params![meal_id], |row| {
+            Ok(super::types::MealIngredient {
+                id: row.get(0)?, meal_id: row.get(1)?, name: row.get(2)?, quantity: row.get(3)?,
+                unit: row.get(4)?, estimated_cost: row.get(5)?, category: row.get(6)?,
+                is_optional: row.get::<_, i64>(7)? != 0, notes: row.get(8)?, sort_order: row.get(9)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+
+    // ============================================================
+    // Meal Plans (Weekly)
+    // ============================================================
+
+    pub fn set_plan_entry(&self, id: &str, week_start: &str, day_of_week: i64,
+                           meal_slot: &str, meal_id: Option<&str>, notes: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        // Upsert: delete existing entry for this slot, then insert
+        conn.execute(
+            "DELETE FROM meal_plans_v2 WHERE week_start = ?1 AND day_of_week = ?2 AND meal_slot = ?3",
+            params![week_start, day_of_week, meal_slot],
+        )?;
+        conn.execute(
+            "INSERT INTO meal_plans_v2 (id, week_start, day_of_week, meal_slot, meal_id, notes)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, week_start, day_of_week, meal_slot, meal_id, notes],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_weekly_plan(&self, week_start: &str) -> Result<super::types::WeeklyPlan> {
+        let conn = self.conn();
+        let day_names = vec!["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+        let mut stmt = conn.prepare(
+            "SELECT p.id, p.day_of_week, p.meal_slot, p.meal_id, p.notes,
+                    m.name, m.category, m.photo_url, m.prep_time_min, m.cook_time_min, m.servings, m.cost_per_serving
+             FROM meal_plans_v2 p
+             LEFT JOIN meals m ON p.meal_id = m.id
+             WHERE p.week_start = ?1
+             ORDER BY p.day_of_week, CASE p.meal_slot WHEN 'breakfast' THEN 1 WHEN 'lunch' THEN 2 WHEN 'snack' THEN 3 WHEN 'dinner' THEN 4 END"
+        )?;
+        let rows = stmt.query_map(params![week_start], |row| {
+            Ok((
+                row.get::<_, i64>(1)?,  // day_of_week
+                row.get::<_, String>(2)?,  // meal_slot
+                row.get::<_, Option<String>>(3)?,  // meal_id
+                row.get::<_, Option<String>>(4)?,  // notes
+                row.get::<_, Option<String>>(5)?,  // meal name
+                row.get::<_, Option<String>>(6)?,  // category
+                row.get::<_, Option<String>>(7)?,  // photo_url
+                row.get::<_, Option<i64>>(8)?,     // prep_time
+                row.get::<_, Option<i64>>(9)?,     // cook_time
+                row.get::<_, Option<i64>>(10)?,    // servings
+                row.get::<_, Option<f64>>(11)?,    // cost_per_serving
+            ))
+        })?;
+
+        let mut day_slots: std::collections::HashMap<i64, Vec<super::types::PlanSlot>> = std::collections::HashMap::new();
+        let mut total_cost = 0.0;
+        let mut meal_count = 0i64;
+
+        for row in rows {
+            let (day, slot, meal_id, notes, name, category, photo_url, prep, cook, servings, cost) = row?;
+            let meal = if let (Some(mid), Some(mname)) = (meal_id, name) {
+                meal_count += 1;
+                total_cost += cost.unwrap_or(0.0);
+                Some(super::types::Meal {
+                    id: mid, name: mname, description: None, cuisine: None, category,
+                    photo_url, prep_time_min: prep, cook_time_min: cook,
+                    servings: servings.unwrap_or(4), difficulty: "normal".to_string(),
+                    instructions: None, estimated_cost: None, cost_per_serving: cost,
+                    calories: None, tags: None, source: "plan".to_string(),
+                    is_favorite: false, last_made: None, times_made: 0,
+                    created_at: String::new(), updated_at: String::new(),
+                })
+            } else { None };
+            day_slots.entry(day).or_default().push(super::types::PlanSlot { meal_slot: slot, meal, notes });
+        }
+
+        let mut days = Vec::new();
+        for d in 0..7i64 {
+            days.push(super::types::DayPlan {
+                day_of_week: d,
+                day_name: day_names[d as usize].to_string(),
+                slots: day_slots.remove(&d).unwrap_or_default(),
+            });
+        }
+
+        Ok(super::types::WeeklyPlan { week_start: week_start.to_string(), days, total_estimated_cost: total_cost, meal_count })
+    }
+
+    pub fn clear_week_plan(&self, week_start: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute("DELETE FROM meal_plans_v2 WHERE week_start = ?1", params![week_start])?;
+        conn.execute("DELETE FROM grocery_items WHERE week_start = ?1", params![week_start])?;
+        Ok(())
+    }
+
+    // ============================================================
+    // Grocery List
+    // ============================================================
+
+    pub fn generate_grocery_list(&self, week_start: &str) -> Result<Vec<super::types::GroceryItem>> {
+        let conn = self.conn();
+
+        // Clear existing grocery list for this week
+        conn.execute("DELETE FROM grocery_items WHERE week_start = ?1", params![week_start])?;
+
+        // Get all ingredients from meals in this week's plan
+        let mut stmt = conn.prepare(
+            "SELECT DISTINCT i.name, SUM(i.quantity) as total_qty, i.unit, i.category, SUM(i.estimated_cost) as total_cost, i.meal_id
+             FROM meal_ingredients i
+             INNER JOIN meal_plans_v2 p ON p.meal_id = i.meal_id
+             WHERE p.week_start = ?1
+             GROUP BY i.name, i.unit
+             ORDER BY i.category, i.name"
+        )?;
+        let rows = stmt.query_map(params![week_start], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, Option<f64>>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, Option<String>>(3)?,
+                row.get::<_, Option<f64>>(4)?,
+                row.get::<_, String>(5)?,
+            ))
+        })?;
+
+        let mut items = Vec::new();
+        for row in rows {
+            let (name, qty, unit, category, cost, meal_id) = row?;
+            let id = uuid::Uuid::new_v4().to_string();
+            conn.execute(
+                "INSERT INTO grocery_items (id, name, quantity, unit, category, estimated_cost, source_meal_id, week_start)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![id, name, qty, unit, category, cost, meal_id, week_start],
+            )?;
+            items.push(super::types::GroceryItem {
+                id, member_id: None, name, quantity: qty, unit, category,
+                estimated_cost: cost, is_checked: false, source_meal_id: Some(meal_id),
+                week_start: Some(week_start.to_string()), created_at: Self::now(),
+            });
+        }
+        Ok(items)
+    }
+
+    pub fn get_grocery_list(&self, week_start: &str) -> Result<Vec<super::types::GroceryItem>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, member_id, name, quantity, unit, category, estimated_cost, is_checked, source_meal_id, week_start, created_at
+             FROM grocery_items WHERE week_start = ?1 ORDER BY category, name"
+        )?;
+        let rows = stmt.query_map(params![week_start], |row| {
+            Ok(super::types::GroceryItem {
+                id: row.get(0)?, member_id: row.get(1)?, name: row.get(2)?, quantity: row.get(3)?,
+                unit: row.get(4)?, category: row.get(5)?, estimated_cost: row.get(6)?,
+                is_checked: row.get::<_, i64>(7)? != 0, source_meal_id: row.get(8)?,
+                week_start: row.get(9)?, created_at: row.get(10)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+
+    pub fn toggle_grocery_item(&self, id: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute(
+            "UPDATE grocery_items SET is_checked = CASE WHEN is_checked = 1 THEN 0 ELSE 1 END WHERE id = ?1",
+            params![id],
+        )?;
+        Ok(())
+    }
+
+    // ============================================================
+    // Kitchen Inventory
+    // ============================================================
+
+    pub fn add_inventory_item(&self, id: &str, name: &str, quantity: Option<f64>, unit: Option<&str>,
+                               category: Option<&str>, expiry: Option<&str>, location: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        let now = Self::now();
+        conn.execute(
+            "INSERT INTO kitchen_inventory (id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8, ?8)",
+            params![id, name, quantity, unit, category, expiry, location, now],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_inventory(&self, location: Option<&str>) -> Result<Vec<super::types::KitchenInventoryItem>> {
+        let conn = self.conn();
+        if let Some(loc) = location {
+            let mut stmt = conn.prepare(
+                "SELECT id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at
+                 FROM kitchen_inventory WHERE location = ?1 ORDER BY name"
+            )?;
+            let rows = stmt.query_map(params![loc], Self::map_inventory)?;
+            let mut result = Vec::new();
+            for r in rows { result.push(r?); }
+            Ok(result)
+        } else {
+            let mut stmt = conn.prepare(
+                "SELECT id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at
+                 FROM kitchen_inventory ORDER BY location, name"
+            )?;
+            let rows = stmt.query_map([], Self::map_inventory)?;
+            let mut result = Vec::new();
+            for r in rows { result.push(r?); }
+            Ok(result)
+        }
+    }
+
+    fn map_inventory(row: &rusqlite::Row) -> rusqlite::Result<super::types::KitchenInventoryItem> {
+        Ok(super::types::KitchenInventoryItem {
+            id: row.get(0)?, name: row.get(1)?, quantity: row.get(2)?, unit: row.get(3)?,
+            category: row.get(4)?, expiry_date: row.get(5)?, location: row.get(6)?,
+            last_restocked: row.get(7)?, created_at: row.get(8)?, updated_at: row.get(9)?,
+        })
+    }
 }

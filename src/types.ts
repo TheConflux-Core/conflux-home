@@ -44,7 +44,7 @@ export interface PipelineStatus {
   uptime: string;
 }
 
-export type View = 'dashboard' | 'chat' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents';
+export type View = 'dashboard' | 'chat' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen';
 
 // Agent accent colors for avatar rendering
 export const AGENT_COLORS: Record<string, string> = {
@@ -276,3 +276,92 @@ export interface LogActivityRequest {
   duration_sec?: number;
   metadata?: string;
 }
+
+// ── Smart Kitchen ──
+
+export interface Meal {
+  id: string;
+  name: string;
+  description: string | null;
+  cuisine: string | null;
+  category: string | null;
+  photo_url: string | null;
+  prep_time_min: number | null;
+  cook_time_min: number | null;
+  servings: number;
+  difficulty: string;
+  instructions: string | null;
+  estimated_cost: number | null;
+  cost_per_serving: number | null;
+  calories: number | null;
+  tags: string | null;
+  source: string;
+  is_favorite: boolean;
+  last_made: string | null;
+  times_made: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MealIngredient {
+  id: string;
+  meal_id: string;
+  name: string;
+  quantity: number | null;
+  unit: string | null;
+  estimated_cost: number | null;
+  category: string | null;
+  is_optional: boolean;
+  notes: string | null;
+  sort_order: number;
+}
+
+export interface MealWithIngredients {
+  meal: Meal;
+  ingredients: MealIngredient[];
+}
+
+export interface WeeklyPlan {
+  week_start: string;
+  days: DayPlan[];
+  total_estimated_cost: number;
+  meal_count: number;
+}
+
+export interface DayPlan {
+  day_of_week: number;
+  day_name: string;
+  slots: PlanSlot[];
+}
+
+export interface PlanSlot {
+  meal_slot: string;
+  meal: Meal | null;
+  notes: string | null;
+}
+
+export interface GroceryItem {
+  id: string;
+  member_id: string | null;
+  name: string;
+  quantity: number | null;
+  unit: string | null;
+  category: string | null;
+  estimated_cost: number | null;
+  is_checked: boolean;
+  source_meal_id: string | null;
+  week_start: string | null;
+  created_at: string;
+}
+
+export const MEAL_CATEGORIES = ['breakfast', 'lunch', 'dinner', 'snack', 'dessert'] as const;
+export const MEAL_CUISINES = ['american', 'italian', 'mexican', 'asian', 'indian', 'mediterranean', 'french', 'thai', 'japanese', 'other'] as const;
+
+export const MEAL_CATEGORY_EMOJI: Record<string, string> = {
+  breakfast: '🌅', lunch: '☀️', dinner: '🌙', snack: '🍿', dessert: '🍰',
+};
+
+export const INGREDIENT_CATEGORIES: Record<string, string> = {
+  produce: '🥬 Produce', dairy: '🥛 Dairy', meat: '🥩 Meat', pantry: '🏪 Pantry',
+  spice: '🧂 Spices', frozen: '🧊 Frozen', bakery: '🍞 Bakery', seafood: '🐟 Seafood',
+};

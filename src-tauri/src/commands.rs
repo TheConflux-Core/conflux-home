@@ -1165,3 +1165,312 @@ pub fn learning_get_goals(member_id: String) -> Result<Vec<engine::types::Learni
     let engine = engine::get_engine();
     engine.db().get_learning_goals(&member_id).map_err(|e| e.to_string())
 }
+
+// ── Smart Kitchen — Meals ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateMealRequest {
+    pub name: String,
+    pub description: Option<String>,
+    pub cuisine: Option<String>,
+    pub category: Option<String>,
+    pub photo_url: Option<String>,
+    pub prep_time_min: Option<i64>,
+    pub cook_time_min: Option<i64>,
+    pub servings: Option<i64>,
+    pub difficulty: Option<String>,
+    pub instructions: Option<String>,
+    pub tags: Option<String>,
+}
+
+#[tauri::command]
+pub fn kitchen_create_meal(req: CreateMealRequest) -> Result<engine::types::Meal, String> {
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    engine.db().create_meal(
+        &id, &req.name, req.description.as_deref(), req.cuisine.as_deref(),
+        req.category.as_deref(), req.photo_url.as_deref(), req.prep_time_min,
+        req.cook_time_min, req.servings.unwrap_or(4),
+        req.difficulty.as_deref().unwrap_or("normal"),
+        req.instructions.as_deref(), req.tags.as_deref(), "manual",
+    ).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn kitchen_get_meals(category: Option<String>, cuisine: Option<String>, favorites_only: bool) -> Result<Vec<engine::types::Meal>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_meals(category.as_deref(), cuisine.as_deref(), favorites_only).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn kitchen_get_meal(id: String) -> Result<Option<engine::types::MealWithIngredients>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_meal_with_ingredients(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn kitchen_toggle_favorite(id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().toggle_favorite(&id).map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AddIngredientRequest {
+    pub meal_id: String,
+    pub name: String,
+    pub quantity: Option<f64>,
+    pub unit: Option<String>,
+    pub estimated_cost: Option<f64>,
+    pub category: Option<String>,
+    pub is_optional: bool,
+    pub notes: Option<String>,
+}
+
+#[tauri::command]
+pub fn kitchen_add_ingredient(req: AddIngredientRequest) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    engine.db().add_meal_ingredient(
+        &id, &req.meal_id, &req.name, req.quantity,
+        req.unit.as_deref(), req.estimated_cost, req.category.as_deref(),
+        req.is_optional, req.notes.as_deref(),
+    ).map_err(|e| e.to_string())
+}
+
+// ── Smart Kitchen — AI Meal Recognition ──
+
+#[tauri::command]
+pub async fn kitchen_recognize_meal(photo_base64: String) -> Result<engine::types::MealWithIngredients, String> {
+    let engine = engine::get_engine();
+
+    let prompt = "You are a culinary expert AI. Look at this photo of a meal and provide:
+
+1. The name of the dish
+2. A brief description
+3. The cuisine type (italian, mexican, american, asian, indian, mediterranean, etc.)
+4. The meal category (breakfast, lunch, dinner, snack, dessert)
+5. Estimated prep time in minutes
+6. Estimated cook time in minutes
+7. Number of servings
+8. Difficulty (easy, normal, hard)
+9. A list of ALL ingredients you can identify, with estimated quantities, units, and estimated cost per ingredient in USD
+10. Step-by-step cooking instructions
+11. Tags (quick, healthy, kid-friendly, comfort-food, vegetarian, etc.)
+
+Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
+{
+  \"name\": \"Dish Name\",
+  \"description\": \"Brief description\",
+  \"cuisine\": \"cuisine_type\",
+  \"category\": \"meal_category\",
+  \"prep_time_min\": 15,
+  \"cook_time_min\": 30,
+  \"servings\": 4,
+  \"difficulty\": \"normal\",
+  \"instructions\": \"Step 1: ... Step 2: ...\",
+  \"tags\": \"[\\\"healthy\\\", \\\"quick\\\"]\",
+  \"ingredients\": [
+    {\"name\": \"chicken breast\", \"quantity\": 2, \"unit\": \"pieces\", \"estimated_cost\": 5.99, \"category\": \"meat\", \"notes\": \"boneless, skinless\"},
+    {\"name\": \"olive oil\", \"quantity\": 2, \"unit\": \"tbsp\", \"estimated_cost\": 0.30, \"category\": \"pantry\"}
+  ]
+}
+
+Be accurate with costs. Use 2026 US grocery prices. List every ingredient.";
+
+    // For now, use text-based recognition (photo support via vision API can be added later)
+    let messages = vec![engine::router::OpenAIMessage {
+        role: "user".to_string(),
+        content: Some(format!("I'm describing a meal I want to add to my kitchen. Help me set it up with full details including ingredients and costs.\n\nDescribe what you see or tell me: what meal should we add?")),
+        tool_call_id: None,
+        tool_calls: None,
+    }];
+
+    // Actually, let's use a direct text approach since we can't pass images through the router yet
+    // The user can describe the meal or we can use the photo as a trigger to ask them about it
+    return Err("Photo recognition coming soon! For now, describe your meal and I'll help set it up.".to_string());
+}
+
+#[tauri::command]
+pub async fn kitchen_ai_add_meal(description: String) -> Result<engine::types::MealWithIngredients, String> {
+    let engine = engine::get_engine();
+
+    let prompt = format!(
+        "You are a culinary expert AI. The user describes a meal they want to add: \"{description}\"
+
+Provide full details for this meal:
+1. Name (clean, proper name)
+2. Description (1-2 sentences)
+3. Cuisine type
+4. Category (breakfast/lunch/dinner/snack/dessert)
+5. Prep time, cook time, servings, difficulty
+6. Complete list of ingredients with quantities, units, estimated cost in USD (2026 prices), and category (produce/dairy/meat/pantry/spice/frozen)
+7. Step-by-step cooking instructions
+8. Tags array
+
+Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
+{{
+  \"name\": \"Proper Dish Name\",
+  \"description\": \"Brief appetizing description\",
+  \"cuisine\": \"cuisine_type\",
+  \"category\": \"dinner\",
+  \"prep_time_min\": 15,
+  \"cook_time_min\": 30,
+  \"servings\": 4,
+  \"difficulty\": \"normal\",
+  \"instructions\": \"Step 1: ...\\nStep 2: ...\\nStep 3: ...\",
+  \"tags\": \"[\\\"healthy\\\", \\\"family-friendly\\\"]\",
+  \"ingredients\": [
+    {{\"name\": \"ingredient\", \"quantity\": 2.0, \"unit\": \"cups\", \"estimated_cost\": 1.50, \"category\": \"pantry\", \"notes\": \"optional note\"}}
+  ]
+}}",
+        description = description
+    );
+
+    let messages = vec![engine::router::OpenAIMessage {
+        role: "user".to_string(),
+        content: Some(prompt),
+        tool_call_id: None,
+        tool_calls: None,
+    }];
+
+    let response = engine::router::chat("core", messages, Some(2000), None, None)
+        .await
+        .map_err(|e| format!("AI failed: {}", e))?;
+
+    let content = response.content.trim();
+    let json_str = content
+        .strip_prefix("```json").unwrap_or(content)
+        .strip_prefix("```").unwrap_or(content)
+        .strip_suffix("```").unwrap_or(content)
+        .trim();
+
+    #[derive(serde::Deserialize)]
+    struct AIMeal {
+        name: String,
+        description: Option<String>,
+        cuisine: Option<String>,
+        category: Option<String>,
+        prep_time_min: Option<i64>,
+        cook_time_min: Option<i64>,
+        servings: Option<i64>,
+        difficulty: Option<String>,
+        instructions: Option<String>,
+        tags: Option<String>,
+        ingredients: Vec<AIIngredient>,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct AIIngredient {
+        name: String,
+        quantity: Option<f64>,
+        unit: Option<String>,
+        estimated_cost: Option<f64>,
+        category: Option<String>,
+        notes: Option<String>,
+    }
+
+    let ai_meal: AIMeal = serde_json::from_str(json_str)
+        .map_err(|e| format!("Failed to parse AI response: {}. Raw: {}", e, json_str))?;
+
+    let meal_id = uuid::Uuid::new_v4().to_string();
+    let meal = engine.db().create_meal(
+        &meal_id, &ai_meal.name, ai_meal.description.as_deref(), ai_meal.cuisine.as_deref(),
+        ai_meal.category.as_deref(), None, ai_meal.prep_time_min, ai_meal.cook_time_min,
+        ai_meal.servings.unwrap_or(4), &ai_meal.difficulty.unwrap_or("normal".to_string()),
+        ai_meal.instructions.as_deref(), ai_meal.tags.as_deref(), "ai-generated",
+    ).map_err(|e| e.to_string())?;
+
+    // Add ingredients
+    for ing in &ai_meal.ingredients {
+        let ing_id = uuid::Uuid::new_v4().to_string();
+        engine.db().add_meal_ingredient(
+            &ing_id, &meal_id, &ing.name, ing.quantity, ing.unit.as_deref(),
+            ing.estimated_cost, ing.category.as_deref(), false, ing.notes.as_deref(),
+        ).map_err(|e| e.to_string())?;
+    }
+
+    // Get the full meal with ingredients
+    engine.db().get_meal_with_ingredients(&meal_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Failed to load created meal".to_string())
+}
+
+// ── Smart Kitchen — Meal Plans ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SetPlanEntryRequest {
+    pub week_start: String,
+    pub day_of_week: i64,
+    pub meal_slot: String,
+    pub meal_id: Option<String>,
+    pub notes: Option<String>,
+}
+
+#[tauri::command]
+pub fn kitchen_set_plan_entry(req: SetPlanEntryRequest) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    engine.db().set_plan_entry(
+        &id, &req.week_start, req.day_of_week, &req.meal_slot, req.meal_id.as_deref(), req.notes.as_deref(),
+    ).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn kitchen_get_weekly_plan(week_start: String) -> Result<engine::types::WeeklyPlan, String> {
+    let engine = engine::get_engine();
+    engine.db().get_weekly_plan(&week_start).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn kitchen_clear_week_plan(week_start: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().clear_week_plan(&week_start).map_err(|e| e.to_string())
+}
+
+// ── Smart Kitchen — Grocery List ──
+
+#[tauri::command]
+pub fn kitchen_generate_grocery(week_start: String) -> Result<Vec<engine::types::GroceryItem>, String> {
+    let engine = engine::get_engine();
+    engine.db().generate_grocery_list(&week_start).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn kitchen_get_grocery(week_start: String) -> Result<Vec<engine::types::GroceryItem>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_grocery_list(&week_start).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn kitchen_toggle_grocery_item(id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().toggle_grocery_item(&id).map_err(|e| e.to_string())
+}
+
+// ── Smart Kitchen — Inventory ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AddInventoryRequest {
+    pub name: String,
+    pub quantity: Option<f64>,
+    pub unit: Option<String>,
+    pub category: Option<String>,
+    pub expiry_date: Option<String>,
+    pub location: Option<String>,
+}
+
+#[tauri::command]
+pub fn kitchen_add_inventory(req: AddInventoryRequest) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    engine.db().add_inventory_item(
+        &id, &req.name, req.quantity, req.unit.as_deref(),
+        req.category.as_deref(), req.expiry_date.as_deref(), req.location.as_deref(),
+    ).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn kitchen_get_inventory(location: Option<String>) -> Result<Vec<engine::types::KitchenInventoryItem>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_inventory(location.as_deref()).map_err(|e| e.to_string())
+}
