@@ -441,3 +441,41 @@ export const FEED_TYPE_CONFIG: Record<string, { emoji: string; color: string }> 
   fun_fact:  { emoji: '🤯', color: '#8b5cf6' },
   reminder:  { emoji: '⏰', color: '#10b981' },
 };
+
+// ── Fridge Scanner ──
+
+export interface KitchenInventoryItem {
+  id: string;
+  name: string;
+  quantity: number | null;
+  unit: string | null;
+  category: string | null;
+  expiry_date: string | null;
+  location: string | null;
+  last_restocked: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FridgeScanResult {
+  items: KitchenInventoryItem[];
+  summary: string;
+  waste_risk: string[];
+  suggested_meals: string[];
+}
+
+export interface MealMatch {
+  meal_id: string;
+  meal_name: string;
+  have_count: number;
+  total_count: number;
+  match_pct: number;
+  missing_ingredients: string[];
+  can_make: boolean;
+}
+
+export interface MealMatchResult {
+  matches: MealMatch[];
+  total_inventory_items: number;
+  can_make_count: number;
+}
