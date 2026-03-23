@@ -76,7 +76,8 @@ pub async fn process_turn(
     db.add_message(session_id, "user", user_message, 0, None, None, None)?;
 
     // 6. Get tool definitions
-    let tool_defs = tools::get_tool_definitions();
+    let mut tool_defs = tools::get_tool_definitions();
+    tool_defs.extend(tools::get_integration_tool_definitions());
 
     // 7. Tool calling loop
     let mut total_tokens: i64 = 0;
@@ -271,7 +272,8 @@ pub async fn process_turn_stream(
     db.add_message(session_id, "user", user_message, 0, None, None, None)?;
 
     // 6. Get tool definitions
-    let tool_defs = tools::get_tool_definitions();
+    let mut tool_defs = tools::get_tool_definitions();
+    tool_defs.extend(tools::get_integration_tool_definitions());
 
     // 7. Tool calling loop (non-streaming for tool detection, streaming for final text)
     let mut final_response: Option<router::ModelResponse> = None;

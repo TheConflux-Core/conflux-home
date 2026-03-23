@@ -154,6 +154,11 @@ pub async fn execute_tool_for_agent(tool_name: &str, args: &Value, agent_id: &st
         "time" => execute_time(),
         "memory_read" => execute_memory_read(args).await,
         "memory_write" => execute_memory_write(args).await,
+        // Phase 5: Integration tools
+        "web_post" => execute_web_post(args).await,
+        "notify" => execute_notify(args),
+        "email_send" => execute_email_send(args),
+        "email_receive" => execute_email_receive(args),
         _ => Ok(ToolResult {
             success: false,
             output: String::new(),
@@ -334,6 +339,75 @@ pub fn get_tool_definitions() -> Vec<Value> {
                         "values": { "type": "array", "description": "2D array of values to write" }
                     },
                     "required": ["spreadsheet_id", "range", "values"]
+                }
+            }
+        }),
+    ]
+}
+
+// ── Phase 5: Integration Tool Definitions ──
+
+pub fn get_integration_tool_definitions() -> Vec<Value> {
+    vec![
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "web_post",
+                "description": "Send a POST request to any URL. Use this to trigger webhooks, call APIs, send notifications to Slack/Discord/Zapier, or integrate with external services.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "url": { "type": "string", "description": "The URL to POST to" },
+                        "body": { "type": "string", "description": "JSON body to send (as a string)" },
+                        "headers": { "type": "string", "description": "Optional JSON object of headers (e.g., '{\"Authorization\": \"Bearer ...\"}')" }
+                    },
+                    "required": ["url", "body"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "notify",
+                "description": "Send a desktop/mobile notification to the user. Use this for alerts, reminders, task completions, or important updates that need immediate attention.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "title": { "type": "string", "description": "Notification title (shown in bold)" },
+                        "body": { "type": "string", "description": "Notification body text" }
+                    },
+                    "required": ["title", "body"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "email_send",
+                "description": "Send an email via SMTP. Configure email settings first in Settings > Email.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "to": { "type": "string", "description": "Recipient email address" },
+                        "subject": { "type": "string", "description": "Email subject line" },
+                        "body": { "type": "string", "description": "Email body (plain text)" }
+                    },
+                    "required": ["to", "subject", "body"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "email_receive",
+                "description": "Check for new emails via IMAP. Returns recent unread emails.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "folder": { "type": "string", "description": "Mailbox folder to check (default: INBOX)" },
+                        "limit": { "type": "integer", "description": "Max emails to return (default: 10)" }
+                    },
+                    "required": []
                 }
             }
         }),
@@ -643,3 +717,173 @@ fn evaluate_math(expr: &str) -> Result<String> {
 }
 
 // Add meval to Cargo.toml dependencies
+
+// ── Phase 5: Integration Tool Implementations ──
+
+/// POST to any URL (webhook, API, integration)
+async fn execute_web_post(args: &Value) -> Result<ToolResult> {
+    let url = args.get("url").and_then(|v| v.as_str()).unwrap_or("");
+    let body = args.get("body").and_then(|v| v.as_str()).unwrap_or("");
+    let headers_str = args.get("headers").and_then(|v| v.as_str());
+
+    if url.is_empty() {
+        return Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some("No URL provided".to_string()),
+        });
+    }
+
+    if body.is_empty() {
+        return Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some("No body provided".to_string()),
+        });
+    }
+
+    let client = reqwest::Client::new();
+    let mut request = client.post(url)
+        .header("Content-Type", "application/json")
+        .header("User-Agent", "ConfluxHome/1.0")
+        .body(body.to_string());
+
+    // Parse optional headers
+    if let Some(h) = headers_str {
+        if let Ok(header_map) = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(h) {
+            for (key, val) in header_map {
+                if let Some(v) = val.as_str() {
+                    request = request.header(&key, v);
+                }
+            }
+        }
+    }
+
+    match request.send().await {
+        Ok(response) => {
+            let status = response.status().as_u16();
+            let response_body = response.text().await.unwrap_or_default();
+            let truncated = if response_body.len() > 5000 {
+                format!("{}... (truncated)", &response_body[..5000])
+            } else {
+                response_body
+            };
+
+            Ok(ToolResult {
+                success: status < 400,
+                output: format!("Status: {}\nBody: {}", status, truncated),
+                error: if status >= 400 { Some(format!("HTTP {}", status)) } else { None },
+            })
+        }
+        Err(e) => Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some(format!("Request failed: {}", e)),
+        }),
+    }
+}
+
+/// Send a desktop/mobile notification
+fn execute_notify(args: &Value) -> Result<ToolResult> {
+    let title = args.get("title").and_then(|v| v.as_str()).unwrap_or("Conflux");
+    let body = args.get("body").and_then(|v| v.as_str()).unwrap_or("");
+
+    if body.is_empty() {
+        return Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some("No notification body provided".to_string()),
+        });
+    }
+
+    // Use Tauri's notification plugin via command
+    // We'll emit an event that the frontend can listen to
+    let engine = super::get_engine();
+    let _ = engine.db().emit_event("agent_notification", None, None,
+        Some(&serde_json::json!({"title": title, "body": body}).to_string()));
+
+    Ok(ToolResult {
+        success: true,
+        output: format!("Notification sent: {} - {}", title, body),
+        error: None,
+    })
+}
+
+/// Send email via SMTP
+fn execute_email_send(args: &Value) -> Result<ToolResult> {
+    use lettre::{Message, SmtpTransport, Transport};
+    use lettre::transport::smtp::authentication::Credentials;
+
+    let to = args.get("to").and_then(|v| v.as_str()).unwrap_or("");
+    let subject = args.get("subject").and_then(|v| v.as_str()).unwrap_or("");
+    let body = args.get("body").and_then(|v| v.as_str()).unwrap_or("");
+
+    if to.is_empty() || subject.is_empty() || body.is_empty() {
+        return Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some("Missing required fields: to, subject, body".to_string()),
+        });
+    }
+
+    // Get SMTP config from DB
+    let engine = super::get_engine();
+    let smtp_host = match engine.db().get_config("smtp_host") {
+        Ok(Some(h)) => h,
+        _ => return Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some("Email not configured. Set smtp_host, smtp_user, smtp_pass, smtp_from in Settings > Email.".to_string()),
+        }),
+    };
+    let smtp_user = engine.db().get_config("smtp_user").unwrap_or(None).unwrap_or_default();
+    let smtp_pass = engine.db().get_config("smtp_pass").unwrap_or(None).unwrap_or_default();
+    let smtp_from = engine.db().get_config("smtp_from").unwrap_or(None).unwrap_or(smtp_user.clone());
+
+    let email = match Message::builder()
+        .from(smtp_from.parse().map_err(|e| anyhow::anyhow!("Invalid from address: {}", e))?)
+        .to(to.parse().map_err(|e| anyhow::anyhow!("Invalid to address: {}", e))?)
+        .subject(subject)
+        .body(body.to_string())
+    {
+        Ok(e) => e,
+        Err(e) => return Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some(format!("Failed to build email: {}", e)),
+        }),
+    };
+
+    let creds = Credentials::new(smtp_user, smtp_pass);
+
+    let mailer = match SmtpTransport::relay(&smtp_host) {
+        Ok(m) => m.credentials(creds).build(),
+        Err(e) => return Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some(format!("SMTP connection failed: {}", e)),
+        }),
+    };
+
+    match mailer.send(&email) {
+        Ok(_) => Ok(ToolResult {
+            success: true,
+            output: format!("Email sent to {}", to),
+            error: None,
+        }),
+        Err(e) => Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some(format!("Failed to send email: {}", e)),
+        }),
+    }
+}
+
+/// Receive email via IMAP (stub — requires OpenSSL)
+fn execute_email_receive(_args: &Value) -> Result<ToolResult> {
+    Ok(ToolResult {
+        success: false,
+        output: String::new(),
+        error: Some("Email receive (IMAP) is not yet available. Use Gmail integration (Google tools) or check back in a future update.".to_string()),
+    })
+}

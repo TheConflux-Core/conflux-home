@@ -12,6 +12,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(
             tauri_plugin_log::Builder::default()
                 .level(log::LevelFilter::Info)
@@ -100,6 +101,11 @@ pub fn run() {
             commands::engine_install_skill,
             commands::engine_toggle_skill,
             commands::engine_uninstall_skill,
+            // Notifications
+            commands::engine_send_notification,
+            // Email Config
+            commands::engine_set_email_config,
+            commands::engine_get_email_config,
             // Google
             commands::engine_google_is_connected,
             commands::engine_google_get_email,

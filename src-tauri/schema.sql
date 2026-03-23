@@ -462,7 +462,11 @@ INSERT OR IGNORE INTO tools (id, name, description, parameters, category) VALUES
     ('calc',        'Calculator',  'Evaluate a math expression',    '{"type":"object","properties":{"expression":{"type":"string"}},"required":["expression"]}', 'builtin'),
     ('time',        'Current Time','Get the current date and time', '{"type":"object","properties":{},"required":[]}', 'builtin'),
     ('memory_read', 'Memory Read', 'Search agent memory',           '{"type":"object","properties":{"query":{"type":"string"},"limit":{"type":"integer"}},"required":["query"]}', 'builtin'),
-    ('memory_write','Memory Write','Store a memory',                '{"type":"object","properties":{"key":{"type":"string"},"content":{"type":"string"},"memory_type":{"type":"string"}},"required":["content"]}', 'builtin');
+    ('memory_write','Memory Write','Store a memory',                '{"type":"object","properties":{"key":{"type":"string"},"content":{"type":"string"},"memory_type":{"type":"string"}},"required":["content"]}', 'builtin'),
+    ('web_post',   'Web POST',     'Send POST request to any URL (webhooks, APIs)', '{"type":"object","properties":{"url":{"type":"string"},"body":{"type":"string"},"headers":{"type":"string"}},"required":["url","body"]}', 'builtin'),
+    ('notify',     'Notification', 'Send desktop/mobile notification to user',      '{"type":"object","properties":{"title":{"type":"string"},"body":{"type":"string"}},"required":["title","body"]}', 'builtin'),
+    ('email_send', 'Email Send',   'Send email via SMTP',                            '{"type":"object","properties":{"to":{"type":"string"},"subject":{"type":"string"},"body":{"type":"string"}},"required":["to","subject","body"]}', 'builtin'),
+    ('email_receive','Email Receive','Check for new emails via IMAP',                 '{"type":"object","properties":{"folder":{"type":"string"},"limit":{"type":"integer"}}}', 'builtin');
 
 -- ============================================================
 -- AGENT CAPABILITIES — What each agent can do
@@ -650,6 +654,10 @@ INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'calc' FRO
 INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'time' FROM agents;
 INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'memory_read' FROM agents;
 INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'memory_write' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'web_post' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'notify' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'email_send' FROM agents;
+INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'email_receive' FROM agents;
 -- ============================================================
 
 INSERT OR IGNORE INTO providers (id, name, base_url, api_key, model_id, model_alias, priority) VALUES
