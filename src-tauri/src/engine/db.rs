@@ -324,48 +324,121 @@ impl EngineDb {
 
     pub fn search_memory(&self, agent_id: &str, query: &str, limit: i64) -> Result<Vec<super::types::Memory>> {
         let conn = self.conn();
-        let search_pattern = format!("%{}%", query);
-        let mut stmt = conn.prepare(
-            "SELECT id, agent_id, memory_type, key, content, source, confidence,
-                    access_count, last_accessed, created_at, updated_at, expires_at
-             FROM memory
-             WHERE agent_id = ?1 AND (content LIKE ?2 OR key LIKE ?2)
-             ORDER BY confidence DESC, access_count DESC, created_at DESC
+
+        // Try FTS5 search first (better relevance ranking)
+        let fts_result = conn.prepare(
+            "SELECT m.id, m.agent_id, m.memory_type, m.key, m.content, m.source, m.confidence,
+                    m.access_count, m.last_accessed, m.created_at, m.updated_at, m.expires_at
+             FROM memory_fts fts
+             JOIN memory m ON m.id = fts.memory_id
+             WHERE fts.agent_id = ?1 AND memory_fts MATCH ?2
+             ORDER BY rank
              LIMIT ?3"
-        )?;
+        );
 
-        let memories = stmt.query_map(params![agent_id, search_pattern, limit], |row| {
-            Ok(super::types::Memory {
-                id: row.get(0)?,
-                agent_id: row.get(1)?,
-                memory_type: row.get(2)?,
-                key: row.get(3)?,
-                content: row.get(4)?,
-                source: row.get(5)?,
-                confidence: row.get(6)?,
-                access_count: row.get(7)?,
-                last_accessed: row.get(8)?,
-                created_at: row.get(9)?,
-                updated_at: row.get(10)?,
-                expires_at: row.get(11)?,
-            })
-        })?;
+        let memories = match fts_result {
+            Ok(mut stmt) => {
+                // Sanitize query for FTS5: escape special chars, add prefix matching
+                let fts_query = query
+                    .split_whitespace()
+                    .filter(|w| !w.is_empty())
+                    .map(|w| format!("\"{}\"", w.replace('"', "")))
+                    .collect::<Vec<_>>()
+                    .join(" OR ");
 
-        let mut result = Vec::new();
-        for mem in memories {
-            result.push(mem?);
+                if fts_query.is_empty() {
+                    return Ok(Vec::new());
+                }
+
+                match stmt.query_map(params![agent_id, fts_query, limit], |row| {
+                    Ok(super::types::Memory {
+                        id: row.get(0)?,
+                        agent_id: row.get(1)?,
+                        memory_type: row.get(2)?,
+                        key: row.get(3)?,
+                        content: row.get(4)?,
+                        source: row.get(5)?,
+                        confidence: row.get(6)?,
+                        access_count: row.get(7)?,
+                        last_accessed: row.get(8)?,
+                        created_at: row.get(9)?,
+                        updated_at: row.get(10)?,
+                        expires_at: row.get(11)?,
+                    })
+                }) {
+                    Ok(rows) => {
+                        let mut result = Vec::new();
+                        for row in rows {
+                            if let Ok(mem) = row {
+                                result.push(mem);
+                            }
+                        }
+                        if !result.is_empty() {
+                            // Update access counts
+                            let now = Self::now();
+                            for mem in &result {
+                                let _ = conn.execute(
+                                    "UPDATE memory SET access_count = access_count + 1, last_accessed = ?2 WHERE id = ?1",
+                                    params![mem.id, now],
+                                );
+                            }
+                            return Ok(result);
+                        }
+                        result
+                    }
+                    Err(_) => Vec::new(),
+                }
+            }
+            Err(_) => Vec::new(),
+        };
+
+        // Fall back to LIKE search if FTS returned nothing
+        if memories.is_empty() {
+            let search_pattern = format!("%{}%", query);
+            let mut stmt = conn.prepare(
+                "SELECT id, agent_id, memory_type, key, content, source, confidence,
+                        access_count, last_accessed, created_at, updated_at, expires_at
+                 FROM memory
+                 WHERE agent_id = ?1 AND (content LIKE ?2 OR key LIKE ?2)
+                 ORDER BY confidence DESC, access_count DESC, created_at DESC
+                 LIMIT ?3"
+            )?;
+
+            let fallback = stmt.query_map(params![agent_id, search_pattern, limit], |row| {
+                Ok(super::types::Memory {
+                    id: row.get(0)?,
+                    agent_id: row.get(1)?,
+                    memory_type: row.get(2)?,
+                    key: row.get(3)?,
+                    content: row.get(4)?,
+                    source: row.get(5)?,
+                    confidence: row.get(6)?,
+                    access_count: row.get(7)?,
+                    last_accessed: row.get(8)?,
+                    created_at: row.get(9)?,
+                    updated_at: row.get(10)?,
+                    expires_at: row.get(11)?,
+                })
+            })?;
+
+            let mut result = Vec::new();
+            for mem in fallback {
+                result.push(mem?);
+            }
+
+            // Update access counts
+            let now = Self::now();
+            for mem in &result {
+                let _ = conn.execute(
+                    "UPDATE memory SET access_count = access_count + 1, last_accessed = ?2 WHERE id = ?1",
+                    params![mem.id, now],
+                );
+            }
+
+            return Ok(result);
         }
 
-        // Update access counts
-        let now = Self::now();
-        for mem in &result {
-            let _ = conn.execute(
-                "UPDATE memory SET access_count = access_count + 1, last_accessed = ?2 WHERE id = ?1",
-                params![mem.id, now],
-            );
-        }
-
-        Ok(result)
+        Ok(memories)
     }
 
     pub fn get_memory_by_key(&self, agent_id: &str, key: &str) -> Result<Option<super::types::Memory>> {
@@ -822,5 +895,28 @@ impl EngineDb {
             |row| row.get(0),
         )?;
         Ok(count > 0)
+    }
+
+    /// Rebuild FTS index from existing memories (for migration).
+    pub fn rebuild_memory_fts(&self) -> Result<i64> {
+        let conn = self.conn();
+
+        // Clear existing FTS data
+        let _ = conn.execute_batch("DELETE FROM memory_fts;");
+
+        // Rebuild from memory table
+        let count = conn.execute_batch(
+            "INSERT INTO memory_fts(memory_id, agent_id, content, key, memory_type)
+             SELECT id, agent_id, content, COALESCE(key, ''), memory_type FROM memory;"
+        );
+
+        match count {
+            Ok(_) => {
+                // Count entries
+                let n: i64 = conn.query_row("SELECT COUNT(*) FROM memory_fts", [], |r| r.get(0))?;
+                Ok(n)
+            }
+            Err(_) => Ok(0),
+        }
     }
 }

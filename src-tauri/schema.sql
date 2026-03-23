@@ -307,7 +307,40 @@ INSERT OR IGNORE INTO config (key, value) VALUES
     ('engine_version', '1.0.0'),
     ('default_model', 'conflux-fast'),
     ('free_daily_limit', '50'),
+    ('memory_search', 'fts5'),  -- 'fts5' | 'embeddings'
     ('created_at', (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')));
+
+-- ============================================================
+-- MEMORY FTS5 — Full-text search index for memories
+-- ============================================================
+
+-- Virtual FTS5 table for fast memory search
+CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
+    memory_id UNINDEXED,
+    agent_id UNINDEXED,
+    content,
+    key,
+    memory_type UNINDEXED,
+    tokenize='porter unicode61'
+);
+
+-- Triggers to keep FTS index in sync with memory table
+CREATE TRIGGER IF NOT EXISTS memory_ai AFTER INSERT ON memory BEGIN
+    INSERT INTO memory_fts(memory_id, agent_id, content, key, memory_type)
+    VALUES (new.id, new.agent_id, new.content, COALESCE(new.key, ''), new.memory_type);
+END;
+
+CREATE TRIGGER IF NOT EXISTS memory_ad AFTER DELETE ON memory BEGIN
+    INSERT INTO memory_fts(memory_fts, memory_id, agent_id, content, key, memory_type)
+    VALUES ('delete', old.id, old.agent_id, old.content, COALESCE(old.key, ''), old.memory_type);
+END;
+
+CREATE TRIGGER IF NOT EXISTS memory_au AFTER UPDATE ON memory BEGIN
+    INSERT INTO memory_fts(memory_fts, memory_id, agent_id, content, key, memory_type)
+    VALUES ('delete', old.id, old.agent_id, old.content, COALESCE(old.key, ''), old.memory_type);
+    INSERT INTO memory_fts(memory_id, agent_id, content, key, memory_type)
+    VALUES (new.id, new.agent_id, new.content, COALESCE(new.key, ''), new.memory_type);
+END;
 
 -- ============================================================
 -- SEED: Default Agents
