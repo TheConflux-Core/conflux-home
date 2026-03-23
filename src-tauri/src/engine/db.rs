@@ -596,6 +596,65 @@ impl EngineDb {
         Ok(())
     }
 
+    // ── Session Compaction ──
+
+    /// Count messages in a session.
+    pub fn count_messages(&self, session_id: &str) -> Result<i64> {
+        let conn = self.conn();
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM messages WHERE session_id = ?1",
+            params![session_id],
+            |row| row.get(0),
+        )?;
+        Ok(count)
+    }
+
+    /// Get messages older than the most recent N (for compaction).
+    pub fn get_old_messages(&self, session_id: &str, keep_recent: i64) -> Result<Vec<super::types::Message>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, session_id, role, content, tool_call_id, tool_name, tool_args, tool_result,
+                    tokens_used, model, provider_id, latency_ms, created_at
+             FROM messages WHERE session_id = ?1
+             ORDER BY created_at ASC
+             LIMIT (SELECT MAX(COUNT(*) - ?2, 0) FROM messages WHERE session_id = ?1)"
+        )?;
+
+        let messages = stmt.query_map(params![session_id, keep_recent], |row| {
+            Ok(super::types::Message {
+                id: row.get(0)?,
+                session_id: row.get(1)?,
+                role: row.get(2)?,
+                content: row.get(3)?,
+                tool_call_id: row.get(4)?,
+                tool_name: row.get(5)?,
+                tool_args: row.get(6)?,
+                tool_result: row.get(7)?,
+                tokens_used: row.get(8)?,
+                model: row.get(9)?,
+                provider_id: row.get(10)?,
+                latency_ms: row.get(11)?,
+                created_at: row.get(12)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for msg in messages {
+            result.push(msg?);
+        }
+        Ok(result)
+    }
+
+    /// Delete messages by ID list.
+    pub fn delete_messages(&self, message_ids: &[String]) -> Result<i64> {
+        let conn = self.conn();
+        let mut count = 0i64;
+        for id in message_ids {
+            count += conn.execute("DELETE FROM messages WHERE id = ?1", params![id])? as i64;
+        }
+        Ok(count)
+    }
+
     // ── Provider CRUD ──
 
     pub fn get_providers(&self) -> Result<Vec<super::types::ProviderConfig>> {

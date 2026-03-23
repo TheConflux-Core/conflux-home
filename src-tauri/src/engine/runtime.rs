@@ -197,6 +197,9 @@ pub async fn process_turn(
         }).to_string()),
     );
 
+    // 11. Session compaction (if over threshold)
+    let _ = maybe_compact_session(db, session_id, agent_id).await;
+
     Ok(response)
 }
 
@@ -409,4 +412,123 @@ fn build_system_prompt(
     prompt.push_str("\nBe helpful, concise, and in-character. If you don't know something, say so honestly.");
 
     prompt
+}
+
+// ── Session Compaction ──
+
+const COMPACTION_THRESHOLD: i64 = 50;  // compact when session has 50+ messages
+const COMPACTION_KEEP_RECENT: i64 = 20; // always keep last 20 messages raw
+
+/// Check if a session needs compaction and run it if so.
+async fn maybe_compact_session(
+    db: &super::db::EngineDb,
+    session_id: &str,
+    agent_id: &str,
+) -> Result<()> {
+    let count = db.count_messages(session_id)?;
+    if count < COMPACTION_THRESHOLD {
+        return Ok(());
+    }
+
+    log::info!("[Compaction] Session {} has {} messages, compacting...", session_id, count);
+
+    // Get old messages (everything except last 20)
+    let old_messages = db.get_old_messages(session_id, COMPACTION_KEEP_RECENT)?;
+    if old_messages.is_empty() {
+        return Ok(());
+    }
+
+    // Build a text summary from old messages
+    let summary = build_compaction_summary(&old_messages);
+
+    // Store as memory
+    let memory_key = format!("compaction-{}", &session_id[..8.min(session_id.len())]);
+    db.store_memory(
+        agent_id,
+        "compaction",
+        Some(&memory_key),
+        &summary,
+        Some(session_id),
+    )?;
+
+    // Delete old messages
+    let message_ids: Vec<String> = old_messages.iter().map(|m| m.id.clone()).collect();
+    let deleted = db.delete_messages(&message_ids)?;
+
+    log::info!("[Compaction] Compacted {} messages into memory for session {}", deleted, session_id);
+
+    // Log telemetry
+    let _ = db.log_event(
+        "session_compacted",
+        Some(agent_id),
+        Some(session_id),
+        Some(&serde_json::json!({
+            "messages_compacted": deleted,
+            "summary_length": summary.len(),
+        }).to_string()),
+    );
+
+    Ok(())
+}
+
+/// Build a text summary from a list of messages.
+/// Extracts user questions, assistant responses, and tool calls.
+fn build_compaction_summary(messages: &[super::types::Message]) -> String {
+    let mut summary = String::new();
+    let msg_count = messages.len();
+
+    // Time range
+    if let (Some(first), Some(last)) = (messages.first(), messages.last()) {
+        summary.push_str(&format!(
+            "Conversation summary ({} messages, {} → {}):\n\n",
+            msg_count,
+            &first.created_at[..16.min(first.created_at.len())],
+            &last.created_at[..16.min(last.created_at.len())],
+        ));
+    }
+
+    // Extract key exchanges (user questions + assistant answers)
+    let mut i = 0;
+    while i < messages.len() {
+        let msg = &messages[i];
+
+        match msg.role.as_str() {
+            "user" => {
+                // Truncate long user messages
+                let content = truncate(&msg.content, 200);
+                summary.push_str(&format!("User: {}\n", content));
+
+                // Look for the next assistant response
+                if i + 1 < messages.len() && messages[i + 1].role == "assistant" {
+                    let resp = truncate(&messages[i + 1].content, 300);
+                    summary.push_str(&format!("Assistant: {}\n\n", resp));
+                    i += 2;
+                } else {
+                    summary.push('\n');
+                    i += 1;
+                }
+            }
+            "tool" => {
+                // Note tool usage briefly
+                if let Some(ref tool_name) = msg.tool_name {
+                    summary.push_str(&format!("[Tool: {}]\n", tool_name));
+                }
+                i += 1;
+            }
+            _ => {
+                i += 1;
+            }
+        }
+    }
+
+    summary.push_str("\n(Older conversation was compacted. Recent messages are preserved.)\n");
+    summary
+}
+
+fn truncate(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        s.to_string()
+    } else {
+        format!("{}...", &s[..max])
+    }
 }
