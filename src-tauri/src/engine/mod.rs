@@ -168,6 +168,47 @@ impl ConfluxEngine {
         self.db.delete_provider(id)
     }
 
+    // ── Provider Templates ──
+
+    pub fn get_provider_templates(&self) -> Result<Vec<types::ProviderTemplate>> {
+        self.db.get_provider_templates()
+    }
+
+    pub fn install_provider_template(&self, template_id: &str, api_key: Option<&str>, model: Option<&str>) -> Result<String> {
+        let template = self.db.get_provider_template(template_id)?
+            .ok_or_else(|| anyhow::anyhow!("Template not found: {}", template_id))?;
+
+        // Free tier doesn't need installation (already active)
+        if template.is_free {
+            return Ok("Free tier is already active.".to_string());
+        }
+
+        let key = api_key.unwrap_or("");
+        if key.is_empty() {
+            anyhow::bail!("API key is required for {}", template.name);
+        }
+
+        let model_id = model.unwrap_or(&template.default_model);
+        let provider_id = format!("{}-user", template_id);
+
+        self.db.upsert_provider(
+            &provider_id,
+            &template.name,
+            &template.base_url,
+            key,
+            model_id,
+            &template.model_alias,
+            10, // lower priority than built-in providers
+            true,
+        )?;
+
+        Ok(format!("{} connected with model {}", template.name, model_id))
+    }
+
+    pub fn is_template_installed(&self, template_id: &str) -> Result<bool> {
+        self.db.check_template_installed(template_id)
+    }
+
     pub fn test_provider(&self, id: &str) -> Result<router::ModelResponse> {
         // Run a synchronous test call through the provider
         let rt = tokio::runtime::Runtime::new()?;
