@@ -53,9 +53,7 @@ pub fn init_engine(db_path: &Path) -> Result<()> {
             router::configure_provider("xiaomi-mimo-pro", &key).ok();
             log::info!("[Engine] Xiaomi API key loaded");
         }
-        _ => {
-            log::info!("[Engine] No paid provider keys configured — Core tier only (free models)");
-        }
+        _ => {}
     }
 
     ENGINE.set(engine)
