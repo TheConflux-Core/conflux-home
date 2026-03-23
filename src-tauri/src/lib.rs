@@ -172,6 +172,11 @@ pub fn run() {
             commands::feed_toggle_bookmark,
             commands::feed_add_item,
             commands::feed_generate,
+            // Fridge Scanner
+            commands::fridge_scan,
+            commands::fridge_what_can_i_make,
+            commands::fridge_expiring_soon,
+            commands::fridge_shopping_for_meals,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
