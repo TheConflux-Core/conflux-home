@@ -18,6 +18,11 @@ interface ConnectivityStatus {
   error: string | null;
 }
 
+// Check if Tauri runtime is available
+function isTauri(): boolean {
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}
+
 const ConnectivityWidget: React.FC = () => {
   const [status, setStatus] = useState<ConnectivityStatus>({
     googleConnected: false,
@@ -28,16 +33,33 @@ const ConnectivityWidget: React.FC = () => {
   });
 
   const fetchConnectivityStatus = async () => {
+    if (!isTauri()) {
+      setStatus({
+        googleConnected: false,
+        googleEmail: null,
+        smtpConfigured: false,
+        loading: false,
+        error: null,
+      });
+      return;
+    }
+
     try {
       setStatus(prev => ({ ...prev, loading: true, error: null }));
+
       const googleConnected = await invoke<boolean>('engine_google_is_connected');
       let googleEmail: string | null = null;
       if (googleConnected) {
         googleEmail = await invoke<string>('engine_google_get_email');
       }
 
-      const emailConfig = await invoke<EmailConfig | null>('engine_get_email_config');
-      const smtpConfigured = !!emailConfig?.host;
+      let smtpConfigured = false;
+      try {
+        const emailConfig = await invoke<EmailConfig | null>('engine_get_email_config');
+        smtpConfigured = !!emailConfig?.host;
+      } catch {
+        // SMTP config not available
+      }
 
       setStatus({
         googleConnected,
@@ -60,28 +82,13 @@ const ConnectivityWidget: React.FC = () => {
 
   useEffect(() => {
     fetchConnectivityStatus();
-    const interval = setInterval(fetchConnectivityStatus, 30000); // Poll every 30 seconds
+    const interval = setInterval(fetchConnectivityStatus, 30000);
     return () => clearInterval(interval);
   }, []);
 
   const handleManageConnections = () => {
     window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: 'settings' }));
   };
-
-  const getConnectionStatusIcon = (isConnected: boolean | null) => {
-    if (isConnected === null) return 'checking.gif'; // Placeholder for checking state or not available
-    return isConnected
-      ? <span style={{ color: '#10b981' }}>✅</span>
-      : <span style={{ color: '#f59e0b' }}>⚠️</span>;
-  };
-
-  const renderConnectionLine = (label: string, isConnected: boolean | null, detail: string | null = null) => (
-    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px', fontSize: '13px' }}>
-      <span style={{ marginRight: '8px', color: 'var(--text-secondary)' }}>{label}</span>
-      {getConnectionStatusIcon(isConnected)}
-      {detail && <span style={{ marginLeft: '8px', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{detail}</span>}
-    </div>
-  );
 
   return (
     <div
@@ -102,14 +109,13 @@ const ConnectivityWidget: React.FC = () => {
       <div style={{ borderBottom: '1px solid var(--border)', marginBottom: '10px' }} />
 
       {status.loading && <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Checking...</p>}
-      {status.error && <p style={{ color: '#f00', fontSize: '13px' }}>Error: {status.error}</p>}
-      {!status.loading && !status.error && (
+      {!status.loading && (
         <>
-          {renderConnectionLine('✉️ Google', status.googleConnected, status.googleConnected ? status.googleEmail || 'connected' : 'not connected')}
-          {renderConnectionLine('📄 Docs', status.googleConnected, status.googleConnected ? 'connected' : 'not connected')}
-          {renderConnectionLine('📊 Sheets', status.googleConnected, status.googleConnected ? 'connected' : 'not connected')}
-          {renderConnectionLine('📁 Drive', status.googleConnected, status.googleConnected ? 'connected' : 'not connected')}
-          {renderConnectionLine('📧 SMTP', status.smtpConfigured, status.smtpConfigured ? 'configured' : 'not set')}
+          <ConnectionLine label="✉️ Google" connected={status.googleConnected} detail={status.googleConnected ? status.googleEmail || 'connected' : 'not connected'} />
+          <ConnectionLine label="📄 Docs" connected={status.googleConnected} detail={status.googleConnected ? 'connected' : 'not connected'} />
+          <ConnectionLine label="📊 Sheets" connected={status.googleConnected} detail={status.googleConnected ? 'connected' : 'not connected'} />
+          <ConnectionLine label="📁 Drive" connected={status.googleConnected} detail={status.googleConnected ? 'connected' : 'not connected'} />
+          <ConnectionLine label="📧 SMTP" connected={status.smtpConfigured} detail={status.smtpConfigured ? 'configured' : 'not set'} />
         </>
       )}
 
@@ -133,5 +139,25 @@ const ConnectivityWidget: React.FC = () => {
     </div>
   );
 };
+
+function ConnectionLine({ label, connected, detail }: { label: string; connected: boolean; detail: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px', fontSize: '13px' }}>
+      <span style={{ marginRight: '8px', color: 'var(--text-secondary)' }}>{label}</span>
+      <span style={{ color: connected ? '#10b981' : '#f59e0b' }}>
+        {connected ? '✅' : '⚠️'}
+      </span>
+      <span style={{
+        marginLeft: '8px',
+        color: 'var(--text-primary)',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}>
+        {detail}
+      </span>
+    </div>
+  );
+}
 
 export default ConnectivityWidget;
