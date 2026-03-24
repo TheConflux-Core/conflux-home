@@ -151,7 +151,7 @@ export default function App() {
 
   // Onboarding state — check localStorage on mount
   const [isOnboarded, setIsOnboarded] = useState(() => {
-    return true; // TEMP: skip onboarding
+    return localStorage.getItem('conflux-onboarded') === 'true';
   });
   const [showWelcome, setShowWelcome] = useState(false);
   const [userName, setUserName] = useState(() => localStorage.getItem('conflux-name') || 'there');
