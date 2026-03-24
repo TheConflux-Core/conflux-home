@@ -1,4 +1,5 @@
 import { View } from '../types';
+import ConnectivityWidget from './ConnectivityWidget';
 
 interface WidgetDef {
   id: string;
@@ -29,29 +30,32 @@ interface DesktopWidgetsProps {
 
 export default function DesktopWidgets({ onNavigate }: DesktopWidgetsProps) {
   return (
-    <div className="desktop-widgets-grid">
-      {WIDGETS.map((widget) => (
-        <div
-          key={widget.id}
-          className="desktop-widget"
-          onClick={() => onNavigate(widget.id as View)}
-          style={{
-            '--widget-color': widget.color,
-          } as React.CSSProperties}
-        >
+    <>
+      <ConnectivityWidget />
+      <div className="desktop-widgets-grid">
+        {WIDGETS.map((widget) => (
           <div
-            className="widget-accent"
+            key={widget.id}
+            className="desktop-widget"
+            onClick={() => onNavigate(widget.id as View)}
             style={{
-              background: `linear-gradient(90deg, ${widget.color}, ${widget.color}88)`,
-            }}
-          />
-          <div className="widget-body">
-            <div className="widget-icon">{widget.icon}</div>
-            <div className="widget-label">{widget.label}</div>
-            <div className="widget-preview">{widget.preview}</div>
+              '--widget-color': widget.color,
+            } as React.CSSProperties}
+          >
+            <div
+              className="widget-accent"
+              style={{
+                background: `linear-gradient(90deg, ${widget.color}, ${widget.color}88)`,
+              }}
+            />
+            <div className="widget-body">
+              <div className="widget-icon">{widget.icon}</div>
+              <div className="widget-label">{widget.label}</div>
+              <div className="widget-preview">{widget.preview}</div>
+            </div>
           </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+    </>
   );
 }
