@@ -250,6 +250,16 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [step, setStep] = useState(0);
   const [animating, setAnimating] = useState(false);
 
+  // Force dark theme for onboarding
+  useEffect(() => {
+    document.body.classList.add('dark');
+    return () => {
+      // Restore user's actual preference after onboarding
+      const stored = localStorage.getItem('conflux-theme') as 'light' | 'dark' | 'system' | null;
+      if (stored === 'light') document.body.classList.remove('dark');
+    };
+  }, []);
+
   // Step 0 — Welcome
   const [userName, setUserName] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -608,15 +618,6 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         autoFocus
       />
 
-      <div>
-        <button
-          className="next-btn animate-breathe"
-          onClick={nextStep}
-          style={{ maxWidth: 280, margin: '0 auto', display: 'block' }}
-        >
-          Get Started
-        </button>
-      </div>
     </div>
   );
 
@@ -701,18 +702,6 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           >
             Your team's heart is beating. ✨
           </h2>
-
-          {/* Continue button */}
-          <button
-            className="next-btn animate-fade-in"
-            onClick={nextStep}
-            style={{
-              maxWidth: 280, width: '100%', padding: '12px 24px',
-              '--stagger-delay': '500ms',
-            } as React.CSSProperties}
-          >
-            Continue →
-          </button>
 
           {/* Advanced setup link */}
           <button
@@ -1211,44 +1200,22 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                     onClick={handleGoogleConnect}
                     style={{ width: 'auto', padding: '12px 32px', fontSize: 16 }}
                 >
-                    🔗 Connect with Google
-                </button>
-                <button
-                  onClick={() => setShowGoogleAuthForm(true)}
-                  style={{
-                    background: 'none', border: 'none',
-                    color: 'var(--text-muted)', fontSize: 13,
-                    cursor: 'pointer', marginTop: 8,
-                    textDecoration: 'underline',
-                  }}
-                >
-                  I have my own credentials
+                    Connect with Google
                 </button>
             </div>
         )}
 
         {googleStatus === 'connected' && (
             <div className="animate-scale-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, color: '#10b981' }}>
-                <span style={{ fontSize: 48 }}>✅</span>
+                <span style={{ fontSize: 48 }}>&#10004;&#65039;</span>
                 <p style={{ fontSize: 18, fontWeight: 600 }}>Google Connected!</p>
                 {googleEmail && <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>Connected as: {googleEmail}</p>}
-                <button
-                  onClick={() => setShowGoogleAuthForm(true)}
-                  style={{
-                    background: 'none', border: 'none',
-                    color: 'var(--text-muted)', fontSize: 13,
-                    cursor: 'pointer', marginTop: 8,
-                    textDecoration: 'underline',
-                  }}
-                >
-                  Change credentials
-                </button>
             </div>
         )}
 
         {googleStatus === 'error' && (
              <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, color: 'var(--accent-red)' }}>
-                <span style={{ fontSize: 48 }}>⚠️</span>
+                <span style={{ fontSize: 48 }}>&#9888;&#65039;</span>
                 <p style={{ fontSize: 18, fontWeight: 600 }}>Connection Error</p>
                 <p style={{ fontSize: 14, color: 'var(--text-secondary)',maxWidth: 300 }}>
                     There was an issue connecting to Google. Please check your credentials and try again.
@@ -1262,24 +1229,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 </button>
             </div>
         )}
-
-        {/* Skip button appears at the bottom for steps 2, 3, 4 */}
-        <button
-          onClick={handleGoogleSkip}
-          style={{
-            background: 'none', border: 'none',
-            color: 'var(--text-muted)', fontSize: 13,
-            cursor: 'pointer', textDecoration: 'underline',
-            marginTop: 30,
-          }}
-        >
-          Skip for now
-        </button>
     </div>
   );
 
   const renderAlive = () => {
-""
     const agentIds = Array.from(selectedAgents);
     const agentList = agentIds.map(id => ALL_AGENTS[id]).filter(Boolean);
 
@@ -1419,7 +1372,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           display: 'flex', justifyContent: 'center', alignItems: 'center',
           gap: 10, padding: '20px 0 0', flexShrink: 0,
         }}>
-          {[0, 1, 2, 3, 4].map(i => {
+          {[0, 1, 2, 3, 4, 5].map(i => {
             const isActive = i === step;
             const isDone = i < step;
             return (
@@ -1488,74 +1441,27 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 Skip setup
               </button>
             )}
-            {step === 0 && (
-              <button
-                className="next-btn"
-                onClick={nextStep}
-                disabled={userName.trim().length === 0}
-                style={{
-                  width: 'auto', padding: '10px 28px',
-                  opacity: userName.trim().length > 0 ? 1 : 0.5,
-                  cursor: userName.trim().length > 0 ? 'pointer' : 'not-allowed',
-                }}
-              >
-                Next →
-              </button>
-            )}
-            {step === 1 && (
-              <button
-                className="next-btn"
-                onClick={nextStep}
-                disabled={!canNext}
-                style={{
-                  width: 'auto', padding: '10px 28px',
-                  opacity: canNext ? 1 : 0.5,
-                  cursor: canNext ? 'pointer' : 'not-allowed',
-                }}
-              >
-                Continue →
-              </button>
-            )}
-            {step === 2 && (
-              <button
-                className="next-btn"
-                onClick={nextStep}
-                disabled={!canNext}
-                style={{
-                  width: 'auto', padding: '10px 28px',
-                  opacity: canNext ? 1 : 0.5,
-                  cursor: canNext ? 'pointer' : 'not-allowed',
-                }}
-              >
-                Next →
-              </button>
-            )}
-            {step === 3 && (
-              <button
-                className="next-btn"
-                onClick={nextStep}
-                disabled={selectedAgents.size < 1}
-                style={{
-                  width: 'auto', padding: '10px 28px',
-                  opacity: selectedAgents.size >= 1 ? 1 : 0.5,
-                  cursor: selectedAgents.size >= 1 ? 'pointer' : 'not-allowed',
-                }}
-              >
-                Next →
-              </button>
-            )}
-            {step === 4 && (
-              <button
-                className="next-btn"
-                onClick={nextStep}
-                // Google connect step can always be skipped or proceeded from
-                style={{
-                  width: 'auto', padding: '10px 28px',
-                }}
-              >
-                Next →
-              </button>
-            )}
+            <button
+              className="next-btn"
+              onClick={step === 0 ? nextStep : step === 1 ? nextStep : step === 2 ? nextStep : step === 3 ? nextStep : step === 4 ? nextStep : undefined}
+              disabled={
+                (step === 0 && userName.trim().length === 0) ||
+                (step === 3 && selectedAgents.size < 1)
+              }
+              style={{
+                width: 'auto', padding: '10px 28px',
+                opacity: (
+                  (step === 0 && userName.trim().length === 0) ||
+                  (step === 3 && selectedAgents.size < 1)
+                ) ? 0.5 : 1,
+                cursor: (
+                  (step === 0 && userName.trim().length === 0) ||
+                  (step === 3 && selectedAgents.size < 1)
+                ) ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {step === 0 ? 'Get Started' : step === 1 ? 'Continue →' : 'Next →'}
+            </button>
           </div>
         </div>
       )}
