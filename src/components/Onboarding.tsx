@@ -1,4 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+
+declare global {
+  interface Window {
+    __TAURI__?: {
+      invoke: <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
+    };
+  }
+}
+
+const invoke = window.__TAURI__?.invoke || (async () => { /* no-op */ });
+
 import Avatar from './Avatar';
 import '../styles/animations.css';
 
@@ -272,7 +283,14 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [shakingAgent, setShakingAgent] = useState<string | null>(null);
   const [flashingAgent, setFlashingAgent] = useState<string | null>(null);
 
-  // Step 4 — Alive
+  // Step 4 — Connect Google
+  const [googleStatus, setGoogleStatus] = useState<'loading' | 'needsCredentials' | 'canConnect' | 'connected' | 'error'>('loading');
+  const [googleEmail, setGoogleEmail] = useState<string | null>(null);
+  const [googleClientId, setGoogleClientId] = useState('');
+  const [googleClientSecret, setGoogleClientSecret] = useState('');
+  const [showGoogleAuthForm, setShowGoogleAuthForm] = useState(false);
+
+  // Step 5 — Alive (formerly step 4)
   const [alivePhase, setAlivePhase] = useState<'loading' | 'ready'>('loading');
 
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -405,29 +423,94 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     onComplete(selectedTeam, agentsArr);
   };
 
-  // ── Alive animation ──
+  // ── Google Connect (Step 4) Hooks & Handlers ──
   useEffect(() => {
     if (step === 4) {
+      const checkGoogleCredentials = async () => {
+        try {
+          setGoogleStatus('loading');
+          const creds: any = await invoke('engine_google_get_credentials');
+          if (creds && creds.has_credentials) {
+            setGoogleClientId(creds.client_id || '');
+            setGoogleClientSecret(creds.client_secret || '');
+            const isConnected = await invoke('engine_google_is_connected');
+            if (isConnected) {
+              const email = await invoke('engine_google_get_email');
+              setGoogleEmail(email as string);
+              setGoogleStatus('connected');
+            } else {
+              setGoogleStatus('canConnect');
+            }
+          } else {
+            setGoogleStatus('needsCredentials');
+          }
+        } catch (error) {
+          console.error("Error getting Google credentials:", error);
+          setGoogleStatus('error'); // Handle error state
+        }
+      };
+      checkGoogleCredentials();
+    }
+  }, [step]);
+
+  const handleSetGoogleCredentials = async () => {
+    try {
+      await invoke('engine_google_set_credentials', { clientId: googleClientId, clientSecret: googleClientSecret });
+      setShowGoogleAuthForm(false);
+      setGoogleStatus('canConnect');
+    } catch (error) {
+      console.error("Error setting Google credentials:", error);
+      // Optionally, show an error message to the user
+    }
+  };
+
+  const handleGoogleConnect = async () => {
+    try {
+      const email = await invoke('engine_google_connect');
+      setGoogleEmail(email as string);
+      setGoogleStatus('connected');
+    } catch (error) {
+      console.error("Error connecting to Google:", error);
+      // Optionally, show an error message to the user
+      setGoogleStatus('error');
+    }
+  };
+
+  const handleGoogleSkip = () => {
+    nextStep(); // Move to the next step without connecting Google
+  };
+
+  // ── Alive animation (Step 5) ──
+  useEffect(() => {
+    if (step === 5) { // Updated from step 4 to step 5
       setAlivePhase('loading');
       const timer = setTimeout(() => setAlivePhase('ready'), 2500);
       return () => clearTimeout(timer);
     }
   }, [step]);
 
-  // ── Skip ──
-  const handleSkip = () => {
+  // ── Skip overall onboarding ──
+  const handleSkip = (skipGoogleConnect: boolean = false) => {
     const allAgentIds = Object.keys(ALL_AGENTS);
     localStorage.setItem('conflux-onboarded', 'true');
     localStorage.setItem('conflux-goals', JSON.stringify([]));
     localStorage.setItem('conflux-selected-agents', JSON.stringify(allAgentIds));
     localStorage.setItem('conflux-name', userName.trim() || 'there');
+    if (skipGoogleConnect) {
+      localStorage.setItem('conflux-google-skip', 'true');
+    }
     onComplete([], allAgentIds);
   };
 
   // ── Derived ──
-  const canNext = step === 0
-    || step === 1  // always can proceed from provider (auto-connects)
-    || step === 4; // alive step always has continue
+  const canNext = (
+    (step === 0 && userName.trim().length > 0) || // Welcome: Must enter name
+    step === 1 ||  // Provider: always can proceed
+    (step === 2 && conversationDone) || // Conversation: must complete chat
+    step === 3 || // Team: always can proceed, even if no agents selected (default to all)
+    step === 4 || // Google Connect: always can skip or connect
+    step === 5 // Alive: always has continue
+  );
 
   // ── Background gradient for goals ──
   // ── Render ──
@@ -438,7 +521,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       case 1: return renderProvider();
       case 2: return renderGoals();
       case 3: return renderTeam();
-      case 4: return renderAlive();
+      case 4: return renderGoogleConnect();
+      case 5: return renderAlive();
       default: return null;
     }
   };
@@ -1001,7 +1085,210 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     );
   };
 
+  const renderGoogleConnect = () => (
+    <div style={{ textAlign: 'center', maxWidth: 480, width: '100%', position: 'relative' }}>
+        <h2
+            className="animate-fade-in"
+            style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}
+        >
+            Connect Your World
+        </h2>
+        <p
+            className="animate-fade-in"
+            style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20, '--stagger-delay': '100ms' } as React.CSSProperties}
+        >
+            Integrate with Google to unlock powerful AI capabilities.
+        </p>
+
+        {/* Info Card */}
+        <div
+            className="animate-scale-in"
+            style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                borderRadius: 16,
+                padding: 20,
+                marginBottom: 20,
+                textAlign: 'left',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 16,
+            }}
+        >
+            <div style={{ fontSize: 36 }}>🔗</div>
+            <div>
+                <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
+                    What connecting Google enables:
+                </p>
+                <ul style={{ fontSize: 13, color: 'var(--text-secondary)', listStyle: 'none', padding: 0, margin: 0 }}>
+                    <li style={{ marginBottom: 4 }}>✉️ Gmail — read, send, search emails</li>
+                    <li style={{ marginBottom: 4 }}>📄 Docs — read and write documents</li>
+                    <li style={{ marginBottom: 4 }}>📊 Sheets — data and reports</li>
+                    <li>📁 Drive — file management</li>
+                </ul>
+            </div>
+        </div>
+
+        {googleStatus === 'loading' && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, minHeight: 150 }}>
+                <span className="dot-pulse" />
+                <p style={{ color: 'var(--text-muted)' }}>Checking Google connection status...</p>
+            </div>
+        )}
+
+        {googleStatus === 'needsCredentials' && !showGoogleAuthForm && (
+            <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+                <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
+                    To connect, you'll need to provide your Google OAuth 2.0 credentials.
+                </p>
+                <button
+                    className="next-btn"
+                    onClick={() => setShowGoogleAuthForm(true)}
+                    style={{ width: 'auto', padding: '10px 24px' }}
+                >
+                    Enter Credentials
+                </button>
+            </div>
+        )}
+
+        {(googleStatus === 'needsCredentials' || showGoogleAuthForm) && (
+             <div className="animate-fade-in">
+                <div
+                    style={{
+                        background: 'var(--bg-primary)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 14,
+                        padding: 20,
+                        textAlign: 'left',
+                        marginBottom: 20,
+                    }}
+                >
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.5 }}>
+                        Create OAuth 2.0 credentials in Google Cloud Console → Create OAuth Client ID → Desktop app.
+                        <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer"
+                           style={{ color: 'var(--accent-primary)', textDecoration: 'underline', marginLeft: 5 }}>
+                            Google Cloud Console
+                        </a>
+                    </p>
+                    <div style={{ marginBottom: 12 }}>
+                        <label style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Client ID</label>
+                        <input
+                            type="text"
+                            value={googleClientId}
+                            onChange={(e) => setGoogleClientId(e.target.value)}
+                            placeholder="Your Google Client ID"
+                            style={{
+                                width: '100%', padding: '10px 12px', borderRadius: 8,
+                                border: '1px solid var(--border)', background: 'var(--bg-input)',
+                                color: 'var(--text-primary)', fontSize: 14, outline: 'none',
+                                boxSizing: 'border-box',
+                            }}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Client Secret</label>
+                        <input
+                            type="text"
+                            value={googleClientSecret}
+                            onChange={(e) => setGoogleClientSecret(e.target.value)}
+                            placeholder="Your Google Client Secret"
+                            style={{
+                                width: '100%', padding: '10px 12px', borderRadius: 8,
+                                border: '1px solid var(--border)', background: 'var(--bg-input)',
+                                color: 'var(--text-primary)', fontSize: 14, outline: 'none',
+                                boxSizing: 'border-box',
+                            }}
+                        />
+                    </div>
+                </div>
+                <button
+                    className="next-btn"
+                    onClick={handleSetGoogleCredentials}
+                    disabled={!googleClientId || !googleClientSecret}
+                    style={{ width: 'auto', padding: '10px 28px', opacity: (googleClientId && googleClientSecret) ? 1 : 0.5 }}
+                >
+                    Save Credentials
+                </button>
+            </div>
+        )}
+        
+        {googleStatus === 'canConnect' && (
+            <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+                <button
+                    className="next-btn"
+                    onClick={handleGoogleConnect}
+                    style={{ width: 'auto', padding: '12px 32px', fontSize: 16 }}
+                >
+                    🔗 Connect with Google
+                </button>
+                <button
+                  onClick={() => setShowGoogleAuthForm(true)}
+                  style={{
+                    background: 'none', border: 'none',
+                    color: 'var(--text-muted)', fontSize: 13,
+                    cursor: 'pointer', marginTop: 8,
+                    textDecoration: 'underline',
+                  }}
+                >
+                  I have my own credentials
+                </button>
+            </div>
+        )}
+
+        {googleStatus === 'connected' && (
+            <div className="animate-scale-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, color: '#10b981' }}>
+                <span style={{ fontSize: 48 }}>✅</span>
+                <p style={{ fontSize: 18, fontWeight: 600 }}>Google Connected!</p>
+                {googleEmail && <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>Connected as: {googleEmail}</p>}
+                <button
+                  onClick={() => setShowGoogleAuthForm(true)}
+                  style={{
+                    background: 'none', border: 'none',
+                    color: 'var(--text-muted)', fontSize: 13,
+                    cursor: 'pointer', marginTop: 8,
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Change credentials
+                </button>
+            </div>
+        )}
+
+        {googleStatus === 'error' && (
+             <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, color: 'var(--accent-red)' }}>
+                <span style={{ fontSize: 48 }}>⚠️</span>
+                <p style={{ fontSize: 18, fontWeight: 600 }}>Connection Error</p>
+                <p style={{ fontSize: 14, color: 'var(--text-secondary)',maxWidth: 300 }}>
+                    There was an issue connecting to Google. Please check your credentials and try again.
+                </p>
+                <button
+                    className="next-btn"
+                    onClick={() => setGoogleStatus('needsCredentials')}
+                    style={{ width: 'auto', padding: '10px 24px' }}
+                >
+                    Try Again
+                </button>
+            </div>
+        )}
+
+        {/* Skip button appears at the bottom for steps 2, 3, 4 */}
+        <button
+          onClick={handleGoogleSkip}
+          style={{
+            background: 'none', border: 'none',
+            color: 'var(--text-muted)', fontSize: 13,
+            cursor: 'pointer', textDecoration: 'underline',
+            marginTop: 30,
+          }}
+        >
+          Skip for now
+        </button>
+    </div>
+  );
+
   const renderAlive = () => {
+""
     const agentIds = Array.from(selectedAgents);
     const agentList = agentIds.map(id => ALL_AGENTS[id]).filter(Boolean);
 
@@ -1136,12 +1423,12 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       background: 'var(--bg-primary)',
     }}>
       {/* Progress bar */}
-      {step < 4 && (
+      {step < 5 && (
         <div style={{
           display: 'flex', justifyContent: 'center', alignItems: 'center',
           gap: 10, padding: '20px 0 0', flexShrink: 0,
         }}>
-          {[0, 1, 2, 3].map(i => {
+          {[0, 1, 2, 3, 4].map(i => {
             const isActive = i === step;
             const isDone = i < step;
             return (
@@ -1176,7 +1463,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       </div>
 
       {/* Bottom navigation */}
-      {step < 4 && (
+      {step < 5 && (
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           padding: '12px 24px 28px', flexShrink: 0,
@@ -1198,9 +1485,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            {step >= 2 && (
+            {(step === 2 || step === 3 || step === 4) && (
               <button
-                onClick={handleSkip}
+                onClick={() => handleSkip()}
                 style={{
                   background: 'none', border: 'none',
                   color: 'var(--text-muted)', fontSize: 13,
@@ -1214,11 +1501,11 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               <button
                 className="next-btn"
                 onClick={nextStep}
-                disabled={!canNext}
+                disabled={userName.trim().length === 0}
                 style={{
                   width: 'auto', padding: '10px 28px',
-                  opacity: canNext ? 1 : 0.5,
-                  cursor: canNext ? 'pointer' : 'not-allowed',
+                  opacity: userName.trim().length > 0 ? 1 : 0.5,
+                  cursor: userName.trim().length > 0 ? 'pointer' : 'not-allowed',
                 }}
               >
                 Next →
@@ -1263,7 +1550,19 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   cursor: selectedAgents.size >= 1 ? 'pointer' : 'not-allowed',
                 }}
               >
-                ✨ Bring to Life →
+                Next →
+              </button>
+            )}
+            {step === 4 && (
+              <button
+                className="next-btn"
+                onClick={nextStep}
+                // Google connect step can always be skipped or proceeded from
+                style={{
+                  width: 'auto', padding: '10px 28px',
+                }}
+              >
+                Next →
               </button>
             )}
           </div>
