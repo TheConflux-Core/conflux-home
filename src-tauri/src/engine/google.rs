@@ -141,12 +141,14 @@ pub fn handle_oauth_callback(db: &EngineDb) -> Result<GoogleTokens> {
     store_tokens(db, &tokens)?;
 
     // Try to get user email
+    let mut email_str = None;
     if let Ok(email) = fetch_user_email(&tokens.access_token) {
         let _ = db.set_config("google_email", &email);
         log::info!("[Google] Connected as: {}", email);
+        email_str = Some(email);
     }
 
-    Ok(tokens)
+    Ok(GoogleTokens { email: email_str, ..tokens })
 }
 
 fn extract_code_from_request(request: &str) -> Result<String> {
