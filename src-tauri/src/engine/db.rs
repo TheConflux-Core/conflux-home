@@ -19,8 +19,12 @@ impl EngineDb {
             .context("Failed to open database")?;
 
         // Enable WAL mode for better concurrent read performance
-        conn.pragma_update(None, "journal_mode", "WAL")
-            .context("Failed to set WAL mode")?;
+        conn.query_row("PRAGMA journal_mode=WAL;", [], |row| {
+            let mode: String = row.get(0)?;
+            log::info!("SQLite journal_mode: {}", mode);
+            Ok(())
+        })
+        .context("Failed to set WAL mode")?;
 
         // Enable foreign keys
         conn.execute_batch("PRAGMA foreign_keys = ON;")?;
@@ -2012,7 +2016,7 @@ impl EngineDb {
             "SELECT id, title, genre, age_group, difficulty, opening, initial_choices, world_template, puzzle_types, created_at
              FROM story_seeds {} ORDER BY genre, title", where_clause
         );
-        let conn2 = self.conn();
+        let conn2 = conn;
         let mut stmt = conn2.prepare(&query)?;
         let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
         let rows = stmt.query_map(&params_refs[..], |row| {
