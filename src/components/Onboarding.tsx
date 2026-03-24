@@ -1,14 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-
-declare global {
-  interface Window {
-    __TAURI__?: {
-      invoke: <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
-    };
-  }
-}
-
-const invoke = window.__TAURI__?.invoke || (async () => { /* no-op */ });
+import { invoke } from '@tauri-apps/api/core';
 
 import Avatar from './Avatar';
 import '../styles/animations.css';
