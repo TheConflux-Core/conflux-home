@@ -120,14 +120,14 @@ pub fn handle_oauth_callback(db: &EngineDb) -> Result<GoogleTokens> {
     let code = extract_code_from_request(&request)?;
 
     // Send success response to browser
-    let response_body = r#"<!DOCTYPE html><html><body style="font-family:system-ui;text-align:center;padding:60px;background:#111;color:#fff">
-        <h1>✅ Google Connected!</h1>
+    let response_body = r#"<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:system-ui;text-align:center;padding:60px;background:#111;color:#fff">
+        <h1>&#9989; Google Connected!</h1>
         <p>You can close this tab and return to Conflux Home.</p>
         <script>setTimeout(()=>window.close(),3000)</script>
     </body></html>"#;
 
     let response = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
         response_body.len(),
         response_body
     );
