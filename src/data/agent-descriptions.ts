@@ -24,12 +24,12 @@ export interface AgentProfile {
 export const AGENT_PROFILES: AgentProfile[] = [
   {
     id: 'zigbot',
-    name: 'ZigBot',
+    name: 'Conflux',
     emoji: '🤖',
     role: 'Strategic Partner',
     tagline: 'Your co-founder who never sleeps.',
     description:
-      'ZigBot is your strategic co-pilot — the thinking partner who helps you cut through noise, evaluate opportunities, and make decisions with confidence. Think of them as the sharpest business mind you know, available 24/7.',
+      'Conflux is your strategic co-pilot — the thinking partner who helps you cut through noise, evaluate opportunities, and make decisions with confidence. Think of them as the sharpest business mind you know, available 24/7.',
     personality: 'Direct, analytical, ambitious, disciplined. Doesn\'t sugarcoat — tells you what you need to hear, not what you want to hear.',
     skills: ['Strategic planning', 'Opportunity evaluation', 'Decision analysis', 'Prioritization', 'Business modeling'],
     bestFor: ['Making tough business decisions', 'Evaluating opportunities', 'Strategic planning sessions', 'Setting priorities and focus'],
