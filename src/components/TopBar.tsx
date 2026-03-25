@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Agent } from '../types';
 import { Theme, getEffectiveTheme, applyTheme, saveTheme } from '../lib/theme';
+import ConnectivityWidget from './ConnectivityWidget';
 
 interface TopBarProps {
   selectedAgent: Agent | null;
@@ -34,6 +35,7 @@ export default function TopBar({ selectedAgent, engineConnected }: TopBarProps) 
   const [themePref, setThemePref] = useState<Theme>(
     () => (localStorage.getItem('conflux-theme') as Theme) || 'system'
   );
+  const [showConnectivity, setShowConnectivity] = useState(false);
 
   useEffect(() => {
     const updateClock = () => {
@@ -72,6 +74,20 @@ export default function TopBar({ selectedAgent, engineConnected }: TopBarProps) 
     window.dispatchEvent(new CustomEvent('conflux:theme-change', { detail: next }));
   };
 
+  // Close connectivity popup on click outside
+  useEffect(() => {
+    if (!showConnectivity) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.topbar-connectivity-popup') && !target.closest('.topbar-google-btn') && !target.closest('.topbar-status')) {
+        setShowConnectivity(false);
+      }
+    };
+    // Delay to avoid immediate close on the click that opens it
+    const timer = setTimeout(() => document.addEventListener('click', handler), 100);
+    return () => { clearTimeout(timer); document.removeEventListener('click', handler); };
+  }, [showConnectivity]);
+
   return (
     <div className="topbar">
       <div className="topbar-left">
@@ -85,9 +101,18 @@ export default function TopBar({ selectedAgent, engineConnected }: TopBarProps) 
 
       <div className="topbar-right">
         <span className="topbar-clock">{clock}</span>
-        <div className="topbar-status">
+        <div className="topbar-status" onClick={() => setShowConnectivity(!showConnectivity)} style={{ cursor: 'pointer' }}>
           <div className={`topbar-status-dot ${engineConnected ? '' : 'disconnected'}`} />
         </div>
+        {showConnectivity && (
+          <div className="topbar-connectivity-popup" style={{
+            position: 'absolute', top: '100%', right: 0, marginTop: 8, zIndex: 100,
+            background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12,
+            padding: 16, minWidth: 280, boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+          }}>
+            <ConnectivityWidget />
+          </div>
+        )}
         <button
           className="topbar-theme-btn"
           onClick={handleToggleTheme}
@@ -104,6 +129,14 @@ export default function TopBar({ selectedAgent, engineConnected }: TopBarProps) 
           title="Settings"
         >
           ⚙️
+        </button>
+        <button
+          className="topbar-google-btn"
+          onClick={() => setShowConnectivity(!showConnectivity)}
+          title="Google & Connectivity"
+          style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', padding: '4px 8px' }}
+        >
+          🔗
         </button>
       </div>
     </div>

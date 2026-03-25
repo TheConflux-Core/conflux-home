@@ -529,7 +529,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   };
 
   const renderWelcome = () => (
-    <div style={{ textAlign: 'center', maxWidth: 420, position: 'relative' }}>
+    <div style={{ textAlign: 'center', maxWidth: 420, width: '100%', margin: '0 auto', position: 'relative' }}>
       {/* Floating particles */}
       <Particles count={15} />
 
@@ -622,7 +622,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   );
 
   const renderProvider = () => (
-    <div style={{ textAlign: 'center', maxWidth: 480, width: '100%', position: 'relative' }}>
+    <div style={{ textAlign: 'center', maxWidth: 480, width: '100%', margin: '0 auto', position: 'relative' }}>
       {setupPhase === 'connecting' && (
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -868,7 +868,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   );
 
   const renderGoals = () => (
-    <div style={{ textAlign: 'center', maxWidth: 520, width: '100%' }}>
+    <div style={{ textAlign: 'center', maxWidth: 520, width: '100%', margin: '0 auto' }}>
       <h2
         className="animate-fade-in"
         style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}
@@ -982,7 +982,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     const agentList = agentIds.map(id => ALL_AGENTS[id]).filter(Boolean);
 
     return (
-      <div style={{ textAlign: 'center', maxWidth: 520 }}>
+      <div style={{ textAlign: 'center', maxWidth: 520, width: '100%', margin: '0 auto' }}>
         <h2
           className="animate-fade-in"
           style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}
@@ -1066,7 +1066,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   };
 
   const renderGoogleConnect = () => (
-    <div style={{ textAlign: 'center', maxWidth: 480, width: '100%', position: 'relative' }}>
+    <div style={{ textAlign: 'center', maxWidth: 480, width: '100%', margin: '0 auto', position: 'relative' }}>
         <h2
             className="animate-fade-in"
             style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}

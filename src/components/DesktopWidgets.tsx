@@ -1,5 +1,4 @@
 import { View } from '../types';
-import ConnectivityWidget from './ConnectivityWidget';
 
 interface WidgetDef {
   id: string;
@@ -31,7 +30,6 @@ interface DesktopWidgetsProps {
 export default function DesktopWidgets({ onNavigate }: DesktopWidgetsProps) {
   return (
     <>
-      <ConnectivityWidget />
       <div className="desktop-widgets-grid">
         {WIDGETS.map((widget) => (
           <div
