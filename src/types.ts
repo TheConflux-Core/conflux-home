@@ -191,6 +191,48 @@ export interface CreateStoryGameRequest {
   difficulty?: StoryDifficulty;
 }
 
+// ── Snake Game ─────────────────────────────────────────────
+
+export type SnakeDirection = 'up' | 'down' | 'left' | 'right';
+
+export type SnakeDifficulty = 'classic' | 'zen' | 'challenge' | 'speedrun';
+
+export interface SnakePoint {
+  x: number;
+  y: number;
+}
+
+export interface SnakeGameConfig {
+  gridSize: number;       // 20 for standard
+  cellSize: number;       // 20px per cell
+  baseSpeed: number;      // ms per tick at start
+  speedIncrement: number; // ms faster per food eaten
+  minSpeed: number;       // fastest possible (ms)
+  wallsKill: boolean;     // false = wrap, true = death
+  hasObstacles: boolean;  // challenge mode
+  label: string;
+  meta: string;
+  icon: string;
+}
+
+export interface SnakeScore {
+  score: number;
+  difficulty: SnakeDifficulty;
+  date: string;           // ISO timestamp
+}
+
+export interface SnakeGameState {
+  snake: SnakePoint[];
+  food: SnakePoint;
+  direction: SnakeDirection;
+  nextDirection: SnakeDirection;
+  score: number;
+  bestScore: number;
+  speed: number;
+  status: 'idle' | 'playing' | 'paused' | 'dead';
+  obstacles: SnakePoint[];
+}
+
 // ── Learning Tracking ──
 
 export type ActivityType = 'reading' | 'math' | 'science' | 'coding' | 'creative' | 'language' | 'life_skills' | 'story' | 'game';

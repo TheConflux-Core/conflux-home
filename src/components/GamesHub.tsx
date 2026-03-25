@@ -43,7 +43,7 @@ const GAMES: GameDef[] = [
     name: 'Snake',
     icon: '🐍',
     subtitle: 'Arcade Classic',
-    status: 'coming-soon',
+    status: 'available',
     size: 'normal',
   },
   {

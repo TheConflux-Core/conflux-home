@@ -16,7 +16,7 @@ const WIDGETS: WidgetDef[] = [
   { id: 'home', icon: '🔧', label: 'Home Health', preview: 'Upcoming bills', color: '#ec4899' },
   { id: 'dreams', icon: '🎯', label: 'Dreams', preview: 'Current milestones', color: '#8b5cf6' },
   { id: 'agents', icon: '🧩', label: 'Agents', preview: 'Active agents', color: '#3b82f6' },
-  { id: 'games', icon: '📖', label: 'Stories', preview: 'Active game', color: '#f43f5e' },
+  { id: 'games', icon: '🎮', label: 'Games', preview: 'Play and compete', color: '#f43f5e' },
   { id: 'feed', icon: '📰', label: 'Feed', preview: 'Latest items', color: '#0ea5e9' },
   { id: 'marketplace', icon: '🛒', label: 'Marketplace', preview: 'Browse agents', color: '#84cc16' },
   { id: 'settings', icon: '⚙️', label: 'Settings', preview: 'System config', color: '#64748b' },
