@@ -73,6 +73,7 @@ export default function App() {
   const [controlRoom, setControlRoom] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [expandedChat, setExpandedChat] = useState(false);
   const [voiceChatOpen, setVoiceChatOpen] = useState(false);
   const [wallpaper, setWallpaper] = useState(() => getDefaultWallpaper());
   const [liveAgents, setLiveAgents] = useState(0);
@@ -274,6 +275,7 @@ const [activeSnake, setActiveSnake] = useState(false);
         const agent = agents.find(a => a.id === detail.agentId);
         if (agent) {
           setSelectedAgent(agent);
+          localStorage.setItem('conflux-last-chat-agent', agent.id);
           setChatOpen(true);
         }
       }
@@ -312,6 +314,7 @@ const [activeSnake, setActiveSnake] = useState(false);
   const handleSelectAgent = useCallback((agent: Agent | null) => {
     setSelectedAgent(agent);
     if (agent) {
+      localStorage.setItem('conflux-last-chat-agent', agent.id);
       const isYoungKid = activeMember && (activeMember.age_group === 'toddler' || activeMember.age_group === 'preschool');
       if (isYoungKid) {
         setVoiceChatOpen(true);
@@ -329,6 +332,7 @@ const [activeSnake, setActiveSnake] = useState(false);
   const handleCloseChat = useCallback(() => {
     setChatOpen(false);
     setVoiceChatOpen(false);
+    setExpandedChat(false);
     setSelectedAgent(null);
   }, []);
 
@@ -341,9 +345,13 @@ const [activeSnake, setActiveSnake] = useState(false);
       setVoiceChatOpen(false);
     } else if (v === 'chat') {
       if (!selectedAgent) {
-        // Auto-select first active agent when navigating to chat
-        const active = agents.find(a => a.status !== 'offline');
-        if (active) setSelectedAgent(active);
+        // Default to last-used agent, then "Conflux", then first active
+        const lastAgentId = localStorage.getItem('conflux-last-chat-agent');
+        const byLast = lastAgentId ? agents.find(a => a.id === lastAgentId) : null;
+        const byConflux = agents.find(a => a.id === 'zigbot' || a.name.toLowerCase() === 'conflux');
+        const byActive = agents.find(a => a.status !== 'offline');
+        const pick = byLast || byConflux || byActive || agents[0];
+        if (pick) setSelectedAgent(pick);
       }
       setImmersiveView(null);
       setChatOpen(true);
@@ -413,6 +421,7 @@ const [activeSnake, setActiveSnake] = useState(false);
             const agent = agents.find(a => a.id === agentId);
             if (agent) {
               setSelectedAgent(agent);
+              localStorage.setItem('conflux-last-chat-agent', agent.id);
               setChatOpen(true);
             }
           }}
@@ -550,8 +559,12 @@ const [activeSnake, setActiveSnake] = useState(false);
       {/* Chat slide-in panel */}
       <ChatPanel
         agent={selectedAgent}
+        agents={filteredAgents.length > 0 ? filteredAgents : agents}
         isOpen={chatOpen}
+        isExpanded={expandedChat}
         onClose={handleCloseChat}
+        onSelectAgent={handleSelectAgent}
+        onToggleExpand={() => setExpandedChat(prev => !prev)}
       />
 
       {/* Voice Chat — for toddler/preschool agents */}
