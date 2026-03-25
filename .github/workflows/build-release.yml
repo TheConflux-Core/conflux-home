@@ -238,9 +238,15 @@ jobs:
         run: npm ci
 
       - name: Init Tauri Android
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+          NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.2.12479018
         run: npm run tauri android init
 
       - name: Build APK
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+          NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/27.2.12479018
         run: npm run tauri android build -- --apk
 
       - name: Upload APK to release
