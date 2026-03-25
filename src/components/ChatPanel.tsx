@@ -22,14 +22,20 @@ function sanitize(html: string): string {
 
 interface ChatPanelProps {
   agent: Agent | null;
+  agents: Agent[];
   isOpen: boolean;
+  isExpanded: boolean;
   onClose: () => void;
+  onSelectAgent: (agent: Agent) => void;
+  onToggleExpand: () => void;
 }
 
-export default function ChatPanel({ agent, isOpen, onClose }: ChatPanelProps) {
+export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, onSelectAgent, onToggleExpand }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { messages, sendMessage, streaming, thinking, error, remainingCalls, isQuotaExceeded, sessionId, loadSession } = useEngineChat(agent?.id ?? null);
 
@@ -65,9 +71,21 @@ export default function ChatPanel({ agent, isOpen, onClose }: ChatPanelProps) {
     return () => window.removeEventListener('keydown', handler);
   }, [isOpen, onClose]);
 
+  // Close dropdown on click outside
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [dropdownOpen]);
+
   if (!agent) {
     return (
-      <div className={`chat-panel ${isOpen ? 'open' : ''}`}>
+      <div className={`chat-panel ${isOpen ? 'open' : ''} ${isExpanded ? 'chat-panel-expanded' : ''}`}>
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           height: '100%', gap: 16, padding: 40, textAlign: 'center',
@@ -96,7 +114,7 @@ export default function ChatPanel({ agent, isOpen, onClose }: ChatPanelProps) {
   }
 
   return (
-    <div className={`chat-panel ${isOpen ? 'open' : ''}`}>
+    <div className={`chat-panel ${isOpen ? 'open' : ''} ${isExpanded ? 'chat-panel-expanded' : ''}`}>
       {/* Session Sidebar */}
       <SessionSidebar
         agentId={agent?.id ?? null}
@@ -124,9 +142,40 @@ export default function ChatPanel({ agent, isOpen, onClose }: ChatPanelProps) {
           size="sm"
           showStatus={true}
         />
-        <div className="chat-panel-header-info">
-          <div className="chat-panel-header-name">{agent.name}</div>
+        {/* Agent name with dropdown */}
+        <div className="chat-panel-header-info" ref={dropdownRef} style={{ position: 'relative' }}>
+          <div
+            className="chat-panel-header-name"
+            onClick={() => agents.length > 1 && setDropdownOpen(!dropdownOpen)}
+            style={{ cursor: agents.length > 1 ? 'pointer' : 'default', display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            {agent.name}
+            {agents.length > 1 && (
+              <span style={{ fontSize: 10, opacity: 0.6, transition: 'transform 0.15s', transform: dropdownOpen ? 'rotate(180deg)' : 'none' }}>▾</span>
+            )}
+          </div>
           <div className="chat-panel-header-role">{agent.role}</div>
+          {/* Agent dropdown */}
+          {dropdownOpen && agents.length > 1 && (
+            <div className="chat-agent-dropdown">
+              {agents.map((a) => (
+                <button
+                  key={a.id}
+                  className={`chat-agent-dropdown-item ${a.id === agent.id ? 'active' : ''}`}
+                  onClick={() => {
+                    onSelectAgent(a);
+                    setDropdownOpen(false);
+                  }}
+                >
+                  <span style={{ fontSize: 16 }}>{a.emoji}</span>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>{a.name}</div>
+                    <div style={{ fontSize: 11, opacity: 0.6 }}>{a.role}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         {/* History button */}
         <button
@@ -143,6 +192,23 @@ export default function ChatPanel({ agent, isOpen, onClose }: ChatPanelProps) {
           title="Conversation history"
         >
           🕐
+        </button>
+        {/* Expand button */}
+        <button
+          onClick={onToggleExpand}
+          style={{
+            background: isExpanded ? 'var(--accent-primary)' : 'rgba(255,255,255,0.08)',
+            border: 'none',
+            borderRadius: 6,
+            padding: '4px 8px',
+            fontSize: 14,
+            cursor: 'pointer',
+            color: isExpanded ? '#000' : 'var(--text-muted)',
+            lineHeight: 1,
+          }}
+          title={isExpanded ? 'Minimize chat' : 'Expand chat'}
+        >
+          {isExpanded ? '⊟' : '⛶'}
         </button>
         {/* Quota badge */}
         <div style={{
