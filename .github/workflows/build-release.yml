@@ -45,24 +45,10 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Build Tauri app
+      - name: Build Tauri app (signed)
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: npm run tauri:build
-
-      - name: Sign .deb
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        run: |
-          cargo tauri signer sign \
-            "src-tauri/target/release/bundle/deb/"*.deb \
-            --password ""
-
-      - name: Sign .AppImage
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        run: |
-          cargo tauri signer sign \
-            "src-tauri/target/release/bundle/appimage/"*.AppImage \
-            --password ""
 
       - name: Generate updates.json
         run: |
@@ -75,11 +61,11 @@ jobs:
             "notes": "See release notes",
             "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "platforms": {
-              "linux-x86_64-appimage": {
+              "linux-x86_64": {
                 "signature": "${APPIMAGE_SIG}",
                 "url": "https://github.com/${{ github.repository }}/releases/latest/download/Conflux.Home_${VERSION#v}_amd64.AppImage"
               },
-              "linux-x86_64-deb": {
+              "linux-deb-x86_64": {
                 "signature": "${DEB_SIG}",
                 "url": "https://github.com/${{ github.repository }}/releases/latest/download/Conflux.Home_${VERSION#v}_amd64.deb"
               },
@@ -104,7 +90,9 @@ jobs:
         with:
           files: |
             src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/deb/*.deb.sig
             src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/appimage/*.AppImage.sig
             src-tauri/target/release/bundle/updates.json
 
   # ── Windows (.msi) ──
@@ -132,22 +120,17 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Build Tauri app
-        run: npm run tauri:build
-
-      - name: Sign .msi
+      - name: Build Tauri app (signed)
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        shell: bash
-        run: |
-          cargo tauri signer sign \
-            "src-tauri/target/release/bundle/msi/"*.msi \
-            --password ""
+        run: npm run tauri:build
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          files: src-tauri/target/release/bundle/msi/*.msi
+          files: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/msi/*.msi.sig
 
   # ── macOS (.dmg — x64 + aarch64) ──
   build-macos:
@@ -155,6 +138,7 @@ jobs:
     strategy:
       matrix:
         target: [x86_64-apple-darwin, aarch64-apple-darwin]
+      fail-fast: false
     steps:
       - uses: actions/checkout@v4
 
@@ -177,21 +161,17 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Build Tauri app
-        run: npm run tauri:build -- --target ${{ matrix.target }}
-
-      - name: Sign .dmg
+      - name: Build Tauri app (signed)
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        run: |
-          cargo tauri signer sign \
-            "src-tauri/target/${{ matrix.target }}/release/bundle/dmg/"*.dmg \
-            --password ""
+        run: npm run tauri:build -- --target ${{ matrix.target }}
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          files: src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+          files: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg.sig
 
   # ── Android (.apk) ──
   build-android:
@@ -253,39 +233,3 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
-
-  # ── iOS (.ipa) ──
-  build-ios:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-ios
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-
-      - name: Install npm dependencies
-        run: npm ci
-
-      - name: Init Tauri iOS
-        run: npm run tauri ios init
-
-      - name: Build iOS app
-        run: npm run tauri ios build
-
-      - name: Upload IPA to release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: src-tauri/target/release/bundle/ios/*.ipa
