@@ -17,6 +17,7 @@ import FamilySetup from './components/FamilySetup';
 import GameLauncher from './components/GameLauncher';
 import GamesHub from './components/GamesHub';
 import MinesweeperGame from './components/MinesweeperGame';
+import SnakeGame from './components/SnakeGame';
 import StoryGameReader from './components/StoryGameReader';
 import AgentTemplateBrowser from './components/AgentTemplateBrowser';
 import ParentDashboard from './components/ParentDashboard';
@@ -178,6 +179,7 @@ export default function App() {
   const [activeGameId, setActiveGameId] = useState<string | null>(null);
   const [showGameLauncher, setShowGameLauncher] = useState(false);
   const [activeMinesweeper, setActiveMinesweeper] = useState(false);
+const [activeSnake, setActiveSnake] = useState(false);
   const {
     game: activeGame, chapters: activeGameChapters, currentChapter: activeGameCurrentChapter,
     choosePath, solvePuzzle, generateNextChapter,
@@ -503,17 +505,23 @@ export default function App() {
               </div>
             </div>
           )}
-          {immersiveView === 'games' && !activeGameId && !activeMinesweeper && (
+          {immersiveView === 'games' && !activeGameId && !activeMinesweeper && !activeSnake && (
             <GamesHub
               onOpenGame={(gameId) => {
                 if (gameId === 'minesweeper') {
                   setActiveMinesweeper(true);
+                }
+                if (gameId === 'snake') {
+                  setActiveSnake(true);
                 }
               }}
             />
           )}
           {immersiveView === 'games' && activeMinesweeper && (
             <MinesweeperGame onBack={() => setActiveMinesweeper(false)} />
+          )}
+          {immersiveView === 'games' && activeSnake && !activeMinesweeper && (
+            <SnakeGame onBack={() => setActiveSnake(false)} />
           )}
         </ImmersiveView>
       )}
