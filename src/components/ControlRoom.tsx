@@ -77,18 +77,33 @@ function getOrbSize(agent: Agent): string {
 }
 
 export default function ControlRoom({ agents, onNavigate, onOpenChat }: ControlRoomProps) {
+  // Build the orb list — inject Conflux as the virtual hub if not present
+  const orbAgents = useMemo(() => {
+    const hasConflux = agents.some(a => a.id === 'conflux');
+    const confluxHub: Agent = {
+      id: 'conflux',
+      name: 'Conflux',
+      emoji: '⚡',
+      role: 'Your AI Companion',
+      description: 'The central hub',
+      status: 'idle',
+      model: 'local',
+    };
+    return hasConflux ? agents : [confluxHub, ...agents];
+  }, [agents]);
+
   const connections = useMemo(() => {
     const conns: [Agent, Agent][] = [];
-    const hub = agents.find(a => a.id === 'conflux');
+    const hub = orbAgents.find(a => a.id === 'conflux');
     if (!hub) return conns;
 
-    for (const agent of agents) {
+    for (const agent of orbAgents) {
       if (agent.id !== 'conflux' && agent.status !== 'offline') {
         conns.push([hub, agent]);
       }
     }
 
-    const workAgents = agents.filter(a =>
+    const workAgents = orbAgents.filter(a =>
       ['helix', 'forge', 'prism', 'spectra', 'luma', 'quanta'].includes(a.id)
     );
     for (let i = 0; i < workAgents.length - 1; i++) {
@@ -108,7 +123,7 @@ export default function ControlRoom({ agents, onNavigate, onOpenChat }: ControlR
   }
 
   return (
-    <div className="neural-mesh mesh-breathe">
+    <div className="neural-mesh mesh-breathe" style={{ background: '#06060c' }}>
       <svg className="mesh-connections" viewBox="0 0 100 100" preserveAspectRatio="none">
         {connections.map(([from, to], i) => (
           <line
@@ -124,7 +139,7 @@ export default function ControlRoom({ agents, onNavigate, onOpenChat }: ControlR
         ))}
       </svg>
 
-      {agents.filter(a => a.status !== 'offline').map((agent, index) => {
+      {orbAgents.filter(a => a.status !== 'offline').map((agent, index) => {
         const pos = getOrbPosition(agent);
         const color = AGENT_COLORS[agent.id] || DEFAULT_COLOR;
         const sizeClass = getOrbSize(agent);
