@@ -44,7 +44,7 @@ export interface PipelineStatus {
   uptime: string;
 }
 
-export type View = 'dashboard' | 'chat' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen' | 'budget' | 'feed' | 'life' | 'home' | 'dreams' | 'diary';
+export type View = 'dashboard' | 'chat' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen' | 'budget' | 'feed' | 'life' | 'home' | 'dreams';
 
 // Agent accent colors for avatar rendering
 export const AGENT_COLORS: Record<string, string> = {
@@ -435,12 +435,90 @@ export interface ContentFeedItem {
 }
 
 export const FEED_TYPE_CONFIG: Record<string, { emoji: string; color: string }> = {
-  news:      { emoji: '📰', color: '#3b82f6' },
-  tip:       { emoji: '💡', color: '#f59e0b' },
-  challenge: { emoji: '🎯', color: '#ef4444' },
-  fun_fact:  { emoji: '🤯', color: '#8b5cf6' },
-  reminder:  { emoji: '⏰', color: '#10b981' },
+  news:        { emoji: '📰', color: '#3b82f6' },
+  tip:         { emoji: '💡', color: '#f59e0b' },
+  challenge:   { emoji: '🎯', color: '#ef4444' },
+  fun_fact:    { emoji: '🤯', color: '#8b5cf6' },
+  reminder:    { emoji: '⏰', color: '#10b981' },
+  intelligence:{ emoji: '🧠', color: '#06b6d4' },
 };
+
+// ── Current — Intelligence Briefing ──
+
+export interface BriefingItem {
+  title: string;
+  summary: string;
+  relevance_score: number; // 1-100
+  why_it_matters: string;
+  category: string;
+  icon: string; // emoji
+  source_url?: string;
+}
+
+export interface DailyBriefing {
+  id: string;
+  greeting: string;
+  items: BriefingItem[];
+  generated_at: string;
+}
+
+export interface RippleSignal {
+  id: string;
+  title: string;
+  description: string;
+  confidence: number; // 1-100
+  category: string;
+  why_it_could_matter: string;
+  detected_at: string;
+  sources: string[]; // JSON string from Rust, parsed to array
+}
+
+export interface SignalThreadEntry {
+  date: string;
+  summary: string;
+  source_url?: string;
+}
+
+export interface SignalThread {
+  id: string;
+  topic: string;
+  summary: string;
+  key_developments: string[]; // JSON string from Rust
+  prediction: string;
+  prediction_confidence: number;
+  entries: SignalThreadEntry[]; // JSON string from Rust
+  entries_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QuestionResult {
+  id: string;
+  question: string;
+  answer: string;
+  key_points: string[]; // JSON string from Rust
+  sources: string[]; // JSON string from Rust
+  confidence_level: 'high' | 'medium' | 'low';
+  asked_at: string;
+}
+
+export interface CategoryDistribution {
+  category: string;
+  percentage: number;
+  count: number;
+  trend: 'up' | 'down' | 'stable';
+}
+
+export interface CognitivePattern {
+  id: string;
+  time_range: string;
+  category_distribution: CategoryDistribution[]; // JSON string from Rust
+  tone_trend: string;
+  blind_spots: string[]; // JSON string from Rust
+  focus_shift: string;
+  recommendation: string;
+  analyzed_at: string;
+}
 
 // ── Fridge Scanner ──
 

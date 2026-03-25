@@ -3,7 +3,7 @@
 
 use tauri::{Manager, Emitter};
 use serde::{Deserialize, Serialize};
-use chrono::Datelike;
+use chrono::{Datelike, Timelike};
 use super::engine;
 
 // ── Request/Response Types ──
@@ -2933,4 +2933,446 @@ pub fn diary_get_today() -> Result<Vec<engine::types::DiaryEntry>, String> {
 pub fn diary_get_dashboard() -> Result<engine::types::DiaryDashboard, String> {
     let engine = engine::get_engine();
     engine.db().get_diary_dashboard().map_err(|e| e.to_string())
+}
+
+
+
+
+// ── Current — Intelligence Briefing ──
+
+/// Generate a personalized daily briefing via LLM
+#[tauri::command]
+pub async fn current_daily_briefing(member_id: Option<String>) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+
+    // Pull feed context before the await
+    let feed_context = {
+        let conn = engine.db().conn();
+        let mut stmt = conn.prepare(
+            "SELECT title, body, category FROM content_feed ORDER BY created_at DESC LIMIT 10"
+        ).map_err(|e| e.to_string())?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?))
+        }).map_err(|e| e.to_string())?;
+        let mut ctx = String::new();
+        for r in rows {
+            let (title, body, category) = r.map_err(|e| e.to_string())?;
+            ctx.push_str(&format!("[{}] {}: {}\n", category.unwrap_or_else(|| "general".to_string()), title, body));
+        }
+        ctx
+    };
+
+    let hour = chrono::Utc::now().hour();
+    let time_greeting = if hour < 12 { "Good morning" } else if hour < 17 { "Good afternoon" } else { "Good evening" };
+
+    let prompt = format!(
+        "You are Current, an intelligence briefing AI. Generate a personalized daily briefing for the user.
+
+Recent content in their feed:
+{feed_context}
+
+Generate a briefing with:
+1. A warm, personalized greeting (use: \"{time_greeting}\")
+2. 5 briefing items, each with:
+   - title (concise headline)
+   - summary (2-3 sentences)
+   - relevance_score (0.0-1.0, how relevant this is right now)
+   - why_it_matters (1 sentence explaining significance)
+   - category (tech, finance, health, world, science, culture, business)
+   - icon (single emoji)
+
+Respond as JSON (no markdown, no code fences):
+{{\"greeting\":\"{time_greeting}! Here's your briefing for today.\",\"items\":[{{\"title\":\"Item headline\",\"summary\":\"2-3 sentence summary.\",\"relevance_score\":0.85,\"why_it_matters\":\"Why this matters to you.\",\"category\":\"tech\",\"icon\":\"🔬\"}}]}}
+
+Make items genuinely insightful, not generic filler."
+    );
+
+    let messages = vec![engine::router::OpenAIMessage {
+        role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None,
+    }];
+    let response = engine::router::chat("core", messages, Some(2000), None, None)
+        .await.map_err(|e| format!("AI failed: {}", e))?;
+
+    let content = response.content.trim();
+    let json_str = content.strip_prefix("```json").unwrap_or(content)
+        .strip_prefix("```").unwrap_or(content)
+        .strip_suffix("```").unwrap_or(content).trim();
+
+    let briefing: serde_json::Value = serde_json::from_str(json_str)
+        .map_err(|e| format!("Failed to parse briefing: {}. Raw: {}", e, json_str))?;
+
+    // Cache in DB
+    let id = uuid::Uuid::new_v4().to_string();
+    let greeting = briefing["greeting"].as_str().unwrap_or(time_greeting).to_string();
+    let items_json = serde_json::to_string(&briefing["items"]).unwrap_or_default();
+    let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+
+    let conn = engine.db().conn();
+    conn.execute(
+        "INSERT INTO daily_briefings (id, member_id, greeting, items_json, generated_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![id, member_id, greeting, items_json, now],
+    ).map_err(|e| e.to_string())?;
+
+    Ok(serde_json::json!({ "id": id, "greeting": greeting, "items": briefing["items"], "generated_at": now }))
+}
+
+/// Detect weak signals / emerging trends (ripples)
+#[tauri::command]
+pub async fn current_detect_ripples(member_id: Option<String>) -> Result<Vec<serde_json::Value>, String> {
+    let engine = engine::get_engine();
+
+    let prompt = "You are Current, an intelligence analyst AI. Detect weak signals and emerging trends that most people haven't noticed yet.
+
+Think about patterns across: Technology shifts, Economic undercurrents, Social/cultural movements, Scientific breakthroughs, Geopolitical fault lines.
+
+Generate 5-8 weak signals. Each should be genuinely insightful — not mainstream news, but the patterns behind the patterns.
+
+Respond as JSON (no markdown, no code fences):
+[{\"title\":\"Signal title\",\"description\":\"2-3 sentences explaining the signal\",\"confidence\":0.65,\"category\":\"tech|finance|social|science|geopolitical\",\"why_it_could_matter\":\"If this signal strengthens, here's what happens...\",\"sources\":[\"Source name\"]}]
+
+Confidence should be honest — most weak signals are 0.3-0.7. Be specific, not vague.";
+
+    let messages = vec![engine::router::OpenAIMessage {
+        role: "user".to_string(), content: Some(prompt.to_string()), tool_call_id: None, tool_calls: None,
+    }];
+    let response = engine::router::chat("core", messages, Some(2000), None, None)
+        .await.map_err(|e| format!("AI failed: {}", e))?;
+
+    let content = response.content.trim();
+    let json_str = content.strip_prefix("```json").unwrap_or(content)
+        .strip_prefix("```").unwrap_or(content).strip_suffix("```").unwrap_or(content).trim();
+
+    #[derive(serde::Deserialize)]
+    struct RippleItem { title: String, description: String, confidence: f64, category: String, why_it_could_matter: String, sources: Vec<String> }
+
+    let items: Vec<RippleItem> = serde_json::from_str(json_str)
+        .map_err(|e| format!("Failed to parse ripples: {}. Raw: {}", e, json_str))?;
+
+    let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let conn = engine.db().conn();
+    let mut result = Vec::new();
+
+    for item in &items {
+        let id = uuid::Uuid::new_v4().to_string();
+        let sources_json = serde_json::to_string(&item.sources).unwrap_or_default();
+        conn.execute(
+            "INSERT INTO ripples (id, member_id, title, description, confidence, category, why_it_could_matter, sources_json, detected_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            rusqlite::params![id, member_id, item.title, item.description, item.confidence, item.category, item.why_it_could_matter, sources_json, now],
+        ).map_err(|e| e.to_string())?;
+        result.push(serde_json::json!({
+            "id": id, "title": item.title, "description": item.description, "confidence": item.confidence,
+            "category": item.category, "why_it_could_matter": item.why_it_could_matter,
+            "sources": item.sources, "detected_at": now,
+        }));
+    }
+    Ok(result)
+}
+
+/// Get active signal threads from DB
+#[tauri::command]
+pub fn current_signal_threads(member_id: Option<String>) -> Result<Vec<serde_json::Value>, String> {
+    let engine = engine::get_engine();
+    let conn = engine.db().conn();
+    let mut conditions = Vec::<String>::new();
+    let mut params_vec: Vec<String> = Vec::new();
+    if let Some(mid) = &member_id { conditions.push("member_id = ?".to_string()); params_vec.push(mid.clone()); }
+    let where_clause = if conditions.is_empty() { String::new() } else { format!("WHERE {}", conditions.join(" AND ")) };
+    let query = format!("SELECT id, member_id, topic, summary, key_developments_json, prediction, prediction_confidence, entries_json, entries_count, created_at, updated_at FROM signal_threads {} ORDER BY updated_at DESC", where_clause);
+
+    let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
+    let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
+    let rows = stmt.query_map(&params_refs[..], |row| {
+        Ok(serde_json::json!({
+            "id": row.get::<_, String>(0)?, "member_id": row.get::<_, Option<String>>(1)?,
+            "topic": row.get::<_, String>(2)?, "summary": row.get::<_, String>(3)?,
+            "key_developments": serde_json::from_str::<Vec<serde_json::Value>>(&row.get::<_, Option<String>>(4)?.unwrap_or_default()).unwrap_or_default(),
+            "prediction": row.get::<_, Option<String>>(5)?, "prediction_confidence": row.get::<_, Option<f64>>(6)?,
+            "entries": serde_json::from_str::<Vec<serde_json::Value>>(&row.get::<_, Option<String>>(7)?.unwrap_or_default()).unwrap_or_default(),
+            "entries_count": row.get::<_, i64>(8)?, "created_at": row.get::<_, String>(9)?, "updated_at": row.get::<_, String>(10)?,
+        }))
+    }).map_err(|e| e.to_string())?;
+    let mut result = Vec::new();
+    for r in rows { result.push(r.map_err(|e| e.to_string())?); }
+    Ok(result)
+}
+
+/// Create a new signal thread with LLM-generated initial summary
+#[tauri::command]
+pub async fn current_create_signal_thread(member_id: Option<String>, topic: String, initial_content: String) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+
+    let prompt = format!(
+        "You are Current, an intelligence analyst. A user wants to track a topic as a signal thread.
+
+Topic: {topic}
+Initial content: {initial_content}
+
+Create an initial analysis:
+1. summary (2-3 sentences)
+2. key_developments (array of strings)
+3. prediction (1-2 sentences)
+4. prediction_confidence (0.0-1.0)
+
+Respond as JSON (no markdown):
+{{\"summary\":\"...\",\"key_developments\":[\"...\"],\"prediction\":\"...\",\"prediction_confidence\":0.6}}"
+    );
+
+    let messages = vec![engine::router::OpenAIMessage {
+        role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None,
+    }];
+    let response = engine::router::chat("core", messages, Some(1000), None, None)
+        .await.map_err(|e| format!("AI failed: {}", e))?;
+
+    let content = response.content.trim();
+    let json_str = content.strip_prefix("```json").unwrap_or(content)
+        .strip_prefix("```").unwrap_or(content).strip_suffix("```").unwrap_or(content).trim();
+
+    #[derive(serde::Deserialize)]
+    struct ThreadInit { summary: String, key_developments: Vec<String>, prediction: Option<String>, prediction_confidence: Option<f64> }
+
+    let init: ThreadInit = serde_json::from_str(json_str)
+        .map_err(|e| format!("Failed to parse: {}. Raw: {}", e, json_str))?;
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let key_devs_json = serde_json::to_string(&init.key_developments).unwrap_or_default();
+    let entries_json = serde_json::to_string(&serde_json::json!([{"timestamp": now, "content": initial_content, "source": "user_input"}])).unwrap_or_default();
+
+    let conn = engine.db().conn();
+    conn.execute(
+        "INSERT INTO signal_threads (id, member_id, topic, summary, key_developments_json, prediction, prediction_confidence, entries_json, entries_count, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1, ?9, ?9)",
+        rusqlite::params![id, member_id, topic, init.summary, key_devs_json, init.prediction, init.prediction_confidence, entries_json, now],
+    ).map_err(|e| e.to_string())?;
+
+    Ok(serde_json::json!({
+        "id": id, "topic": topic, "summary": init.summary, "key_developments": init.key_developments,
+        "prediction": init.prediction, "prediction_confidence": init.prediction_confidence,
+        "entries": [{"timestamp": now, "content": initial_content, "source": "user_input"}],
+        "entries_count": 1, "created_at": now, "updated_at": now,
+    }))
+}
+
+/// Natural language question → LLM research → synthesized answer
+#[tauri::command]
+pub async fn current_ask(member_id: Option<String>, question: String) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+
+    // Pull feed context before the await
+    let feed_context = {
+        let conn = engine.db().conn();
+        let mut stmt = conn.prepare("SELECT title, body, category FROM content_feed ORDER BY created_at DESC LIMIT 5").map_err(|e| e.to_string())?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?))
+        }).map_err(|e| e.to_string())?;
+        let mut ctx = String::new();
+        for r in rows {
+            let (title, body, category) = r.map_err(|e| e.to_string())?;
+            ctx.push_str(&format!("[{}] {}: {}\n", category.unwrap_or_else(|| "general".to_string()), title, body));
+        }
+        ctx
+    };
+
+    let prompt = format!(
+        "You are Current, an intelligence research AI. Answer the user's question thoroughly.
+
+Available context from their feed:
+{feed_context}
+
+Question: {question}
+
+Respond as JSON (no markdown):
+{{\"answer\":\"Full synthesized answer (3-5 sentences)\",\"key_points\":[\"Key point 1\",\"Key point 2\"],\"sources\":[\"Source 1\"],\"confidence_level\":\"high\"}}
+
+Use confidence_level: high, medium, or low. Be honest."
+    );
+
+    let messages = vec![engine::router::OpenAIMessage {
+        role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None,
+    }];
+    let response = engine::router::chat("core", messages, Some(1500), None, None)
+        .await.map_err(|e| format!("AI failed: {}", e))?;
+
+    let content = response.content.trim();
+    let json_str = content.strip_prefix("```json").unwrap_or(content)
+        .strip_prefix("```").unwrap_or(content).strip_suffix("```").unwrap_or(content).trim();
+
+    #[derive(serde::Deserialize)]
+    struct QAResult { answer: String, key_points: Vec<String>, sources: Vec<String>, confidence_level: String }
+
+    let qa: QAResult = serde_json::from_str(json_str)
+        .map_err(|e| format!("Failed to parse: {}. Raw: {}", e, json_str))?;
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let kp_json = serde_json::to_string(&qa.key_points).unwrap_or_default();
+    let src_json = serde_json::to_string(&qa.sources).unwrap_or_default();
+
+    let conn = engine.db().conn();
+    conn.execute(
+        "INSERT INTO questions (id, member_id, question, answer, key_points_json, sources_json, confidence_level, asked_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        rusqlite::params![id, member_id, question, qa.answer, kp_json, src_json, qa.confidence_level, now],
+    ).map_err(|e| e.to_string())?;
+
+    Ok(serde_json::json!({
+        "id": id, "question": question, "answer": qa.answer, "key_points": qa.key_points,
+        "sources": qa.sources, "confidence_level": qa.confidence_level, "asked_at": now,
+    }))
+}
+
+/// Get recent questions from DB
+#[tauri::command]
+pub fn current_get_questions(member_id: Option<String>, limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
+    let engine = engine::get_engine();
+    let conn = engine.db().conn();
+    let lim = limit.unwrap_or(20);
+    let mut conditions = Vec::<String>::new();
+    let mut params_vec: Vec<String> = Vec::new();
+    if let Some(mid) = &member_id { conditions.push("member_id = ?".to_string()); params_vec.push(mid.clone()); }
+    let where_clause = if conditions.is_empty() { String::new() } else { format!("WHERE {}", conditions.join(" AND ")) };
+    let query = format!("SELECT id, member_id, question, answer, key_points_json, sources_json, confidence_level, asked_at FROM questions {} ORDER BY asked_at DESC LIMIT {}", where_clause, lim);
+
+    let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
+    let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
+    let rows = stmt.query_map(&params_refs[..], |row| {
+        Ok(serde_json::json!({
+            "id": row.get::<_, String>(0)?, "member_id": row.get::<_, Option<String>>(1)?,
+            "question": row.get::<_, String>(2)?, "answer": row.get::<_, String>(3)?,
+            "key_points": serde_json::from_str::<Vec<serde_json::Value>>(&row.get::<_, Option<String>>(4)?.unwrap_or_default()).unwrap_or_default(),
+            "sources": serde_json::from_str::<Vec<serde_json::Value>>(&row.get::<_, Option<String>>(5)?.unwrap_or_default()).unwrap_or_default(),
+            "confidence_level": row.get::<_, Option<String>>(6)?, "asked_at": row.get::<_, String>(7)?,
+        }))
+    }).map_err(|e| e.to_string())?;
+    let mut result = Vec::new();
+    for r in rows { result.push(r.map_err(|e| e.to_string())?); }
+    Ok(result)
+}
+
+/// Analyze reading patterns from content_feed table
+#[tauri::command]
+pub async fn current_cognitive_patterns(member_id: Option<String>, time_range: Option<String>) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+
+    // Pull feed data before the await
+    let (feed_data, cat_dist) = {
+        let conn = engine.db().conn();
+        let mut stmt = conn.prepare("SELECT content_type, category, title, body FROM content_feed ORDER BY created_at DESC LIMIT 50").map_err(|e| e.to_string())?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?))
+        }).map_err(|e| e.to_string())?;
+
+        let mut feed = String::new();
+        let mut cat_counts: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+        for r in rows {
+            let (ctype, cat, title, body) = r.map_err(|e| e.to_string())?;
+            let c = cat.unwrap_or_else(|| "uncategorized".to_string());
+            *cat_counts.entry(c.clone()).or_insert(0) += 1;
+            feed.push_str(&format!("[{ctype}|{c}] {title}: {body}\n"));
+        }
+        let dist: serde_json::Value = cat_counts.iter()
+            .map(|(k, v)| (k.clone(), serde_json::json!({"count": v, "pct": 0.0})))
+            .collect();
+        (feed, dist)
+    };
+
+    let prompt = format!(
+        "You are Current, a cognitive pattern analyzer. Analyze the user's reading behavior.
+
+Their recent content consumption:
+{feed_data}
+
+Category distribution: {cat_dist}
+
+Respond as JSON (no markdown):
+{{\"category_distribution\":{{\"tech\":{{\"count\":15,\"pct\":45.0}}}},\"tone_trend\":\"curiosity-focused\",\"blind_spots\":[\"You haven't read anything about X\"],\"focus_shift\":\"Your attention has shifted from X toward Y\",\"recommendation\":\"Consider expanding into Z\"}}
+
+Be specific and actionable. Don't just describe — interpret."
+    );
+
+    let messages = vec![engine::router::OpenAIMessage {
+        role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None,
+    }];
+    let response = engine::router::chat("core", messages, Some(1500), None, None)
+        .await.map_err(|e| format!("AI failed: {}", e))?;
+
+    let content = response.content.trim();
+    let json_str = content.strip_prefix("```json").unwrap_or(content)
+        .strip_prefix("```").unwrap_or(content).strip_suffix("```").unwrap_or(content).trim();
+
+    let analysis: serde_json::Value = serde_json::from_str(json_str)
+        .map_err(|e| format!("Failed to parse: {}. Raw: {}", e, json_str))?;
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let tr = time_range.unwrap_or_else(|| "last_7_days".to_string());
+    let cat_json = serde_json::to_string(&analysis["category_distribution"]).unwrap_or_default();
+    let tone = analysis["tone_trend"].as_str().unwrap_or("neutral").to_string();
+    let blind_json = serde_json::to_string(&analysis["blind_spots"]).unwrap_or_default();
+    let focus = analysis["focus_shift"].as_str().unwrap_or("").to_string();
+    let rec = analysis["recommendation"].as_str().unwrap_or("").to_string();
+
+    let conn = engine.db().conn();
+    conn.execute(
+        "INSERT INTO reading_patterns (id, member_id, time_range, category_distribution_json, tone_trend, blind_spots_json, focus_shift, recommendation, analyzed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        rusqlite::params![id, member_id, tr, cat_json, tone, blind_json, focus, rec, now],
+    ).map_err(|e| e.to_string())?;
+
+    Ok(serde_json::json!({
+        "id": id, "time_range": tr, "category_distribution": analysis["category_distribution"],
+        "tone_trend": tone, "blind_spots": analysis["blind_spots"], "focus_shift": focus,
+        "recommendation": rec, "analyzed_at": now,
+    }))
+}
+
+/// Synthesize multiple sources on a topic
+#[tauri::command]
+pub async fn current_synthesize(_member_id: Option<String>, topic: String) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+
+    // Pull relevant feed items before the await
+    let source_data = {
+        let conn = engine.db().conn();
+        let mut stmt = conn.prepare(
+            "SELECT title, body, category, source_url FROM content_feed WHERE title LIKE ?1 OR body LIKE ?1 OR category LIKE ?1 ORDER BY created_at DESC LIMIT 10"
+        ).map_err(|e| e.to_string())?;
+        let search = format!("%{}%", topic);
+        let rows = stmt.query_map(rusqlite::params![search], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?, row.get::<_, Option<String>>(3)?))
+        }).map_err(|e| e.to_string())?;
+
+        let mut sources = String::new();
+        for r in rows {
+            let (title, body, cat, url) = r.map_err(|e| e.to_string())?;
+            sources.push_str(&format!("[{}] {}\n{}\nSource: {}\n\n",
+                cat.unwrap_or_else(|| "general".to_string()), title, body, url.unwrap_or_else(|| "N/A".to_string())));
+        }
+        if sources.is_empty() {
+            sources = format!("No existing content found about '{topic}'. Provide synthesis based on general knowledge.\n");
+        }
+        sources
+    };
+
+    let prompt = format!(
+        "You are Current, a research synthesis AI. The user wants a synthesis on: {topic}
+
+Available sources:
+{source_data}
+
+Create a comprehensive synthesis. Respond as JSON (no markdown):
+{{\"topic\":\"{topic}\",\"executive_summary\":\"Concise overview\",\"key_developments\":[{{\"title\":\"Development\",\"description\":\"What happened\",\"date_or_period\":\"When\"}}],\"different_perspectives\":[{{\"viewpoint\":\"Perspective\",\"argument\":\"How they see it\",\"evidence\":\"Supporting evidence\"}}],\"what_to_watch\":[{{\"signal\":\"What to monitor\",\"why\":\"Why it matters\",\"timeline\":\"When\"}}]}}"
+    );
+
+    let messages = vec![engine::router::OpenAIMessage {
+        role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None,
+    }];
+    let response = engine::router::chat("core", messages, Some(2000), None, None)
+        .await.map_err(|e| format!("AI failed: {}", e))?;
+
+    let content = response.content.trim();
+    let json_str = content.strip_prefix("```json").unwrap_or(content)
+        .strip_prefix("```").unwrap_or(content).strip_suffix("```").unwrap_or(content).trim();
+
+    let synthesis: serde_json::Value = serde_json::from_str(json_str)
+        .map_err(|e| format!("Failed to parse: {}. Raw: {}", e, json_str))?;
+
+    Ok(synthesis)
 }

@@ -1465,3 +1465,75 @@ CREATE TABLE IF NOT EXISTS diary_mood_log (
 );
 CREATE INDEX IF NOT EXISTS idx_mood_agent ON diary_mood_log(agent_id);
 CREATE INDEX IF NOT EXISTS idx_mood_date ON diary_mood_log(created_at);
+
+-- ============================================================
+-- CURRENT — Intelligence Briefing
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS daily_briefings (
+  id TEXT PRIMARY KEY,
+  member_id TEXT,
+  greeting TEXT NOT NULL,
+  items_json TEXT NOT NULL,          -- JSON array of briefing items
+  generated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_daily_briefings_member ON daily_briefings(member_id);
+CREATE INDEX IF NOT EXISTS idx_daily_briefings_date ON daily_briefings(generated_at);
+
+CREATE TABLE IF NOT EXISTS ripples (
+  id TEXT PRIMARY KEY,
+  member_id TEXT,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  confidence REAL NOT NULL,          -- 0.0 - 1.0
+  category TEXT NOT NULL,
+  why_it_could_matter TEXT,
+  sources_json TEXT,                 -- JSON array of sources
+  detected_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ripples_member ON ripples(member_id);
+CREATE INDEX IF NOT EXISTS idx_ripples_confidence ON ripples(confidence DESC);
+CREATE INDEX IF NOT EXISTS idx_ripples_date ON ripples(detected_at);
+
+CREATE TABLE IF NOT EXISTS signal_threads (
+  id TEXT PRIMARY KEY,
+  member_id TEXT,
+  topic TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  key_developments_json TEXT,        -- JSON array
+  prediction TEXT,
+  prediction_confidence REAL,
+  entries_json TEXT,                 -- JSON array of thread entries
+  entries_count INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_signal_threads_member ON signal_threads(member_id);
+CREATE INDEX IF NOT EXISTS idx_signal_threads_updated ON signal_threads(updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS questions (
+  id TEXT PRIMARY KEY,
+  member_id TEXT,
+  question TEXT NOT NULL,
+  answer TEXT NOT NULL,
+  key_points_json TEXT,             -- JSON array
+  sources_json TEXT,                -- JSON array
+  confidence_level TEXT,            -- high, medium, low
+  asked_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_questions_member ON questions(member_id);
+CREATE INDEX IF NOT EXISTS idx_questions_date ON questions(asked_at DESC);
+
+CREATE TABLE IF NOT EXISTS reading_patterns (
+  id TEXT PRIMARY KEY,
+  member_id TEXT,
+  time_range TEXT NOT NULL,
+  category_distribution_json TEXT,   -- JSON object
+  tone_trend TEXT,
+  blind_spots_json TEXT,             -- JSON array
+  focus_shift TEXT,
+  recommendation TEXT,
+  analyzed_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_reading_patterns_member ON reading_patterns(member_id);
+CREATE INDEX IF NOT EXISTS idx_reading_patterns_date ON reading_patterns(analyzed_at DESC);
