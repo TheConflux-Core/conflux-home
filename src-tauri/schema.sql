@@ -1256,6 +1256,70 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_member ON life_knowledge(member_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_category ON life_knowledge(category);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_key ON life_knowledge(member_id, key);
 
+-- Life Autopilot: Orbit Tables
+CREATE TABLE IF NOT EXISTS life_tasks (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    category TEXT,
+    priority TEXT DEFAULT 'medium',
+    status TEXT DEFAULT 'pending',
+    due_date TEXT,
+    energy_type TEXT,
+    completed_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_life_tasks_status ON life_tasks(status);
+CREATE INDEX IF NOT EXISTS idx_life_tasks_due ON life_tasks(due_date);
+
+CREATE TABLE IF NOT EXISTS life_habits (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    category TEXT,
+    frequency TEXT DEFAULT 'daily',
+    target_count INTEGER DEFAULT 1,
+    streak INTEGER DEFAULT 0,
+    best_streak INTEGER DEFAULT 0,
+    active INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS life_habit_logs (
+    id TEXT PRIMARY KEY,
+    habit_id TEXT NOT NULL REFERENCES life_habits(id) ON DELETE CASCADE,
+    logged_date TEXT NOT NULL,
+    count INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_habit_logs_habit ON life_habit_logs(habit_id);
+CREATE INDEX IF NOT EXISTS idx_habit_logs_date ON life_habit_logs(logged_date);
+
+CREATE TABLE IF NOT EXISTS life_daily_focus (
+    id TEXT PRIMARY KEY,
+    focus_date TEXT NOT NULL,
+    task_id TEXT REFERENCES life_tasks(id),
+    position INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_focus_date ON life_daily_focus(focus_date);
+
+CREATE TABLE IF NOT EXISTS life_schedules (
+    id TEXT PRIMARY KEY,
+    task_id TEXT REFERENCES life_tasks(id),
+    suggested_time TEXT,
+    energy_match TEXT,
+    reason TEXT,
+    accepted INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS life_nudges (
+    id TEXT PRIMARY KEY,
+    nudge_type TEXT NOT NULL,
+    message TEXT NOT NULL,
+    action_label TEXT,
+    dismissed INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
 
 -- ── Home Health ──
 

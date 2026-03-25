@@ -792,3 +792,66 @@ export interface MonthlyReport {
   savings_rate: number;
   comparison_to_last_month: number | null;
 }
+
+// ── Life Autopilot: Orbit ──
+
+export interface LifeTask {
+  id: string;
+  title: string;
+  category: string | null;
+  priority: string;
+  status: string;
+  due_date: string | null;
+  energy_type: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+export interface LifeHabit {
+  id: string;
+  name: string;
+  category: string | null;
+  frequency: string;
+  target_count: number;
+  streak: number;
+  best_streak: number;
+  active: boolean;
+  created_at: string;
+}
+
+export interface LifeDailyFocus {
+  id: string;
+  focus_date: string;
+  task_id: string | null;
+  position: number;
+  task: LifeTask | null;
+  created_at: string;
+}
+
+export interface LifeSchedule {
+  id: string;
+  task_id: string | null;
+  suggested_time: string | null;
+  energy_match: string | null;
+  reason: string | null;
+  accepted: boolean;
+  created_at: string;
+}
+
+export interface LifeNudge {
+  id: string;
+  nudge_type: string;
+  message: string;
+  action_label: string | null;
+  dismissed: boolean;
+  created_at: string;
+}
+
+export interface OrbitDashboard {
+  today_focus: LifeDailyFocus[];
+  pending_tasks: LifeTask[];
+  active_habits: LifeHabit[];
+  nudges: LifeNudge[];
+  streak_total: number;
+  completed_today: number;
+}
