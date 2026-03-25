@@ -1,9 +1,10 @@
-// Conflux Home — Dream Builder View
-// Reverse-engineer your family's goals into daily actions
+// Conflux Home — Dream Builder View (Horizon)
+// Mountain-inspired design with velocity, AI narratives, milestone paths
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useDreams } from '../hooks/useDreams';
-import type { Dream, DreamDashboard } from '../types';
+import { HorizonHero, HorizonGoalCard, HorizonMilestonePath, HorizonInsightCard, HorizonVelocity } from './horizon';
+import type { Dream, DreamVelocity, DreamMilestone, DreamTask, DreamProgress } from '../types';
 
 const CATEGORY_CONFIG: Record<string, { emoji: string; color: string; label: string }> = {
   housing:      { emoji: '🏠', color: '#3b82f6', label: 'Housing' },
@@ -14,222 +15,329 @@ const CATEGORY_CONFIG: Record<string, { emoji: string; color: string; label: str
   family:       { emoji: '👨‍👩‍👧‍👦', color: '#ec4899', label: 'Family' },
   personal:     { emoji: '🌟', color: '#f97316', label: 'Personal' },
   financial:    { emoji: '💰', color: '#14b8a6', label: 'Financial' },
+  creative:     { emoji: '🎨', color: '#a855f7', label: 'Creative' },
 };
 
 export default function DreamBuilderView() {
-  const { dashboard, loading, addDream, aiPlan, completeTask, completeMilestone, addProgress, deleteDream } = useDreams();
+  const {
+    dashboard, loading, load,
+    addDream, deleteDream,
+    completeMilestone, completeTask,
+    addProgress, addMilestone, addTask,
+    getVelocity, updateProgressManual, narrate,
+  } = useDreams();
+
   const [selectedDream, setSelectedDream] = useState<Dream | null>(null);
+  const [selectedVelocity, setSelectedVelocity] = useState<DreamVelocity | null>(null);
+  const [selectedMilestones, setSelectedMilestones] = useState<DreamMilestone[]>([]);
+  const [selectedTasks, setSelectedTasks] = useState<DreamTask[]>([]);
+  const [selectedProgress, setSelectedProgress] = useState<DreamProgress[]>([]);
+  const [velocities, setVelocities] = useState<Record<string, DreamVelocity>>({});
   const [showNewForm, setShowNewForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
-  const [newCategory, setNewCategory] = useState('housing');
+  const [newCategory, setNewCategory] = useState('personal');
   const [newDesc, setNewDesc] = useState('');
   const [newTarget, setNewTarget] = useState('');
-  const [planning, setPlanning] = useState(false);
-  const [planResult, setPlanResult] = useState<any>(null);
+  const [narrating, setNarrating] = useState(false);
+  const [narrative, setNarrative] = useState<string | null>(null);
   const [progressNote, setProgressNote] = useState('');
   const [progressPct, setProgressPct] = useState('5');
 
+  // Load velocities for all dreams when dashboard changes
+  useEffect(() => {
+    if (!dashboard?.dreams) return;
+    dashboard.dreams.forEach(async (dream) => {
+      try {
+        const v = await getVelocity(dream.id);
+        setVelocities(prev => ({ ...prev, [dream.id]: v }));
+      } catch { /* velocity may not be available yet */ }
+    });
+  }, [dashboard, getVelocity]);
+
+  // Load detail when selecting a dream
+  useEffect(() => {
+    if (!selectedDream || !dashboard) return;
+    setSelectedVelocity(velocities[selectedDream.id] ?? null);
+    setSelectedMilestones(dashboard.dreams.find(d => d.id === selectedDream.id)
+      ? [] // milestones come from separate invoke in real app
+      : []);
+    setSelectedTasks(dashboard.upcoming_tasks.filter(t => t.dream_id === selectedDream.id));
+    setSelectedProgress(dashboard.recent_progress.filter(p => p.dream_id === selectedDream.id));
+    setNarrative(null);
+  }, [selectedDream, dashboard, velocities]);
+
   const handleCreate = useCallback(async () => {
     if (!newTitle.trim()) return;
-    await addDream(newTitle, newCategory, newDesc || undefined, newTarget || undefined);
+    await addDream(crypto.randomUUID(), newTitle, newDesc || null, newCategory, newTarget || null);
     setNewTitle(''); setNewDesc(''); setNewTarget('');
     setShowNewForm(false);
   }, [newTitle, newCategory, newDesc, newTarget, addDream]);
 
-  const handleAiPlan = useCallback(async (dream: Dream) => {
-    setPlanning(true);
+  const handleNarrate = useCallback(async () => {
+    if (!selectedDream) return;
+    setNarrating(true);
     try {
-      const result = await aiPlan(dream);
-      setPlanResult(result);
+      const result = await narrate(selectedDream.id);
+      setNarrative(result);
+    } catch (e) {
+      console.error('Narrate failed:', e);
     } finally {
-      setPlanning(false);
+      setNarrating(false);
     }
-  }, [aiPlan]);
+  }, [selectedDream, narrate]);
+
+  const handleCompleteMilestone = useCallback(async (id: string) => {
+    await completeMilestone(id);
+  }, [completeMilestone]);
+
+  const handleCompleteTask = useCallback(async (id: string) => {
+    await completeTask(id);
+  }, [completeTask]);
 
   const handleAddProgress = useCallback(async () => {
     if (!selectedDream || !progressNote.trim()) return;
-    await addProgress(selectedDream.id, progressNote, parseFloat(progressPct) || 0);
+    await addProgress(selectedDream.id, progressNote, parseFloat(progressPct) || 0, null);
     setProgressNote('');
   }, [selectedDream, progressNote, progressPct, addProgress]);
 
   if (loading) return (
-    <div className="kitchen-view">
-      <div className="kitchen-header"><h2 className="kitchen-title">🎯 Dream Builder</h2>
-        <p style={{ color: 'rgba(255,255,255,0.6)' }}>Loading...</p></div>
+    <div className="horizon-view">
+      <div className="horizon-loading">
+        <div className="horizon-loading-icon">🏔️</div>
+        <p className="horizon-loading-text">Charting your horizons...</p>
+      </div>
     </div>
   );
 
   const activeDreams = dashboard?.dreams.filter(d => d.status === 'active') ?? [];
 
   return (
-    <div className="kitchen-view">
-      <div className="kitchen-header">
-        <h2 className="kitchen-title">🎯 Dream Builder</h2>
-        <button className="btn-primary" onClick={() => setShowNewForm(!showNewForm)}>
-          {showNewForm ? 'Cancel' : '+ New Dream'}
-        </button>
-      </div>
-
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
-        <div className="budget-card" style={{ borderLeft: '3px solid #8b5cf6' }}>
-          <span className="budget-card-emoji">🎯</span>
-          <span className="budget-card-label">Active Dreams</span>
-          <span className="budget-card-value" style={{ color: '#8b5cf6' }}>{dashboard?.active_dreams ?? 0}</span>
-        </div>
-        <div className="budget-card" style={{ borderLeft: '3px solid #10b981' }}>
-          <span className="budget-card-emoji">🏆</span>
-          <span className="budget-card-label">Milestones</span>
-          <span className="budget-card-value" style={{ color: '#10b981' }}>{dashboard?.completed_milestones ?? 0}/{dashboard?.total_milestones ?? 0}</span>
-        </div>
-        <div className="budget-card" style={{ borderLeft: '3px solid #f59e0b' }}>
-          <span className="budget-card-emoji">📋</span>
-          <span className="budget-card-label">Upcoming Tasks</span>
-          <span className="budget-card-value" style={{ color: '#f59e0b' }}>{dashboard?.upcoming_tasks.length ?? 0}</span>
-        </div>
-      </div>
-
-      {/* New Dream Form */}
-      {showNewForm && (
-        <div className="ai-add-section" style={{ marginBottom: 16 }}>
-          <div className="fridge-scan-header"><span className="ai-add-icon">✨</span><span>New Dream</span></div>
-          <input type="text" value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder='"We want to buy a house in 3 years"' className="ai-add-input" style={{ marginBottom: 8 }} />
-          <textarea value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Describe your dream..." className="fridge-textarea" rows={2} style={{ marginBottom: 8 }} />
-          <div className="ai-add-row" style={{ flexWrap: 'wrap', gap: 8 }}>
-            <select value={newCategory} onChange={e => setNewCategory(e.target.value)} className="kitchen-select">
-              {Object.entries(CATEGORY_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.emoji} {v.label}</option>)}
-            </select>
-            <input type="date" value={newTarget} onChange={e => setNewTarget(e.target.value)} className="ai-add-input" style={{ width: 160 }} />
-            <button className="btn-primary" onClick={handleCreate} disabled={!newTitle.trim()}>Create Dream</button>
-          </div>
-        </div>
-      )}
-
-      {/* Dream List or Detail */}
+    <div className="horizon-view">
       {selectedDream ? (
-        <DreamDetail
-          dream={selectedDream}
-          onBack={() => { setSelectedDream(null); setPlanResult(null); }}
-          onPlan={handleAiPlan}
-          onCompleteMilestone={completeMilestone}
-          onCompleteTask={completeTask}
-          onDelete={deleteDream}
-          planning={planning}
-          planResult={planResult}
-          progressNote={progressNote}
-          setProgressNote={setProgressNote}
-          progressPct={progressPct}
-          setProgressPct={setProgressPct}
-          onAddProgress={handleAddProgress}
-        />
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {activeDreams.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40 }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>🎯</div>
-              <p style={{ color: 'rgba(255,255,255,0.6)' }}>No dreams yet. Create your first one!</p>
-              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 8 }}>"We want to buy a house in 3 years" → AI reverse-engineers it into daily actions</p>
-            </div>
-          ) : (
-            activeDreams.map(d => {
-              const cat = CATEGORY_CONFIG[d.category] ?? CATEGORY_CONFIG.personal;
-              return (
-                <div key={d.id} onClick={() => setSelectedDream(d)}
-                  style={{ padding: 16, borderRadius: 12, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <span style={{ fontWeight: 600, fontSize: 15 }}>{cat.emoji} {d.title}</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: cat.color }}>{d.progress.toFixed(0)}%</span>
-                  </div>
-                  <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.06)', marginBottom: 8 }}>
-                    <div style={{ height: '100%', borderRadius: 2, width: `${d.progress}%`, background: cat.color }} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
-                    <span>{cat.label}</span>
-                    {d.target_date && <span>Target: {new Date(d.target_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>}
-                  </div>
-                </div>
-              );
-            })
+        /* ── Selected Dream Detail View ── */
+        <div className="horizon-detail">
+          <button className="horizon-back-btn" onClick={() => setSelectedDream(null)}>
+            ← Back to Dreams
+          </button>
+
+          {/* Mountain Hero */}
+          <HorizonHero
+            title={selectedDream.title}
+            velocity={selectedVelocity}
+          />
+
+          {/* Velocity Stats */}
+          {selectedVelocity && (
+            <HorizonVelocity velocity={selectedVelocity} />
           )}
-        </div>
-      )}
-    </div>
-  );
-}
 
-function DreamDetail({
-  dream, onBack, onPlan, onCompleteMilestone, onCompleteTask, onDelete,
-  planning, planResult, progressNote, setProgressNote, progressPct, setProgressPct, onAddProgress
-}: {
-  dream: Dream; onBack: () => void;
-  onPlan: (d: Dream) => Promise<void>; onCompleteMilestone: (id: string) => Promise<void>;
-  onCompleteTask: (id: string) => Promise<void>; onDelete: (id: string) => Promise<void>;
-  planning: boolean; planResult: any;
-  progressNote: string; setProgressNote: (s: string) => void;
-  progressPct: string; setProgressPct: (s: string) => void; onAddProgress: () => Promise<void>;
-}) {
-  const cat = CATEGORY_CONFIG[dream.category] ?? CATEGORY_CONFIG.personal;
-  const hasPlan = dream.ai_plan || planResult;
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button onClick={onBack} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer' }}>←</button>
-        <div style={{ flex: 1 }}>
-          <h3 style={{ margin: 0, fontSize: 18 }}>{cat.emoji} {dream.title}</h3>
-          {dream.description && <p style={{ margin: '4px 0 0', fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>{dream.description}</p>}
-        </div>
-        <span style={{ fontSize: 24, fontWeight: 700, color: cat.color }}>{dream.progress.toFixed(0)}%</span>
-      </div>
-
-      {/* Progress Bar */}
-      <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.06)' }}>
-        <div style={{ height: '100%', borderRadius: 3, width: `${dream.progress}%`, background: cat.color }} />
-      </div>
-
-      {/* AI Plan */}
-      {!hasPlan ? (
-        <button className="btn-primary" onClick={() => onPlan(dream)} disabled={planning} style={{ padding: '12px 20px' }}>
-          {planning ? '✨ Building your plan...' : '🧠 Let AI Build Your Plan'}
-        </button>
-      ) : (
-        <div style={{ background: '#8b5cf610', border: '1px solid #8b5cf630', borderRadius: 12, padding: 16 }}>
-          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>🧠 AI Plan</div>
-          {planResult?.analysis && <p style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 12 }}>{planResult.analysis}</p>}
-          {planResult?.habit && (
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontWeight: 600, fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>Daily Habit</div>
-              <div style={{ fontSize: 13 }}>🔄 {planResult.habit.title}: {planResult.habit.description}</div>
+          {/* Milestones Path */}
+          {selectedMilestones.length > 0 && (
+            <div className="horizon-section">
+              <h3 className="horizon-section-title">🏔️ Milestones</h3>
+              <HorizonMilestonePath milestones={selectedMilestones} onComplete={handleCompleteMilestone} />
             </div>
           )}
-          {planResult?.metrics && (
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontWeight: 600, fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>Track These</div>
-              {planResult.metrics.map((m: string, i: number) => (
-                <div key={i} style={{ fontSize: 13 }}>📊 {m}</div>
+
+          {/* Tasks */}
+          {selectedTasks.length > 0 && (
+            <div className="horizon-section">
+              <h3 className="horizon-section-title">📋 Tasks</h3>
+              <div className="horizon-task-list">
+                {selectedTasks.map(t => (
+                  <div key={t.id} className={`horizon-task ${t.is_completed ? 'completed' : ''}`}>
+                    <button
+                      className="horizon-task-check"
+                      onClick={() => handleCompleteTask(t.id)}
+                    >
+                      {t.is_completed ? '☑' : '☐'}
+                    </button>
+                    <div className="horizon-task-content">
+                      <span className="horizon-task-title">{t.title}</span>
+                      {t.due_date && <span className="horizon-task-date">{t.due_date}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* AI Narrate */}
+          <div className="horizon-section">
+            <button
+              className="horizon-narrate-btn"
+              onClick={handleNarrate}
+              disabled={narrating}
+            >
+              {narrating ? '✨ Crafting your story...' : '📖 AI Narrative'}
+            </button>
+            {narrative && (
+              <div className="horizon-narrative">
+                <p className="horizon-narrative-text">{narrative}</p>
+              </div>
+            )}
+          </div>
+
+          {/* AI Insights */}
+          {selectedProgress.filter(p => p.ai_insight).length > 0 && (
+            <div className="horizon-section">
+              <h3 className="horizon-section-title">💡 Insights</h3>
+              {selectedProgress.filter(p => p.ai_insight).map(p => (
+                <HorizonInsightCard
+                  key={p.id}
+                  text={p.ai_insight!}
+                  date={new Date(p.created_at).toLocaleDateString()}
+                />
               ))}
             </div>
           )}
+
+          {/* Log Progress */}
+          <div className="horizon-section">
+            <h3 className="horizon-section-title">📈 Log Progress</h3>
+            <div className="horizon-progress-form">
+              <input
+                type="text"
+                value={progressNote}
+                onChange={e => setProgressNote(e.target.value)}
+                placeholder="What did you do today?"
+                className="horizon-input"
+              />
+              <div className="horizon-progress-row">
+                <input
+                  type="number"
+                  value={progressPct}
+                  onChange={e => setProgressPct(e.target.value)}
+                  className="horizon-input horizon-input-sm"
+                  min="0"
+                  max="100"
+                />
+                <span className="horizon-pct-label">%</span>
+                <button
+                  className="horizon-btn"
+                  onClick={handleAddProgress}
+                  disabled={!progressNote.trim()}
+                >
+                  Log
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Delete */}
+          <button
+            className="horizon-delete-btn"
+            onClick={() => { deleteDream(selectedDream.id); setSelectedDream(null); }}
+          >
+            🗑️ Delete Dream
+          </button>
+        </div>
+      ) : (
+        /* ── Dream List View ── */
+        <div className="horizon-list">
+          <div className="horizon-header">
+            <h2 className="horizon-title">🏔️ Dreams</h2>
+            <button className="horizon-btn" onClick={() => setShowNewForm(!showNewForm)}>
+              {showNewForm ? 'Cancel' : '+ New Dream'}
+            </button>
+          </div>
+
+          {/* Stats Bar */}
+          <div className="horizon-stats-bar">
+            <div className="horizon-stat-card">
+              <span className="horizon-stat-emoji">🎯</span>
+              <span className="horizon-stat-value">{dashboard?.active_dreams ?? 0}</span>
+              <span className="horizon-stat-label">Active Dreams</span>
+            </div>
+            <div className="horizon-stat-card">
+              <span className="horizon-stat-emoji">🏆</span>
+              <span className="horizon-stat-value">{dashboard?.completed_milestones ?? 0}/{dashboard?.total_milestones ?? 0}</span>
+              <span className="horizon-stat-label">Milestones</span>
+            </div>
+            <div className="horizon-stat-card">
+              <span className="horizon-stat-emoji">📋</span>
+              <span className="horizon-stat-value">{dashboard?.upcoming_tasks.length ?? 0}</span>
+              <span className="horizon-stat-label">Upcoming</span>
+            </div>
+          </div>
+
+          {/* New Dream Form */}
+          {showNewForm && (
+            <div className="horizon-new-form">
+              <div className="horizon-form-header">
+                <span>✨</span>
+                <span>New Dream</span>
+              </div>
+              <input
+                type="text"
+                value={newTitle}
+                onChange={e => setNewTitle(e.target.value)}
+                placeholder="What's your dream?"
+                className="horizon-input"
+              />
+              <textarea
+                value={newDesc}
+                onChange={e => setNewDesc(e.target.value)}
+                placeholder="Describe it..."
+                className="horizon-textarea"
+                rows={2}
+              />
+              <div className="horizon-form-row">
+                <select value={newCategory} onChange={e => setNewCategory(e.target.value)} className="horizon-select">
+                  {Object.entries(CATEGORY_CONFIG).map(([k, v]) => (
+                    <option key={k} value={k}>{v.emoji} {v.label}</option>
+                  ))}
+                </select>
+                <input
+                  type="date"
+                  value={newTarget}
+                  onChange={e => setNewTarget(e.target.value)}
+                  className="horizon-input horizon-input-date"
+                />
+                <button
+                  className="horizon-btn"
+                  onClick={handleCreate}
+                  disabled={!newTitle.trim()}
+                >
+                  Create
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Dream Cards */}
+          <div className="horizon-dream-grid">
+            {activeDreams.length === 0 ? (
+              <div className="horizon-empty">
+                <div className="horizon-empty-icon">🏔️</div>
+                <p className="horizon-empty-text">No dreams yet. What mountain do you want to climb?</p>
+              </div>
+            ) : (
+              activeDreams.map(dream => {
+                const vel = velocities[dream.id] ?? {
+                  dream_id: dream.id,
+                  milestones_completed: 0,
+                  milestones_total: 0,
+                  tasks_completed: 0,
+                  tasks_total: 0,
+                  progress_pct: dream.progress,
+                  pace: 'on_track',
+                  days_remaining: null,
+                  estimated_completion: null,
+                };
+                return (
+                  <HorizonGoalCard
+                    key={dream.id}
+                    dream={dream}
+                    velocity={vel}
+                    onSelect={(id) => setSelectedDream(activeDreams.find(d => d.id === id) ?? null)}
+                  />
+                );
+              })
+            )}
+          </div>
         </div>
       )}
-
-      {/* Log Progress */}
-      <div className="ai-add-section" style={{ padding: 14 }}>
-        <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>📈 Log Progress</div>
-        <div className="ai-add-row">
-          <input type="text" value={progressNote} onChange={e => setProgressNote(e.target.value)} placeholder="What did you do today?" className="ai-add-input" />
-          <input type="number" value={progressPct} onChange={e => setProgressPct(e.target.value)} className="ai-add-input" style={{ width: 60 }} />
-          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>%</span>
-          <button className="btn-primary" onClick={onAddProgress} disabled={!progressNote.trim()}>Log</button>
-        </div>
-      </div>
-
-      {/* Delete */}
-      <button onClick={() => { onDelete(dream.id); onBack(); }}
-        style={{ background: 'none', border: '1px solid #ef444440', color: '#ef4444', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 12, alignSelf: 'flex-start' }}>
-        🗑️ Delete Dream
-      </button>
     </div>
   );
 }

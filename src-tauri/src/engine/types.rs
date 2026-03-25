@@ -1207,6 +1207,35 @@ pub struct DreamDashboard {
     pub recent_progress: Vec<DreamProgress>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DreamVelocity {
+    pub dream_id: String,
+    pub milestones_completed: i64,
+    pub milestones_total: i64,
+    pub tasks_completed: i64,
+    pub tasks_total: i64,
+    pub progress_pct: f64,
+    pub pace: String,          // "ahead", "on_track", "behind"
+    pub days_remaining: Option<i64>,
+    pub estimated_completion: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimelineEntry {
+    pub date: String,
+    pub event_type: String,    // "milestone", "task", "progress"
+    pub title: String,
+    pub completed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DreamTimeline {
+    pub dream_id: String,
+    pub entries: Vec<TimelineEntry>,
+    pub total_entries: i64,
+    pub completed_entries: i64,
+}
+
 // ── Agent Diary ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -3524,6 +3524,91 @@ impl EngineDb {
         Ok(())
     }
 
+    // ── Dreams: Horizon Extensions ──
+
+    pub fn get_dream_velocity(&self, dream_id: &str) -> Result<super::types::DreamVelocity> {
+        let conn = self.conn();
+        let milestones_total: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM dream_milestones WHERE dream_id = ?1", params![dream_id], |r| r.get(0)
+        ).unwrap_or(0);
+        let milestones_completed: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM dream_milestones WHERE dream_id = ?1 AND is_completed = 1", params![dream_id], |r| r.get(0)
+        ).unwrap_or(0);
+        let tasks_total: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM dream_tasks WHERE dream_id = ?1", params![dream_id], |r| r.get(0)
+        ).unwrap_or(0);
+        let tasks_completed: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM dream_tasks WHERE dream_id = ?1 AND is_completed = 1", params![dream_id], |r| r.get(0)
+        ).unwrap_or(0);
+        let progress_pct = if milestones_total > 0 {
+            (milestones_completed as f64 / milestones_total as f64) * 100.0
+        } else { 0.0 };
+        let pace = if progress_pct >= 70.0 { "ahead" } else if progress_pct >= 40.0 { "on_track" } else { "behind" };
+        // Get target date for days remaining
+        let target: Option<String> = conn.query_row(
+            "SELECT target_date FROM dreams WHERE id = ?1", params![dream_id], |r| r.get(0)
+        ).ok().flatten();
+        let days_remaining = target.and_then(|t| {
+            chrono::NaiveDate::parse_from_str(&t, "%Y-%m-%d").ok().map(|td| {
+                (td - chrono::Utc::now().date_naive()).num_days()
+            })
+        });
+        Ok(super::types::DreamVelocity {
+            dream_id: dream_id.to_string(),
+            milestones_completed, milestones_total,
+            tasks_completed, tasks_total,
+            progress_pct,
+            pace: pace.to_string(),
+            days_remaining,
+            estimated_completion: None,
+        })
+    }
+
+    pub fn get_dream_timeline(&self, dream_id: &str) -> Result<super::types::DreamTimeline> {
+        let conn = self.conn();
+        // Combine milestones into timeline
+        let mut entries = Vec::new();
+        let mut stmt = conn.prepare("SELECT title, is_completed, target_date, completed_at FROM dream_milestones WHERE dream_id = ?1 ORDER BY sort_order")?;
+        let rows = stmt.query_map(params![dream_id], |row| {
+            let title: String = row.get(0)?;
+            let completed: bool = row.get::<_, i64>(1)? != 0;
+            let date: Option<String> = if completed { row.get(3)? } else { row.get(2)? };
+            Ok(super::types::TimelineEntry {
+                date: date.unwrap_or_default(),
+                event_type: "milestone".to_string(),
+                title,
+                completed,
+            })
+        })?;
+        for r in rows { entries.push(r?); }
+        let total = entries.len() as i64;
+        let completed = entries.iter().filter(|e| e.completed).count() as i64;
+        Ok(super::types::DreamTimeline {
+            dream_id: dream_id.to_string(),
+            entries, total_entries: total, completed_entries: completed,
+        })
+    }
+
+    pub fn set_dream_progress(&self, dream_id: &str, progress_pct: f64) -> Result<()> {
+        let conn = self.conn();
+        conn.execute("UPDATE dreams SET progress = ?1 WHERE id = ?2", params![progress_pct, dream_id])?;
+        Ok(())
+    }
+
+    pub fn get_active_dreams_with_velocity(&self) -> Result<Vec<(super::types::Dream, super::types::DreamVelocity)>> {
+        let dreams = self.get_dreams(Some("active"))?;
+        let mut result = Vec::new();
+        for dream in dreams {
+            let velocity = self.get_dream_velocity(&dream.id).unwrap_or(super::types::DreamVelocity {
+                dream_id: dream.id.clone(), milestones_completed: 0, milestones_total: 0,
+                tasks_completed: 0, tasks_total: 0, progress_pct: 0.0,
+                pace: "behind".to_string(), days_remaining: None, estimated_completion: None,
+            });
+            result.push((dream, velocity));
+        }
+        Ok(result)
+    }
+
     // AGENT DIARY
     pub fn add_diary_entry(&self, id: &str, agent_id: &str, entry_date: &str, title: Option<&str>,
         content: &str, mood: &str, topics_discussed: Option<&str>, memorable_moment: Option<&str>) -> Result<()> {

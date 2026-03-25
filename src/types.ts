@@ -677,6 +677,34 @@ export interface DreamDashboard {
   recent_progress: DreamProgress[];
 }
 
+// ── Dreams: Horizon ──
+
+export interface DreamVelocity {
+  dream_id: string;
+  milestones_completed: number;
+  milestones_total: number;
+  tasks_completed: number;
+  tasks_total: number;
+  progress_pct: number;
+  pace: string;
+  days_remaining: number | null;
+  estimated_completion: string | null;
+}
+
+export interface TimelineEntry {
+  date: string;
+  event_type: string;
+  title: string;
+  completed: boolean;
+}
+
+export interface DreamTimeline {
+  dream_id: string;
+  entries: TimelineEntry[];
+  total_entries: number;
+  completed_entries: number;
+}
+
 // ── Agent Diary ──
 
 export interface DiaryEntry {

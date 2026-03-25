@@ -247,6 +247,11 @@ pub fn run() {
             commands::dream_add_progress,
             commands::dream_delete,
             commands::dream_ai_plan,
+            commands::dream_get_velocity,
+            commands::dream_get_timeline,
+            commands::dream_update_progress_manual,
+            commands::dream_get_all_active_with_velocity,
+            commands::dream_ai_narrate,
             // Agent Diary
             commands::diary_generate_entry,
             commands::diary_get_entries,
