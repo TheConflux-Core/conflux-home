@@ -50,40 +50,17 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: npm run tauri:build
 
-      - name: Generate updates.json
+      - name: Collect .sig files
         run: |
-          DEB_SIG=$(cat src-tauri/target/release/bundle/deb/*.deb.sig)
-          APPIMAGE_SIG=$(cat src-tauri/target/release/bundle/appimage/*.AppImage.sig)
-          VERSION="${GITHUB_REF_NAME}"
-          cat > src-tauri/target/release/bundle/updates.json << EOF
-          {
-            "version": "${VERSION}",
-            "notes": "See release notes",
-            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "platforms": {
-              "linux-x86_64": {
-                "signature": "${APPIMAGE_SIG}",
-                "url": "https://github.com/${{ github.repository }}/releases/latest/download/Conflux.Home_${VERSION#v}_amd64.AppImage"
-              },
-              "linux-deb-x86_64": {
-                "signature": "${DEB_SIG}",
-                "url": "https://github.com/${{ github.repository }}/releases/latest/download/Conflux.Home_${VERSION#v}_amd64.deb"
-              },
-              "windows-x86_64": {
-                "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/latest/download/Conflux.Home_${VERSION#v}_x64.msi"
-              },
-              "darwin-x86_64": {
-                "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/latest/download/Conflux.Home_${VERSION#v}_x64.dmg"
-              },
-              "darwin-aarch64": {
-                "signature": "",
-                "url": "https://github.com/${{ github.repository }}/releases/latest/download/Conflux.Home_${VERSION#v}_aarch64.dmg"
-              }
-            }
-          }
-          EOF
+          mkdir -p /tmp/sigs
+          find src-tauri/target/release/bundle/deb -name '*.sig' -exec cp {} /tmp/sigs/ \;
+          find src-tauri/target/release/bundle/appimage -name '*.sig' -exec cp {} /tmp/sigs/ \;
+
+      - name: Upload .sig artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-sigs
+          path: /tmp/sigs/
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
@@ -93,7 +70,6 @@ jobs:
             src-tauri/target/release/bundle/deb/*.deb.sig
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/appimage/*.AppImage.sig
-            src-tauri/target/release/bundle/updates.json
 
   # ── Windows (.msi) ──
   build-windows:
@@ -125,6 +101,18 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: npm run tauri:build
 
+      - name: Collect .sig files
+        shell: bash
+        run: |
+          mkdir -p /tmp/sigs
+          find src-tauri/target/release/bundle/msi -name '*.sig' -exec cp {} /tmp/sigs/ \;
+
+      - name: Upload .sig artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-sigs
+          path: /tmp/sigs/
+
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
@@ -137,7 +125,11 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        target: [x86_64-apple-darwin, aarch64-apple-darwin]
+        include:
+          - target: x86_64-apple-darwin
+            arch: x64
+          - target: aarch64-apple-darwin
+            arch: aarch64
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
@@ -166,12 +158,92 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: npm run tauri:build -- --target ${{ matrix.target }}
 
+      - name: Collect .sig files
+        run: |
+          mkdir -p /tmp/sigs
+          find "src-tauri/target/${{ matrix.target }}/release/bundle/dmg" -name '*.sig' -exec cp {} /tmp/sigs/ \;
+          # Also collect updater .tar.gz.sig if createUpdaterArtifacts produces them
+          find "src-tauri/target/${{ matrix.target }}/release/bundle/macos" -name '*.sig' -exec cp {} /tmp/sigs/ \; 2>/dev/null || true
+
+      - name: Upload .sig artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}-sigs
+          path: /tmp/sigs/
+
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
             src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg.sig
+
+  # ── Generate updates.json (all platforms) ──
+  generate-updates-json:
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all .sig artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: sigs/
+          pattern: '*-sigs'
+
+      - name: Generate updates.json
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          VER="${VERSION#v}"
+
+          DEB_SIG=$(find sigs/ -name '*.deb.sig' -exec cat {} \; | head -1)
+          APPIMAGE_SIG=$(find sigs/ -name '*.AppImage.sig' -exec cat {} \; | head -1)
+          MSI_SIG=$(find sigs/ -name '*.msi.sig' -exec cat {} \; | head -1)
+
+          # macOS: prefer .dmg.sig, fall back to .app.tar.gz.sig
+          DMG_X64_SIG=$(find sigs/ -name '*.dmg.sig' -exec cat {} \; | head -1)
+          DMG_ARM_SIG="$DMG_X64_SIG"
+          # If separate macos artifact dirs exist, try to differentiate
+          if [ -d sigs/macos-x64-sigs ] && [ -d sigs/macos-aarch64-sigs ]; then
+            DMG_X64_SIG=$(find sigs/macos-x64-sigs/ -name '*.sig' -exec cat {} \; | head -1)
+            DMG_ARM_SIG=$(find sigs/macos-aarch64-sigs/ -name '*.sig' -exec cat {} \; | head -1)
+          fi
+
+          REPO="${{ github.repository }}"
+
+          cat > updates.json << EOF
+          {
+            "version": "${VERSION}",
+            "notes": "See release notes",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {
+              "linux-x86_64": {
+                "signature": "${APPIMAGE_SIG}",
+                "url": "https://github.com/${REPO}/releases/latest/download/Conflux.Home_${VER}_amd64.AppImage"
+              },
+              "linux-deb-x86_64": {
+                "signature": "${DEB_SIG}",
+                "url": "https://github.com/${REPO}/releases/latest/download/Conflux.Home_${VER}_amd64.deb"
+              },
+              "windows-x86_64": {
+                "signature": "${MSI_SIG}",
+                "url": "https://github.com/${REPO}/releases/latest/download/Conflux.Home_${VER}_x64.msi"
+              },
+              "darwin-x86_64": {
+                "signature": "${DMG_X64_SIG}",
+                "url": "https://github.com/${REPO}/releases/latest/download/Conflux.Home_${VER}_x64.dmg"
+              },
+              "darwin-aarch64": {
+                "signature": "${DMG_ARM_SIG}",
+                "url": "https://github.com/${REPO}/releases/latest/download/Conflux.Home_${VER}_aarch64.dmg"
+              }
+            }
+          }
+          EOF
+
+      - name: Upload updates.json to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.ref_name }}" updates.json --clobber
 
   # ── Android (.apk) ──
   build-android:
