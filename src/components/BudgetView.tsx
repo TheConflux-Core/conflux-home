@@ -1,10 +1,12 @@
 // Conflux Home — Budget View (Pulse Overhaul)
 // Monthly budget tracker with natural language entry, goals, patterns, and reports.
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useBudget } from '../hooks/useBudget';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../types';
 import type { BudgetGoal } from '../types';
+import InsightCard from './InsightCard';
+import PulseParticles from './PulseParticles';
 import '../styles/budget-pulse.css';
 
 function formatMoney(n: number): string {
@@ -22,12 +24,12 @@ function getToday(): string {
 
 // ── SVG Circular Progress Ring ──
 
-function SavingsRing({ pct }: { pct: number }) {
+function SavingsRing({ pct, healthStatus = 'good' }: { pct: number; healthStatus?: string }) {
   const circumference = 2 * Math.PI * 40; // r=40
   const offset = circumference - (Math.min(pct, 100) / 100) * circumference;
   return (
-    <div className="pulse-savings-ring-container">
-      <div className="pulse-savings-ring">
+    <div className={`pulse-savings-ring-container`}>
+      <div className={`pulse-savings-ring health-${healthStatus}`}>
         <svg viewBox="0 0 100 100">
           <circle className="pulse-savings-ring-track" cx="50" cy="50" r="40" />
           <circle
@@ -132,6 +134,15 @@ export default function BudgetView() {
   // Report state
   const [reportLoading, setReportLoading] = useState(false);
 
+  // Insights state
+  const [insights, setInsights] = useState<Array<{
+    pattern_type: string;
+    message: string;
+    severity: string;
+    category: string | null;
+    amount: number | null;
+  }>>([]);
+
   const categories = entryType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
   // ── Handlers ──
@@ -227,6 +238,23 @@ export default function BudgetView() {
   const spentPct = income > 0 ? Math.min((expenses / income) * 100, 100) : 0;
   const savingsRate = income > 0 ? (savings / income) * 100 : 0;
 
+  const healthStatus = spentPct > 90 ? 'danger' : spentPct > 70 ? 'caution' : 'good';
+
+  // Generate proactive insights from patterns
+  useEffect(() => {
+    if (patterns.length > 0 && insights.length === 0) {
+      // Convert patterns to insight cards
+      const generated = patterns.slice(0, 3).map((p, i) => ({
+        pattern_type: p.pattern_type,
+        message: `${p.description} — averaging $${p.avg_amount.toFixed(2)} per ${p.frequency}.`,
+        severity: i === 0 ? 'info' as const : (p.avg_amount > 200 ? 'warning' as const : 'info' as const),
+        category: p.category,
+        amount: p.avg_amount,
+      }));
+      setInsights(generated);
+    }
+  }, [patterns]);
+
   if (loading) {
     return (
       <div className="budget-view">
@@ -245,6 +273,8 @@ export default function BudgetView() {
 
   return (
     <div className="budget-view">
+      <PulseParticles />
+
       {/* ── Header ── */}
       <div className="budget-header">
         <div className="budget-nav">
@@ -294,26 +324,38 @@ export default function BudgetView() {
         )}
       </div>
 
-      {/* ── Summary Cards ── */}
-      <div className="budget-summary">
-        <div className="budget-card income">
+      {/* ── Bento Hero Grid ── */}
+      <div className="pulse-bento-hero">
+        <div className="pulse-bento-ring">
+          <SavingsRing pct={savingsRate} healthStatus={healthStatus} />
+        </div>
+        <div className="pulse-bento-card income">
           <div className="budget-card-label">Income</div>
           <div className="budget-card-value">{formatMoney(income)}</div>
         </div>
-        <div className="budget-card expenses">
+        <div className="pulse-bento-card expenses">
           <div className="budget-card-label">Expenses</div>
           <div className="budget-card-value">{formatMoney(expenses)}</div>
           {income > 0 && <div className="budget-card-pct">{spentPct.toFixed(0)}% of income</div>}
         </div>
-        <div className="budget-card savings">
+        <div className="pulse-bento-card savings">
           <div className="budget-card-label">Savings</div>
           <div className="budget-card-value">{formatMoney(savings)}</div>
         </div>
-        <div className={`budget-card net ${net >= 0 ? 'positive' : 'negative'}`}>
+        <div className={`pulse-bento-card net ${net >= 0 ? 'positive' : 'negative'}`}>
           <div className="budget-card-label">Net</div>
           <div className="budget-card-value">{net >= 0 ? '+' : ''}{formatMoney(net)}</div>
         </div>
       </div>
+
+      {/* ── Proactive AI Insights ── */}
+      {insights.length > 0 && (
+        <div className="pulse-insights-section">
+          {insights.map((insight, i) => (
+            <InsightCard key={i} insight={insight} index={i} />
+          ))}
+        </div>
+      )}
 
       {/* ── Progress Bar ── */}
       {income > 0 && (
@@ -331,9 +373,6 @@ export default function BudgetView() {
           </div>
         </div>
       )}
-
-      {/* ── Savings Rate Ring ── */}
-      {income > 0 && <SavingsRing pct={savingsRate} />}
 
       {/* ── Add Entry Form ── */}
       {showAddForm && (
