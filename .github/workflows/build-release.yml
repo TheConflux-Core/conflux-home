@@ -50,18 +50,6 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: npm run tauri:build
 
-      - name: Collect .sig files
-        run: |
-          mkdir -p /tmp/sigs
-          find src-tauri/target/release/bundle/deb -name '*.sig' -exec cp {} /tmp/sigs/ \;
-          find src-tauri/target/release/bundle/appimage -name '*.sig' -exec cp {} /tmp/sigs/ \;
-
-      - name: Upload .sig artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-sigs
-          path: /tmp/sigs/
-
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
@@ -100,26 +88,6 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: npm run tauri:build
-
-      - name: Debug bundle contents
-        shell: bash
-        run: |
-          echo "=== msi bundle ==="
-          find src-tauri/target/release/bundle/msi -type f 2>/dev/null || echo "(no msi dir)"
-          echo "=== all .sig files ==="
-          find src-tauri/target/release/bundle -name '*.sig' 2>/dev/null || echo "(none found)"
-
-      - name: Collect .sig files
-        shell: bash
-        run: |
-          mkdir -p /tmp/sigs
-          find src-tauri/target/release/bundle -name '*.sig' -exec cp {} /tmp/sigs/ \;
-
-      - name: Upload .sig artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-sigs
-          path: /tmp/sigs/
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
@@ -166,30 +134,21 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: npm run tauri:build -- --target ${{ matrix.target }}
 
-      - name: Debug bundle contents
+      - name: Rename updater artifacts by arch
         run: |
-          echo "=== dmg bundle ==="
-          find "src-tauri/target/${{ matrix.target }}/release/bundle/dmg" -type f 2>/dev/null || echo "(no dmg dir)"
-          echo "=== all .sig files ==="
-          find "src-tauri/target/${{ matrix.target }}/release/bundle" -name '*.sig' 2>/dev/null || echo "(none found)"
-
-      - name: Collect .sig files
-        run: |
-          mkdir -p /tmp/sigs
-          find "src-tauri/target/${{ matrix.target }}/release/bundle" -name '*.sig' -exec cp {} /tmp/sigs/ \;
-
-      - name: Upload .sig artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-${{ matrix.arch }}-sigs
-          path: /tmp/sigs/
+          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle/macos"
+          if [ -f "$BUNDLE_DIR/Conflux Home.app.tar.gz" ]; then
+            mv "$BUNDLE_DIR/Conflux Home.app.tar.gz" "$BUNDLE_DIR/Conflux.Home_${{ matrix.arch }}.app.tar.gz"
+            mv "$BUNDLE_DIR/Conflux Home.app.tar.gz.sig" "$BUNDLE_DIR/Conflux.Home_${{ matrix.arch }}.app.tar.gz.sig"
+          fi
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
-            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg.sig
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz.sig
 
   # ── Generate updates.json (all platforms) ──
   generate-updates-json:
@@ -198,36 +157,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download all .sig artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: sigs/
-          pattern: '*-sigs'
-
-      - name: Debug downloaded sigs
+      - name: Download .sig files from release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "=== sigs/ contents ==="
-          find sigs/ -type f 2>/dev/null || echo "(empty)"
+          mkdir -p /tmp/sigs
+          gh release download "${{ github.ref_name }}" \
+            --pattern '*.sig' \
+            --dir /tmp/sigs/ \
+            --repo "${{ github.repository }}" \
+            --skip-existing
 
       - name: Generate updates.json
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="${GITHUB_REF_NAME}"
+          VERSION="${{ github.ref_name }}"
           VER="${VERSION#v}"
-
-          DEB_SIG=$(find sigs/ -name '*.deb.sig' -exec cat {} \; | head -1)
-          APPIMAGE_SIG=$(find sigs/ -name '*.AppImage.sig' -exec cat {} \; | head -1)
-          MSI_SIG=$(find sigs/ -name '*.msi.sig' -exec cat {} \; | head -1)
-
-          # macOS: prefer .dmg.sig, fall back to .app.tar.gz.sig
-          DMG_X64_SIG=$(find sigs/ -name '*.dmg.sig' -exec cat {} \; | head -1)
-          DMG_ARM_SIG="$DMG_X64_SIG"
-          # If separate macos artifact dirs exist, try to differentiate
-          if [ -d sigs/macos-x64-sigs ] && [ -d sigs/macos-aarch64-sigs ]; then
-            DMG_X64_SIG=$(find sigs/macos-x64-sigs/ -name '*.sig' -exec cat {} \; | head -1)
-            DMG_ARM_SIG=$(find sigs/macos-aarch64-sigs/ -name '*.sig' -exec cat {} \; | head -1)
-          fi
-
           REPO="${{ github.repository }}"
+          TAG="${{ github.ref_name }}"
+
+          DEB_SIG=$(cat /tmp/sigs/*.deb.sig 2>/dev/null | head -1 || echo "")
+          APPIMAGE_SIG=$(cat /tmp/sigs/*.AppImage.sig 2>/dev/null | head -1 || echo "")
+          MSI_SIG=$(cat /tmp/sigs/*.msi.sig 2>/dev/null | head -1 || echo "")
+
+          # macOS updater artifacts: .app.tar.gz.sig (one per arch)
+          # Try to get x64 and aarch64 sigs separately by matching naming convention
+          MAC_X64_SIG=$(find /tmp/sigs/ -name '*x64*.app.tar.gz.sig' -exec cat {} \; | head -1)
+          MAC_ARM_SIG=$(find /tmp/sigs/ -name '*aarch64*.app.tar.gz.sig' -exec cat {} \; | head -1)
+          # Fallback: if naming doesn't distinguish, use whatever .app.tar.gz.sig files exist
+          if [ -z "$MAC_X64_SIG" ]; then
+            ALL_MAC_SIGS=($(find /tmp/sigs/ -name '*.app.tar.gz.sig' -exec cat {} \;))
+            MAC_X64_SIG="${ALL_MAC_SIGS[0]:-}"
+            MAC_ARM_SIG="${ALL_MAC_SIGS[1]:-${ALL_MAC_SIGS[0]:-}}"
+          fi
 
           cat > updates.json << EOF
           {
@@ -237,27 +200,30 @@ jobs:
             "platforms": {
               "linux-x86_64": {
                 "signature": "${APPIMAGE_SIG}",
-                "url": "https://github.com/${REPO}/releases/latest/download/Conflux.Home_${VER}_amd64.AppImage"
+                "url": "https://github.com/${REPO}/releases/download/${TAG}/Conflux.Home_${VER}_amd64.AppImage"
               },
               "linux-deb-x86_64": {
                 "signature": "${DEB_SIG}",
-                "url": "https://github.com/${REPO}/releases/latest/download/Conflux.Home_${VER}_amd64.deb"
+                "url": "https://github.com/${REPO}/releases/download/${TAG}/Conflux.Home_${VER}_amd64.deb"
               },
               "windows-x86_64": {
                 "signature": "${MSI_SIG}",
-                "url": "https://github.com/${REPO}/releases/latest/download/Conflux.Home_${VER}_x64.msi"
+                "url": "https://github.com/${REPO}/releases/download/${TAG}/Conflux.Home_${VER}_x64.msi"
               },
               "darwin-x86_64": {
-                "signature": "${DMG_X64_SIG}",
-                "url": "https://github.com/${REPO}/releases/latest/download/Conflux.Home_${VER}_x64.dmg"
+                "signature": "${MAC_X64_SIG}",
+                "url": "https://github.com/${REPO}/releases/download/${TAG}/Conflux.Home_x64.app.tar.gz"
               },
               "darwin-aarch64": {
-                "signature": "${DMG_ARM_SIG}",
-                "url": "https://github.com/${REPO}/releases/latest/download/Conflux.Home_${VER}_aarch64.dmg"
+                "signature": "${MAC_ARM_SIG}",
+                "url": "https://github.com/${REPO}/releases/download/${TAG}/Conflux.Home_aarch64.app.tar.gz"
               }
             }
           }
           EOF
+
+          echo "=== Generated updates.json ==="
+          cat updates.json
 
       - name: Upload updates.json to release
         env:
