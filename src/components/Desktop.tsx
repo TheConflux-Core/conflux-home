@@ -39,7 +39,7 @@ export default function Desktop({ agents, wallpaper, onNavigate }: DesktopProps)
     return () => clearInterval(interval);
   }, []);
 
-  const activeAgents = agents.filter(a => a.status !== 'offline');
+  // (agent presence bar removed — agents accessible via TopBar)
 
   return (
     <div
@@ -53,35 +53,6 @@ export default function Desktop({ agents, wallpaper, onNavigate }: DesktopProps)
       <div className="desktop-bg-pattern" />
 
       <DesktopWidgets onNavigate={onNavigate} />
-
-      {/* Agent presence bar at the bottom */}
-      {activeAgents.length > 0 && (
-        <div className="agents-bottom-bar">
-          {activeAgents.map((agent) => {
-            const accentColor = AGENT_COLORS[agent.id] ?? '#8888aa';
-            return (
-              <div
-                key={agent.id}
-                className="agent-avatar-mini"
-                onClick={() => {
-                  window.dispatchEvent(new CustomEvent('conflux:open-chat', { detail: { agentId: agent.id } }));
-                }}
-                title={`${agent.name} — ${agent.status}`}
-              >
-                <Avatar
-                  agentId={agent.id}
-                  name={agent.name}
-                  emoji={agent.emoji}
-                  status={agent.status}
-                  size="sm"
-                  showStatus={true}
-                />
-                <span>{agent.name}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

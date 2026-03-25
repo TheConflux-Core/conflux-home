@@ -394,16 +394,7 @@ export default function App() {
         onNavigate={(v) => setImmersiveView(v)}
       />
 
-      {/* Family Switcher — below TopBar, above content */}
-      {familyMembers.length > 0 && (
-        <FamilySwitcher
-          members={familyMembers}
-          activeMemberId={activeMemberId}
-          onSelect={(member) => setActiveMemberId(member?.id ?? null)}
-          onAddClick={() => setShowFamilySetup(true)}
-          onProgressClick={(memberId) => setDashboardMemberId(memberId)}
-        />
-      )}
+      {/* Family Switcher — moved to TopBar popup (removed from desktop) */}
 
       {/* Immersive full-screen view — wraps app content with custom background */}
       {immersiveView && (
