@@ -27,7 +27,7 @@ const GAMES: GameDef[] = [
     name: 'Solitaire',
     icon: '🃏',
     subtitle: 'Classic Card Game',
-    status: 'coming-soon',
+    status: 'available',
     size: 'normal',
   },
   {

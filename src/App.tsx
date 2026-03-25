@@ -19,6 +19,7 @@ import GamesHub from './components/GamesHub';
 import MinesweeperGame from './components/MinesweeperGame';
 import SnakeGame from './components/SnakeGame';
 import PacmanGame from './components/PacmanGame';
+import SolitaireGame from './components/SolitaireGame';
 import StoryGameReader from './components/StoryGameReader';
 import AgentTemplateBrowser from './components/AgentTemplateBrowser';
 import ParentDashboard from './components/ParentDashboard';
@@ -182,6 +183,7 @@ export default function App() {
   const [activeMinesweeper, setActiveMinesweeper] = useState(false);
 const [activeSnake, setActiveSnake] = useState(false);
   const [activePacman, setActivePacman] = useState(false);
+  const [activeSolitaire, setActiveSolitaire] = useState(false);
   const {
     game: activeGame, chapters: activeGameChapters, currentChapter: activeGameCurrentChapter,
     choosePath, solvePuzzle, generateNextChapter,
@@ -507,7 +509,7 @@ const [activeSnake, setActiveSnake] = useState(false);
               </div>
             </div>
           )}
-          {immersiveView === 'games' && !activeGameId && !activeMinesweeper && !activeSnake && !activePacman && (
+          {immersiveView === 'games' && !activeGameId && !activeMinesweeper && !activeSnake && !activePacman && !activeSolitaire && (
             <GamesHub
               onOpenGame={(gameId) => {
                 if (gameId === 'minesweeper') {
@@ -518,6 +520,9 @@ const [activeSnake, setActiveSnake] = useState(false);
                 }
                 if (gameId === 'pacman') {
                   setActivePacman(true);
+                }
+                if (gameId === 'solitaire') {
+                  setActiveSolitaire(true);
                 }
               }}
             />
@@ -530,6 +535,9 @@ const [activeSnake, setActiveSnake] = useState(false);
           )}
           {immersiveView === 'games' && activePacman && !activeMinesweeper && !activeSnake && (
             <PacmanGame onBack={() => setActivePacman(false)} />
+          )}
+          {immersiveView === 'games' && activeSolitaire && !activeMinesweeper && !activeSnake && !activePacman && (
+            <SolitaireGame onBack={() => setActiveSolitaire(false)} />
           )}
         </ImmersiveView>
       )}
