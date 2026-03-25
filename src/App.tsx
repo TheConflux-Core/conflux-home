@@ -25,7 +25,6 @@ import FeedView from './components/FeedView';
 import LifeAutopilotView from './components/LifeAutopilotView';
 import HomeHealthView from './components/HomeHealthView';
 import DreamBuilderView from './components/DreamBuilderView';
-import AgentDiaryView from './components/AgentDiaryView';
 import ImmersiveView from './components/ImmersiveView';
 import { useEngine } from './hooks/useEngine';
 import { useToast } from './hooks/useToast';
@@ -43,7 +42,6 @@ const VIEW_BACKGROUNDS: Record<string, string> = {
   life: '/backgrounds/life-bg.png',
   home: '/backgrounds/home-bg.png',
   dreams: '/backgrounds/dreams-bg.png',
-  diary: '/backgrounds/diary-bg.png',
   agents: '/backgrounds/agents-bg.png',
   games: '/backgrounds/games-bg.png',
   feed: '/backgrounds/feed-bg.png',
@@ -409,7 +407,6 @@ export default function App() {
           {immersiveView === 'life' && <LifeAutopilotView />}
           {immersiveView === 'home' && <HomeHealthView />}
           {immersiveView === 'dreams' && <DreamBuilderView />}
-          {immersiveView === 'diary' && <AgentDiaryView />}
           {immersiveView === 'marketplace' && <Marketplace />}
           {immersiveView === 'settings' && <Settings />}
           {immersiveView === 'agents' && (

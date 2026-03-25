@@ -16,7 +16,6 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   life: { icon: '🧠', label: 'Life' },
   home: { icon: '🔧', label: 'Home Health' },
   dreams: { icon: '🎯', label: 'Dreams' },
-  diary: { icon: '📝', label: 'Diary' },
   feed: { icon: '📰', label: 'Feed' },
   games: { icon: '📖', label: 'Stories' },
   marketplace: { icon: '🛒', label: 'Market' },

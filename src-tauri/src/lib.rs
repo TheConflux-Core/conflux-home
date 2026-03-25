@@ -258,6 +258,15 @@ pub fn run() {
             commands::diary_get_all_entries,
             commands::diary_get_today,
             commands::diary_get_dashboard,
+            // Current — Intelligence Briefing
+            commands::current_daily_briefing,
+            commands::current_detect_ripples,
+            commands::current_signal_threads,
+            commands::current_create_signal_thread,
+            commands::current_ask,
+            commands::current_get_questions,
+            commands::current_cognitive_patterns,
+            commands::current_synthesize,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
