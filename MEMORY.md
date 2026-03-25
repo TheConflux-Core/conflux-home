@@ -231,13 +231,16 @@ Full session transcript and vision capture. Read this at session start alongside
 8. "Close your eyes and see it" standard for every app
 
 **Build phases from CANDLELIT_2:**
-1. Games Hub + Minesweeper (ACTIVE)
-2. Desktop Life — ambient animations
-3. One app as gold standard (Pulse)
-4. Batch the rest
+1. Games Hub + Minesweeper ✅ COMPLETE (`f5cad37`)
+2. Desktop Life — ambient animations, status rings, dock breathing
+3. One app as gold standard (Pulse/Budget)
+4. Batch the rest (Hearth, Orbit, Horizon, Current, Foundation)
 5. Google Center + Agent Chat Rework
-6. Diary Rebuild + Games Expansion
-7. Agents + Market
+6. Diary Rebuild + Games Expansion (Solitaire, Snake, Pac-Man, Stories v2)
+7. Agents + Market (Family, Bazaar, Customizer)
+
+**Detailed build spec:** `/home/calo/.openclaw/workspace/BUILD_SPEC.md`
+Every phase has CSS line estimates, component specs, agent counts, and build patterns.
 
 ---
 
