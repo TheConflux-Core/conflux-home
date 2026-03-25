@@ -8,7 +8,7 @@ interface ControlRoomProps {
 }
 
 const AGENT_COLORS: Record<string, string> = {
-  conflux: '#e2e8f0',
+  zigbot: '#22d3ee',
   helix: '#8b5cf6',
   forge: '#f97316',
   prism: '#3b82f6',
@@ -24,7 +24,6 @@ const AGENT_COLORS: Record<string, string> = {
   foundation: '#6b7280',
   catalyst: '#a855f7',
   vector: '#ef4444',
-  zigbot: '#22d3ee',
   quanta: '#22c55e',
 };
 
@@ -41,22 +40,22 @@ const AGENT_APP_MAP: Record<string, string> = {
   foundation: 'home',
 };
 
+// Hub (ZigBot/Conflux) at center, others around it
 const ORB_POSITIONS: Record<string, { x: number; y: number }> = {
-  conflux:  { x: 50, y: 45 },
-  helix:    { x: 25, y: 30 },
-  forge:    { x: 75, y: 30 },
-  prism:    { x: 35, y: 60 },
-  spectra:  { x: 65, y: 60 },
-  luma:     { x: 20, y: 55 },
-  pulse:    { x: 80, y: 50 },
-  hearth:   { x: 30, y: 20 },
-  orbit:    { x: 70, y: 75 },
-  horizon:  { x: 15, y: 75 },
-  current:  { x: 85, y: 20 },
-  catalyst: { x: 50, y: 75 },
-  vector:   { x: 50, y: 15 },
-  zigbot:   { x: 50, y: 30 },
-  quanta:   { x: 40, y: 45 },
+  zigbot:   { x: 50, y: 45 },
+  helix:    { x: 22, y: 28 },
+  forge:    { x: 78, y: 28 },
+  prism:    { x: 30, y: 65 },
+  spectra:  { x: 70, y: 65 },
+  luma:     { x: 18, y: 52 },
+  pulse:    { x: 82, y: 52 },
+  hearth:   { x: 35, y: 18 },
+  orbit:    { x: 65, y: 80 },
+  horizon:  { x: 15, y: 78 },
+  current:  { x: 85, y: 18 },
+  catalyst: { x: 50, y: 78 },
+  vector:   { x: 50, y: 12 },
+  quanta:   { x: 38, y: 42 },
 };
 
 function getOrbPosition(agent: Agent): { x: number; y: number } {
@@ -70,40 +69,33 @@ function getOrbPosition(agent: Agent): { x: number; y: number } {
 }
 
 function getOrbSize(agent: Agent): string {
-  if (agent.id === 'conflux' || agent.id === 'vector') return 'orb-hub';
+  if (agent.id === 'zigbot' || agent.id === 'vector') return 'orb-hub';
   if (agent.status === 'working') return 'orb-large';
   if (agent.status === 'thinking') return 'orb-medium';
   return 'orb-small';
 }
 
-export default function ControlRoom({ agents, onNavigate, onOpenChat }: ControlRoomProps) {
-  // Build the orb list — inject Conflux as the virtual hub if not present
-  const orbAgents = useMemo(() => {
-    const hasConflux = agents.some(a => a.id === 'conflux');
-    const confluxHub: Agent = {
-      id: 'conflux',
-      name: 'Conflux',
-      emoji: '⚡',
-      role: 'Your AI Companion',
-      description: 'The central hub',
-      status: 'idle',
-      model: 'local',
-    };
-    return hasConflux ? agents : [confluxHub, ...agents];
-  }, [agents]);
+// Display name: ZigBot → Conflux for the user
+function getDisplayName(agent: Agent): string {
+  if (agent.id === 'zigbot') return 'Conflux';
+  return agent.name;
+}
 
+export default function ControlRoom({ agents, onNavigate, onOpenChat }: ControlRoomProps) {
   const connections = useMemo(() => {
     const conns: [Agent, Agent][] = [];
-    const hub = orbAgents.find(a => a.id === 'conflux');
+    const hub = agents.find(a => a.id === 'zigbot');
     if (!hub) return conns;
 
-    for (const agent of orbAgents) {
-      if (agent.id !== 'conflux' && agent.status !== 'offline') {
+    // Hub connects to all active agents
+    for (const agent of agents) {
+      if (agent.id !== 'zigbot' && agent.status !== 'offline') {
         conns.push([hub, agent]);
       }
     }
 
-    const workAgents = orbAgents.filter(a =>
+    // Work agents chain
+    const workAgents = agents.filter(a =>
       ['helix', 'forge', 'prism', 'spectra', 'luma', 'quanta'].includes(a.id)
     );
     for (let i = 0; i < workAgents.length - 1; i++) {
@@ -122,28 +114,41 @@ export default function ControlRoom({ agents, onNavigate, onOpenChat }: ControlR
     }
   }
 
+  const visibleAgents = agents.filter(a => a.status !== 'offline');
+
   return (
     <div className="neural-mesh mesh-breathe" style={{ background: '#06060c' }}>
-      <svg className="mesh-connections" viewBox="0 0 100 100" preserveAspectRatio="none">
-        {connections.map(([from, to], i) => (
-          <line
-            key={i}
-            className={`mesh-connection ${
-              from.status === 'working' || to.status === 'working' ? 'active' : ''
-            }`}
-            x1={`${getOrbPosition(from).x}%`}
-            y1={`${getOrbPosition(from).y}%`}
-            x2={`${getOrbPosition(to).x}%`}
-            y2={`${getOrbPosition(to).y}%`}
-          />
-        ))}
+      {/* SVG Mesh Lines — raw numbers match viewBox 0 0 100 100 */}
+      <svg
+        className="mesh-connections"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+      >
+        {connections.map(([from, to], i) => {
+          const p1 = getOrbPosition(from);
+          const p2 = getOrbPosition(to);
+          const isActive = from.status === 'working' || to.status === 'working';
+          return (
+            <line
+              key={i}
+              className={`mesh-connection ${isActive ? 'active' : ''}`}
+              x1={p1.x}
+              y1={p1.y}
+              x2={p2.x}
+              y2={p2.y}
+            />
+          );
+        })}
       </svg>
 
-      {orbAgents.filter(a => a.status !== 'offline').map((agent, index) => {
+      {/* Agent Orbs */}
+      {visibleAgents.map((agent, index) => {
         const pos = getOrbPosition(agent);
         const color = AGENT_COLORS[agent.id] || DEFAULT_COLOR;
         const sizeClass = getOrbSize(agent);
         const driftClass = `orb-drift-${(index % 4) + 1}`;
+        const displayName = getDisplayName(agent);
 
         return (
           <div
@@ -168,10 +173,10 @@ export default function ControlRoom({ agents, onNavigate, onOpenChat }: ControlR
                 boxShadow: `0 0 20px ${color}20, inset 0 0 15px ${color}10`,
               }}
             >
-              {agent.emoji}
+              {agent.id === 'zigbot' ? '⚡' : agent.emoji}
             </div>
             <div className={`orb-status-dot status-${agent.status}`} />
-            <div className="orb-label">{agent.name}</div>
+            <div className="orb-label">{displayName}</div>
           </div>
         );
       })}
