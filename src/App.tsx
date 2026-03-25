@@ -12,6 +12,7 @@ import WelcomeOverlay from './components/WelcomeOverlay';
 import Settings from './components/Settings';
 import SplashScreen from './components/SplashScreen';
 import ToastContainer from './components/Toast';
+import UpdateBanner from './components/UpdateBanner';
 import FamilySwitcher from './components/FamilySwitcher';
 import FamilySetup from './components/FamilySetup';
 import GameLauncher from './components/GameLauncher';
@@ -637,6 +638,8 @@ const [activeSnake, setActiveSnake] = useState(false);
 
       {/* Agent Detail Modal — listens for conflux:agent-detail events */}
       <AgentDetail />
+
+      <UpdateBanner />
 
       {/* Toast notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
