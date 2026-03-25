@@ -16,6 +16,7 @@ import './styles-life.css'
 import './styles-orbit.css'
 import './styles-diary.css'
 import './styles/animations.css'
+import './styles/horizon-hopes.css'
 
 // Error boundary with MAXIMUM detail
 class ErrorBoundary extends React.Component<

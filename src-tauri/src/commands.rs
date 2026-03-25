@@ -2760,6 +2760,57 @@ pub async fn dream_ai_plan(dream_id: String, title: String, description: Option<
     }
     Ok(plan)
 }
+
+// ── Dreams: Horizon Commands ──
+
+#[tauri::command]
+pub fn dream_get_velocity(dream_id: String) -> Result<engine::types::DreamVelocity, String> {
+    let engine = engine::get_engine();
+    engine.db().get_dream_velocity(&dream_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn dream_get_timeline(dream_id: String) -> Result<engine::types::DreamTimeline, String> {
+    let engine = engine::get_engine();
+    engine.db().get_dream_timeline(&dream_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn dream_update_progress_manual(dream_id: String, progress_pct: f64) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().set_dream_progress(&dream_id, progress_pct).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn dream_get_all_active_with_velocity() -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let dreams_vel = engine.db().get_active_dreams_with_velocity().map_err(|e| e.to_string())?;
+    let result: Vec<serde_json::Value> = dreams_vel.into_iter().map(|(d, v)| {
+        serde_json::json!({ "dream": d, "velocity": v })
+    }).collect();
+    Ok(serde_json::json!(result))
+}
+
+#[tauri::command]
+pub async fn dream_ai_narrate(dream_id: String) -> Result<String, String> {
+    let engine = engine::get_engine();
+    let velocity = engine.db().get_dream_velocity(&dream_id).map_err(|e| e.to_string())?;
+    let dreams = engine.db().get_dreams(None).map_err(|e| e.to_string())?;
+    let title = dreams.iter().find(|d| d.id == dream_id)
+        .map(|d| d.title.clone())
+        .unwrap_or_else(|| "Your Dream".to_string());
+    let mut narrative = format!("⭐ {} — {}% complete\n\n", title, velocity.progress_pct as i64);
+    match velocity.pace.as_str() {
+        "ahead" => narrative.push_str("You're ahead of schedule! Keep the momentum going."),
+        "on_track" => narrative.push_str("You're on track. Stay consistent and you'll get there."),
+        _ => narrative.push_str("Things are moving slower than planned. Consider breaking it into smaller steps."),
+    }
+    if let Some(days) = velocity.days_remaining {
+        narrative.push_str(&format!("\n\n📅 {} days until your target date.", days));
+    }
+    Ok(narrative)
+}
+
 // ── Agent Diary ──
 
 #[tauri::command]

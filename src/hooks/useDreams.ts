@@ -1,7 +1,7 @@
-// Conflux Home — Dream Builder Hook
-import { useState, useCallback, useEffect } from 'react';
+// Conflux Home — Dream Builder Hook (Horizon)
+import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { Dream, DreamDashboard, DreamTask, DreamProgress } from '../types';
+import type { Dream, DreamMilestone, DreamTask, DreamProgress, DreamDashboard, DreamVelocity, DreamTimeline } from '../types';
 
 export function useDreams() {
   const [dashboard, setDashboard] = useState<DreamDashboard | null>(null);
@@ -12,42 +12,14 @@ export function useDreams() {
       setLoading(true);
       const d = await invoke<DreamDashboard>('dream_get_dashboard');
       setDashboard(d);
-    } catch (e) { console.error('Failed:', e); setDashboard(null); }
+    } catch (e) { console.error('Failed:', e); }
     finally { setLoading(false); }
   }, []);
 
-  // Load on mount
   useEffect(() => { load(); }, [load]);
 
-  const addDream = useCallback(async (title: string, category: string, description?: string, targetDate?: string, memberId?: string) => {
-    await invoke('dream_add', {
-      id: crypto.randomUUID(), title, category,
-      description: description ?? null, targetDate: targetDate ?? null, memberId: memberId ?? null
-    });
-    await load();
-  }, [load]);
-
-  const aiPlan = useCallback(async (dream: Dream) => {
-    return await invoke('dream_ai_plan', {
-      dreamId: dream.id, title: dream.title, category: dream.category,
-      description: dream.description, targetDate: dream.target_date
-    });
-  }, []);
-
-  const completeTask = useCallback(async (id: string) => {
-    await invoke('dream_complete_task', { id });
-    await load();
-  }, [load]);
-
-  const completeMilestone = useCallback(async (id: string) => {
-    await invoke('dream_complete_milestone', { id });
-    await load();
-  }, [load]);
-
-  const addProgress = useCallback(async (dreamId: string, note: string, progressChange: number) => {
-    await invoke('dream_add_progress', {
-      id: crypto.randomUUID(), dreamId, note, progressChange, aiInsight: null
-    });
+  const addDream = useCallback(async (id: string, title: string, description: string | null, category: string, targetDate: string | null, memberId?: string) => {
+    await invoke('dream_add', { id, memberId: memberId ?? null, title, description, category, targetDate });
     await load();
   }, [load]);
 
@@ -56,5 +28,58 @@ export function useDreams() {
     await load();
   }, [load]);
 
-  return { dashboard, loading, load, addDream, aiPlan, completeTask, completeMilestone, addProgress, deleteDream };
+  const addMilestone = useCallback(async (dreamId: string, title: string, description: string | null, targetDate: string | null, sortOrder: number) => {
+    const id = crypto.randomUUID();
+    await invoke('dream_add_milestone', { id, dreamId, title, description, targetDate, sortOrder });
+    await load();
+  }, [load]);
+
+  const completeMilestone = useCallback(async (id: string) => {
+    await invoke('dream_complete_milestone', { id });
+    await load();
+  }, [load]);
+
+  const addTask = useCallback(async (dreamId: string, milestoneId: string | null, title: string, description: string | null, dueDate: string | null, frequency: string | null) => {
+    const id = crypto.randomUUID();
+    await invoke('dream_add_task', { id, dreamId, milestoneId, title, description, dueDate, frequency });
+    await load();
+  }, [load]);
+
+  const completeTask = useCallback(async (id: string) => {
+    await invoke('dream_complete_task', { id });
+    await load();
+  }, [load]);
+
+  const addProgress = useCallback(async (dreamId: string, note: string | null, progressChange: number | null, aiInsight: string | null) => {
+    const id = crypto.randomUUID();
+    await invoke('dream_add_progress', { id, dreamId, note, progressChange, aiInsight });
+    await load();
+  }, [load]);
+
+  // Horizon extensions
+  const getVelocity = useCallback(async (dreamId: string) => {
+    return await invoke<DreamVelocity>('dream_get_velocity', { dreamId });
+  }, []);
+
+  const getTimeline = useCallback(async (dreamId: string) => {
+    return await invoke<DreamTimeline>('dream_get_timeline', { dreamId });
+  }, []);
+
+  const updateProgressManual = useCallback(async (dreamId: string, progressPct: number) => {
+    await invoke('dream_update_progress_manual', { dreamId, progressPct: progressPct / 100 });
+    await load();
+  }, [load]);
+
+  const narrate = useCallback(async (dreamId: string) => {
+    return await invoke<string>('dream_ai_narrate', { dreamId });
+  }, []);
+
+  return {
+    dashboard, loading, load,
+    addDream, deleteDream,
+    addMilestone, completeMilestone,
+    addTask, completeTask,
+    addProgress,
+    getVelocity, getTimeline, updateProgressManual, narrate,
+  };
 }
