@@ -19,6 +19,7 @@ import './styles/horizon-hopes.css'
 import './styles-current.css'
 import './styles-games.css'
 import './styles-control-room.css'
+import './styles-neural-mesh.css'
 import './styles/foundation.css'
 
 // Error boundary with MAXIMUM detail
