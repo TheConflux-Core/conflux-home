@@ -666,6 +666,42 @@ pub struct BudgetSummary {
     pub categories: Vec<CategoryTotal>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BudgetGoal {
+    pub id: String,
+    pub member_id: Option<String>,
+    pub name: String,
+    pub target_amount: f64,
+    pub current_amount: f64,
+    pub deadline: Option<String>,
+    pub monthly_allocation: Option<f64>,
+    pub auto_allocate: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BudgetPattern {
+    pub category: String,
+    pub pattern_type: String,  // "recurring", "increasing", "decreasing", "seasonal"
+    pub description: String,
+    pub avg_amount: f64,
+    pub frequency: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MonthlyReport {
+    pub month: String,
+    pub total_income: f64,
+    pub total_expenses: f64,
+    pub total_savings: f64,
+    pub net: f64,
+    pub top_categories: Vec<CategoryTotal>,
+    pub patterns: Vec<BudgetPattern>,
+    pub goals_progress: Vec<BudgetGoal>,
+    pub savings_rate: f64,
+    pub comparison_to_last_month: Option<f64>,
+}
+
 // ── Content Feed Item ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

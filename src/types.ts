@@ -705,3 +705,38 @@ export interface DiaryDashboard {
   latest_entries: DiaryEntry[];
   agents_with_entries: string[];
 }
+
+// ── Budget Pulse ──
+
+export interface BudgetGoal {
+  id: string;
+  member_id: string | null;
+  name: string;
+  target_amount: number;
+  current_amount: number;
+  deadline: string | null;
+  monthly_allocation: number | null;
+  auto_allocate: boolean;
+  created_at: string;
+}
+
+export interface BudgetPattern {
+  category: string;
+  pattern_type: string;
+  description: string;
+  avg_amount: number;
+  frequency: string;
+}
+
+export interface MonthlyReport {
+  month: string;
+  total_income: number;
+  total_expenses: number;
+  total_savings: number;
+  net: number;
+  top_categories: Array<{ category: string; total: number }>;
+  patterns: BudgetPattern[];
+  goals_progress: BudgetGoal[];
+  savings_rate: number;
+  comparison_to_last_month: number | null;
+}
