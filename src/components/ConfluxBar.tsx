@@ -19,6 +19,7 @@ interface AppItem {
 const APP_ICONS: Record<View, { icon: string; label: string }> = {
   dashboard: { icon: '🏠', label: 'Home' },
   chat: { icon: '💬', label: 'Chat' },
+  google: { icon: '🔍', label: 'Google' },
   agents: { icon: '🧩', label: 'Agents' },
   kitchen: { icon: '🍳', label: 'Kitchen' },
   budget: { icon: '💰', label: 'Budget' },
@@ -34,6 +35,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
 
 const ALL_APPS: AppItem[] = [
   { id: 'chat', icon: '💬', label: 'Chat', category: 'work', description: 'Talk with your AI agents' },
+  { id: 'google', icon: '🔍', label: 'Google', category: 'work', description: 'Calendar, Mail & Drive' },
   { id: 'agents', icon: '🧩', label: 'Agent Library', category: 'work', description: 'Browse and install agents' },
   { id: 'life', icon: '🧠', label: 'Life Autopilot', category: 'life', description: 'Document AI & smart reminders' },
   { id: 'home', icon: '🔧', label: 'Home Health', category: 'life', description: 'Bills, maintenance & appliances' },

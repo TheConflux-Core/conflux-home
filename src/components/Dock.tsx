@@ -10,6 +10,7 @@ interface DockProps {
 const APP_ICONS: Record<View, { icon: string; label: string }> = {
   dashboard: { icon: '🏠', label: 'Home' },
   chat: { icon: '💬', label: 'Chat' },
+  google: { icon: '🔍', label: 'Google' },
   agents: { icon: '🧩', label: 'Agents' },
   kitchen: { icon: '🍳', label: 'Kitchen' },
   budget: { icon: '💰', label: 'Budget' },
