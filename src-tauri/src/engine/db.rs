@@ -1799,6 +1799,191 @@ impl EngineDb {
         Ok(())
     }
 
+    // ── Budget Summary ──
+
+    pub fn get_budget_summary(&self, month: &str) -> Result<super::types::BudgetSummary> {
+        let conn = self.conn();
+
+        let total_income: f64 = conn.query_row(
+            "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE entry_type = 'income' AND strftime('%Y-%m', date) = ?1",
+            params![month], |row| row.get(0)
+        ).unwrap_or(0.0);
+
+        let total_expenses: f64 = conn.query_row(
+            "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE entry_type = 'expense' AND strftime('%Y-%m', date) = ?1",
+            params![month], |row| row.get(0)
+        ).unwrap_or(0.0);
+
+        let total_savings: f64 = conn.query_row(
+            "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE entry_type = 'savings' AND strftime('%Y-%m', date) = ?1",
+            params![month], |row| row.get(0)
+        ).unwrap_or(0.0);
+
+        let mut cat_stmt = conn.prepare(
+            "SELECT category, SUM(amount) as total FROM budget_entries
+             WHERE entry_type = 'expense' AND strftime('%Y-%m', date) = ?1
+             GROUP BY category ORDER BY total DESC"
+        )?;
+        let cat_rows = cat_stmt.query_map(params![month], |row| {
+            Ok(super::types::CategoryTotal {
+                category: row.get(0)?,
+                total: row.get(1)?,
+            })
+        })?;
+        let mut categories = Vec::new();
+        for r in cat_rows { categories.push(r?); }
+
+        Ok(super::types::BudgetSummary {
+            month: month.to_string(),
+            total_income,
+            total_expenses,
+            total_savings,
+            net: total_income - total_expenses - total_savings,
+            categories,
+        })
+    }
+
+    // ── Budget Goals (Pulse) ──
+
+    pub fn create_budget_goal(&self, id: &str, member_id: Option<&str>, name: &str,
+        target_amount: f64, deadline: Option<&str>, monthly_allocation: Option<f64>) -> Result<()> {
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO budget_goals (id, member_id, name, target_amount, deadline, monthly_allocation) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, member_id, name, target_amount, deadline, monthly_allocation]
+        )?;
+        Ok(())
+    }
+
+    pub fn get_budget_goals(&self, member_id: Option<&str>) -> Result<Vec<super::types::BudgetGoal>> {
+        let conn = self.conn();
+        let mut result = Vec::new();
+        if let Some(mid) = member_id {
+            let mut stmt = conn.prepare(
+                "SELECT id, member_id, name, target_amount, current_amount, deadline, monthly_allocation, auto_allocate, created_at FROM budget_goals WHERE member_id = ?1 ORDER BY created_at DESC"
+            )?;
+            let rows = stmt.query_map(params![mid], |row| {
+                Ok(super::types::BudgetGoal {
+                    id: row.get(0)?, member_id: row.get(1)?, name: row.get(2)?,
+                    target_amount: row.get(3)?, current_amount: row.get(4)?,
+                    deadline: row.get(5)?, monthly_allocation: row.get(6)?,
+                    auto_allocate: row.get::<_, i64>(7)? != 0, created_at: row.get(8)?,
+                })
+            })?;
+            for r in rows { result.push(r?); }
+        } else {
+            let mut stmt = conn.prepare(
+                "SELECT id, member_id, name, target_amount, current_amount, deadline, monthly_allocation, auto_allocate, created_at FROM budget_goals ORDER BY created_at DESC"
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok(super::types::BudgetGoal {
+                    id: row.get(0)?, member_id: row.get(1)?, name: row.get(2)?,
+                    target_amount: row.get(3)?, current_amount: row.get(4)?,
+                    deadline: row.get(5)?, monthly_allocation: row.get(6)?,
+                    auto_allocate: row.get::<_, i64>(7)? != 0, created_at: row.get(8)?,
+                })
+            })?;
+            for r in rows { result.push(r?); }
+        }
+        Ok(result)
+    }
+
+    pub fn update_budget_goal(&self, id: &str, current_amount: f64) -> Result<()> {
+        let conn = self.conn();
+        conn.execute("UPDATE budget_goals SET current_amount = ?1 WHERE id = ?2", params![current_amount, id])?;
+        Ok(())
+    }
+
+    pub fn delete_budget_goal(&self, id: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute("DELETE FROM budget_goals WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    pub fn detect_budget_patterns(&self, member_id: Option<&str>) -> Result<Vec<super::types::BudgetPattern>> {
+        let conn = self.conn();
+        let mut result = Vec::new();
+        if let Some(mid) = member_id {
+            let mut stmt = conn.prepare(
+                "SELECT category, COUNT(DISTINCT strftime('%Y-%m', date)) as months, AVG(amount) as avg_amt
+                 FROM budget_entries WHERE entry_type = 'expense' AND member_id = ?1
+                 GROUP BY category HAVING months >= 3 ORDER BY avg_amt DESC LIMIT 5"
+            )?;
+            let rows = stmt.query_map(params![mid], |row| {
+                let category: String = row.get(0)?;
+                let months: i64 = row.get(1)?;
+                let avg: f64 = row.get(2)?;
+                Ok(super::types::BudgetPattern {
+                    category: category.clone(),
+                    pattern_type: "recurring".to_string(),
+                    description: format!("${:.2}/mo avg in {} ({} months)", avg, category, months),
+                    avg_amount: avg,
+                    frequency: format!("{} months", months),
+                })
+            })?;
+            for r in rows { result.push(r?); }
+        } else {
+            let mut stmt = conn.prepare(
+                "SELECT category, COUNT(DISTINCT strftime('%Y-%m', date)) as months, AVG(amount) as avg_amt
+                 FROM budget_entries WHERE entry_type = 'expense'
+                 GROUP BY category HAVING months >= 3 ORDER BY avg_amt DESC LIMIT 5"
+            )?;
+            let rows = stmt.query_map([], |row| {
+                let category: String = row.get(0)?;
+                let months: i64 = row.get(1)?;
+                let avg: f64 = row.get(2)?;
+                Ok(super::types::BudgetPattern {
+                    category: category.clone(),
+                    pattern_type: "recurring".to_string(),
+                    description: format!("${:.2}/mo avg in {} ({} months)", avg, category, months),
+                    avg_amount: avg,
+                    frequency: format!("{} months", months),
+                })
+            })?;
+            for r in rows { result.push(r?); }
+        }
+        Ok(result)
+    }
+
+    pub fn can_afford(&self, amount: f64, month: &str) -> Result<bool> {
+        let conn = self.conn();
+        let income: f64 = conn.query_row(
+            "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE entry_type = 'income' AND strftime('%Y-%m', date) = ?1",
+            params![month], |row| row.get(0)
+        ).unwrap_or(0.0);
+        let expenses: f64 = conn.query_row(
+            "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE entry_type = 'expense' AND strftime('%Y-%m', date) = ?1",
+            params![month], |row| row.get(0)
+        ).unwrap_or(0.0);
+        Ok(income - expenses >= amount)
+    }
+
+    pub fn get_monthly_report(&self, month: &str) -> Result<super::types::MonthlyReport> {
+        let conn = self.conn();
+        let summary = self.get_budget_summary(month)?;
+        let patterns = self.detect_budget_patterns(None)?;
+        let goals = self.get_budget_goals(None)?;
+        // Last month comparison
+        let parts: Vec<&str> = month.split('-').collect();
+        let y: i32 = parts[0].parse().unwrap_or(2024);
+        let m: u32 = parts[1].parse().unwrap_or(1);
+        let prev = if m == 1 { format!("{}-12", y - 1) } else { format!("{}-{:02}", y, m - 1) };
+        let prev_summary = self.get_budget_summary(&prev).ok();
+        let comparison = prev_summary.map(|p| summary.net - p.net);
+        Ok(super::types::MonthlyReport {
+            month: month.to_string(),
+            total_income: summary.total_income,
+            total_expenses: summary.total_expenses,
+            total_savings: summary.total_savings,
+            net: summary.net,
+            top_categories: summary.categories,
+            patterns,
+            goals_progress: goals,
+            savings_rate: if summary.total_income > 0.0 { (summary.total_savings / summary.total_income) * 100.0 } else { 0.0 },
+            comparison_to_last_month: comparison,
+        })
+    }
+
     // ============================================================
     // AGENT TEMPLATES
     // ============================================================

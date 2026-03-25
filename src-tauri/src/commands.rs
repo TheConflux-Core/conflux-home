@@ -1598,6 +1598,120 @@ pub fn budget_delete_entry(id: String) -> Result<(), String> {
     Ok(())
 }
 
+// ── Budget Pulse Commands ──
+
+#[tauri::command]
+pub fn budget_parse_natural(input: String) -> Result<serde_json::Value, String> {
+    // Parse natural language like "spent $45 on groceries" or "got paid $2000"
+    let lower = input.to_lowercase();
+    let mut entry_type = "expense";
+    let mut amount = 0.0;
+    let mut category = "other";
+    let mut description = input.clone();
+
+    // Detect type
+    if lower.contains("income") || lower.contains("paid") || lower.contains("earned") || lower.contains("salary") || lower.contains("got paid") {
+        entry_type = "income";
+    } else if lower.contains("save") || lower.contains("invest") || lower.contains("savings") {
+        entry_type = "savings";
+    }
+
+    // Extract amount
+    let re = regex::Regex::new(r"\$?([\d,]+\.?\d*)").map_err(|e| e.to_string())?;
+    if let Some(caps) = re.captures(&lower) {
+        let num_str = caps[1].replace(",", "");
+        amount = num_str.parse().unwrap_or(0.0);
+    }
+
+    // Detect category
+    let cat_map = [
+        ("grocery|groceries|food|eating", "groceries"),
+        ("rent|mortgage|housing", "housing"),
+        ("gas|fuel|car|transport|uber|lyft", "transportation"),
+        ("electric|water|utility|internet|phone|bill", "utilities"),
+        ("movie|entertainment|game|netflix|spotify", "entertainment"),
+        ("doctor|health|medical|pharmacy|medicine", "healthcare"),
+        ("clothes|clothing|shoes", "clothing"),
+        ("restaurant|dinner|lunch|coffee|starbucks", "dining"),
+        ("amazon|shopping|store", "shopping"),
+        ("salary|paycheck|freelance|income", "salary"),
+        ("save|invest|savings", "savings"),
+    ];
+    for (pattern, cat) in cat_map {
+        for word in pattern.split('|') {
+            if lower.contains(word) {
+                category = cat;
+                break;
+            }
+        }
+        if category != "other" { break; }
+    }
+
+    Ok(serde_json::json!({
+        "entry_type": entry_type,
+        "category": category,
+        "amount": amount,
+        "description": description,
+    }))
+}
+
+#[tauri::command]
+pub fn budget_detect_patterns(member_id: Option<String>) -> Result<Vec<engine::types::BudgetPattern>, String> {
+    let engine = engine::get_engine();
+    engine.db().detect_budget_patterns(member_id.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn budget_can_afford(amount: f64, month: String) -> Result<bool, String> {
+    let engine = engine::get_engine();
+    engine.db().can_afford(amount, &month).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn budget_create_goal(name: String, target_amount: f64, deadline: Option<String>, monthly_allocation: Option<f64>, member_id: Option<String>) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    engine.db().create_budget_goal(&id, member_id.as_deref(), &name, target_amount, deadline.as_deref(), monthly_allocation).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn budget_get_goals(member_id: Option<String>) -> Result<Vec<engine::types::BudgetGoal>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_budget_goals(member_id.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn budget_update_goal(id: String, current_amount: f64) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().update_budget_goal(&id, current_amount).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn budget_delete_goal(id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().delete_budget_goal(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn budget_goal_status(member_id: Option<String>) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let goals = engine.db().get_budget_goals(member_id.as_deref()).map_err(|e| e.to_string())?;
+    let total_target: f64 = goals.iter().map(|g| g.target_amount).sum();
+    let total_current: f64 = goals.iter().map(|g| g.current_amount).sum();
+    Ok(serde_json::json!({
+        "total_goals": goals.len(),
+        "total_target": total_target,
+        "total_current": total_current,
+        "overall_progress": if total_target > 0.0 { (total_current / total_target) * 100.0 } else { 0.0 },
+    }))
+}
+
+#[tauri::command]
+pub fn budget_generate_report(month: String) -> Result<engine::types::MonthlyReport, String> {
+    let engine = engine::get_engine();
+    engine.db().get_monthly_report(&month).map_err(|e| e.to_string())
+}
+
 // ── Content Feed ──
 
 #[tauri::command]

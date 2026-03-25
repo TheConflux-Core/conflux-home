@@ -30,6 +30,7 @@ tauri-plugin-fs = "2"
 # Conflux Engine dependencies
 rusqlite = { version = "0.31", features = ["bundled-full"] }  # SQLite with all extensions (FTS5, JSON1, etc.)
 uuid = { version = "1", features = ["v4"] }               # UUID generation
+regex = "1"                                               # Natural language parsing
 chrono = { version = "0.4", features = ["serde"] }        # Timestamps
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls", "blocking"] }  # HTTP client (rustls, no OpenSSL)
 tokio = { version = "1", features = ["full"] }            # Async runtime

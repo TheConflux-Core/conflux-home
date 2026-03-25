@@ -1067,6 +1067,20 @@ CREATE INDEX IF NOT EXISTS idx_budget_member ON budget_entries(member_id);
 CREATE INDEX IF NOT EXISTS idx_budget_date ON budget_entries(date);
 CREATE INDEX IF NOT EXISTS idx_budget_category ON budget_entries(category);
 
+-- Budget Goals (Pulse)
+CREATE TABLE IF NOT EXISTS budget_goals (
+    id TEXT PRIMARY KEY,
+    member_id TEXT,
+    name TEXT NOT NULL,
+    target_amount REAL NOT NULL,
+    current_amount REAL NOT NULL DEFAULT 0,
+    deadline TEXT,
+    monthly_allocation REAL,
+    auto_allocate INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_budget_goals_member ON budget_goals(member_id);
+
 -- ============================================================
 -- SMART KITCHEN — Meal Management System
 -- ============================================================
