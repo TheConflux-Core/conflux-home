@@ -9,6 +9,7 @@ pub mod tools;
 pub mod memory;
 pub mod google;
 pub mod cron;
+pub mod orbit_prompts;
 
 pub use db::EngineDb;
 

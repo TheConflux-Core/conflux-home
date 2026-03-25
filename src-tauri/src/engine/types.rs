@@ -943,6 +943,84 @@ pub struct LifeAutopilotDashboard {
     pub overdue_reminders: Vec<LifeReminder>,
 }
 
+// ── Life Autopilot: Orbit ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LifeTask {
+    pub id: String,
+    pub title: String,
+    pub category: Option<String>,
+    pub priority: String,
+    pub status: String,
+    pub due_date: Option<String>,
+    pub energy_type: Option<String>,
+    pub completed_at: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LifeHabit {
+    pub id: String,
+    pub name: String,
+    pub category: Option<String>,
+    pub frequency: String,
+    pub target_count: i64,
+    pub streak: i64,
+    pub best_streak: i64,
+    pub active: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LifeHabitLog {
+    pub id: String,
+    pub habit_id: String,
+    pub logged_date: String,
+    pub count: i64,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LifeDailyFocus {
+    pub id: String,
+    pub focus_date: String,
+    pub task_id: Option<String>,
+    pub position: i64,
+    pub task: Option<LifeTask>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LifeSchedule {
+    pub id: String,
+    pub task_id: Option<String>,
+    pub suggested_time: Option<String>,
+    pub energy_match: Option<String>,
+    pub reason: Option<String>,
+    pub accepted: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LifeNudge {
+    pub id: String,
+    pub nudge_type: String,
+    pub message: String,
+    pub action_label: Option<String>,
+    pub dismissed: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrbitDashboard {
+    pub today_focus: Vec<LifeDailyFocus>,
+    pub pending_tasks: Vec<LifeTask>,
+    pub active_habits: Vec<LifeHabit>,
+    pub nudges: Vec<LifeNudge>,
+    pub streak_total: i64,
+    pub completed_today: i64,
+}
+
 // ── Meal with ingredients (joined) ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -13,6 +13,7 @@ import './styles-budget.css'
 import './styles/budget-pulse.css'
 import './styles-feed.css'
 import './styles-life.css'
+import './styles-orbit.css'
 import './styles-diary.css'
 import './styles/animations.css'
 
