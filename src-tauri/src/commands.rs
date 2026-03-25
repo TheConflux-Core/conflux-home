@@ -820,10 +820,13 @@ pub fn engine_google_get_credentials() -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
     let client_id = engine.db().get_config("google_client_id").map_err(|e| e.to_string())?.unwrap_or_default();
     let client_secret = engine.db().get_config("google_client_secret").map_err(|e| e.to_string())?.unwrap_or_default();
+    // Always has_credentials — built-in defaults are used if user hasn't set custom ones
+    let has_custom = !client_id.is_empty() && !client_secret.is_empty();
     Ok(serde_json::json!({
         "client_id": client_id,
         "client_secret": client_secret,
-        "has_credentials": !client_id.is_empty() && !client_secret.is_empty(),
+        "has_credentials": true,
+        "using_builtin": !has_custom,
     }))
 }
 

@@ -26,7 +26,24 @@ const AUTH_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const SCOPES: &str = "https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/spreadsheets";
 
+// Built-in OAuth credentials — Conflux Home registered Google Cloud app.
+// Users never need to enter their own credentials.
+const DEFAULT_CLIENT_ID: &str = "372361303204-ad5o8asv9qmbq6o12d954et8gsj82sft.apps.googleusercontent.com";
+const DEFAULT_CLIENT_SECRET: &str = "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";
+
 const OAUTH_PORT: u16 = 8899;
+
+/// Get the effective client ID — DB override or built-in default.
+fn get_client_id(db: &EngineDb) -> Result<String> {
+    let db_id = db.get_config("google_client_id")?;
+    Ok(db_id.filter(|s| !s.is_empty()).unwrap_or_else(|| DEFAULT_CLIENT_ID.to_string()))
+}
+
+/// Get the effective client secret — DB override or built-in default.
+fn get_client_secret(db: &EngineDb) -> Result<String> {
+    let db_secret = db.get_config("google_client_secret")?;
+    Ok(db_secret.filter(|s| !s.is_empty()).unwrap_or_else(|| DEFAULT_CLIENT_SECRET.to_string()))
+}
 
 /// Accept a TCP connection with a timeout. Uses non-blocking mode + polling.
 fn accept_with_timeout(listener: &TcpListener, timeout_secs: u64) -> Option<(std::net::TcpStream, std::net::SocketAddr)> {
@@ -79,8 +96,7 @@ struct TokenResponse {
 
 /// Start the OAuth2 flow. Returns the URL the user should open in their browser.
 pub fn get_auth_url(db: &EngineDb) -> Result<String> {
-    let client_id = db.get_config("google_client_id")?
-        .ok_or_else(|| anyhow::anyhow!("Google Client ID not configured. Add it in Settings → Google."))?;
+    let client_id = get_client_id(db)?;
 
     let url = format!(
         "{}?client_id={}&redirect_uri={}&response_type=code&scope={}&access_type=offline&prompt=consent",
@@ -96,10 +112,8 @@ pub fn get_auth_url(db: &EngineDb) -> Result<String> {
 /// Start a temporary HTTP server, wait for the OAuth callback, exchange the code for tokens.
 /// This blocks until the callback is received (or times out after 120 seconds).
 pub fn handle_oauth_callback(db: &EngineDb) -> Result<GoogleTokens> {
-    let client_id = db.get_config("google_client_id")?
-        .ok_or_else(|| anyhow::anyhow!("Google Client ID not configured"))?;
-    let client_secret = db.get_config("google_client_secret")?
-        .ok_or_else(|| anyhow::anyhow!("Google Client Secret not configured"))?;
+    let client_id = get_client_id(db)?;
+    let client_secret = get_client_secret(db)?;
 
     // Start temp server
     let listener = TcpListener::bind(format!("127.0.0.1:{}", OAUTH_PORT))
@@ -297,10 +311,8 @@ pub fn get_valid_token(db: &EngineDb) -> Result<String> {
 }
 
 fn refresh_access_token(db: &EngineDb, tokens: &GoogleTokens) -> Result<GoogleTokens> {
-    let client_id = db.get_config("google_client_id")?
-        .ok_or_else(|| anyhow::anyhow!("Google Client ID not configured"))?;
-    let client_secret = db.get_config("google_client_secret")?
-        .ok_or_else(|| anyhow::anyhow!("Google Client Secret not configured"))?;
+    let client_id = get_client_id(db)?;
+    let client_secret = get_client_secret(db)?;
 
     let client = reqwest::blocking::Client::new();
     let params = [

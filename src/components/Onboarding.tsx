@@ -57,16 +57,6 @@ const ALL_AGENTS: Record<string, AgentInfo> = {
   catalyst: { id: 'catalyst', name: 'Catalyst', emoji: '⚡', role: 'Everyday Assistant', why: 'Helps with daily planning, organization, and quick tasks' },
 };
 
-const AGENT_EMOJIS = Object.values(ALL_AGENTS).map(a => a.emoji);
-
-const BACKGROUND_EMOJIS = AGENT_EMOJIS.map((emoji, i) => ({
-  emoji,
-  left: `${10 + (i * 8) % 80}%`,
-  top: `${15 + ((i * 13) % 60)}%`,
-  delay: i * 200,
-  size: 28 + (i % 3) * 8,
-}));
-
 // ── Keyword-based conversation responses ──
 
 const KEYWORD_RESPONSES = [
@@ -285,11 +275,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [flashingAgent, setFlashingAgent] = useState<string | null>(null);
 
   // Step 4 — Connect Google
-  const [googleStatus, setGoogleStatus] = useState<'loading' | 'needsCredentials' | 'canConnect' | 'connected' | 'error'>('loading');
+  const [googleStatus, setGoogleStatus] = useState<'loading' | 'canConnect' | 'connected' | 'error'>('loading');
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
-  const [googleClientId, setGoogleClientId] = useState('');
-  const [googleClientSecret, setGoogleClientSecret] = useState('');
-  const [showGoogleAuthForm, setShowGoogleAuthForm] = useState(false);
 
   // Step 5 — Alive (formerly step 4)
   const [alivePhase, setAlivePhase] = useState<'loading' | 'ready'>('loading');
@@ -427,43 +414,25 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   // ── Google Connect (Step 4) Hooks & Handlers ──
   useEffect(() => {
     if (step === 4) {
-      const checkGoogleCredentials = async () => {
+      const checkGoogle = async () => {
         try {
           setGoogleStatus('loading');
-          const creds: any = await invoke('engine_google_get_credentials');
-          if (creds && creds.has_credentials) {
-            setGoogleClientId(creds.client_id || '');
-            setGoogleClientSecret(creds.client_secret || '');
-            const isConnected = await invoke('engine_google_is_connected');
-            if (isConnected) {
-              const email = await invoke('engine_google_get_email');
-              setGoogleEmail(email as string);
-              setGoogleStatus('connected');
-            } else {
-              setGoogleStatus('canConnect');
-            }
+          const isConnected = await invoke('engine_google_is_connected');
+          if (isConnected) {
+            const email = await invoke('engine_google_get_email');
+            setGoogleEmail(email as string);
+            setGoogleStatus('connected');
           } else {
-            setGoogleStatus('needsCredentials');
+            setGoogleStatus('canConnect');
           }
         } catch (error) {
-          console.error("Error getting Google credentials:", error);
-          setGoogleStatus('error'); // Handle error state
+          console.error("Error checking Google status:", error);
+          setGoogleStatus('canConnect');
         }
       };
-      checkGoogleCredentials();
+      checkGoogle();
     }
   }, [step]);
-
-  const handleSetGoogleCredentials = async () => {
-    try {
-      await invoke('engine_google_set_credentials', { clientId: googleClientId, clientSecret: googleClientSecret });
-      setShowGoogleAuthForm(false);
-      setGoogleStatus('canConnect');
-    } catch (error) {
-      console.error("Error setting Google credentials:", error);
-      // Optionally, show an error message to the user
-    }
-  };
 
   const handleGoogleConnect = async () => {
     try {
@@ -532,29 +501,6 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     <div style={{ textAlign: 'center', maxWidth: 420, width: '100%', margin: '0 auto', position: 'relative' }}>
       {/* Floating particles */}
       <Particles count={15} />
-
-      {/* Background agent emojis — appear as user types */}
-      {userName.length > 0 && (
-        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
-          {BACKGROUND_EMOJIS.map((b, i) => (
-            <span
-              key={i}
-              className="animate-fade-in"
-              style={{
-                position: 'absolute',
-                left: b.left,
-                top: b.top,
-                fontSize: b.size,
-                opacity: 0.08,
-                '--stagger-delay': `${b.delay}ms`,
-                userSelect: 'none',
-              } as React.CSSProperties}
-            >
-              {b.emoji}
-            </span>
-          ))}
-        </div>
-      )}
 
       <div className="animate-scale-in" style={{ marginBottom: 24 }}>
         <img
@@ -1117,82 +1063,6 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             </div>
         )}
 
-        {googleStatus === 'needsCredentials' && !showGoogleAuthForm && (
-            <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-                <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
-                    To connect, you'll need to provide your Google OAuth 2.0 credentials.
-                </p>
-                <button
-                    className="next-btn"
-                    onClick={() => setShowGoogleAuthForm(true)}
-                    style={{ width: 'auto', padding: '10px 24px' }}
-                >
-                    Enter Credentials
-                </button>
-            </div>
-        )}
-
-        {(googleStatus === 'needsCredentials' || showGoogleAuthForm) && (
-             <div className="animate-fade-in">
-                <div
-                    style={{
-                        background: 'var(--bg-primary)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 14,
-                        padding: 20,
-                        textAlign: 'left',
-                        marginBottom: 20,
-                    }}
-                >
-                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.5 }}>
-                        Create OAuth 2.0 credentials in Google Cloud Console → Create OAuth Client ID → Desktop app.
-                        <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer"
-                           style={{ color: 'var(--accent-primary)', textDecoration: 'underline', marginLeft: 5 }}>
-                            Google Cloud Console
-                        </a>
-                    </p>
-                    <div style={{ marginBottom: 12 }}>
-                        <label style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Client ID</label>
-                        <input
-                            type="text"
-                            value={googleClientId}
-                            onChange={(e) => setGoogleClientId(e.target.value)}
-                            placeholder="Your Google Client ID"
-                            style={{
-                                width: '100%', padding: '10px 12px', borderRadius: 8,
-                                border: '1px solid var(--border)', background: 'var(--bg-input)',
-                                color: 'var(--text-primary)', fontSize: 14, outline: 'none',
-                                boxSizing: 'border-box',
-                            }}
-                        />
-                    </div>
-                    <div>
-                        <label style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Client Secret</label>
-                        <input
-                            type="text"
-                            value={googleClientSecret}
-                            onChange={(e) => setGoogleClientSecret(e.target.value)}
-                            placeholder="Your Google Client Secret"
-                            style={{
-                                width: '100%', padding: '10px 12px', borderRadius: 8,
-                                border: '1px solid var(--border)', background: 'var(--bg-input)',
-                                color: 'var(--text-primary)', fontSize: 14, outline: 'none',
-                                boxSizing: 'border-box',
-                            }}
-                        />
-                    </div>
-                </div>
-                <button
-                    className="next-btn"
-                    onClick={handleSetGoogleCredentials}
-                    disabled={!googleClientId || !googleClientSecret}
-                    style={{ width: 'auto', padding: '10px 28px', opacity: (googleClientId && googleClientSecret) ? 1 : 0.5 }}
-                >
-                    Save Credentials
-                </button>
-            </div>
-        )}
-        
         {googleStatus === 'canConnect' && (
             <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
                 <button
@@ -1222,7 +1092,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 </p>
                 <button
                     className="next-btn"
-                    onClick={() => setGoogleStatus('needsCredentials')}
+                    onClick={() => setGoogleStatus('canConnect')}
                     style={{ width: 'auto', padding: '10px 24px' }}
                 >
                     Try Again
@@ -1238,7 +1108,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
     return (
       <div style={{
-        textAlign: 'center', maxWidth: 420, position: 'relative',
+        textAlign: 'center', maxWidth: 420, width: '100%', margin: '0 auto', position: 'relative',
         minHeight: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       }}>
         {/* Confetti on ready */}
