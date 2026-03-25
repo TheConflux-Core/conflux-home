@@ -706,6 +706,58 @@ export interface DiaryDashboard {
   agents_with_entries: string[];
 }
 
+// ── Kitchen Hearth ──
+
+export interface MealPhoto {
+  id: string;
+  meal_id: string;
+  photo_url: string;
+  caption: string | null;
+  ai_tags: string | null;
+  taken_at: string | null;
+  created_at: string;
+}
+
+export interface HomeMenuItem {
+  meal_id: string;
+  name: string;
+  emoji: string;
+  reason: string;
+  estimated_minutes: number;
+  missing_ingredients: string[];
+}
+
+export interface PantryHeatItem {
+  name: string;
+  freshness: number;
+  days_until_expiry: number | null;
+  location: string;
+}
+
+export interface CookingStep {
+  step_number: number;
+  instruction: string;
+  duration_minutes: number | null;
+  timer_alert: boolean;
+}
+
+export interface KitchenDigest {
+  week_start: string;
+  meals_cooked: number;
+  variety_score: number;
+  unique_cuisines: number;
+  estimated_savings: number;
+  top_cuisine: string | null;
+  suggestion: string;
+}
+
+export interface KitchenNudge {
+  nudge_type: string;
+  message: string;
+  action_label: string;
+  emoji: string;
+}
+
 // ── Budget Pulse ──
 
 export interface BudgetGoal {

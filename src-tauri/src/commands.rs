@@ -1476,6 +1476,153 @@ pub fn kitchen_get_inventory(location: Option<String>) -> Result<Vec<engine::typ
     engine.db().get_inventory(location.as_deref()).map_err(|e| e.to_string())
 }
 
+// ── Kitchen Hearth Commands ──
+
+#[tauri::command]
+pub fn kitchen_home_menu() -> Result<Vec<engine::types::HomeMenuItem>, String> {
+    let engine = engine::get_engine();
+    let _inventory = engine.db().get_inventory(None).unwrap_or_default();
+    let meals = engine.db().get_meals(None, None, false).unwrap_or_default();
+    let mut menu = Vec::new();
+    for meal in meals.iter().take(5) {
+        menu.push(engine::types::HomeMenuItem {
+            meal_id: meal.id.clone(),
+            name: meal.name.clone(),
+            emoji: "🍽️".to_string(),
+            reason: "Ready to cook".to_string(),
+            estimated_minutes: 30,
+            missing_ingredients: Vec::new(),
+        });
+    }
+    Ok(menu)
+}
+
+#[tauri::command]
+pub fn kitchen_upload_meal_photo(meal_id: String, photo_url: String, caption: Option<String>) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    engine.db().add_meal_photo(&id, &meal_id, &photo_url, caption.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn kitchen_identify_meal_from_photo(_photo_url: String) -> Result<serde_json::Value, String> {
+    // Stub — returns placeholder identification
+    Ok(serde_json::json!({
+        "name": "Identified Meal",
+        "confidence": 0.0,
+        "note": "AI identification coming soon"
+    }))
+}
+
+#[tauri::command]
+pub fn kitchen_plan_week_natural(input: String) -> Result<serde_json::Value, String> {
+    Ok(serde_json::json!({
+        "parsed": true,
+        "input": input,
+        "note": "Natural language meal planning coming soon"
+    }))
+}
+
+#[tauri::command]
+pub fn kitchen_suggest_meal_natural(constraints: String) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let meals = engine.db().get_meals(None, None, false).unwrap_or_default();
+    let suggestion = meals.first().map(|m| serde_json::json!({
+        "meal_id": m.id,
+        "name": m.name,
+        "reason": format!("Based on: {}", constraints),
+    })).unwrap_or(serde_json::json!({"note": "No meals available"}));
+    Ok(suggestion)
+}
+
+#[tauri::command]
+pub fn kitchen_pantry_heatmap() -> Result<Vec<engine::types::PantryHeatItem>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_pantry_heatmap().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn kitchen_use_expiring() -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let expiring = engine.db().get_expiring_items(3).unwrap_or_default();
+    Ok(serde_json::json!({
+        "expiring_count": expiring.len(),
+        "items": expiring.iter().map(|i| serde_json::json!({
+            "name": i.name,
+            "expiry": i.expiry_date,
+        })).collect::<Vec<_>>(),
+    }))
+}
+
+#[tauri::command]
+pub fn kitchen_get_cooking_steps(meal_id: String) -> Result<Vec<engine::types::CookingStep>, String> {
+    let engine = engine::get_engine();
+    let meal = engine.db().get_meal_with_ingredients(&meal_id).map_err(|e| e.to_string())?;
+    if let Some(m) = meal {
+        // Parse instructions into steps
+        let instructions = m.meal.instructions.unwrap_or_default();
+        let steps: Vec<engine::types::CookingStep> = instructions
+            .split('\n')
+            .enumerate()
+            .filter(|(_, s)| !s.trim().is_empty())
+            .map(|(i, s)| engine::types::CookingStep {
+                step_number: (i + 1) as i64,
+                instruction: s.trim().to_string(),
+                duration_minutes: None,
+                timer_alert: false,
+            })
+            .collect();
+        Ok(steps)
+    } else {
+        Err("Meal not found".to_string())
+    }
+}
+
+#[tauri::command]
+pub fn kitchen_weekly_digest(week_start: String) -> Result<engine::types::KitchenDigest, String> {
+    let engine = engine::get_engine();
+    let meals_cooked = engine.db().get_weekly_plan(&week_start)
+        .map(|p| p.meal_count)
+        .unwrap_or(0);
+    Ok(engine::types::KitchenDigest {
+        week_start,
+        meals_cooked,
+        variety_score: if meals_cooked > 0 { (meals_cooked as f64 / 21.0 * 100.0).min(100.0) } else { 0.0 },
+        unique_cuisines: 1,
+        estimated_savings: meals_cooked as f64 * 15.0,
+        top_cuisine: None,
+        suggestion: if meals_cooked < 5 { "Try planning more meals this week!".to_string() } else { "Great variety this week!".to_string() },
+    })
+}
+
+#[tauri::command]
+pub fn kitchen_get_nudges() -> Result<Vec<engine::types::KitchenNudge>, String> {
+    let engine = engine::get_engine();
+    let mut nudges = Vec::new();
+    let expiring = engine.db().get_expiring_items(2).unwrap_or_default();
+    if !expiring.is_empty() {
+        nudges.push(engine::types::KitchenNudge {
+            nudge_type: "expiring".to_string(),
+            message: format!("{} items expiring soon!", expiring.len()),
+            action_label: "View Items".to_string(),
+            emoji: "⚠️".to_string(),
+        });
+    }
+    Ok(nudges)
+}
+
+#[tauri::command]
+pub fn kitchen_smart_grocery(week_start: String) -> Result<Vec<engine::types::GroceryItem>, String> {
+    let engine = engine::get_engine();
+    engine.db().generate_grocery_list(&week_start).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn kitchen_get_meal_photos(meal_id: String) -> Result<Vec<engine::types::MealPhoto>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_meal_photos(&meal_id).map_err(|e| e.to_string())
+}
+
 // ── Budget Tracker ──
 
 #[derive(Debug, Serialize, Deserialize)]
