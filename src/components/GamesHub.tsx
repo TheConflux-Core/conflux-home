@@ -33,9 +33,9 @@ const GAMES: GameDef[] = [
   {
     id: 'pacman',
     name: 'Pac-Man',
-    icon: '👻',
+    icon: '🟡',
     subtitle: 'Arcade Classic',
-    status: 'coming-soon',
+    status: 'available',
     size: 'normal',
   },
   {
