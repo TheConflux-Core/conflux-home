@@ -17,9 +17,11 @@
 
 ---
 
-## Phase 2: Desktop Life — The Atmosphere
+## Phase 2: Desktop Life — The Neural Mesh
 
-**Goal:** Make the desktop breathe. Every surface has life. Agents are present without being literal.
+**Goal:** Replace the static desktop with a living neural mesh of glowing agent orbs. Voice-activated. Hands-free. The first AI operating system you talk to.
+
+**Vision doc:** `/home/calo/.openclaw/workspace/NEURAL_MESH_VISION.md`
 
 ### What Changes
 

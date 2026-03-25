@@ -233,6 +233,8 @@ Full session transcript and vision capture. Read this at session start alongside
 **Build phases from CANDLELIT_2:**
 1. Games Hub + Minesweeper ✅ COMPLETE (`f5cad37`)
 2. Desktop Life — ambient animations, status rings, dock breathing
+   → EVOLVED INTO: Neural Mesh — agent orbs, voice activation, hands-free mode
+   → Vision doc: `/home/calo/.openclaw/workspace/NEURAL_MESH_VISION.md`
 3. One app as gold standard (Pulse/Budget)
 4. Batch the rest (Hearth, Orbit, Horizon, Current, Foundation)
 5. Google Center + Agent Chat Rework
