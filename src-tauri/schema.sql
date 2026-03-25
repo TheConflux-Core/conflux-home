@@ -1537,3 +1537,124 @@ CREATE TABLE IF NOT EXISTS reading_patterns (
 );
 CREATE INDEX IF NOT EXISTS idx_reading_patterns_member ON reading_patterns(member_id);
 CREATE INDEX IF NOT EXISTS idx_reading_patterns_date ON reading_patterns(analyzed_at DESC);
+
+-- ── Home Health: Foundation AI ──
+
+CREATE TABLE IF NOT EXISTS home_problems (
+  id TEXT PRIMARY KEY,
+  symptom TEXT NOT NULL,
+  diagnosis_json TEXT,
+  system TEXT,
+  severity TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  resolved INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_home_problems_system ON home_problems(system);
+CREATE INDEX IF NOT EXISTS idx_home_problems_severity ON home_problems(severity);
+
+CREATE TABLE IF NOT EXISTS home_seasonal_tasks (
+  id TEXT PRIMARY KEY,
+  task TEXT NOT NULL,
+  category TEXT NOT NULL,
+  priority TEXT DEFAULT 'normal',
+  estimated_time_minutes INTEGER DEFAULT 30,
+  estimated_cost REAL DEFAULT 0,
+  diy_possible INTEGER DEFAULT 1,
+  description TEXT,
+  month INTEGER NOT NULL,
+  completed INTEGER DEFAULT 0,
+  completed_date TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_seasonal_tasks_month ON home_seasonal_tasks(month);
+
+CREATE TABLE IF NOT EXISTS home_chat_history (
+  id TEXT PRIMARY KEY,
+  role TEXT NOT NULL,
+  content TEXT NOT NULL,
+  timestamp TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  context_json TEXT
+);
+
+-- Seed seasonal tasks: January
+INSERT OR IGNORE INTO home_seasonal_tasks (id, task, category, priority, estimated_time_minutes, estimated_cost, diy_possible, description, month) VALUES
+  ('st-01-01', 'Inspect and replace HVAC air filter', 'hvac', 'high', 15, 15, 1, 'Check your HVAC filter. If dirty, replace with the correct size. A clean filter improves efficiency and air quality.', 1),
+  ('st-01-02', 'Check smoke and CO detectors', 'safety', 'critical', 10, 0, 1, 'Test all smoke and carbon monoxide detectors. Replace batteries if needed.', 1),
+  ('st-01-03', 'Inspect attic for leaks or ice dams', 'roof', 'high', 30, 0, 1, 'Look for signs of water intrusion, frost buildup, or ice dam formation in the attic.', 1),
+  ('st-01-04', 'Drain and flush water heater', 'plumbing', 'normal', 30, 0, 1, 'Drain a few gallons from the water heater tank to remove sediment buildup.', 1);
+
+-- February
+INSERT OR IGNORE INTO home_seasonal_tasks (id, task, category, priority, estimated_time_minutes, estimated_cost, diy_possible, description, month) VALUES
+  ('st-02-01', 'Inspect caulking around windows and doors', 'general', 'normal', 45, 10, 1, 'Check for cracked or missing caulking. Re-caulk to prevent drafts and moisture intrusion.', 2),
+  ('st-02-02', 'Test sump pump operation', 'plumbing', 'high', 10, 0, 1, 'Pour water into the sump pit to verify the pump activates and drains properly before spring thaw.', 2),
+  ('st-02-03', 'Check fire extinguisher expiration', 'safety', 'normal', 5, 0, 1, 'Verify all fire extinguishers are charged, accessible, and not expired.', 2),
+  ('st-02-04', 'Plan spring landscaping and yard projects', 'yard', 'low', 30, 0, 1, 'Create a plan for spring planting, mulch needs, and any yard improvements.', 2);
+
+-- March
+INSERT OR IGNORE INTO home_seasonal_tasks (id, task, category, priority, estimated_time_minutes, estimated_cost, diy_possible, description, month) VALUES
+  ('st-03-01', 'Clean gutters and downspouts', 'roof', 'high', 60, 0, 1, 'Remove debris from gutters. Ensure downspouts direct water at least 3 feet from the foundation.', 3),
+  ('st-03-02', 'Service AC unit before summer', 'hvac', 'high', 60, 150, 0, 'Schedule professional AC tune-up. Clean condenser coils, check refrigerant levels.', 3),
+  ('st-03-03', 'Inspect roof for winter damage', 'roof', 'high', 30, 0, 1, 'Walk the perimeter looking for missing/damaged shingles, flashing issues, or sagging.', 3),
+  ('st-03-04', 'Aerate and overseed lawn', 'yard', 'normal', 120, 50, 1, 'Core aerate the lawn and apply grass seed to fill in bare patches before spring growth.', 3);
+
+-- April
+INSERT OR IGNORE INTO home_seasonal_tasks (id, task, category, priority, estimated_time_minutes, estimated_cost, diy_possible, description, month) VALUES
+  ('st-04-01', 'Inspect and clean dryer vent', 'safety', 'critical', 45, 0, 1, 'Clean lint from dryer vent duct. A clogged vent is a leading cause of house fires.', 4),
+  ('st-04-02', 'Check exterior paint and siding', 'general', 'normal', 30, 0, 1, 'Walk around the house checking for peeling paint, damaged siding, or wood rot.', 4),
+  ('st-04-03', 'Test outdoor irrigation system', 'yard', 'normal', 30, 0, 1, 'Turn on sprinkler system. Check for broken heads, leaks, and proper coverage.', 4),
+  ('st-04-04', 'Replace HVAC filter', 'hvac', 'normal', 15, 15, 1, 'Swap out HVAC air filter for spring season.', 4);
+
+-- May
+INSERT OR IGNORE INTO home_seasonal_tasks (id, task, category, priority, estimated_time_minutes, estimated_cost, diy_possible, description, month) VALUES
+  ('st-05-01', 'Clean and inspect deck/patio', 'general', 'normal', 60, 25, 1, 'Power wash deck or patio. Inspect for loose boards, protruding nails, or structural issues.', 5),
+  ('st-05-02', 'Service lawn mower', 'yard', 'normal', 30, 30, 1, 'Change oil, replace spark plug, sharpen blade, and check air filter on lawn mower.', 5),
+  ('st-05-03', 'Check window screens for damage', 'general', 'low', 20, 10, 1, 'Inspect all window screens for tears. Repair or replace before bug season peaks.', 5),
+  ('st-05-04', 'Inspect basement/crawlspace for moisture', 'plumbing', 'normal', 20, 0, 1, 'Check for water stains, musty odors, or visible moisture in basement or crawlspace.', 5);
+
+-- June
+INSERT OR IGNORE INTO home_seasonal_tasks (id, task, category, priority, estimated_time_minutes, estimated_cost, diy_possible, description, month) VALUES
+  ('st-06-01', 'Check attic ventilation', 'hvac', 'normal', 20, 0, 1, 'Ensure attic vents are not blocked. Proper ventilation reduces cooling costs and extends roof life.', 6),
+  ('st-06-02', 'Inspect and clean garbage disposal', 'plumbing', 'low', 10, 0, 1, 'Run ice cubes and citrus peels through disposal to clean blades and eliminate odors.', 6),
+  ('st-06-03', 'Trim trees and shrubs from house', 'yard', 'normal', 60, 0, 1, 'Cut back branches touching the roof or siding. Maintain 1-foot clearance from the structure.', 6),
+  ('st-06-04', 'Test GFCI outlets', 'safety', 'normal', 10, 0, 1, 'Press the test/reset button on all GFCI outlets in kitchen, bathrooms, garage, and outdoors.', 6);
+
+-- July
+INSERT OR IGNORE INTO home_seasonal_tasks (id, task, category, priority, estimated_time_minutes, estimated_cost, diy_possible, description, month) VALUES
+  ('st-07-01', 'Inspect and clean AC condensate drain', 'hvac', 'normal', 15, 0, 1, 'Pour a cup of vinegar down the AC condensate drain line to prevent clogs and water damage.', 7),
+  ('st-07-02', 'Check toilet for leaks', 'plumbing', 'low', 10, 0, 1, 'Add food coloring to toilet tank. If color appears in bowl within 15 min without flushing, the flapper leaks.', 7),
+  ('st-07-03', 'Deep clean kitchen exhaust fan/filter', 'general', 'normal', 20, 0, 1, 'Remove and soak range hood filter in degreaser. Clean fan blades and housing.', 7),
+  ('st-07-04', 'Apply grub control to lawn', 'yard', 'normal', 30, 25, 1, 'Apply preventive grub control treatment to lawn if you have a history of grub damage.', 7);
+
+-- August
+INSERT OR IGNORE INTO home_seasonal_tasks (id, task, category, priority, estimated_time_minutes, estimated_cost, diy_possible, description, month) VALUES
+  ('st-08-01', 'Inspect caulking and weatherstripping', 'general', 'normal', 30, 10, 1, 'Check all window and door seals before fall. Re-caulk or replace weatherstripping as needed.', 8),
+  ('st-08-02', 'Drain and winterize outdoor hoses', 'plumbing', 'normal', 15, 0, 1, 'Disconnect and drain garden hoses. Store indoors to prevent freeze damage to hose bibs.', 8),
+  ('st-08-03', 'Schedule furnace inspection', 'hvac', 'high', 10, 120, 0, 'Book a professional furnace tune-up before heating season. Inspect heat exchanger, clean burners.', 8),
+  ('st-08-04', 'Clean and seal driveway', 'general', 'normal', 120, 50, 1, 'Power wash driveway cracks. Apply concrete sealer or asphalt sealant before winter.', 8);
+
+-- September
+INSERT OR IGNORE INTO home_seasonal_tasks (id, task, category, priority, estimated_time_minutes, estimated_cost, diy_possible, description, month) VALUES
+  ('st-09-01', 'Clean gutters (fall pre-clean)', 'roof', 'high', 60, 0, 1, 'Clear early fall debris from gutters before the main leaf drop begins.', 9),
+  ('st-09-02', 'Test heating system', 'hvac', 'high', 15, 0, 1, 'Run the furnace for a test cycle. Ensure it ignites properly and heats evenly through all zones.', 9),
+  ('st-09-03', 'Seal gaps where pests could enter', 'general', 'normal', 30, 5, 1, 'Inspect foundation, vents, and utility penetrations. Seal any gaps larger than 1/4 inch with steel wool and caulk.', 9),
+  ('st-09-04', 'Overseed and fertilize lawn', 'yard', 'normal', 60, 40, 1, 'Fall is the best time to overseed cool-season grasses. Apply starter fertilizer after seeding.', 9);
+
+-- October
+INSERT OR IGNORE INTO home_seasonal_tasks (id, task, category, priority, estimated_time_minutes, estimated_cost, diy_possible, description, month) VALUES
+  ('st-10-01', 'Winterize outdoor irrigation', 'plumbing', 'high', 45, 75, 0, 'Blow out sprinkler lines with compressed air to prevent freeze damage.', 10),
+  ('st-10-02', 'Replace HVAC filter', 'hvac', 'normal', 15, 15, 1, 'Install a fresh filter before heating season starts. Consider a higher MERV rating for winter.', 10),
+  ('st-10-03', 'Rake leaves and mulch garden beds', 'yard', 'normal', 90, 0, 1, 'Remove leaves from lawn. Apply 2-3 inches of mulch around perennials and shrubs for winter protection.', 10),
+  ('st-10-04', 'Check attic insulation', 'general', 'normal', 20, 0, 1, 'Verify attic insulation is at recommended R-value. Look for gaps, compression, or moisture damage.', 10);
+
+-- November
+INSERT OR IGNORE INTO home_seasonal_tasks (id, task, category, priority, estimated_time_minutes, estimated_cost, diy_possible, description, month) VALUES
+  ('st-11-01', 'Reverse ceiling fans to clockwise', 'hvac', 'low', 10, 0, 1, 'Switch ceiling fans to clockwise rotation at low speed to push warm air down from the ceiling.', 11),
+  ('st-11-02', 'Clean chimney and inspect fireplace', 'safety', 'high', 60, 200, 0, 'Schedule chimney sweep. Inspect damper, firebox, and flue liner for creosote buildup and cracks.', 11),
+  ('st-11-03', 'Protect outdoor faucets from freeze', 'plumbing', 'high', 15, 10, 1, 'Install insulated faucet covers on all outdoor hose bibs before first hard freeze.', 11),
+  ('st-11-04', 'Check emergency preparedness kit', 'safety', 'normal', 20, 0, 1, 'Verify flashlights, batteries, first aid kit, blankets, and 72-hour supplies are stocked and accessible.', 11);
+
+-- December
+INSERT OR IGNORE INTO home_seasonal_tasks (id, task, category, priority, estimated_time_minutes, estimated_cost, diy_possible, description, month) VALUES
+  ('st-12-01', 'Inspect pipes for freeze protection', 'plumbing', 'critical', 20, 0, 1, 'Check exposed pipes in attic, crawlspace, and garage. Add insulation to vulnerable pipes.', 12),
+  ('st-12-02', 'Test and reset all GFCI and AFCI breakers', 'safety', 'normal', 15, 0, 1, 'Test all GFCI outlets and AFCI circuit breakers to ensure proper function during high-use holiday season.', 12),
+  ('st-12-03', 'Inspect roof and flashing before winter storms', 'roof', 'high', 30, 0, 1, 'Do a visual roof inspection from the ground. Look for loose shingles, damaged flashing, or blocked vents.', 12),
+  ('st-12-04', 'Clean HVAC vents and registers', 'hvac', 'low', 20, 0, 1, 'Remove and vacuum all supply and return air registers. Dust buildup reduces airflow efficiency.', 12);

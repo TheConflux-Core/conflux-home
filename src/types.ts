@@ -693,6 +693,10 @@ export interface HomeInsight {
   estimated_impact: string | null;
   priority: string;
   category: string;
+  insight_category?: 'diagnosis' | 'prediction' | 'anomaly' | 'seasonal' | 'warranty';
+  urgency?: 'immediate' | 'this_week' | 'this_month' | 'routine';
+  action_steps?: string[];
+  estimated_cost?: { low: number; high: number };
 }
 
 // ── Dream Builder ──
@@ -960,4 +964,99 @@ export interface OrbitDashboard {
   nudges: LifeNudge[];
   streak_total: number;
   completed_today: number;
+}
+
+// === Foundation (Home Health) Types ===
+
+export interface HomeDiagnosis {
+  symptom_summary: string;
+  probable_causes: Array<{
+    cause: string;
+    likelihood: 'high' | 'medium' | 'low';
+    severity: 'critical' | 'moderate' | 'minor';
+  }>;
+  recommended_action: {
+    type: 'diy' | 'pro' | 'monitor';
+    steps: string[];
+    estimated_cost_range: { low: number; high: number };
+  };
+  urgency: 'immediate' | 'this_week' | 'this_month' | 'routine';
+}
+
+export interface PredictedFailure {
+  appliance_name: string;
+  current_age_years: number;
+  expected_lifespan: number;
+  failure_probability_next_6mo: number; // 0-1
+  warning_signs_to_watch: string[];
+  estimated_replacement_cost: number;
+  recommended_action: string;
+  urgency: 'high' | 'medium' | 'low';
+}
+
+export interface SeasonalTask {
+  id: string;
+  task: string;
+  category: 'hvac' | 'plumbing' | 'roof' | 'yard' | 'interior' | 'general' | 'electrical' | 'safety';
+  priority: 'high' | 'medium' | 'low';
+  estimated_time_minutes: number;
+  estimated_cost: number;
+  diy_possible: boolean;
+  description: string;
+  month: number;
+  completed: boolean;
+  completed_date: string | null;
+}
+
+export interface BillAnomaly {
+  is_anomalous: boolean;
+  bill_type: string;
+  current_amount: number;
+  deviation_percent: number;
+  comparison_to: 'monthly_average' | 'same_month_last_year';
+  average_amount: number;
+  possible_causes: string[];
+  recommended_investigation: string;
+  severity: 'info' | 'concern' | 'urgent';
+}
+
+export interface WarrantyAlert {
+  appliance: string;
+  warranty_expiry: string;
+  days_remaining: number;
+  action_recommended: string;
+  claim_checklist: string[];
+}
+
+export interface HomeChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  context_snapshot?: {
+    health_score: number;
+    alerts_count: number;
+  };
+}
+
+export interface FoundationDashboard {
+  health_score: number;
+  systems: Array<{
+    name: string;
+    icon: string;
+    status: 'healthy' | 'warning' | 'critical';
+    detail: string;
+  }>;
+  alerts: Array<{
+    type: 'prediction' | 'anomaly' | 'warranty' | 'maintenance';
+    title: string;
+    severity: 'info' | 'warning' | 'critical';
+    action: string;
+  }>;
+  upcoming_maintenance_count: number;
+  overdue_maintenance_count: number;
+  appliances_at_risk: number;
+  total_monthly_utilities: number;
+  warranty_expiring_soon: number;
+  predicted_failures: PredictedFailure[];
+  seasonal_tasks: SeasonalTask[];
 }

@@ -3354,6 +3354,200 @@ impl EngineDb {
         Ok(())
     }
 
+    // ── Home Health: Foundation AI ──
+
+    pub fn store_home_problem(&self, id: &str, symptom: &str, diagnosis_json: Option<&str>, system: Option<&str>, severity: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO home_problems (id, symptom, diagnosis_json, system, severity) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![id, symptom, diagnosis_json, system, severity],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_home_problems(&self, resolved: Option<bool>) -> Result<Vec<serde_json::Value>> {
+        let conn = self.conn();
+        let query = match resolved {
+            Some(r) => {
+                let rv: i64 = if r { 1 } else { 0 };
+                format!("SELECT id, symptom, diagnosis_json, system, severity, created_at, resolved FROM home_problems WHERE resolved = {} ORDER BY created_at DESC", rv)
+            }
+            None => "SELECT id, symptom, diagnosis_json, system, severity, created_at, resolved FROM home_problems ORDER BY created_at DESC".to_string(),
+        };
+        let mut stmt = conn.prepare(&query)?;
+        let rows = stmt.query_map([], |row| {
+            Ok(serde_json::json!({
+                "id": row.get::<_, String>(0)?,
+                "symptom": row.get::<_, String>(1)?,
+                "diagnosis_json": row.get::<_, Option<String>>(2)?,
+                "system": row.get::<_, Option<String>>(3)?,
+                "severity": row.get::<_, Option<String>>(4)?,
+                "created_at": row.get::<_, String>(5)?,
+                "resolved": row.get::<_, i64>(6)? != 0,
+            }))
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+
+    pub fn get_seasonal_tasks(&self, month: i64) -> Result<Vec<serde_json::Value>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, task, category, priority, estimated_time_minutes, estimated_cost, diy_possible, description, month, completed, completed_date
+             FROM home_seasonal_tasks WHERE month = ?1 ORDER BY priority DESC, task"
+        )?;
+        let rows = stmt.query_map(params![month], |row| {
+            Ok(serde_json::json!({
+                "id": row.get::<_, String>(0)?,
+                "task": row.get::<_, String>(1)?,
+                "category": row.get::<_, String>(2)?,
+                "priority": row.get::<_, String>(3)?,
+                "estimated_time_minutes": row.get::<_, i64>(4)?,
+                "estimated_cost": row.get::<_, f64>(5)?,
+                "diy_possible": row.get::<_, i64>(6)? != 0,
+                "description": row.get::<_, Option<String>>(7)?,
+                "month": row.get::<_, i64>(8)?,
+                "completed": row.get::<_, i64>(9)? != 0,
+                "completed_date": row.get::<_, Option<String>>(10)?,
+            }))
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+
+    pub fn complete_seasonal_task(&self, task_id: &str) -> Result<()> {
+        let conn = self.conn();
+        let now = Self::now();
+        conn.execute(
+            "UPDATE home_seasonal_tasks SET completed = 1, completed_date = ?2 WHERE id = ?1",
+            params![task_id, now],
+        )?;
+        Ok(())
+    }
+
+    pub fn store_chat_message(&self, id: &str, role: &str, content: &str, context_json: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO home_chat_history (id, role, content, context_json) VALUES (?1, ?2, ?3, ?4)",
+            params![id, role, content, context_json],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_chat_history(&self, limit: i64) -> Result<Vec<serde_json::Value>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, role, content, timestamp, context_json FROM home_chat_history ORDER BY timestamp DESC LIMIT ?1"
+        )?;
+        let rows = stmt.query_map(params![limit], |row| {
+            Ok(serde_json::json!({
+                "id": row.get::<_, String>(0)?,
+                "role": row.get::<_, String>(1)?,
+                "content": row.get::<_, String>(2)?,
+                "timestamp": row.get::<_, String>(3)?,
+                "context_json": row.get::<_, Option<String>>(4)?,
+            }))
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        result.reverse();
+        Ok(result)
+    }
+
+    pub fn get_bills_by_type_grouped(&self) -> Result<Vec<(String, Vec<f64>)>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT bill_type, amount FROM home_bills ORDER BY billing_month DESC"
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
+        })?;
+        let mut map: std::collections::HashMap<String, Vec<f64>> = std::collections::HashMap::new();
+        for r in rows {
+            let (bt, amt) = r?;
+            map.entry(bt).or_default().push(amt);
+        }
+        Ok(map.into_iter().collect())
+    }
+
+    pub fn get_bills_rolling_avg(&self, months: i64) -> Result<Vec<serde_json::Value>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT bill_type,
+                    (SELECT amount FROM home_bills b2 WHERE b2.bill_type = b1.bill_type ORDER BY billing_month DESC LIMIT 1) as current_amount,
+                    AVG(amount) as avg_amount,
+                    COUNT(*) as bill_count
+             FROM home_bills b1
+             GROUP BY bill_type
+             HAVING bill_count >= 2"
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let bill_type: String = row.get(0)?;
+            let current: f64 = row.get(1)?;
+            let avg: f64 = row.get(2)?;
+            let deviation = if avg > 0.0 { ((current - avg) / avg) * 100.0 } else { 0.0 };
+            Ok(serde_json::json!({
+                "bill_type": bill_type,
+                "current_amount": current,
+                "average_amount": avg,
+                "deviation_percent": deviation,
+                "is_anomalous": deviation.abs() > 20.0,
+            }))
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+
+    pub fn get_year_bills_summary(&self) -> Result<serde_json::Value> {
+        let conn = self.conn();
+        let twelve_months_ago = (chrono::Utc::now() - chrono::Duration::days(365)).format("%Y-%m").to_string();
+
+        let total: f64 = conn.query_row(
+            "SELECT COALESCE(SUM(amount), 0) FROM home_bills WHERE billing_month >= ?1",
+            params![twelve_months_ago], |row| row.get(0)
+        ).unwrap_or(0.0);
+
+        let mut cat_stmt = conn.prepare(
+            "SELECT bill_type, SUM(amount) FROM home_bills WHERE billing_month >= ?1 GROUP BY bill_type ORDER BY SUM(amount) DESC"
+        )?;
+        let cat_rows = cat_stmt.query_map(params![twelve_months_ago], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
+        })?;
+        let mut by_category = serde_json::Map::new();
+        for r in cat_rows {
+            let (cat, amt) = r?;
+            by_category.insert(cat, serde_json::json!(amt));
+        }
+
+        let mut month_stmt = conn.prepare(
+            "SELECT billing_month, SUM(amount) FROM home_bills WHERE billing_month >= ?1 GROUP BY billing_month ORDER BY billing_month"
+        )?;
+        let month_rows = month_stmt.query_map(params![twelve_months_ago], |row| {
+            Ok(serde_json::json!({
+                "month": row.get::<_, String>(0)?,
+                "total": row.get::<_, f64>(1)?,
+            }))
+        })?;
+        let mut monthly_totals = Vec::new();
+        for r in month_rows { monthly_totals.push(r?); }
+
+        let highest = monthly_totals.iter().max_by(|a, b| a["total"].as_f64().unwrap_or(0.0).partial_cmp(&b["total"].as_f64().unwrap_or(0.0)).unwrap());
+        let lowest = monthly_totals.iter().min_by(|a, b| a["total"].as_f64().unwrap_or(0.0).partial_cmp(&b["total"].as_f64().unwrap_or(0.0)).unwrap());
+        let avg_monthly = if !monthly_totals.is_empty() { total / monthly_totals.len() as f64 } else { 0.0 };
+
+        Ok(serde_json::json!({
+            "total_spent": total,
+            "by_category": by_category,
+            "monthly_totals": monthly_totals,
+            "highest_month": highest,
+            "lowest_month": lowest,
+            "average_monthly": avg_monthly,
+        }))
+    }
+
     // DREAM BUILDER
     pub fn add_dream(&self, id: &str, member_id: Option<&str>, title: &str, description: Option<&str>, category: &str, target_date: Option<&str>) -> Result<()> {
         let conn = self.conn();

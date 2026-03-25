@@ -2671,6 +2671,411 @@ pub async fn home_get_insights() -> Result<Vec<engine::types::HomeInsight>, Stri
     serde_json::from_str(json_str).map_err(|e| format!("Parse error: {}", e))
 }
 
+// ── Foundation AI Commands ──
+
+/// Diagnose a home problem from a natural language symptom description.
+#[tauri::command]
+pub fn home_diagnose_problem(id: String, symptom: String) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let symptom_lower = symptom.to_lowercase();
+
+    // Heuristic keyword-based diagnosis (placeholder for future LLM call)
+    let (system, severity, causes, recommendations): (String, String, Vec<&str>, Vec<&str>) =
+        if symptom_lower.contains("leak") || symptom_lower.contains("water") || symptom_lower.contains("drip") {
+            ("plumbing".to_string(), "high".to_string(),
+             vec!["Worn-out pipe joint or gasket", "Corroded pipe fitting", "Loose connection under sink/toilet", "High water pressure causing stress"],
+             vec!["Turn off water supply to affected area", "Inspect visible pipes for corrosion", "Check toilet flapper and supply line", "Call plumber if leak is behind wall"])
+        } else if symptom_lower.contains("no heat") || symptom_lower.contains("cold") || symptom_lower.contains("thermostat") || symptom_lower.contains("hvac") || symptom_lower.contains("ac") || symptom_lower.contains("furnace") {
+            ("hvac".to_string(), "high".to_string(),
+             vec!["Clogged air filter restricting airflow", "Thermostat malfunction or dead batteries", "Pilot light out (gas furnace)", "Tripped circuit breaker", "Refrigerant leak (AC)"],
+             vec!["Replace HVAC filter", "Check thermostat settings and batteries", "Inspect circuit breaker panel", "Schedule professional HVAC inspection"])
+        } else if symptom_lower.contains("electrical") || symptom_lower.contains("outlet") || symptom_lower.contains("breaker") || symptom_lower.contains("flicker") || symptom_lower.contains("spark") {
+            ("electrical".to_string(), "critical".to_string(),
+             vec!["Overloaded circuit", "Loose wire connection", "Faulty outlet or switch", "Outdated wiring unable to handle modern loads"],
+             vec!["Do NOT touch exposed wires — call licensed electrician", "Check if GFCI outlet has tripped", "Reduce load on the affected circuit", "Schedule electrical inspection"])
+        } else if symptom_lower.contains("roof") || symptom_lower.contains("ceiling") || symptom_lower.contains("attic") || symptom_lower.contains("stain") {
+            ("roof".to_string(), "high".to_string(),
+             vec!["Damaged or missing shingles", "Failed flashing around chimney/vents", "Ice dam causing water backup", "Condensation from poor attic ventilation"],
+             vec!["Inspect attic for active water intrusion", "Check roof from ground for visible damage", "Clear gutters and check downspouts", "Call roofer if damage is extensive"])
+        } else if symptom_lower.contains("noise") || symptom_lower.contains("squeak") || symptom_lower.contains("bang") || symptom_lower.contains("rattle") || symptom_lower.contains("hum") {
+            ("general".to_string(), "medium".to_string(),
+             vec!["Loose component vibrating during operation", "Worn bearing or motor", "Water hammer in plumbing", "Ductwork expansion/contraction"],
+             vec!["Identify the exact location and timing of the noise", "Check for loose screws, bolts, or panels", "If plumbing-related, check water pressure", "If persistent, schedule professional inspection"])
+        } else if symptom_lower.contains("smell") || symptom_lower.contains("odor") || symptom_lower.contains("mold") || symptom_lower.contains("musty") {
+            ("general".to_string(), "high".to_string(),
+             vec!["Mold growth from moisture intrusion", "Sewer gas from dry P-trap", "Gas leak (if rotten egg smell) — VACUATE IMMEDIATELY", "Dead animal in crawlspace or ductwork"],
+             vec!["If gas smell: leave house immediately and call gas company", "Check for visible mold in bathrooms, basement, under sinks", "Run water in all unused drains to refill P-traps", "Use dehumidifier in damp areas"])
+        } else {
+            ("general".to_string(), "medium".to_string(),
+             vec!["Multiple possible causes — needs further investigation", "Normal wear and tear", "Deferred maintenance issue"],
+             vec!["Document the issue with photos and notes", "Check if issue is intermittent or constant", "Consult relevant maintenance guide", "Consider scheduling a professional inspection"])
+        };
+
+    let diagnosis = serde_json::json!({
+        "symptom": symptom,
+        "system": system,
+        "severity": severity,
+        "possible_causes": causes,
+        "recommended_actions": recommendations,
+        "confidence": "heuristic",
+        "note": "This diagnosis is based on keyword matching. For accurate diagnosis, consult a licensed professional or enable AI-powered diagnosis."
+    });
+
+    let diag_json = serde_json::to_string(&diagnosis).map_err(|e| e.to_string())?;
+    engine.db().store_home_problem(&id, &symptom, Some(&diag_json), Some(&system), Some(&severity))
+        .map_err(|e| e.to_string())?;
+
+    Ok(diagnosis)
+}
+
+/// Predict appliance failures based on age vs expected lifespan.
+#[tauri::command]
+pub fn home_predict_failures() -> Result<Vec<serde_json::Value>, String> {
+    let engine = engine::get_engine();
+    let appliances = engine.db().get_home_appliances().map_err(|e| e.to_string())?;
+    let now = chrono::Utc::now().date_naive();
+
+    let mut predictions: Vec<serde_json::Value> = appliances.iter().filter_map(|app| {
+        let lifespan = app.expected_lifespan_years.unwrap_or(10.0);
+        let installed = app.installed_date.as_deref()?;
+        let install_date = chrono::NaiveDate::parse_from_str(installed, "%Y-%m-%d").ok()?;
+        let age_years = (now - install_date).num_days() as f64 / 365.25;
+        let pct_life = (age_years / lifespan).min(1.5);
+
+        // Failure probability model: exponential increase after 70% of lifespan
+        let failure_prob_6mo = if pct_life >= 1.0 {
+            0.85_f64.min(0.3 + (pct_life - 1.0) * 1.5)
+        } else if pct_life >= 0.7 {
+            0.05 + (pct_life - 0.7) * 0.83
+        } else {
+            0.02 + pct_life * 0.04
+        };
+
+        let urgency = if failure_prob_6mo > 0.6 { "critical" }
+            else if failure_prob_6mo > 0.35 { "high" }
+            else if failure_prob_6mo > 0.15 { "medium" }
+            else { "low" };
+
+        let warning_signs: Vec<&str> = match app.category.as_str() {
+            "hvac" => vec!["Uneven heating/cooling", "Unusual noises", "Rising energy bills", "Frequent cycling"],
+            "plumbing" => vec!["Reduced water pressure", "Discolored water", "Rumbling sounds", "Visible corrosion"],
+            "appliance" => vec!["Inconsistent performance", "Unusual noises", "Excessive heat", "Visible rust or wear"],
+            _ => vec!["Declining performance", "Unusual sounds or smells", "Visible wear or damage"],
+        };
+
+        let action = if failure_prob_6mo > 0.6 { "Replace immediately" }
+            else if failure_prob_6mo > 0.35 { "Start shopping for replacement; schedule inspection" }
+            else if failure_prob_6mo > 0.15 { "Schedule preventive maintenance" }
+            else { "Continue regular maintenance" };
+
+        Some(serde_json::json!({
+            "appliance_name": app.name,
+            "category": app.category,
+            "current_age_years": (age_years * 10.0).round() / 10.0,
+            "expected_lifespan": lifespan,
+            "failure_probability_next_6mo": (failure_prob_6mo * 100.0).round() / 100.0,
+            "warning_signs_to_watch": warning_signs,
+            "estimated_replacement_cost": app.estimated_replacement_cost.unwrap_or(0.0),
+            "recommended_action": action,
+            "urgency": urgency,
+        }))
+    }).collect();
+
+    predictions.sort_by(|a, b| {
+        let pa = a["failure_probability_next_6mo"].as_f64().unwrap_or(0.0);
+        let pb = b["failure_probability_next_6mo"].as_f64().unwrap_or(0.0);
+        pb.partial_cmp(&pa).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    Ok(predictions)
+}
+
+/// Get seasonal maintenance tasks for a given month.
+#[tauri::command]
+pub fn home_get_seasonal_tasks(month: i64) -> Result<Vec<serde_json::Value>, String> {
+    let engine = engine::get_engine();
+    let tasks = engine.db().get_seasonal_tasks(month).map_err(|e| e.to_string())?;
+    // If table is empty, schema seeds default tasks on first run via migration
+    Ok(tasks)
+}
+
+/// Mark a seasonal task as completed.
+#[tauri::command]
+pub fn home_complete_seasonal_task(task_id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().complete_seasonal_task(&task_id).map_err(|e| e.to_string())
+}
+
+/// Detect anomalous bills by comparing to 6-month rolling average.
+#[tauri::command]
+pub fn home_detect_anomalies() -> Result<Vec<serde_json::Value>, String> {
+    let engine = engine::get_engine();
+    let raw = engine.db().get_bills_rolling_avg(6).map_err(|e| e.to_string())?;
+
+    let anomalies: Vec<serde_json::Value> = raw.into_iter().map(|mut item| {
+        let deviation = item["deviation_percent"].as_f64().unwrap_or(0.0);
+        let is_anomalous = deviation.abs() > 20.0;
+        let bill_type = item["bill_type"].as_str().unwrap_or("unknown").to_string();
+
+        let (possible_causes, investigation, severity) = if deviation > 50.0 {
+            (vec!["Major usage spike or rate increase", "Possible leak or malfunction", "Seasonal extreme weather"],
+             "Inspect for leaks, check appliance efficiency, compare to same month last year",
+             "critical")
+        } else if deviation > 20.0 {
+            (vec!["Increased usage", "Rate change from utility provider", "Seasonal variation"],
+             "Review usage patterns, check for appliances left running, call utility to verify rates",
+             "warning")
+        } else if deviation < -20.0 {
+            (vec!["Lower usage than normal", "Possible meter reading error", "Vacancy or reduced occupancy"],
+             "Verify meter reading, confirm no billing error, check if reduced usage is intentional",
+             "info")
+        } else {
+            (vec!["Usage within normal range"],
+             "No action needed",
+             "normal")
+        };
+
+        item["is_anomalous"] = serde_json::json!(is_anomalous);
+        item["comparison_to"] = serde_json::json!("6-month rolling average");
+        item["possible_causes"] = serde_json::json!(possible_causes);
+        item["recommended_investigation"] = serde_json::json!(investigation);
+        item["severity"] = serde_json::json!(severity);
+        item
+    }).filter(|item| item["is_anomalous"].as_bool().unwrap_or(false))
+      .collect();
+
+    Ok(anomalies)
+}
+
+/// Get warranty alerts for appliances with warranties expiring within 60 days.
+#[tauri::command]
+pub fn home_get_warranty_alerts() -> Result<Vec<serde_json::Value>, String> {
+    let engine = engine::get_engine();
+    let appliances = engine.db().get_home_appliances().map_err(|e| e.to_string())?;
+    let now = chrono::Utc::now().date_naive();
+    let cutoff = now + chrono::Duration::days(60);
+
+    let alerts: Vec<serde_json::Value> = appliances.iter().filter_map(|app| {
+        let expiry_str = app.warranty_expiry.as_deref()?;
+        let expiry = chrono::NaiveDate::parse_from_str(expiry_str, "%Y-%m-%d").ok()?;
+        if expiry <= cutoff && expiry >= now {
+            let days_remaining = (expiry - now).num_days();
+            let action = if days_remaining <= 14 {
+                "URGENT: File any pending claims immediately"
+            } else if days_remaining <= 30 {
+                "Schedule inspection and file claims before expiry"
+            } else {
+                "Plan inspection and gather warranty documentation"
+            };
+
+            Some(serde_json::json!({
+                "appliance": app.name,
+                "category": app.category,
+                "warranty_expiry": expiry_str,
+                "days_remaining": days_remaining,
+                "action_recommended": action,
+                "claim_checklist": [
+                    "Locate original purchase receipt",
+                    "Find warranty registration number",
+                    "Document current issues with photos",
+                    "Contact manufacturer's warranty department",
+                    "Schedule authorized service inspection",
+                ],
+            }))
+        } else if expiry < now {
+            // Recently expired
+            let days_expired = (now - expiry).num_days();
+            if days_expired <= 30 {
+                Some(serde_json::json!({
+                    "appliance": app.name,
+                    "category": app.category,
+                    "warranty_expiry": expiry_str,
+                    "days_remaining": -days_expired,
+                    "action_recommended": "Warranty recently expired — some manufacturers honor grace periods. Contact them ASAP.",
+                    "claim_checklist": [
+                        "Check if manufacturer offers grace period",
+                        "Gather all documentation",
+                        "Contact manufacturer immediately",
+                    ],
+                }))
+            } else { None }
+        } else { None }
+    }).collect();
+
+    Ok(alerts)
+}
+
+/// Home AI chat — keyword-based smart replies (placeholder for LLM).
+#[tauri::command]
+pub fn home_chat(id: String, message: String) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let msg_lower = message.to_lowercase();
+
+    // Store user message
+    let user_msg_id = uuid::Uuid::new_v4().to_string();
+    engine.db().store_chat_message(&user_msg_id, "user", &message, None).map_err(|e| e.to_string())?;
+
+    // Generate smart reply based on keywords
+    let reply = if msg_lower.contains("maintenance") || msg_lower.contains("maintain") {
+        "Based on your home data, I recommend checking your seasonal task list. Would you like me to pull up what's due this month? Regular maintenance can prevent 80% of major home repairs."
+    } else if msg_lower.contains("save") || msg_lower.contains("cost") || msg_lower.contains("cheap") || msg_lower.contains("money") {
+        "Great question about saving money! The biggest savings typically come from: 1) HVAC filter changes ($15 every 3 months saves ~$30/mo in efficiency), 2) Sealing air leaks ($20 in caulk can save $200+/year), 3) Water heater maintenance (annual flush extends life by years). Want me to calculate your potential savings?"
+    } else if msg_lower.contains("emergency") || msg_lower.contains("urgent") || msg_lower.contains("help") {
+        "If this is an emergency: For gas leaks, leave immediately and call your gas company. For water leaks, shut off the main water valve. For electrical issues, turn off the breaker. For all other emergencies, I can help you identify the issue — describe what you're experiencing."
+    } else if msg_lower.contains("season") || msg_lower.contains("month") || msg_lower.contains("when") {
+        "I track seasonal tasks for your home. Each month has specific maintenance priorities. Want me to show you this month's checklist? Staying ahead of seasonal tasks is the #1 way to prevent costly repairs."
+    } else if msg_lower.contains("appliance") || msg_lower.contains("replace") || msg_lower.contains("warranty") {
+        "I'm tracking all your appliances' ages and warranty status. Want me to run a failure prediction? I can tell you which appliances are most likely to need attention in the next 6 months."
+    } else if msg_lower.contains("bill") || msg_lower.contains("utility") || msg_lower.contains("electric") || msg_lower.contains("gas") || msg_lower.contains("water") {
+        "I'm monitoring your utility bills for unusual patterns. Want me to run an anomaly check? I compare each bill to your 6-month rolling average and flag anything that deviates more than 20%."
+    } else if msg_lower.contains("hello") || msg_lower.contains("hi") || msg_lower.contains("hey") {
+        "Hey! I'm your home health assistant. I can help with maintenance scheduling, appliance tracking, bill monitoring, problem diagnosis, and cost-saving tips. What's on your mind?"
+    } else {
+        "I'm here to help with your home! I can diagnose problems, track maintenance, monitor bills, predict appliance failures, and manage seasonal tasks. Try asking about maintenance, bills, appliances, or describe a problem you're having."
+    };
+
+    let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let asst_msg_id = uuid::Uuid::new_v4().to_string();
+    engine.db().store_chat_message(&asst_msg_id, "assistant", reply, None).map_err(|e| e.to_string())?;
+
+    Ok(serde_json::json!({
+        "role": "assistant",
+        "content": reply,
+        "timestamp": now,
+    }))
+}
+
+/// Get a narrative maintenance report aggregating dashboard data.
+#[tauri::command]
+pub fn home_get_maintenance_report() -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let dashboard = engine.db().get_home_dashboard().map_err(|e| e.to_string())?;
+    let bills_6mo = engine.db().get_bill_trends(6).unwrap_or_default();
+
+    let overdue_count = dashboard.overdue_maintenance.len();
+    let upcoming_count = dashboard.upcoming_maintenance.len();
+    let appliance_count = dashboard.appliances_needing_service.len();
+
+    let mut highlights = Vec::new();
+    let mut concerns = Vec::new();
+    let mut upcoming_actions = Vec::new();
+
+    // Generate highlights
+    if overdue_count == 0 && upcoming_count == 0 {
+        highlights.push("All maintenance tasks are up to date — great job!".to_string());
+    }
+    if dashboard.health_score >= 80.0 {
+        highlights.push(format!("Home health score: {:.0}/100 — looking good!", dashboard.health_score));
+    } else if dashboard.health_score >= 60.0 {
+        highlights.push(format!("Home health score: {:.0}/100 — some items need attention.", dashboard.health_score));
+    }
+
+    // Generate concerns
+    if overdue_count > 0 {
+        concerns.push(format!("{} overdue maintenance task(s) need immediate attention.", overdue_count));
+        for m in dashboard.overdue_maintenance.iter().take(3) {
+            upcoming_actions.push(format!("[OVERDUE] {} (was due: {:?})", m.task, m.next_due));
+        }
+    }
+
+    // Bill trend analysis
+    if bills_6mo.len() >= 2 {
+        let recent = bills_6mo.last().map(|b| b.total).unwrap_or(0.0);
+        let prior = bills_6mo[bills_6mo.len() - 2].total;
+        if recent > prior * 1.15 {
+            concerns.push(format!("Utility bills trending up: ${:.2} last month vs ${:.2} prior month.", recent, prior));
+        } else if recent < prior * 0.85 {
+            highlights.push(format!("Utility bills trending down: ${:.2} last month vs ${:.2} — nice savings!", recent, prior));
+        }
+    }
+
+    // Upcoming maintenance
+    for m in dashboard.upcoming_maintenance.iter().take(5) {
+        upcoming_actions.push(format!("{} (due: {:?}, est. ${:.0})", m.task, m.next_due, m.estimated_cost.unwrap_or(0.0)));
+    }
+
+    // Cost forecast
+    let upcoming_cost_30: f64 = dashboard.upcoming_maintenance.iter()
+        .filter(|m| m.estimated_cost.is_some())
+        .map(|m| m.estimated_cost.unwrap_or(0.0))
+        .sum();
+    let avg_monthly_utilities = if !bills_6mo.is_empty() {
+        bills_6mo.iter().map(|b| b.total).sum::<f64>() / bills_6mo.len() as f64
+    } else { 0.0 };
+
+    let summary = if concerns.is_empty() {
+        "Your home is in good shape. No urgent issues detected. Keep up with seasonal maintenance.".to_string()
+    } else {
+        format!("{} concern(s) need attention. {} upcoming task(s) in the next 30 days.", concerns.len(), upcoming_count)
+    };
+
+    Ok(serde_json::json!({
+        "summary": summary,
+        "highlights": highlights,
+        "concerns": concerns,
+        "upcoming_actions": upcoming_actions,
+        "cost_forecast": {
+            "next_30_days": upcoming_cost_30 + avg_monthly_utilities,
+            "next_90_days": (upcoming_cost_30 + avg_monthly_utilities) * 3.0,
+        },
+        "health_score": dashboard.health_score,
+    }))
+}
+
+/// Log a problem using natural language — parses and extracts system/severity.
+#[tauri::command]
+pub fn home_log_problem_natural(id: String, description: String) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let desc_lower = description.to_lowercase();
+
+    // Extract system
+    let system = if desc_lower.contains("hvac") || desc_lower.contains("furnace") || desc_lower.contains("ac ") || desc_lower.contains("air condition") || desc_lower.contains("heating") || desc_lower.contains("thermostat") {
+        "hvac"
+    } else if desc_lower.contains("plumb") || desc_lower.contains("pipe") || desc_lower.contains("faucet") || desc_lower.contains("toilet") || desc_lower.contains("drain") || desc_lower.contains("water heater") || desc_lower.contains("leak") {
+        "plumbing"
+    } else if desc_lower.contains("electric") || desc_lower.contains("outlet") || desc_lower.contains("breaker") || desc_lower.contains("wire") || desc_lower.contains("flicker") {
+        "electrical"
+    } else if desc_lower.contains("roof") || desc_lower.contains("shingle") || desc_lower.contains("gutter") || desc_lower.contains("ceiling") || desc_lower.contains("attic") {
+        "roof"
+    } else if desc_lower.contains("window") || desc_lower.contains("door") || desc_lower.contains("wall") || desc_lower.contains("floor") || desc_lower.contains("foundation") {
+        "structure"
+    } else {
+        "general"
+    };
+
+    // Extract severity
+    let severity = if desc_lower.contains("emergency") || desc_lower.contains("urgent") || desc_lower.contains("danger") || desc_lower.contains("flood") || desc_lower.contains("fire") || desc_lower.contains("gas leak") || desc_lower.contains("spark") {
+        "critical"
+    } else if desc_lower.contains("broken") || desc_lower.contains("not working") || desc_lower.contains("failed") || desc_lower.contains("smoke") || desc_lower.contains("significant") {
+        "high"
+    } else if desc_lower.contains("slow") || desc_lower.contains("minor") || desc_lower.contains("small") || desc_lower.contains("cosmetic") || desc_lower.contains("annoying") {
+        "low"
+    } else {
+        "medium"
+    };
+
+    let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let result = serde_json::json!({
+        "id": id,
+        "description": description,
+        "parsed_system": system,
+        "parsed_severity": severity,
+        "created_at": now,
+    });
+
+    engine.db().store_home_problem(&id, &description, None, Some(system), Some(severity))
+        .map_err(|e| e.to_string())?;
+
+    Ok(result)
+}
+
+/// Get a year summary of all utility bills.
+#[tauri::command]
+pub fn home_get_year_summary() -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    engine.db().get_year_bills_summary().map_err(|e| e.to_string())
+}
+
 // ── Dream Builder ──
 
 #[tauri::command]
