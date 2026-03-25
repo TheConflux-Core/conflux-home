@@ -787,6 +787,62 @@ pub struct GroceryItem {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MealPhoto {
+    pub id: String,
+    pub meal_id: String,
+    pub photo_url: String,
+    pub caption: Option<String>,
+    pub ai_tags: Option<String>,
+    pub taken_at: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HomeMenuItem {
+    pub meal_id: String,
+    pub name: String,
+    pub emoji: String,
+    pub reason: String,          // "You have all ingredients" / "Uses expiring X"
+    pub estimated_minutes: i64,
+    pub missing_ingredients: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PantryHeatItem {
+    pub name: String,
+    pub freshness: f64,          // 0.0 (expired) to 1.0 (fresh)
+    pub days_until_expiry: Option<i64>,
+    pub location: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CookingStep {
+    pub step_number: i64,
+    pub instruction: String,
+    pub duration_minutes: Option<i64>,
+    pub timer_alert: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KitchenDigest {
+    pub week_start: String,
+    pub meals_cooked: i64,
+    pub variety_score: f64,      // 0-100
+    pub unique_cuisines: i64,
+    pub estimated_savings: f64,
+    pub top_cuisine: Option<String>,
+    pub suggestion: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KitchenNudge {
+    pub nudge_type: String,      // "expiring", "variety", "budget", "health"
+    pub message: String,
+    pub action_label: String,
+    pub emoji: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KitchenInventoryItem {
     pub id: String,
     pub name: String,

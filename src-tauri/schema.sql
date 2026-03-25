@@ -1179,6 +1179,18 @@ CREATE TABLE IF NOT EXISTS kitchen_inventory (
 CREATE INDEX IF NOT EXISTS idx_inventory_location ON kitchen_inventory(location);
 CREATE INDEX IF NOT EXISTS idx_inventory_expiry ON kitchen_inventory(expiry_date);
 
+-- Meal photos gallery (Hearth)
+CREATE TABLE IF NOT EXISTS meal_photos (
+    id TEXT PRIMARY KEY,
+    meal_id TEXT NOT NULL REFERENCES meals(id) ON DELETE CASCADE,
+    photo_url TEXT NOT NULL,
+    caption TEXT,
+    ai_tags TEXT,
+    taken_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_meal_photos_meal ON meal_photos(meal_id);
+
 -- ============================================================
 -- LIFE AUTOPILOT — Document Management & Proactive Intelligence
 -- ============================================================

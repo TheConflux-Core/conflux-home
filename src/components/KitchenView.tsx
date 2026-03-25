@@ -1,16 +1,25 @@
-// Conflux Home — Kitchen View
-// Main kitchen tab: meal library, AI add, weekly planner, grocery list.
+// Conflux Home — Kitchen View (Hearth Overhaul)
+// Home menu, meal library, weekly planner, smart grocery, pantry heatmap.
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useMeals, useWeeklyPlan, useGroceryList } from '../hooks/useKitchen';
+import { useHomeMenu, useKitchenNudges, useKitchenDigest } from '../hooks/useHearth';
 import { useFridgeScanner } from '../hooks/useFridgeScanner';
-import type { Meal, GroceryItem, MealMatch, KitchenInventoryItem } from '../types';
-import { MEAL_CATEGORIES, MEAL_CUISINES, MEAL_CATEGORY_EMOJI, INGREDIENT_CATEGORIES } from '../types';
+import type { Meal } from '../types';
+import { MEAL_CATEGORIES, MEAL_CUISINES, MEAL_CATEGORY_EMOJI } from '../types';
+
+import HearthHero from './HearthHero';
+import HomeMenu from './HomeMenu';
+import KitchenNudges from './KitchenNudges';
+import KitchenDigestCard from './KitchenDigest';
+import SmartGrocery from './SmartGrocery';
+import PantryHeatmap from './PantryHeatmap';
+import CookingMode from './CookingMode';
 
 function getWeekStart(): string {
   const now = new Date();
   const day = now.getDay();
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Monday
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
   const monday = new Date(now.setDate(diff));
   return monday.toISOString().split('T')[0];
 }
@@ -23,20 +32,18 @@ function formatCost(n: number | null): string {
 const SLOTS = ['breakfast', 'lunch', 'dinner'] as const;
 
 export default function KitchenView() {
-  const [tab, setTab] = useState<'library' | 'plan' | 'grocery' | 'fridge'>('library');
+  const [tab, setTab] = useState<'home' | 'library' | 'plan' | 'grocery' | 'pantry'>('home');
   const [filterCat, setFilterCat] = useState<string>('all');
   const [filterCuisine, setFilterCuisine] = useState<string>('all');
   const [showFavorites, setShowFavorites] = useState(false);
-  const [scanText, setScanText] = useState('');
-  const [mealMatches, setMealMatches] = useState<MealMatch[]>([]);
-  const [expiringItems, setExpiringItems] = useState<KitchenInventoryItem[]>([]);
-  const [fridgeLoaded, setFridgeLoaded] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
+  const [cookingMealId, setCookingMealId] = useState<string | null>(null);
 
   const weekStart = useMemo(getWeekStart, []);
 
+  // Existing kitchen hooks
   const { meals, loading, addWithAI, toggleFavorite } = useMeals(
     filterCat === 'all' ? undefined : filterCat,
     filterCuisine === 'all' ? undefined : filterCuisine,
@@ -44,7 +51,18 @@ export default function KitchenView() {
   );
   const { plan, setEntry } = useWeeklyPlan(weekStart);
   const { items: groceryItems, generate: generateGrocery, toggleItem, totalCost } = useGroceryList(weekStart);
-  const { scanResult, scanning, scan, whatCanIMake, expiringSoon } = useFridgeScanner();
+
+  // New Hearth hooks
+  const { menu: homeMenu, loading: menuLoading, load: loadHomeMenu } = useHomeMenu();
+  const { nudges, load: loadNudges } = useKitchenNudges();
+  const { digest, loading: digestLoading, load: loadDigest } = useKitchenDigest(weekStart);
+
+  // Load home data on mount and when switching to home tab
+  useEffect(() => {
+    loadHomeMenu();
+    loadNudges();
+    loadDigest();
+  }, [loadHomeMenu, loadNudges, loadDigest]);
 
   const handleAIAdd = useCallback(async () => {
     if (!aiPrompt.trim() || aiLoading) return;
@@ -60,14 +78,23 @@ export default function KitchenView() {
     }
   }, [aiPrompt, aiLoading, addWithAI]);
 
+  const handleNudgeAction = useCallback((nudge: { nudge_type: string }) => {
+    if (nudge.nudge_type === 'cook') setTab('library');
+    else if (nudge.nudge_type === 'pantry') setTab('pantry');
+    else if (nudge.nudge_type === 'grocery') setTab('grocery');
+  }, []);
+
   const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   return (
     <div className="kitchen-view">
       {/* Header */}
       <div className="kitchen-header">
-        <h2 className="kitchen-title">🍳 Kitchen</h2>
+        <h2 className="kitchen-title">🔥 Hearth</h2>
         <div className="kitchen-tabs">
+          <button className={`kitchen-tab ${tab === 'home' ? 'active' : ''}`} onClick={() => setTab('home')}>
+            🏠 Home
+          </button>
           <button className={`kitchen-tab ${tab === 'library' ? 'active' : ''}`} onClick={() => setTab('library')}>
             📖 Library
           </button>
@@ -77,13 +104,36 @@ export default function KitchenView() {
           <button className={`kitchen-tab ${tab === 'grocery' ? 'active' : ''}`} onClick={() => setTab('grocery')}>
             🛒 Grocery
           </button>
-          <button className={`kitchen-tab ${tab === 'fridge' ? 'active' : ''}`} onClick={() => setTab('fridge')}>
-            🧊 Fridge
+          <button className={`kitchen-tab ${tab === 'pantry' ? 'active' : ''}`} onClick={() => setTab('pantry')}>
+            🌡️ Pantry
           </button>
         </div>
       </div>
 
-      {/* Meal Library */}
+      {/* ── HOME TAB ── */}
+      {tab === 'home' && (
+        <div className="kitchen-home">
+          <HearthHero
+            nudges={nudges}
+            onHomeMenu={() => setTab('library')}
+            onPantryHeatmap={() => setTab('pantry')}
+          />
+
+          {menuLoading ? (
+            <div className="kitchen-loading">Loading your kitchen...</div>
+          ) : (
+            <HomeMenu items={homeMenu} onSelect={(id) => setCookingMealId(id)} />
+          )}
+
+          <KitchenNudges nudges={nudges} onAction={handleNudgeAction} />
+
+          {digest && !digestLoading && (
+            <KitchenDigestCard digest={digest} />
+          )}
+        </div>
+      )}
+
+      {/* ── LIBRARY TAB ── */}
       {tab === 'library' && (
         <div className="kitchen-library">
           {/* AI Add */}
@@ -201,7 +251,7 @@ export default function KitchenView() {
         </div>
       )}
 
-      {/* Weekly Plan */}
+      {/* ── WEEK PLAN TAB ── */}
       {tab === 'plan' && plan && (
         <div className="kitchen-plan">
           <div className="plan-header">
@@ -213,7 +263,6 @@ export default function KitchenView() {
           </div>
 
           <div className="plan-grid">
-            {/* Header row */}
             <div className="plan-grid-header">
               <div className="plan-slot-label"></div>
               {dayNames.map(d => (
@@ -221,7 +270,6 @@ export default function KitchenView() {
               ))}
             </div>
 
-            {/* Meal slots */}
             {SLOTS.map(slot => (
               <div key={slot} className="plan-grid-row">
                 <div className="plan-slot-label">{MEAL_CATEGORY_EMOJI[slot]} {slot}</div>
@@ -238,7 +286,6 @@ export default function KitchenView() {
                         </div>
                       ) : (
                         <button className="plan-add-btn" onClick={() => {
-                          // Simple: add first available meal or show picker
                           if (meals.length > 0) {
                             setEntry(day.day_of_week, slot, meals[0].id);
                           }
@@ -255,11 +302,10 @@ export default function KitchenView() {
         </div>
       )}
 
-      {/* Grocery List */}
+      {/* ── GROCERY TAB ── */}
       {tab === 'grocery' && (
         <div className="kitchen-grocery">
           <div className="grocery-header">
-            <h3>🛒 Grocery List</h3>
             <div className="grocery-actions">
               <span className="grocery-total">Est. total: <strong>{formatCost(totalCost)}</strong></span>
               <button className="btn-primary" onClick={generateGrocery}>
@@ -273,168 +319,34 @@ export default function KitchenView() {
               <p>No items yet. Plan some meals and click "Generate from Plan".</p>
             </div>
           ) : (
-            <div className="grocery-list">
-              {/* Group by category */}
-              {Object.entries(
-                groceryItems.reduce((acc, item) => {
-                  const cat = item.category ?? 'other';
-                  if (!acc[cat]) acc[cat] = [];
-                  acc[cat].push(item);
-                  return acc;
-                }, {} as Record<string, GroceryItem[]>)
-              ).map(([cat, items]) => (
-                <div key={cat} className="grocery-category">
-                  <h4 className="grocery-cat-title">{INGREDIENT_CATEGORIES[cat] ?? `📦 ${cat}`}</h4>
-                  {items.map(item => (
-                    <div key={item.id} className={`grocery-item ${item.is_checked ? 'checked' : ''}`} onClick={() => toggleItem(item.id)}>
-                      <span className="grocery-check">{item.is_checked ? '✅' : '⬜'}</span>
-                      <span className="grocery-name">{item.name}</span>
-                      <span className="grocery-qty">
-                        {item.quantity ? `${item.quantity} ${item.unit ?? ''}` : ''}
-                      </span>
-                      <span className="grocery-cost">{formatCost(item.estimated_cost)}</span>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
+            <SmartGrocery items={groceryItems} onToggle={toggleItem} />
           )}
         </div>
       )}
 
-      {/* Fridge Scanner */}
-      {tab === 'fridge' && (
-        <div className="kitchen-fridge">
-          {/* Scan Input */}
-          <div className="fridge-scan-section">
-            <div className="fridge-scan-header">
-              <span className="ai-add-icon">📸</span>
-              <span>Scan Your Fridge</span>
-            </div>
-            <p className="fridge-scan-desc">
-              Describe what you see in your fridge/pantry, or paste a shopping list. AI will identify ingredients, estimate expiry, and suggest meals.
-            </p>
-            <div className="ai-add-row">
-              <textarea
-                value={scanText}
-                onChange={e => setScanText(e.target.value)}
-                placeholder="e.g., 2 chicken breasts, a bag of spinach, half an onion, leftover rice, bell peppers, soy sauce, eggs..."
-                className="fridge-textarea"
-                rows={3}
-              />
-              <button className="btn-primary" onClick={async () => {
-                if (!scanText.trim()) return;
-                await scan(scanText);
-                setScanText('');
-                const matches = await whatCanIMake();
-                setMealMatches(matches.matches);
-                const expiring = await expiringSoon(5);
-                setExpiringItems(expiring);
-                setFridgeLoaded(true);
-              }} disabled={scanning || !scanText.trim()}>
-                {scanning ? '✨ Scanning...' : 'Scan'}
-              </button>
-            </div>
+      {/* ── PANTRY TAB ── */}
+      {tab === 'pantry' && (
+        <div className="kitchen-pantry">
+          {/* Placeholder data until backend provides pantry items */}
+          <PantryHeatmap items={[]} />
+          <div className="kitchen-empty" style={{ marginTop: '1rem' }}>
+            <p>🌡️ Connect your fridge scanner or add items to see pantry freshness.</p>
+            <button className="btn-primary" onClick={() => setTab('library')}>
+              Go to Fridge Scanner
+            </button>
           </div>
-
-          {/* Scan Results */}
-          {scanResult && (
-            <div className="fridge-results">
-              <div className="fridge-summary">
-                <h3 className="section-title">🧊 Inventory Updated</h3>
-                <p>{scanResult.summary}</p>
-              </div>
-
-              {/* Added Items */}
-              <div className="fridge-items">
-                {scanResult.items.map(item => (
-                  <div key={item.id} className="fridge-item">
-                    <span className="fridge-item-name">{item.name}</span>
-                    <span className="fridge-item-qty">
-                      {item.quantity} {item.unit ?? ''}
-                    </span>
-                    {item.expiry_date && (
-                      <span className="fridge-item-expiry">
-                        exp: {new Date(item.expiry_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Waste Risk */}
-              {scanResult.waste_risk.length > 0 && (
-                <div className="fridge-waste-risk">
-                  <h4>⚠️ Use Soon (waste risk)</h4>
-                  <div className="fridge-risk-items">
-                    {scanResult.waste_risk.map((item, i) => (
-                      <span key={i} className="topic-tag" style={{ borderColor: '#ef4444', color: '#ef4444' }}>{item}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* AI Meal Suggestions */}
-              {scanResult.suggested_meals.length > 0 && (
-                <div className="fridge-suggestions">
-                  <h4>🍳 AI Suggests</h4>
-                  <div className="fridge-meal-suggestions">
-                    {scanResult.suggested_meals.map((meal, i) => (
-                      <div key={i} className="fridge-meal-suggestion">{meal}</div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* What Can I Make */}
-          {fridgeLoaded && mealMatches.length > 0 && (
-            <div className="fridge-matches">
-              <h3 className="section-title">🍳 What Can I Make?</h3>
-              <div className="match-summary">
-                <span>You can make <strong>{mealMatches.filter(m => m.can_make).length}</strong> meals with what you have</span>
-              </div>
-              <div className="match-list">
-                {mealMatches.map(match => (
-                  <div key={match.meal_id} className={`match-card ${match.can_make ? 'can-make' : ''}`}>
-                    <div className="match-header">
-                      <span className="match-name">{match.meal_name}</span>
-                      <span className={`match-pct ${match.can_make ? 'full' : ''}`}>
-                        {match.can_make ? '✅ Ready' : `${Math.round(match.match_pct)}%`}
-                      </span>
-                    </div>
-                    <div className="match-bar">
-                      <div className="match-bar-fill" style={{ width: `${match.match_pct}%` }} />
-                    </div>
-                    {match.missing_ingredients.length > 0 && (
-                      <div className="match-missing">
-                        Missing: {match.missing_ingredients.join(', ')}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Expiring Soon */}
-          {fridgeLoaded && expiringItems.length > 0 && (
-            <div className="fridge-expiring">
-              <h3 className="section-title">⏰ Expiring Soon</h3>
-              <div className="expiring-list">
-                {expiringItems.map(item => (
-                  <div key={item.id} className="expiring-item">
-                    <span className="expiring-name">{item.name}</span>
-                    <span className="expiring-date">
-                      {item.expiry_date && new Date(item.expiry_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
+      )}
+
+      {/* ── COOKING MODE OVERLAY ── */}
+      {cookingMealId && (
+        <CookingMode
+          steps={[]}
+          currentStep={0}
+          onNext={() => {}}
+          onPrev={() => {}}
+          onClose={() => setCookingMealId(null)}
+        />
       )}
     </div>
   );

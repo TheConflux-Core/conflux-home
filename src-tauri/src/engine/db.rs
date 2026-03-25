@@ -2789,6 +2789,72 @@ impl EngineDb {
         })
     }
 
+    // ── Kitchen Hearth Extensions ──
+
+    pub fn add_meal_photo(&self, id: &str, meal_id: &str, photo_url: &str, caption: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO meal_photos (id, meal_id, photo_url, caption) VALUES (?1, ?2, ?3, ?4)",
+            params![id, meal_id, photo_url, caption]
+        )?;
+        Ok(())
+    }
+
+    pub fn get_meal_photos(&self, meal_id: &str) -> Result<Vec<super::types::MealPhoto>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, meal_id, photo_url, caption, ai_tags, taken_at, created_at FROM meal_photos WHERE meal_id = ?1 ORDER BY created_at DESC"
+        )?;
+        let rows = stmt.query_map(params![meal_id], |row| {
+            Ok(super::types::MealPhoto {
+                id: row.get(0)?, meal_id: row.get(1)?, photo_url: row.get(2)?,
+                caption: row.get(3)?, ai_tags: row.get(4)?, taken_at: row.get(5)?, created_at: row.get(6)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+
+    pub fn get_pantry_heatmap(&self) -> Result<Vec<super::types::PantryHeatItem>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT name, expiry_date, location FROM kitchen_inventory WHERE expiry_date IS NOT NULL ORDER BY expiry_date ASC"
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let name: String = row.get(0)?;
+            let expiry: Option<String> = row.get(1)?;
+            let location: String = row.get(2).unwrap_or_else(|_| "pantry".to_string());
+            let (freshness, days) = if let Some(exp) = expiry {
+                let exp_date = chrono::NaiveDate::parse_from_str(&exp, "%Y-%m-%d").ok();
+                let today = chrono::Utc::now().date_naive();
+                if let Some(ed) = exp_date {
+                    let diff = (ed - today).num_days();
+                    let f = if diff < 0 { 0.0 } else if diff > 14 { 1.0 } else { diff as f64 / 14.0 };
+                    (f, Some(diff))
+                } else { (0.5, None) }
+            } else { (1.0, None) };
+            Ok(super::types::PantryHeatItem { name, freshness, days_until_expiry: days, location })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+
+    pub fn get_expiring_items(&self, days: i64) -> Result<Vec<super::types::KitchenInventoryItem>> {
+        let conn = self.conn();
+        let future = chrono::Utc::now().checked_add_signed(chrono::Duration::days(days))
+            .map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at
+             FROM kitchen_inventory WHERE expiry_date IS NOT NULL AND expiry_date <= ?1 ORDER BY expiry_date ASC"
+        )?;
+        let rows = stmt.query_map(params![future], Self::map_inventory)?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+
     // LIFE AUTOPILOT
     pub fn add_document(&self, id: &str, member_id: Option<&str>, doc_type: &str, title: &str,
                          content: Option<&str>, ai_summary: Option<&str>, ai_key_dates: Option<&str>,
