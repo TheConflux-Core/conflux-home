@@ -21,7 +21,6 @@ const ALL_APPS: AppItem[] = [
   { id: 'life', icon: '🧠', label: 'Life Autopilot', category: 'life', description: 'Document AI & smart reminders' },
   { id: 'home', icon: '🔧', label: 'Home Health', category: 'life', description: 'Bills, maintenance & appliances' },
   { id: 'dreams', icon: '🎯', label: 'Dream Builder', category: 'life', description: 'Goals into daily actions' },
-  { id: 'diary', icon: '📝', label: 'Agent Diary', category: 'life', description: 'Personal AI journals' },
   { id: 'kitchen', icon: '🍳', label: 'Kitchen', category: 'life', description: 'Smart meal planning & fridge' },
   { id: 'budget', icon: '💰', label: 'Budget', category: 'work', description: 'Expense tracking' },
   { id: 'feed', icon: '📰', label: 'Feed', category: 'fun', description: 'AI-curated content' },
