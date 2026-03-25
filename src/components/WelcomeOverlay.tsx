@@ -94,8 +94,8 @@ export default function WelcomeOverlay({
           }
         }
 
-        /* ===== ZigBot avatar ===== */
-        .welcome-zigbot-avatar {
+        /* ===== Conflux avatar ===== */
+        .welcome-conflux-avatar {
           display: flex;
           justify-content: center;
           margin-bottom: 24px;
@@ -219,11 +219,11 @@ export default function WelcomeOverlay({
           className="welcome-card"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* ZigBot avatar */}
-          <div className="welcome-zigbot-avatar">
+          {/* Conflux avatar */}
+          <div className="welcome-conflux-avatar">
             <Avatar
               agentId="zigbot"
-              name="ZigBot"
+              name="Conflux"
               emoji="🤖"
               status="idle"
               size="lg"
@@ -233,7 +233,7 @@ export default function WelcomeOverlay({
 
           {/* Greeting text */}
           <div className="welcome-greeting">
-            Hey {displayName}! I'm ZigBot, your strategic partner.
+            Hey {displayName}! I'm Conflux, your strategic partner.
           </div>
           <div className="welcome-subtext">
             Your team is ready. Let's build something incredible.

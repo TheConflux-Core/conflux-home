@@ -45,7 +45,7 @@ interface AgentInfo {
 }
 
 const ALL_AGENTS: Record<string, AgentInfo> = {
-  zigbot: { id: 'zigbot', name: 'ZigBot', emoji: '🤖', role: 'Strategic Partner', why: 'Guides your strategy and helps you think clearly about opportunities' },
+  zigbot: { id: 'zigbot', name: 'Conflux', emoji: '🤖', role: 'Strategic Partner', why: 'Guides your strategy and helps you think clearly about opportunities' },
   helix: { id: 'helix', name: 'Helix', emoji: '🔬', role: 'Market Researcher', why: 'Finds market data, competitor intel, and validates ideas' },
   forge: { id: 'forge', name: 'Forge', emoji: '🔨', role: 'Execution Builder', why: 'Builds products, writes code, and creates deliverables' },
   vector: { id: 'vector', name: 'Vector', emoji: '🧭', role: 'Business Strategist', why: 'Evaluates opportunities and keeps your portfolio on track' },
@@ -301,7 +301,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     if (step === 2 && chatMessages.length === 0) {
       setChatMessages([{
         role: 'zigbot',
-        text: "👋 Hey! I'm ZigBot.\n\nWhat do you wish you had more help with? Doesn't have to be big — even just day-to-day stuff counts.\n\nNo wrong answers here.",
+        text: "👋 Hey! I'm Conflux.\n\nWhat do you wish you had more help with? Doesn't have to be big — even just day-to-day stuff counts.\n\nNo wrong answers here.",
       }]);
     }
   }, [step]);
@@ -879,7 +879,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         className="animate-fade-in"
         style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20, '--stagger-delay': '100ms' } as React.CSSProperties}
       >
-        Chat with ZigBot and he'll put together your perfect team.
+        Chat with Conflux and he'll put together your perfect team.
       </p>
 
       {/* Chat messages */}
