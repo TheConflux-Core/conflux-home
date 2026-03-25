@@ -400,7 +400,17 @@ export default function App() {
       />
 
       {controlRoom ? (
-        <ControlRoom />
+        <ControlRoom
+          agents={selectedAgentIds.length > 0 ? filteredAgents : agents}
+          onNavigate={(v) => setImmersiveView(v as View)}
+          onOpenChat={(agentId) => {
+            const agent = agents.find(a => a.id === agentId);
+            if (agent) {
+              setSelectedAgent(agent);
+              setChatOpen(true);
+            }
+          }}
+        />
       ) : (
         <Desktop
           agents={selectedAgentIds.length > 0 ? filteredAgents : agents}
