@@ -235,6 +235,17 @@ pub fn run() {
             commands::home_add_appliance,
             commands::home_get_appliances,
             commands::home_get_insights,
+            // Foundation AI Commands
+            commands::home_diagnose_problem,
+            commands::home_predict_failures,
+            commands::home_get_seasonal_tasks,
+            commands::home_complete_seasonal_task,
+            commands::home_detect_anomalies,
+            commands::home_get_warranty_alerts,
+            commands::home_chat,
+            commands::home_get_maintenance_report,
+            commands::home_log_problem_natural,
+            commands::home_get_year_summary,
             // Dream Builder
             commands::dream_add,
             commands::dream_get_all,
