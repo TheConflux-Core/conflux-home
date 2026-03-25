@@ -30,6 +30,7 @@ import FeedView from './components/FeedView';
 import LifeAutopilotView from './components/LifeAutopilotView';
 import HomeHealthView from './components/HomeHealthView';
 import DreamBuilderView from './components/DreamBuilderView';
+import GoogleView from './components/GoogleView';
 import ImmersiveView from './components/ImmersiveView';
 import ControlRoom from './components/ControlRoom';
 import { useEngine } from './hooks/useEngine';
@@ -449,6 +450,7 @@ const [activeSnake, setActiveSnake] = useState(false);
           {immersiveView === 'life' && <LifeAutopilotView />}
           {immersiveView === 'home' && <HomeHealthView />}
           {immersiveView === 'dreams' && <DreamBuilderView />}
+          {immersiveView === 'google' && <GoogleView />}
           {immersiveView === 'marketplace' && <Marketplace />}
           {immersiveView === 'settings' && <Settings />}
           {immersiveView === 'agents' && (
