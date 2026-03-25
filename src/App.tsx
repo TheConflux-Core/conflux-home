@@ -18,6 +18,7 @@ import GameLauncher from './components/GameLauncher';
 import GamesHub from './components/GamesHub';
 import MinesweeperGame from './components/MinesweeperGame';
 import SnakeGame from './components/SnakeGame';
+import PacmanGame from './components/PacmanGame';
 import StoryGameReader from './components/StoryGameReader';
 import AgentTemplateBrowser from './components/AgentTemplateBrowser';
 import ParentDashboard from './components/ParentDashboard';
@@ -180,6 +181,7 @@ export default function App() {
   const [showGameLauncher, setShowGameLauncher] = useState(false);
   const [activeMinesweeper, setActiveMinesweeper] = useState(false);
 const [activeSnake, setActiveSnake] = useState(false);
+  const [activePacman, setActivePacman] = useState(false);
   const {
     game: activeGame, chapters: activeGameChapters, currentChapter: activeGameCurrentChapter,
     choosePath, solvePuzzle, generateNextChapter,
@@ -505,7 +507,7 @@ const [activeSnake, setActiveSnake] = useState(false);
               </div>
             </div>
           )}
-          {immersiveView === 'games' && !activeGameId && !activeMinesweeper && !activeSnake && (
+          {immersiveView === 'games' && !activeGameId && !activeMinesweeper && !activeSnake && !activePacman && (
             <GamesHub
               onOpenGame={(gameId) => {
                 if (gameId === 'minesweeper') {
@@ -513,6 +515,9 @@ const [activeSnake, setActiveSnake] = useState(false);
                 }
                 if (gameId === 'snake') {
                   setActiveSnake(true);
+                }
+                if (gameId === 'pacman') {
+                  setActivePacman(true);
                 }
               }}
             />
@@ -522,6 +527,9 @@ const [activeSnake, setActiveSnake] = useState(false);
           )}
           {immersiveView === 'games' && activeSnake && !activeMinesweeper && (
             <SnakeGame onBack={() => setActiveSnake(false)} />
+          )}
+          {immersiveView === 'games' && activePacman && !activeMinesweeper && !activeSnake && (
+            <PacmanGame onBack={() => setActivePacman(false)} />
           )}
         </ImmersiveView>
       )}
