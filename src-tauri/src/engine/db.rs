@@ -3003,6 +3003,154 @@ impl EngineDb {
         })
     }
 
+    // ── Life Autopilot: Orbit ──
+
+    pub fn add_life_task(&self, id: &str, title: &str, category: Option<&str>, priority: &str, due_date: Option<&str>, energy_type: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO life_tasks (id, title, category, priority, due_date, energy_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, title, category, priority, due_date, energy_type]
+        )?;
+        Ok(())
+    }
+
+    pub fn get_life_tasks(&self, status: Option<&str>) -> Result<Vec<super::types::LifeTask>> {
+        let conn = self.conn();
+        let mut result = Vec::new();
+        if let Some(s) = status {
+            let mut stmt = conn.prepare("SELECT id, title, category, priority, status, due_date, energy_type, completed_at, created_at FROM life_tasks WHERE status = ?1 ORDER BY priority DESC, due_date ASC")?;
+            let rows = stmt.query_map([s], |row| {
+                Ok(super::types::LifeTask {
+                    id: row.get(0)?, title: row.get(1)?, category: row.get(2)?,
+                    priority: row.get(3)?, status: row.get(4)?, due_date: row.get(5)?,
+                    energy_type: row.get(6)?, completed_at: row.get(7)?, created_at: row.get(8)?,
+                })
+            })?;
+            for r in rows { result.push(r?); }
+        } else {
+            let mut stmt = conn.prepare("SELECT id, title, category, priority, status, due_date, energy_type, completed_at, created_at FROM life_tasks ORDER BY status, priority DESC, due_date ASC")?;
+            let rows = stmt.query_map([], |row| {
+                Ok(super::types::LifeTask {
+                    id: row.get(0)?, title: row.get(1)?, category: row.get(2)?,
+                    priority: row.get(3)?, status: row.get(4)?, due_date: row.get(5)?,
+                    energy_type: row.get(6)?, completed_at: row.get(7)?, created_at: row.get(8)?,
+                })
+            })?;
+            for r in rows { result.push(r?); }
+        }
+        Ok(result)
+    }
+
+    pub fn update_life_task_status(&self, id: &str, status: &str) -> Result<()> {
+        let conn = self.conn();
+        let completed = if status == "completed" { Some(chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()) } else { None };
+        conn.execute("UPDATE life_tasks SET status = ?1, completed_at = ?2 WHERE id = ?3", params![status, completed, id])?;
+        Ok(())
+    }
+
+    pub fn delete_life_task(&self, id: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute("DELETE FROM life_tasks WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    pub fn add_life_habit(&self, id: &str, name: &str, category: Option<&str>, frequency: &str, target_count: i64) -> Result<()> {
+        let conn = self.conn();
+        conn.execute("INSERT INTO life_habits (id, name, category, frequency, target_count) VALUES (?1, ?2, ?3, ?4, ?5)", params![id, name, category, frequency, target_count])?;
+        Ok(())
+    }
+
+    pub fn get_life_habits(&self, active_only: bool) -> Result<Vec<super::types::LifeHabit>> {
+        let conn = self.conn();
+        let query = if active_only {
+            "SELECT id, name, category, frequency, target_count, streak, best_streak, active, created_at FROM life_habits WHERE active = 1 ORDER BY name"
+        } else {
+            "SELECT id, name, category, frequency, target_count, streak, best_streak, active, created_at FROM life_habits ORDER BY name"
+        };
+        let mut stmt = conn.prepare(query)?;
+        let rows = stmt.query_map([], |row| {
+            Ok(super::types::LifeHabit {
+                id: row.get(0)?, name: row.get(1)?, category: row.get(2)?,
+                frequency: row.get(3)?, target_count: row.get(4)?, streak: row.get(5)?,
+                best_streak: row.get(6)?, active: row.get::<_, i64>(7)? != 0, created_at: row.get(8)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+
+    pub fn log_life_habit(&self, id: &str, habit_id: &str, logged_date: &str, count: i64) -> Result<()> {
+        let conn = self.conn();
+        conn.execute("INSERT INTO life_habit_logs (id, habit_id, logged_date, count) VALUES (?1, ?2, ?3, ?4)", params![id, habit_id, logged_date, count])?;
+        // Update streak
+        conn.execute("UPDATE life_habits SET streak = streak + 1 WHERE id = ?1", params![habit_id])?;
+        Ok(())
+    }
+
+    pub fn get_orbit_dashboard(&self) -> Result<super::types::OrbitDashboard> {
+        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        // Today's focus
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT id, focus_date, task_id, position, created_at FROM life_daily_focus WHERE focus_date = ?1 ORDER BY position")?;
+        let focus_rows = stmt.query_map(params![today], |row| {
+            let task_id: Option<String> = row.get(2)?;
+            let task = if let Some(tid) = &task_id {
+                conn.query_row(
+                    "SELECT id, title, category, priority, status, due_date, energy_type, completed_at, created_at FROM life_tasks WHERE id = ?1",
+                    params![tid], |r| Ok(super::types::LifeTask {
+                        id: r.get(0)?, title: r.get(1)?, category: r.get(2)?, priority: r.get(3)?,
+                        status: r.get(4)?, due_date: r.get(5)?, energy_type: r.get(6)?,
+                        completed_at: r.get(7)?, created_at: r.get(8)?,
+                    })
+                ).ok()
+            } else { None };
+            Ok(super::types::LifeDailyFocus {
+                id: row.get(0)?, focus_date: row.get(1)?, task_id, position: row.get(3)?, task, created_at: row.get(4)?,
+            })
+        })?;
+        let mut focus = Vec::new();
+        for r in focus_rows { focus.push(r?); }
+        let tasks = self.get_life_tasks(Some("pending")).unwrap_or_default();
+        let habits = self.get_life_habits(true).unwrap_or_default();
+        let streak_total: i64 = habits.iter().map(|h| h.streak).sum();
+        Ok(super::types::OrbitDashboard {
+            today_focus: focus,
+            pending_tasks: tasks,
+            active_habits: habits,
+            nudges: Vec::new(),
+            streak_total,
+            completed_today: 0,
+        })
+    }
+
+    pub fn add_daily_focus(&self, id: &str, task_id: &str, position: i64) -> Result<()> {
+        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        let conn = self.conn();
+        conn.execute("INSERT INTO life_daily_focus (id, focus_date, task_id, position) VALUES (?1, ?2, ?3, ?4)", params![id, today, task_id, position])?;
+        Ok(())
+    }
+
+    pub fn add_nudge(&self, id: &str, nudge_type: &str, message: &str, action_label: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        conn.execute("INSERT INTO life_nudges (id, nudge_type, message, action_label) VALUES (?1, ?2, ?3, ?4)", params![id, nudge_type, message, action_label])?;
+        Ok(())
+    }
+
+    pub fn get_nudges(&self) -> Result<Vec<super::types::LifeNudge>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT id, nudge_type, message, action_label, dismissed, created_at FROM life_nudges WHERE dismissed = 0 ORDER BY created_at DESC LIMIT 5")?;
+        let rows = stmt.query_map([], |row| {
+            Ok(super::types::LifeNudge {
+                id: row.get(0)?, nudge_type: row.get(1)?, message: row.get(2)?,
+                action_label: row.get(3)?, dismissed: row.get::<_, i64>(4)? != 0, created_at: row.get(5)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+
     // HOME HEALTH
     pub fn upsert_home_profile(&self, id: &str, address: Option<&str>, year_built: Option<i64>, square_feet: Option<i64>,
         hvac_type: Option<&str>, hvac_filter_size: Option<&str>, water_heater_type: Option<&str>,

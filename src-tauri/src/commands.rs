@@ -2437,6 +2437,145 @@ Provide a helpful, specific answer based on the information above. If you don't 
 
     Ok(response.content)
 }
+
+// ── Life Autopilot: Orbit Commands ──
+
+#[tauri::command]
+pub fn life_add_task(title: String, category: Option<String>, priority: Option<String>, due_date: Option<String>, energy_type: Option<String>) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    engine.db().add_life_task(&id, &title, category.as_deref(), priority.as_deref().unwrap_or("medium"), due_date.as_deref(), energy_type.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn life_get_tasks(status: Option<String>) -> Result<Vec<engine::types::LifeTask>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_life_tasks(status.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn life_complete_task(task_id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().update_life_task_status(&task_id, "completed").map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn life_delete_task(task_id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().delete_life_task(&task_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn life_add_habit(name: String, category: Option<String>, frequency: Option<String>, target_count: Option<i64>) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    engine.db().add_life_habit(&id, &name, category.as_deref(), frequency.as_deref().unwrap_or("daily"), target_count.unwrap_or(1)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn life_get_habits(active_only: Option<bool>) -> Result<Vec<engine::types::LifeHabit>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_life_habits(active_only.unwrap_or(true)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn life_log_habit(habit_id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    engine.db().log_life_habit(&id, &habit_id, &today, 1).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn life_get_orbit_dashboard() -> Result<engine::types::OrbitDashboard, String> {
+    let engine = engine::get_engine();
+    engine.db().get_orbit_dashboard().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn life_add_daily_focus(task_id: String, position: Option<i64>) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    engine.db().add_daily_focus(&id, &task_id, position.unwrap_or(0)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn life_morning_brief() -> Result<String, String> {
+    let engine = engine::get_engine();
+    let dashboard = engine.db().get_orbit_dashboard().map_err(|e| e.to_string())?;
+    let mut brief = String::from("☀️ Good morning!\n\n");
+    if !dashboard.today_focus.is_empty() {
+        brief.push_str("🎯 Today's Focus:\n");
+        for (i, f) in dashboard.today_focus.iter().enumerate() {
+            if let Some(ref task) = f.task {
+                brief.push_str(&format!("  {}. {}\n", i + 1, task.title));
+            }
+        }
+    }
+    if !dashboard.pending_tasks.is_empty() {
+        brief.push_str(&format!("\n📋 {} pending tasks\n", dashboard.pending_tasks.len()));
+    }
+    if dashboard.streak_total > 0 {
+        brief.push_str(&format!("🔥 {} total habit streaks\n", dashboard.streak_total));
+    }
+    Ok(brief)
+}
+
+#[tauri::command]
+pub async fn life_smart_reschedule(task_id: String) -> Result<engine::types::LifeSchedule, String> {
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    let schedule = engine::types::LifeSchedule {
+        id: id.clone(),
+        task_id: Some(task_id),
+        suggested_time: Some("10:00 AM".to_string()),
+        energy_match: Some("high".to_string()),
+        reason: Some("Best focus time for important tasks".to_string()),
+        accepted: false,
+        created_at: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+    };
+    Ok(schedule)
+}
+
+#[tauri::command]
+pub async fn life_parse_input(input: String) -> Result<serde_json::Value, String> {
+    let lower = input.to_lowercase();
+    let action = if lower.contains("remind") || lower.contains("remember") { "reminder" }
+        else if lower.contains("habit") || lower.contains("daily") { "habit" }
+        else { "task" };
+    Ok(serde_json::json!({
+        "action": action,
+        "title": input,
+        "parsed": true,
+    }))
+}
+
+#[tauri::command]
+pub async fn life_decision_helper(options: String) -> Result<String, String> {
+    Ok(format!("🤔 Analyzing: {}\n\nConsider: pros/cons, time investment, alignment with goals.", options))
+}
+
+#[tauri::command]
+pub fn life_get_heatmap() -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let tasks = engine.db().get_life_tasks(None).unwrap_or_default();
+    let mut days: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+    for task in &tasks {
+        if let Some(ref date) = task.due_date {
+            *days.entry(date[..10].to_string()).or_insert(0) += 1;
+        }
+    }
+    Ok(serde_json::json!({ "days": days }))
+}
+
+#[tauri::command]
+pub fn life_dismiss_nudge(nudge_id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let conn = engine.db().conn();
+    conn.execute("UPDATE life_nudges SET dismissed = 1 WHERE id = ?1", rusqlite::params![nudge_id]).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 // ── Home Health ──
 
 #[tauri::command]
