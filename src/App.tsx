@@ -15,6 +15,8 @@ import ToastContainer from './components/Toast';
 import FamilySwitcher from './components/FamilySwitcher';
 import FamilySetup from './components/FamilySetup';
 import GameLauncher from './components/GameLauncher';
+import GamesHub from './components/GamesHub';
+import MinesweeperGame from './components/MinesweeperGame';
 import StoryGameReader from './components/StoryGameReader';
 import AgentTemplateBrowser from './components/AgentTemplateBrowser';
 import ParentDashboard from './components/ParentDashboard';
@@ -173,6 +175,7 @@ export default function App() {
   const { games: storyGames, create: createStoryGame, reload: reloadGames } = useStoryGames(activeMemberId ?? undefined);
   const [activeGameId, setActiveGameId] = useState<string | null>(null);
   const [showGameLauncher, setShowGameLauncher] = useState(false);
+  const [activeMinesweeper, setActiveMinesweeper] = useState(false);
   const {
     game: activeGame, chapters: activeGameChapters, currentChapter: activeGameCurrentChapter,
     choosePath, solvePuzzle, generateNextChapter,
@@ -476,87 +479,17 @@ export default function App() {
               </div>
             </div>
           )}
-          {immersiveView === 'games' && !activeGameId && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <div>
-                  <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-                    📖 Conflux Stories
-                  </h3>
-                  <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                    AI-generated interactive adventure puzzle games
-                  </p>
-                </div>
-                <button
-                  className="btn-primary"
-                  onClick={() => setShowGameLauncher(true)}
-                  style={{ padding: '10px 20px', borderRadius: 10, fontWeight: 600 }}
-                >
-                  + New Story
-                </button>
-              </div>
-              {storyGames.length > 0 ? (
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                  gap: 16,
-                }}>
-                  {storyGames.map(game => (
-                    <div
-                      key={game.id}
-                      style={{
-                        background: 'var(--bg-card)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 14,
-                        padding: 20,
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                      }}
-                      onClick={() => setActiveGameId(game.id)}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 8 }}>
-                        <span style={{ fontSize: 24 }}>
-                          {game.genre === 'adventure' ? '⚔️' : game.genre === 'mystery' ? '🔍' : game.genre === 'fantasy' ? '🐉' : game.genre === 'scifi' ? '🚀' : '👻'}
-                        </span>
-                        <span style={{
-                          fontSize: 11, padding: '3px 8px', borderRadius: 6,
-                          background: game.status === 'active' ? 'var(--accent-success)' + '20' : 'var(--text-muted)' + '20',
-                          color: game.status === 'active' ? 'var(--accent-success)' : 'var(--text-muted)',
-                        }}>
-                          {game.status}
-                        </span>
-                      </div>
-                      <h4 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)' }}>
-                        {game.title}
-                      </h4>
-                      <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                        Chapter {game.current_chapter} • {game.genre} • {game.difficulty}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div style={{
-                  textAlign: 'center', padding: 60, color: 'var(--text-muted)',
-                  background: 'var(--bg-card)', borderRadius: 14, border: '1px solid var(--border)',
-                }}>
-                  <div style={{ fontSize: 48, marginBottom: 16 }}>📖</div>
-                  <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: 'var(--text-primary)' }}>
-                    No stories yet
-                  </h3>
-                  <p style={{ fontSize: 13, marginBottom: 20 }}>
-                    Start your first interactive adventure!
-                  </p>
-                  <button
-                    className="btn-primary"
-                    onClick={() => setShowGameLauncher(true)}
-                    style={{ padding: '10px 24px', borderRadius: 10, fontWeight: 600 }}
-                  >
-                    Browse Stories →
-                  </button>
-                </div>
-              )}
-            </div>
+          {immersiveView === 'games' && !activeGameId && !activeMinesweeper && (
+            <GamesHub
+              onOpenGame={(gameId) => {
+                if (gameId === 'minesweeper') {
+                  setActiveMinesweeper(true);
+                }
+              }}
+            />
+          )}
+          {immersiveView === 'games' && activeMinesweeper && (
+            <MinesweeperGame onBack={() => setActiveMinesweeper(false)} />
           )}
         </ImmersiveView>
       )}

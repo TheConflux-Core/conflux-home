@@ -17,6 +17,7 @@ import './styles-orbit.css'
 import './styles/animations.css'
 import './styles/horizon-hopes.css'
 import './styles-current.css'
+import './styles-games.css'
 import './styles/foundation.css'
 
 // Error boundary with MAXIMUM detail
