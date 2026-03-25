@@ -101,11 +101,19 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: npm run tauri:build
 
+      - name: Debug bundle contents
+        shell: bash
+        run: |
+          echo "=== msi bundle ==="
+          find src-tauri/target/release/bundle/msi -type f 2>/dev/null || echo "(no msi dir)"
+          echo "=== all .sig files ==="
+          find src-tauri/target/release/bundle -name '*.sig' 2>/dev/null || echo "(none found)"
+
       - name: Collect .sig files
         shell: bash
         run: |
           mkdir -p /tmp/sigs
-          find src-tauri/target/release/bundle/msi -name '*.sig' -exec cp {} /tmp/sigs/ \;
+          find src-tauri/target/release/bundle -name '*.sig' -exec cp {} /tmp/sigs/ \;
 
       - name: Upload .sig artifacts
         uses: actions/upload-artifact@v4
@@ -158,12 +166,17 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: npm run tauri:build -- --target ${{ matrix.target }}
 
+      - name: Debug bundle contents
+        run: |
+          echo "=== dmg bundle ==="
+          find "src-tauri/target/${{ matrix.target }}/release/bundle/dmg" -type f 2>/dev/null || echo "(no dmg dir)"
+          echo "=== all .sig files ==="
+          find "src-tauri/target/${{ matrix.target }}/release/bundle" -name '*.sig' 2>/dev/null || echo "(none found)"
+
       - name: Collect .sig files
         run: |
           mkdir -p /tmp/sigs
-          find "src-tauri/target/${{ matrix.target }}/release/bundle/dmg" -name '*.sig' -exec cp {} /tmp/sigs/ \;
-          # Also collect updater .tar.gz.sig if createUpdaterArtifacts produces them
-          find "src-tauri/target/${{ matrix.target }}/release/bundle/macos" -name '*.sig' -exec cp {} /tmp/sigs/ \; 2>/dev/null || true
+          find "src-tauri/target/${{ matrix.target }}/release/bundle" -name '*.sig' -exec cp {} /tmp/sigs/ \;
 
       - name: Upload .sig artifacts
         uses: actions/upload-artifact@v4
@@ -183,11 +196,18 @@ jobs:
     needs: [build-linux, build-windows, build-macos]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Download all .sig artifacts
         uses: actions/download-artifact@v4
         with:
           path: sigs/
           pattern: '*-sigs'
+
+      - name: Debug downloaded sigs
+        run: |
+          echo "=== sigs/ contents ==="
+          find sigs/ -type f 2>/dev/null || echo "(empty)"
 
       - name: Generate updates.json
         run: |
