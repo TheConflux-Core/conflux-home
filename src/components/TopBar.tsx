@@ -6,6 +6,7 @@ import ConnectivityWidget from './ConnectivityWidget';
 interface TopBarProps {
   selectedAgent: Agent | null;
   engineConnected: boolean;
+  controlRoom?: boolean;
 }
 
 function getThemeIcon(preference: Theme): string {
@@ -30,7 +31,7 @@ function cycleTheme(current: Theme): Theme {
   return 'light';
 }
 
-export default function TopBar({ selectedAgent, engineConnected }: TopBarProps) {
+export default function TopBar({ selectedAgent, engineConnected, controlRoom }: TopBarProps) {
   const [clock, setClock] = useState('');
   const [themePref, setThemePref] = useState<Theme>(
     () => (localStorage.getItem('conflux-theme') as Theme) || 'system'
@@ -129,6 +130,16 @@ export default function TopBar({ selectedAgent, engineConnected }: TopBarProps) 
           title="Settings"
         >
           ⚙️
+        </button>
+        <button
+          className={`topbar-control-room-btn${controlRoom ? ' active' : ''}`}
+          onClick={() => {
+            const event = new CustomEvent('conflux:toggle-control-room');
+            window.dispatchEvent(event);
+          }}
+          title="Toggle Control Room (dev)"
+        >
+          🌐
         </button>
         <button
           className="topbar-google-btn"

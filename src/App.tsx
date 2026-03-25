@@ -28,6 +28,7 @@ import LifeAutopilotView from './components/LifeAutopilotView';
 import HomeHealthView from './components/HomeHealthView';
 import DreamBuilderView from './components/DreamBuilderView';
 import ImmersiveView from './components/ImmersiveView';
+import ControlRoom from './components/ControlRoom';
 import { useEngine } from './hooks/useEngine';
 import { useToast } from './hooks/useToast';
 import { useFamily } from './hooks/useFamily';
@@ -66,6 +67,7 @@ function getDefaultWallpaper(): string {
 export default function App() {
   const [view, setView] = useState<View>('dashboard');
   const [immersiveView, setImmersiveView] = useState<View | null>(null);
+  const [controlRoom, setControlRoom] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [voiceChatOpen, setVoiceChatOpen] = useState(false);
@@ -251,6 +253,13 @@ export default function App() {
     return () => window.removeEventListener('conflux:navigate', handler);
   }, []);
 
+  // Listen for control room toggle (dev)
+  useEffect(() => {
+    const handler = () => setControlRoom(prev => !prev);
+    window.addEventListener('conflux:toggle-control-room', handler);
+    return () => window.removeEventListener('conflux:toggle-control-room', handler);
+  }, []);
+
   // Listen for open-chat from AgentDetail modal
   useEffect(() => {
     const handler = (e: Event) => {
@@ -387,13 +396,18 @@ export default function App() {
       <TopBar
         selectedAgent={selectedAgent}
         engineConnected={connected}
+        controlRoom={controlRoom}
       />
 
-      <Desktop
-        agents={selectedAgentIds.length > 0 ? filteredAgents : agents}
-        wallpaper={wallpaper || undefined}
-        onNavigate={(v) => setImmersiveView(v)}
-      />
+      {controlRoom ? (
+        <ControlRoom />
+      ) : (
+        <Desktop
+          agents={selectedAgentIds.length > 0 ? filteredAgents : agents}
+          wallpaper={wallpaper || undefined}
+          onNavigate={(v) => setImmersiveView(v)}
+        />
+      )}
 
       {/* Family Switcher — moved to TopBar popup (removed from desktop) */}
 
