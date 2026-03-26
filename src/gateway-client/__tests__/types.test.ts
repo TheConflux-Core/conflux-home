@@ -26,7 +26,7 @@ describe('types', () => {
   });
 
   it('exports GatewayAgent interface', () => {
-    const agent: GatewayAgent = { id: 'zigbot', name: 'ZigBot', status: 'online' };
+    const agent: GatewayAgent = { id: 'zigbot', name: 'Conflux', status: 'online' };
     expect(agent.id).toBe('zigbot');
   });
 
