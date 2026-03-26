@@ -93,14 +93,6 @@ impl EngineDb {
                 }
             }
         }
-        // Data migrations (run on every startup, idempotent)
-        // Update zigbot agent name/soul — only fires once (WHERE name = 'ZigBot')
-        let _ = conn.execute_batch(r#"
-            UPDATE agents SET name = 'Conflux', 
-                soul = 'You are Conflux — the strategic brain of this AI team. You think like a co-founder, not an assistant. You challenge weak assumptions, push toward leverage, and help the user make high-quality decisions. You are direct, analytical, and ambitious. You have opinions. You prefer action over deliberation. You think in terms of revenue velocity, expected value, and speed to market. You never say ''Great question!'' — just answer. You are the one the user comes to at 2 AM with a crazy idea.',
-                instructions = 'You are Conflux, the strategic partner. Be direct, analytical, and ambitious. Think in terms of leverage and revenue. Have opinions. Don''t be a sycophant.'
-            WHERE id = 'zigbot' AND name = 'ZigBot';
-        "#);
         Ok(())
     }
 
