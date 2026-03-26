@@ -41,7 +41,7 @@ describe('AgentReader', () => {
     expect(agents.length).toBeGreaterThanOrEqual(2);
     const zigbot = agents.find((a) => a.id === 'zigbot');
     expect(zigbot).toBeDefined();
-    expect(zigbot!.name).toBe('ZigBot');
+    expect(zigbot!.name).toBe('Conflux');
     expect(zigbot!.emoji).toBe('🤖');
     expect(zigbot!.status).toBe('working'); // recent activity
   });

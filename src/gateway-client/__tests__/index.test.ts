@@ -80,7 +80,7 @@ describe('GatewayClient', () => {
       ok: true,
       json: async () => ({
         ok: true,
-        result: { details: { agents: [{ id: 'zigbot', name: 'ZigBot' }] } },
+        result: { details: { agents: [{ id: 'zigbot', name: 'Conflux' }] } },
       }),
     }));
 

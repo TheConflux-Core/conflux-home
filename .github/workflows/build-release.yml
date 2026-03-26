@@ -48,6 +48,20 @@ jobs:
       - name: Build Tauri app (signed)
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          VITE_CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          VITE_GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          VITE_MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          VITE_DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          VITE_CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          VITE_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          VITE_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: npm run tauri:build
 
       - name: Rename artifacts (remove version from filenames)
@@ -103,6 +117,20 @@ jobs:
       - name: Build Tauri app (signed)
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          VITE_CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          VITE_GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          VITE_MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          VITE_DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          VITE_CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          VITE_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          VITE_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: npm run tauri:build
 
       - name: Rename artifacts (remove version from filenames)
@@ -170,6 +198,20 @@ jobs:
       - name: Build Tauri app (signed)
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          VITE_CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          VITE_GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          VITE_MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          VITE_DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          VITE_CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          VITE_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          VITE_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: npm run tauri:build -- --target ${{ matrix.target }}
 
       - name: Rename updater artifacts by arch
