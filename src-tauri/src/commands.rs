@@ -3943,6 +3943,25 @@ pub fn get_log_path() -> String {
     format!("{}/.openclaw/logs/gateway.log", home)
 }
 
+/// Writes an entry to the updater log file.
+#[tauri::command]
+pub fn write_updater_log(entry: String) {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_default();
+    let log_dir = format!("{}/.openclaw/logs", home);
+    let log_path = format!("{}/updater.log", log_dir);
+    let _ = std::fs::create_dir_all(&log_dir);
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+    {
+        use std::io::Write;
+        let _ = file.write_all(entry.as_bytes());
+    }
+}
+
 /// Returns basic system info for pre-filling bug reports.
 #[tauri::command]
 pub fn get_system_info() -> SystemInfo {
