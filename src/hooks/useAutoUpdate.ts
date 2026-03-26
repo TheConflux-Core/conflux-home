@@ -76,12 +76,29 @@ export function useAutoUpdate() {
         return;
       }
 
-      // Get the download URL from the update metadata
-      const rawJson = update.rawJson as Record<string, unknown>;
-      const downloadUrl = rawJson.url as string;
+      // Construct download URL from version + platform
+      // Use version-free filenames so the URL always works
+      const version = update.version.replace('v', '');
+      const isLinux = navigator.platform.toLowerCase().includes('linux');
+      const isMac = navigator.platform.toLowerCase().includes('mac');
+      const isWindows = navigator.platform.toLowerCase().includes('win');
       
-      await logToFile(`rawJson: ${JSON.stringify(rawJson)}`);
-      await logToFile(`downloadUrl: ${downloadUrl || 'undefined'}`);
+      let filename: string;
+      if (isLinux) {
+        filename = 'Conflux.Home_amd64.deb';
+      } else if (isMac) {
+        filename = 'Conflux.Home_x64.app.tar.gz';
+      } else if (isWindows) {
+        filename = 'Conflux.Home_x64-setup.exe';
+      } else {
+        filename = 'Conflux.Home_amd64.deb';
+      }
+      
+      const downloadUrl = `https://github.com/TheConflux-Core/conflux-home/releases/download/v${version}/${filename}`;
+      
+      await logToFile(`Platform: ${navigator.platform}`);
+      await logToFile(`Constructed URL: ${downloadUrl}`);
+      await logToFile(`rawJson: ${JSON.stringify(update.rawJson)}`);
       
       if (!downloadUrl) {
         setState((s) => ({ ...s, downloading: false, error: 'No download URL found' }));
