@@ -1,5 +1,16 @@
 import { useEffect, useState } from 'react';
 import { check } from '@tauri-apps/plugin-updater';
+import { invoke } from '@tauri-apps/api/core';
+
+async function logToFile(message: string) {
+  const timestamp = new Date().toISOString();
+  const line = `[${timestamp}] ${message}\n`;
+  try {
+    await invoke('write_updater_log', { entry: line });
+  } catch {
+    console.log('[updater] could not write log:', message);
+  }
+}
 
 interface UpdateState {
   available: boolean;
@@ -32,6 +43,7 @@ export function useAutoUpdate() {
         const update = await check();
         if (cancelled || !update) return;
 
+        await logToFile(`Update available: v${update.version}`);
         setState({
           available: true,
           version: update.version,
@@ -64,18 +76,33 @@ export function useAutoUpdate() {
         return;
       }
 
-      await update.downloadAndInstall((event) => {
+      console.log('[updater] downloading version:', update.version);
+      await logToFile(`Downloading version ${update.version}...`);
+      console.log('[updater] rawJson:', JSON.stringify(update.rawJson));
+      await logToFile(`Raw JSON: ${JSON.stringify(update.rawJson)}`);
+
+      await update.downloadAndInstall(async (event) => {
+        console.log('[updater] download event:', JSON.stringify(event));
+        await logToFile(`Download event: ${JSON.stringify(event)}`);
         if (event.event === 'Finished') {
           setState((s) => ({ ...s, downloading: false, downloaded: true }));
+          await logToFile('Download finished, ready to install.');
         }
       });
       // Update installed — user should restart the app
+      await logToFile('Update installed successfully.');
     } catch (err: any) {
       console.error('[updater] install failed:', err);
+      console.error('[updater] error type:', typeof err);
+      console.error('[updater] error keys:', Object.keys(err || {}));
+      console.error('[updater] error string:', JSON.stringify(err));
+      const errorMessage = err?.message ?? err?.toString() ?? JSON.stringify(err) ?? 'Update failed';
+      await logToFile(`ERROR: ${errorMessage}`);
+      await logToFile(`Error details: ${JSON.stringify(err)}`);
       setState((s) => ({
         ...s,
         downloading: false,
-        error: err?.message ?? 'Update failed',
+        error: errorMessage,
       }));
     }
   };

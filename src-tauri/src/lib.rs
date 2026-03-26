@@ -287,6 +287,7 @@ pub fn run() {
             commands::current_synthesize,
             // Feedback & System Info
             commands::get_log_path,
+            commands::write_updater_log,
             commands::get_system_info,
         ])
         .run(tauri::generate_context!())

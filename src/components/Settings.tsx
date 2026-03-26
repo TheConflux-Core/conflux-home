@@ -439,7 +439,7 @@ function AboutSection() {
       {logPath && (
         <div style={{ marginTop: 12, opacity: 0.8, fontSize: 13 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>📋 Logs:</span>
+            <span>📋 Gateway Log:</span>
             <code style={{ background: 'var(--bg-surface)', padding: '2px 6px', borderRadius: 4, fontSize: 12 }}>
               {logPath}
             </code>
@@ -449,6 +449,23 @@ function AboutSection() {
               style={{ fontSize: 12, padding: '2px 8px' }}
             >
               {copyStatus || 'Copy'}
+            </button>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+            <span>📋 Updater Log:</span>
+            <code style={{ background: 'var(--bg-surface)', padding: '2px 6px', borderRadius: 4, fontSize: 12 }}>
+              {logPath.replace('gateway.log', 'updater.log')}
+            </code>
+            <button
+              className="settings-button"
+              onClick={() => {
+                navigator.clipboard.writeText(logPath.replace('gateway.log', 'updater.log'));
+                setCopyStatus('Copied!');
+                setTimeout(() => setCopyStatus(''), 2000);
+              }}
+              style={{ fontSize: 12, padding: '2px 8px' }}
+            >
+              Copy
             </button>
           </div>
         </div>
