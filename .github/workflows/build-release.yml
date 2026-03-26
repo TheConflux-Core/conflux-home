@@ -105,6 +105,7 @@ jobs:
         run: npm run tauri:build
 
       - name: Rename artifacts (remove version from filenames)
+        shell: bash
         run: |
           for f in src-tauri/target/release/bundle/msi/*.msi; do
             [ -f "$f" ] && mv "$f" "src-tauri/target/release/bundle/msi/Conflux.Home_x64.msi"
