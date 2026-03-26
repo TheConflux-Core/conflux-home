@@ -80,6 +80,9 @@ export function useAutoUpdate() {
       const rawJson = update.rawJson as Record<string, unknown>;
       const downloadUrl = rawJson.url as string;
       
+      await logToFile(`rawJson: ${JSON.stringify(rawJson)}`);
+      await logToFile(`downloadUrl: ${downloadUrl || 'undefined'}`);
+      
       if (!downloadUrl) {
         setState((s) => ({ ...s, downloading: false, error: 'No download URL found' }));
         return;
