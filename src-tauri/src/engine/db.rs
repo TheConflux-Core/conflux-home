@@ -1959,7 +1959,6 @@ impl EngineDb {
     }
 
     pub fn get_monthly_report(&self, month: &str) -> Result<super::types::MonthlyReport> {
-        let conn = self.conn();
         let summary = self.get_budget_summary(month)?;
         let patterns = self.detect_budget_patterns(None)?;
         let goals = self.get_budget_goals(None)?;
@@ -3140,6 +3139,8 @@ impl EngineDb {
             let task = task_id.as_ref().and_then(|tid| task_map.get(tid).cloned());
             super::types::LifeDailyFocus { id, focus_date, task_id, position, task, created_at }
         }).collect();
+        // Drop conn guard before calling methods that also lock the mutex
+        drop(conn);
         let tasks = self.get_life_tasks(Some("pending")).unwrap_or_default();
         let habits = self.get_life_habits(true).unwrap_or_default();
         let streak_total: i64 = habits.iter().map(|h| h.streak).sum();
@@ -3879,17 +3880,21 @@ impl EngineDb {
         })
     }
     pub fn get_diary_dashboard(&self) -> Result<super::types::DiaryDashboard> {
-        let conn = self.conn();
-        let total: i64 = conn.query_row("SELECT COUNT(*) FROM diary_entries", [], |row| row.get(0)).unwrap_or(0);
-        let week_ago = (chrono::Utc::now() - chrono::Duration::days(7)).format("%Y-%m-%d").to_string();
-        let this_week: i64 = conn.query_row("SELECT COUNT(*) FROM diary_entries WHERE entry_date >= ?1", params![week_ago], |row| row.get(0)).unwrap_or(0);
-        let mut mood_stmt = conn.prepare("SELECT mood, COUNT(*) as cnt FROM diary_entries GROUP BY mood ORDER BY cnt DESC")?;
-        let mood_rows = mood_stmt.query_map([], |row| -> rusqlite::Result<super::types::MoodCount> {
-            Ok(super::types::MoodCount { mood: row.get(0)?, count: row.get(1)? })
-        })?;
-        let mut moods = Vec::new();
-        for r in mood_rows { moods.push(r?); }
+        let (total, this_week, moods) = {
+            let conn = self.conn();
+            let total: i64 = conn.query_row("SELECT COUNT(*) FROM diary_entries", [], |row| row.get(0)).unwrap_or(0);
+            let week_ago = (chrono::Utc::now() - chrono::Duration::days(7)).format("%Y-%m-%d").to_string();
+            let this_week: i64 = conn.query_row("SELECT COUNT(*) FROM diary_entries WHERE entry_date >= ?1", params![week_ago], |row| row.get(0)).unwrap_or(0);
+            let mut mood_stmt = conn.prepare("SELECT mood, COUNT(*) as cnt FROM diary_entries GROUP BY mood ORDER BY cnt DESC")?;
+            let mood_rows = mood_stmt.query_map([], |row| -> rusqlite::Result<super::types::MoodCount> {
+                Ok(super::types::MoodCount { mood: row.get(0)?, count: row.get(1)? })
+            })?;
+            let mut moods = Vec::new();
+            for r in mood_rows { moods.push(r?); }
+            (total, this_week, moods)
+        }; // conn dropped here
         let latest = self.get_all_diary_entries(5).unwrap_or_default();
+        let conn = self.conn();
         let mut agents_stmt = conn.prepare("SELECT DISTINCT agent_id FROM diary_entries ORDER BY agent_id")?;
         let agents_rows = agents_stmt.query_map([], |row| row.get::<_, String>(0))?;
         let mut agents = Vec::new();
