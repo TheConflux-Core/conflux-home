@@ -3090,27 +3090,56 @@ impl EngineDb {
 
     pub fn get_orbit_dashboard(&self) -> Result<super::types::OrbitDashboard> {
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-        // Today's focus
+        // Today's focus — collect rows first, then batch-fetch tasks to avoid nested conn borrows
         let conn = self.conn();
-        let mut stmt = conn.prepare("SELECT id, focus_date, task_id, position, created_at FROM life_daily_focus WHERE focus_date = ?1 ORDER BY position")?;
-        let focus_rows = stmt.query_map(params![today], |row| {
-            let task_id: Option<String> = row.get(2)?;
-            let task = if let Some(tid) = &task_id {
-                conn.query_row(
-                    "SELECT id, title, category, priority, status, due_date, energy_type, completed_at, created_at FROM life_tasks WHERE id = ?1",
-                    params![tid], |r| Ok(super::types::LifeTask {
+        let mut focus_data: Vec<(String, String, Option<String>, i64, String)> = Vec::new();
+        let mut task_ids: Vec<String> = Vec::new();
+        {
+            let mut stmt = conn.prepare("SELECT id, focus_date, task_id, position, created_at FROM life_daily_focus WHERE focus_date = ?1 ORDER BY position")?;
+            let focus_rows = stmt.query_map(params![today], |row| {
+                let id: String = row.get(0)?;
+                let focus_date: String = row.get(1)?;
+                let task_id: Option<String> = row.get(2)?;
+                let position: i64 = row.get(3)?;
+                let created_at: String = row.get(4)?;
+                Ok((id, focus_date, task_id, position, created_at))
+            })?;
+            for r in focus_rows {
+                let (id, focus_date, task_id, position, created_at) = r?;
+                if let Some(tid) = &task_id {
+                    task_ids.push(tid.clone());
+                }
+                focus_data.push((id, focus_date, task_id, position, created_at));
+            }
+        } // stmt dropped here, freeing conn borrow
+        // Batch-fetch tasks for focus items
+        let task_map: std::collections::HashMap<String, super::types::LifeTask> = if task_ids.is_empty() {
+            std::collections::HashMap::new()
+        } else {
+            let placeholders = task_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+            let sql = format!("SELECT id, title, category, priority, status, due_date, energy_type, completed_at, created_at FROM life_tasks WHERE id IN ({})", placeholders);
+            let mut task_stmt = conn.prepare(&sql)?;
+            let task_rows = task_stmt.query_map(rusqlite::params_from_iter(task_ids.iter()), |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    super::types::LifeTask {
                         id: r.get(0)?, title: r.get(1)?, category: r.get(2)?, priority: r.get(3)?,
                         status: r.get(4)?, due_date: r.get(5)?, energy_type: r.get(6)?,
                         completed_at: r.get(7)?, created_at: r.get(8)?,
-                    })
-                ).ok()
-            } else { None };
-            Ok(super::types::LifeDailyFocus {
-                id: row.get(0)?, focus_date: row.get(1)?, task_id, position: row.get(3)?, task, created_at: row.get(4)?,
-            })
-        })?;
-        let mut focus = Vec::new();
-        for r in focus_rows { focus.push(r?); }
+                    },
+                ))
+            })?;
+            let mut map = std::collections::HashMap::new();
+            for r in task_rows {
+                let (id, task) = r?;
+                map.insert(id, task);
+            }
+            map
+        };
+        let focus: Vec<super::types::LifeDailyFocus> = focus_data.into_iter().map(|(id, focus_date, task_id, position, created_at)| {
+            let task = task_id.as_ref().and_then(|tid| task_map.get(tid).cloned());
+            super::types::LifeDailyFocus { id, focus_date, task_id, position, task, created_at }
+        }).collect();
         let tasks = self.get_life_tasks(Some("pending")).unwrap_or_default();
         let habits = self.get_life_habits(true).unwrap_or_default();
         let streak_total: i64 = habits.iter().map(|h| h.streak).sum();
