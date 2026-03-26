@@ -93,7 +93,7 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom }: 
     <div className="topbar">
       <div className="topbar-left">
         <span className="topbar-logo">⚡</span>
-        <span className="topbar-title">Conflux Home</span>
+        <span className="topbar-title">Conflux Home <span style={{ fontSize: 10, opacity: 0.5, marginLeft: 4 }}>v{import.meta.env.VITE_APP_VERSION || '?'}</span></span>
       </div>
 
       <div className="topbar-center">

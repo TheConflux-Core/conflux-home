@@ -12,6 +12,8 @@ interface ImportMetaEnv {
   readonly VITE_XIAOMI_API_KEY: string;
   readonly VITE_GOOGLE_CLIENT_ID: string;
   readonly VITE_GOOGLE_CLIENT_SECRET: string;
+  readonly VITE_GEMINI_API_KEY: string;
+  readonly VITE_APP_VERSION: string;
 }
 
 interface ImportMeta {
