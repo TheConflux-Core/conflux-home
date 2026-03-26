@@ -3971,3 +3971,104 @@ pub fn get_system_info() -> SystemInfo {
         app_version: env!("CARGO_PKG_VERSION").to_string(),
     }
 }
+
+/// Downloads a file from a URL using reqwest (follows redirects) and saves to a temp path.
+/// Returns the path to the downloaded file.
+#[tauri::command]
+pub async fn download_update_file(url: String) -> Result<String, String> {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_default();
+    let log_dir = format!("{}/.openclaw/logs", home);
+    let _ = std::fs::create_dir_all(&log_dir);
+    let log_path = format!("{}/updater.log", log_dir);
+
+    // Log the download attempt
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+        use std::io::Write;
+        let _ = writeln!(f, "[{}] Attempting download: {}", chrono::Utc::now().to_rfc3339(), url);
+    }
+
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    let response = client.get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Download request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        // Log the failure
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+            use std::io::Write;
+            let _ = writeln!(f, "[{}] Download failed with status: {}", chrono::Utc::now().to_rfc3339(), status);
+        }
+        return Err(format!("Download failed with status: {}", status));
+    }
+
+    // Determine filename from URL
+    let filename = url.split('/').last().unwrap_or("update.bin");
+    let temp_dir = std::env::temp_dir();
+    let temp_path = temp_dir.join(format!("conflux_update_{}", filename));
+
+    // Stream to file
+    let bytes = response.bytes().await.map_err(|e| format!("Failed to read response: {}", e))?;
+    std::fs::write(&temp_path, &bytes).map_err(|e| format!("Failed to write file: {}", e))?;
+
+    // Log success
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+        use std::io::Write;
+        let _ = writeln!(f, "[{}] Download complete: {} ({} bytes)", chrono::Utc::now().to_rfc3339(), temp_path.display(), bytes.len());
+    }
+
+    Ok(temp_path.to_string_lossy().to_string())
+}
+
+/// Runs a downloaded installer. Platform-specific.
+#[tauri::command]
+pub fn run_installer(installer_path: String) -> Result<(), String> {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_default();
+    let log_path = format!("{}/.openclaw/logs/updater.log", home);
+
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+        use std::io::Write;
+        let _ = writeln!(f, "[{}] Running installer: {}", chrono::Utc::now().to_rfc3339(), installer_path);
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // Run MSI installer silently
+        std::process::Command::new("msiexec")
+            .args(["/i", &installer_path, "/quiet", "/norestart"])
+            .spawn()
+            .map_err(|e| format!("Failed to launch installer: {}", e))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        // Open the .dmg or .app
+        std::process::Command::new("open")
+            .arg(&installer_path)
+            .spawn()
+            .map_err(|e| format!("Failed to open installer: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Make AppImage executable and run
+        std::process::Command::new("chmod")
+            .args(["+x", &installer_path])
+            .output()
+            .map_err(|e| format!("Failed to chmod: {}", e))?;
+        std::process::Command::new(&installer_path)
+            .spawn()
+            .map_err(|e| format!("Failed to run installer: {}", e))?;
+    }
+
+    Ok(())
+}

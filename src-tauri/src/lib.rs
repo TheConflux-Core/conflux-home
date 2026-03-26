@@ -289,6 +289,8 @@ pub fn run() {
             commands::get_log_path,
             commands::write_updater_log,
             commands::get_system_info,
+            commands::download_update_file,
+            commands::run_installer,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

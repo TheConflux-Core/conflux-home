@@ -66,7 +66,7 @@ export function useAutoUpdate() {
     };
   }, []);
 
-  // Download + install + relaunch
+  // Download + install using custom Rust commands (follows redirects)
   const install = async () => {
     setState((s) => ({ ...s, downloading: true, error: undefined }));
     try {
@@ -76,29 +76,30 @@ export function useAutoUpdate() {
         return;
       }
 
-      console.log('[updater] downloading version:', update.version);
-      await logToFile(`Downloading version ${update.version}...`);
-      console.log('[updater] rawJson:', JSON.stringify(update.rawJson));
-      await logToFile(`Raw JSON: ${JSON.stringify(update.rawJson)}`);
+      // Get the download URL from the update metadata
+      const rawJson = update.rawJson as Record<string, unknown>;
+      const downloadUrl = rawJson.url as string;
+      
+      if (!downloadUrl) {
+        setState((s) => ({ ...s, downloading: false, error: 'No download URL found' }));
+        return;
+      }
 
-      await update.downloadAndInstall(async (event) => {
-        console.log('[updater] download event:', JSON.stringify(event));
-        await logToFile(`Download event: ${JSON.stringify(event)}`);
-        if (event.event === 'Finished') {
-          setState((s) => ({ ...s, downloading: false, downloaded: true }));
-          await logToFile('Download finished, ready to install.');
-        }
-      });
-      // Update installed — user should restart the app
-      await logToFile('Update installed successfully.');
+      await logToFile(`Downloading version ${update.version} from ${downloadUrl}`);
+
+      // Use custom Rust download (follows GitHub redirects)
+      const filePath = await invoke<string>('download_update_file', { url: downloadUrl });
+      await logToFile(`Downloaded to: ${filePath}`);
+
+      setState((s) => ({ ...s, downloading: false, downloaded: true }));
+      await logToFile('Download complete. Ready to install.');
+
+      // Run the installer
+      await invoke('run_installer', { installerPath: filePath });
+      await logToFile('Installer launched.');
     } catch (err: any) {
-      console.error('[updater] install failed:', err);
-      console.error('[updater] error type:', typeof err);
-      console.error('[updater] error keys:', Object.keys(err || {}));
-      console.error('[updater] error string:', JSON.stringify(err));
       const errorMessage = err?.message ?? err?.toString() ?? JSON.stringify(err) ?? 'Update failed';
       await logToFile(`ERROR: ${errorMessage}`);
-      await logToFile(`Error details: ${JSON.stringify(err)}`);
       setState((s) => ({
         ...s,
         downloading: false,
