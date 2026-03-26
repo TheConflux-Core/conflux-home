@@ -362,9 +362,31 @@ function DataSection() {
   );
 }
 
-// ── Section 5: About ──
+// ── Section 5: About & Support ──
 
 function AboutSection() {
+  const [logPath, setLogPath] = useState<string>('');
+  const [systemInfo, setSystemInfo] = useState<{ os: string; arch: string; app_version: string } | null>(null);
+  const [copyStatus, setCopyStatus] = useState<string>('');
+
+  useEffect(() => {
+    // Fetch log path and system info from Tauri
+    invoke<string>('get_log_path').then(setLogPath).catch(() => {});
+    invoke<any>('get_system_info').then(setSystemInfo).catch(() => {});
+  }, []);
+
+  const handleCopyLogPath = async () => {
+    if (!logPath) return;
+    try {
+      await navigator.clipboard.writeText(logPath);
+      setCopyStatus('Copied!');
+      setTimeout(() => setCopyStatus(''), 2000);
+    } catch {
+      setCopyStatus('Failed to copy');
+      setTimeout(() => setCopyStatus(''), 2000);
+    }
+  };
+
   return (
     <div className="settings-section">
       <div className="settings-section-title">ℹ️ About</div>
@@ -372,8 +394,13 @@ function AboutSection() {
       <div className="settings-about">
         <div className="settings-about-logo">⚡</div>
         <h2 className="settings-about-name">Conflux Home</h2>
-        <p className="settings-about-version">v0.1.0-alpha</p>
+        <p className="settings-about-version">v{systemInfo?.app_version ?? '0.1.0'}-alpha</p>
         <p className="settings-about-built">Built with: Tauri + React + Embedded Engine</p>
+        {systemInfo && (
+          <p className="settings-about-built" style={{ opacity: 0.6 }}>
+            {systemInfo.os} · {systemInfo.arch}
+          </p>
+        )}
         <p className="settings-about-tagline">A home for your AI family</p>
 
         <div className="settings-about-links">
@@ -385,6 +412,47 @@ function AboutSection() {
           </a>
         </div>
       </div>
+
+      {/* Feedback & Support */}
+      <div style={{ marginTop: 16, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button
+          className="settings-button"
+          onClick={() => {
+            const url = `https://github.com/TheConflux-Core/conflux-home/issues/new?template=bug_report.yml&labels=bug&title=%5BBug%5D%20`;
+            window.open(url, '_blank');
+          }}
+        >
+          🐛 Report a Bug
+        </button>
+        <button
+          className="settings-button"
+          onClick={() => {
+            const url = `https://github.com/TheConflux-Core/conflux-home/issues/new?template=feature_request.yml`;
+            window.open(url, '_blank');
+          }}
+        >
+          💡 Request a Feature
+        </button>
+      </div>
+
+      {/* Log Location */}
+      {logPath && (
+        <div style={{ marginTop: 12, opacity: 0.8, fontSize: 13 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>📋 Logs:</span>
+            <code style={{ background: 'var(--bg-surface)', padding: '2px 6px', borderRadius: 4, fontSize: 12 }}>
+              {logPath}
+            </code>
+            <button
+              className="settings-button"
+              onClick={handleCopyLogPath}
+              style={{ fontSize: 12, padding: '2px 8px' }}
+            >
+              {copyStatus || 'Copy'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

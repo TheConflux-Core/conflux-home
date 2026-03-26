@@ -285,6 +285,9 @@ pub fn run() {
             commands::current_get_questions,
             commands::current_cognitive_patterns,
             commands::current_synthesize,
+            // Feedback & System Info
+            commands::get_log_path,
+            commands::get_system_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
