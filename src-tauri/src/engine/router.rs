@@ -1206,20 +1206,20 @@ fn resolve_key(provider: &ModelProvider) -> String {
         return stored;
     }
 
-    // Built-in keys for free providers (our accounts)
+    // Built-in keys for free providers (from environment variables)
     match provider.id.as_str() {
         "cerebras-llama-8b" | "cerebras-qwen-235b" => {
-            "REDACTED_CEREBRAS_KEY".to_string()
+            std::env::var("CEREBRAS_API_KEY").unwrap_or_default()
         }
         "groq-llama-8b" | "groq-llama-70b" | "groq-deepseek-70b" => {
-            "GROQ_KEY_REDACTED".to_string()
+            std::env::var("GROQ_API_KEY").unwrap_or_default()
         }
         "mistral-small" | "mistral-medium" => {
-            "MISTRAL_KEY_REDACTED".to_string()
+            std::env::var("MISTRAL_API_KEY").unwrap_or_default()
         }
-        "deepseek-chat" => "REDACTED_DEEPSEEK_KEY".to_string(),
+        "deepseek-chat" => std::env::var("DEEPSEEK_API_KEY").unwrap_or_default(),
         "cloudflare-llama-8b" => {
-            "CLOUDFLARE_KEY_REDACTED".to_string()
+            std::env::var("CLOUDFLARE_API_KEY").unwrap_or_default()
         }
         _ => String::new(),
     }

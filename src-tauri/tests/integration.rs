@@ -73,8 +73,8 @@ mod integration_tests {
     fn test_openai_direct() {
         rt().block_on(async {
             // Set key and test OpenAI directly
-            router::set_provider_key("openai-gpt4o-mini",
-                "OPENAI_KEY_REDACTED");
+            let key = std::env::var("OPENAI_API_KEY").unwrap_or_else(|_| "test-key-not-set".to_string());
+            router::set_provider_key("openai-gpt4o-mini", &key);
 
             let messages = vec![router::OpenAIMessage {
                 role: "user".to_string(),

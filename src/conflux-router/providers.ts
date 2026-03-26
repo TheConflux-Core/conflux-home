@@ -1,8 +1,13 @@
 // Conflux Router — Provider Registry v4
 // All providers aggregated by Conflux Router. Direct API calls, no middlemen.
 // Free tier first. Paid providers require key configuration.
+// API keys come from environment variables — NEVER hardcode secrets.
 
 import type { Provider } from './types';
+
+function env(key: string, fallback = ''): string {
+  return import.meta.env[key] ?? fallback;
+}
 
 // ── Core Tier — Free providers, $0 marginal cost ──
 
@@ -13,7 +18,7 @@ export const CORE_PROVIDERS: Provider[] = [
     tier: 'free',
     apiFormat: 'openai',
     baseUrl: 'https://api.cerebras.ai/v1',
-    apiKey: 'REDACTED_CEREBRAS_KEY',
+    apiKey: env('VITE_CEREBRAS_API_KEY'),
     models: [
       {
         id: 'llama3.1-8b',
@@ -34,7 +39,7 @@ export const CORE_PROVIDERS: Provider[] = [
     tier: 'free',
     apiFormat: 'openai',
     baseUrl: 'https://api.groq.com/openai/v1',
-    apiKey: 'GROQ_KEY_REDACTED',
+    apiKey: env('VITE_GROQ_API_KEY'),
     models: [
       {
         id: 'llama-3.1-8b-instant',
@@ -55,7 +60,7 @@ export const CORE_PROVIDERS: Provider[] = [
     tier: 'free',
     apiFormat: 'openai',
     baseUrl: 'https://api.mistral.ai/v1',
-    apiKey: 'MISTRAL_KEY_REDACTED',
+    apiKey: env('VITE_MISTRAL_API_KEY'),
     models: [
       {
         id: 'mistral-small-latest',
@@ -76,7 +81,7 @@ export const CORE_PROVIDERS: Provider[] = [
     tier: 'free',
     apiFormat: 'openai',
     baseUrl: 'https://api.deepseek.com/v1',
-    apiKey: 'REDACTED_DEEPSEEK_KEY',
+    apiKey: env('VITE_DEEPSEEK_API_KEY'),
     models: [
       {
         id: 'deepseek-chat',
@@ -96,8 +101,8 @@ export const CORE_PROVIDERS: Provider[] = [
     name: 'Cloudflare Llama 3.1 8B',
     tier: 'free',
     apiFormat: 'openai',
-    baseUrl: 'https://api.cloudflare.com/client/v4/accounts/36d37d313aa8598b2735b28b4211862b/ai/v1',
-    apiKey: 'CLOUDFLARE_KEY_REDACTED',
+    baseUrl: `https://api.cloudflare.com/client/v4/accounts/${env('VITE_CLOUDFLARE_ACCOUNT_ID')}/ai/v1`,
+    apiKey: env('VITE_CLOUDFLARE_API_KEY'),
     models: [
       {
         id: '@cf/meta/llama-3.1-8b-instruct',
@@ -123,7 +128,7 @@ export const PRO_PROVIDERS: Provider[] = [
     tier: 'free',
     apiFormat: 'openai',
     baseUrl: 'https://api.cerebras.ai/v1',
-    apiKey: 'REDACTED_CEREBRAS_KEY',
+    apiKey: env('VITE_CEREBRAS_API_KEY'),
     models: [
       {
         id: 'qwen-3-235b-a22b-instruct-2507',
@@ -144,7 +149,7 @@ export const PRO_PROVIDERS: Provider[] = [
     tier: 'free',
     apiFormat: 'openai',
     baseUrl: 'https://api.groq.com/openai/v1',
-    apiKey: 'GROQ_KEY_REDACTED',
+    apiKey: env('VITE_GROQ_API_KEY'),
     models: [
       {
         id: 'llama-3.3-70b-versatile',
@@ -165,7 +170,7 @@ export const PRO_PROVIDERS: Provider[] = [
     tier: 'free',
     apiFormat: 'openai',
     baseUrl: 'https://api.mistral.ai/v1',
-    apiKey: 'MISTRAL_KEY_REDACTED',
+    apiKey: env('VITE_MISTRAL_API_KEY'),
     models: [
       {
         id: 'mistral-medium-latest',
@@ -186,7 +191,7 @@ export const PRO_PROVIDERS: Provider[] = [
     tier: 'free',
     apiFormat: 'openai',
     baseUrl: 'https://api.groq.com/openai/v1',
-    apiKey: 'GROQ_KEY_REDACTED',
+    apiKey: env('VITE_GROQ_API_KEY'),
     models: [
       {
         id: 'deepseek-r1-distill-llama-70b',
@@ -301,8 +306,8 @@ export const IMAGE_PROVIDERS: Provider[] = [
     name: 'Cloudflare Workers AI',
     tier: 'free',
     apiFormat: 'openai',
-    baseUrl: 'https://api.cloudflare.com/client/v4/accounts/36d37d313aa8598b2735b28b4211862b/ai/v1',
-    apiKey: 'CLOUDFLARE_KEY_REDACTED',
+    baseUrl: `https://api.cloudflare.com/client/v4/accounts/${env('VITE_CLOUDFLARE_ACCOUNT_ID')}/ai/v1`,
+    apiKey: env('VITE_CLOUDFLARE_API_KEY'),
     models: [
       { id: '@cf/stabilityai/stable-diffusion-xl-base-1.0', alias: 'conflux-imagine', maxTokens: 0, costPer1kTokens: 0, quality: 'good' },
     ],
