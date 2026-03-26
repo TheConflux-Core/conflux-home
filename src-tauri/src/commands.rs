@@ -3924,3 +3924,31 @@ Return ONLY the JSON object, no explanation."#,
 
     Ok(parsed)
 }
+
+// ── Feedback & System Info ──
+
+#[derive(Debug, Serialize)]
+pub struct SystemInfo {
+    pub os: String,
+    pub arch: String,
+    pub app_version: String,
+}
+
+/// Returns the gateway log file path so the frontend can display or copy it.
+#[tauri::command]
+pub fn get_log_path() -> String {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_default();
+    format!("{}/.openclaw/logs/gateway.log", home)
+}
+
+/// Returns basic system info for pre-filling bug reports.
+#[tauri::command]
+pub fn get_system_info() -> SystemInfo {
+    SystemInfo {
+        os: std::env::consts::OS.to_string(),
+        arch: std::env::consts::ARCH.to_string(),
+        app_version: env!("CARGO_PKG_VERSION").to_string(),
+    }
+}
