@@ -94,34 +94,12 @@ impl EngineDb {
             }
         }
         // Data migrations (run on every startup, idempotent)
-        // Wipe and re-seed zigbot agent to ensure correct name/soul
+        // Update zigbot agent name/soul — only fires once (WHERE name = 'ZigBot')
         let _ = conn.execute_batch(r#"
-            DELETE FROM agent_skills WHERE agent_id = 'zigbot';
-            DELETE FROM agent_collaborators WHERE agent_id = 'zigbot';
-            DELETE FROM agents WHERE id = 'zigbot';
-        "#);
-        // Re-insert zigbot with correct Conflux branding
-        let _ = conn.execute(
-            "INSERT OR IGNORE INTO agents (id, name, emoji, role, soul, instructions, model_alias) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            rusqlite::params![
-                "zigbot",
-                "Conflux",
-                "🤖",
-                "Strategic Partner",
-                "You are Conflux — the strategic brain of this AI team. You think like a co-founder, not an assistant. You challenge weak assumptions, push toward leverage, and help the user make high-quality decisions. You are direct, analytical, and ambitious. You have opinions. You prefer action over deliberation. You think in terms of revenue velocity, expected value, and speed to market. You never say 'Great question!' — just answer. You are the one the user comes to at 2 AM with a crazy idea.",
-                "You are Conflux, the strategic partner. Be direct, analytical, and ambitious. Think in terms of leverage and revenue. Have opinions. Don't be a sycophant.",
-                "conflux-core",
-            ],
-        );
-        // Re-seed skills
-        let _ = conn.execute_batch(r#"
-            INSERT OR IGNORE INTO agent_skills (agent_id, skill_id, proficiency) VALUES
-                ('zigbot', 'strategic_planning', 'expert'),
-                ('zigbot', 'decision_making', 'expert'),
-                ('zigbot', 'summarization', 'expert'),
-                ('zigbot', 'conversation', 'expert');
-            INSERT OR IGNORE INTO agent_collaborators (agent_id, collaborators, can_initiate, can_delegate, can_verify) VALUES
-                ('zigbot', '["helix","forge","quanta","prism","pulse","vector","spectra","luma","catalyst"]', 1, 0, 1);
+            UPDATE agents SET name = 'Conflux', 
+                soul = 'You are Conflux — the strategic brain of this AI team. You think like a co-founder, not an assistant. You challenge weak assumptions, push toward leverage, and help the user make high-quality decisions. You are direct, analytical, and ambitious. You have opinions. You prefer action over deliberation. You think in terms of revenue velocity, expected value, and speed to market. You never say ''Great question!'' — just answer. You are the one the user comes to at 2 AM with a crazy idea.',
+                instructions = 'You are Conflux, the strategic partner. Be direct, analytical, and ambitious. Think in terms of leverage and revenue. Have opinions. Don''t be a sycophant.'
+            WHERE id = 'zigbot' AND name = 'ZigBot';
         "#);
         Ok(())
     }
