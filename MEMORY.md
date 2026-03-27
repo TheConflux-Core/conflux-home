@@ -123,8 +123,8 @@ Quanta (verification)
 - 🛒 Smart grocery with aisle sorting + pantry awareness
 
 ### What's Built
-- **212+ Rust commands** (155 base + 9 budget + 12 kitchen + 15 orbit + 5 horizon + 8 current + 8 echo/agents)
-- **82+ DB tables** (55 base + budget_goals + meal_photos + life_tasks + life_habits + life_habit_logs + life_daily_focus + life_schedules + life_nudges + dreams + dream_milestones + dream_tasks + dream_progress + daily_briefings + ripples + signal_threads + questions + reading_patterns + echo tables)
+- **230+ Rust commands** (155 base + 9 budget + 12 kitchen + 15 orbit + 5 horizon + 8 current + 8 echo/agents + 18 vault)
+- **87+ DB tables** (55 base + budget_goals + meal_photos + life_tasks + life_habits + life_habit_logs + life_daily_focus + life_schedules + life_nudges + dreams + dream_milestones + dream_tasks + dream_progress + daily_briefings + ripples + signal_threads + questions + reading_patterns + echo tables + vault_files + vault_projects + vault_project_files + vault_tags + vault_file_tags)
 - **Budget (Pulse):** 9 commands, emerald design system, NL entry, pattern detection, goals
 - **Kitchen (Hearth):** 12 commands, amber design system, home menu, cooking mode, pantry intelligence
 - **Life Autopilot (Orbit):** 15 commands, violet glassmorphism, focus engine, morning brief, habit tracking, smart reschedule, NL input, decision helper, heatmap
@@ -145,10 +145,12 @@ Quanta (verification)
 11. ✅ **Solitaire** — Golden Deck, full Klondike, drag-and-drop, double-click auto-move, score/timer/moves, win cascade. Committed `b03be7a`
 12. ✅ **Agents + Market (Family/Bazaar)** — Conflux purple + gold, 4-tab AgentsView, marketplace overhaul, discovery AI, recommendation engine. Committed `755ab3f`
 13. ✅ **Echo** — Communication hub, electric blue design, messaging threads. Committed `755ab3f`
+14. ✅ **Vault** — Local file browser & project manager, obsidian glassmorphism, grid/list/timeline views, smart search, project bundling, agent-aware file tracking. 18 Rust commands, 5 React components, 789-line CSS. Committed `fbdd63c`
 
 ### Apps Remaining
+- **Studio** — Creator workspace (image gen, video, music, voice, code/web builder)
 - **Settings** — Clean organization, better UX
-- **Conflux Stories v2** — AI interactive fiction, parchment aesthetic (last Games Hub game)
+- **Conflux Stories v2** — AI interactive fiction, parchment aesthetic (post-launch)
 
 ### Build Pattern (Proven — Repeat for Each App)
 The parallel agent dispatch pattern from Hearth works. For each app:
@@ -250,20 +252,32 @@ Every phase has CSS line estimates, component specs, agent counts, and build pat
 
 ## Current Priority
 
-**All primary apps COMPLETE. Conflux Home is feature-rich.**
+**Sprint: Vault + Studio (The Gravity Well)**
 
-✅ Budget (Pulse), Kitchen (Hearth), Life Autopilot (Orbit — freeze FIXED), Dreams (Horizon), Feed (Current), Games Hub (Minesweeper + Snake + Pac-Man + Solitaire), Home (Foundation), Agents + Market, Echo
+✅ Vault — COMPLETE (`fbdd63c`). Local file browser, project manager, smart search, 3 view modes.
+➡️ **NEXT: Studio** — Creator workspace. Image generation first, then code/web builder.
 ⏸️ Diary (Mirror) — ROLLED BACK (widget removed, Rust code preserved)
 
 ### What's Left
-1. **Conflux Stories v2** — last game for the hub, AI interactive fiction with parchment aesthetic
-2. **Settings** — polish pass
-3. **Ship items:** Auth, Stripe billing, auto-updater, code signing, beta testers
+1. **Studio — Image Module** — text-to-image, style transfer, upscaling. The "wow I don't need Midjourney" moment.
+2. **Studio — Code/Web Module** — visual website builder, game scaffolding, deploy.
+3. **Settings** — polish pass
+4. **Ship items:** Auth, Stripe billing, auto-updater, code signing, beta testers
 
 ### Current Build Notes (Session 2026-03-27)
-**Build:** Agents + Marketplace + Echo + Orbit freeze fix
+
+**Build 1:** Agents + Marketplace + Echo + Orbit freeze fix
 **Commit:** `755ab3f` (30 files, +3,621 lines)
-**Result:** TypeScript clean. Rust clean. All uncommitted work saved.
+**Result:** TypeScript clean. Rust clean.
+
+**Build 2:** Vault — Local file browser & project manager
+**Method:** 3-batch parallel dispatch (7 agents total, 1 CSS retry)
+**Batch 1:** CSS (789 lines), schema (5 tables + 20 DB methods), types (10 interfaces) — parallel
+**Batch 2:** Rust commands (18 + helpers), components (5 files), hooks (1 file) — parallel
+**Batch 3:** App.tsx wiring + TypeScript/Rust compile — single agent
+**Commit:** `fbdd63c` (16 files, +2,015 lines)
+**Result:** TypeScript zero errors. Rust clean (31 pre-existing warnings).
+**Fixes:** vault-schema agent needed `get_conn()` helper in db.rs, wiring agent fixed closure type mismatch
 
 ### Previous Build Notes (Session 2026-03-24, 20:06–20:46 MST)
 **Build:** Feed → Current v2 (Intelligence Briefing)
