@@ -4018,10 +4018,20 @@ pub async fn download_update_file(url: String) -> Result<String, String> {
     let bytes = response.bytes().await.map_err(|e| format!("Failed to read response: {}", e))?;
     std::fs::write(&temp_path, &bytes).map_err(|e| format!("Failed to write file: {}", e))?;
 
+    // Verify file was written
+    let file_size = std::fs::metadata(&temp_path)
+        .map(|m| m.len())
+        .unwrap_or(0);
+
     // Log success
     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
         use std::io::Write;
-        let _ = writeln!(f, "[{}] Download complete: {} ({} bytes)", chrono::Utc::now().to_rfc3339(), temp_path.display(), bytes.len());
+        let _ = writeln!(f, "[{}] Download complete: {} ({} bytes, verified: {} bytes)", 
+            chrono::Utc::now().to_rfc3339(), temp_path.display(), bytes.len(), file_size);
+    }
+
+    if file_size == 0 {
+        return Err("Downloaded file is empty".to_string());
     }
 
     Ok(temp_path.to_string_lossy().to_string())
@@ -4042,13 +4052,18 @@ pub fn run_installer(installer_path: String) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        // Run MSI installer silently
-        std::process::Command::new("msiexec")
-            .args(["/i", &installer_path, "/quiet", "/norestart"])
+        // Run MSI installer with UAC prompt (passive shows progress bar)
+        // Use spawn and DON'T exit — let msiexec handle the restart
+        let child = std::process::Command::new("msiexec")
+            .args(["/i", &installer_path, "/passive", "/norestart"])
             .spawn()
             .map_err(|e| format!("Failed to launch installer: {}", e))?;
-        // Quit so new version launches
-        std::process::exit(0);
+
+        // Log success
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+            use std::io::Write;
+            let _ = writeln!(f, "[{}] MSI installer launched (pid: {})", chrono::Utc::now().to_rfc3339(), child.id());
+        }
     }
 
     #[cfg(target_os = "macos")]
