@@ -7,7 +7,7 @@
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS agents (
-    id              TEXT PRIMARY KEY,           -- 'zigbot', 'helix', etc.
+    id              TEXT PRIMARY KEY,           -- 'conflux', 'helix', etc.
     name            TEXT NOT NULL,              -- 'Conflux'
     emoji           TEXT NOT NULL DEFAULT '🤖', -- display emoji
     role            TEXT NOT NULL,              -- 'Strategic Partner'
@@ -267,7 +267,7 @@ INSERT OR IGNORE INTO skills (id, name, emoji, description, instructions, trigge
     ('web-research', 'Web Research', '🔍', 'Deep web research with source verification',
      'When conducting research:\n1. Search multiple queries to triangulate information\n2. Always cite sources with URLs\n3. Distinguish between verified facts and speculation\n4. Cross-reference at least 2 sources for important claims\n5. Report confidence level: HIGH (multiple sources agree), MEDIUM (single source), LOW (unverified)',
      '["research", "find information", "look up", "investigate", "analyze market"]',
-     '["helix", "zigbot", "catalyst"]',
+     '["helix", "conflux", "catalyst"]',
      '["web_search"]'),
     ('content-writing', 'Content Writing', '✍️', 'Professional content creation with SEO awareness',
      'When writing content:\n1. Match the tone to the audience (professional, casual, technical)\n2. Use clear structure: hook → value → CTA\n3. Include relevant keywords naturally\n4. Keep paragraphs short (2-3 sentences max)\n5. End with a clear next step for the reader\n6. For SEO: use headers (H2/H3), include meta description suggestions',
@@ -282,7 +282,7 @@ INSERT OR IGNORE INTO skills (id, name, emoji, description, instructions, trigge
     ('data-analysis', 'Data Analysis', '📊', 'Structured data analysis and visualization suggestions',
      'When analyzing data:\n1. Start with summary statistics (count, mean, median, range)\n2. Identify patterns, outliers, and trends\n3. Suggest appropriate visualization types (bar, line, scatter, heatmap)\n4. Calculate relevant metrics (growth rate, correlation, distribution)\n5. Present findings in a clear table format\n6. State confidence in conclusions',
      '["analyze data", "data analysis", "statistics", "trends", "metrics"]',
-     '["helix", "zigbot", "catalyst"]',
+     '["helix", "conflux", "catalyst"]',
      '["file_read", "calc"]'),
     ('seo-audit', 'SEO Audit', '🎯', 'Comprehensive SEO analysis for any website',
      'When performing SEO analysis:\n1. Check title tag: 50-60 chars, includes primary keyword\n2. Meta description: 150-160 chars, compelling CTA\n3. Header hierarchy: H1 → H2 → H3 logical flow\n4. Keyword density: primary keyword in first 100 words\n5. Internal/external link analysis\n6. Image alt text coverage\n7. Mobile responsiveness indicators\n8. Page speed suggestions\n9. Score each factor 1-10 and provide overall SEO score',
@@ -443,7 +443,7 @@ END;
 -- To update personalities on existing installs, use a migration.
 
 INSERT OR IGNORE INTO agents (id, name, emoji, role, soul, instructions, model_alias) VALUES
-    ('zigbot', 'Conflux', '🤖', 'Strategic Partner',
+    ('conflux', 'Conflux', '🤖', 'Strategic Partner',
      'You are Conflux — the strategic brain of this AI team. You think like a co-founder, not an assistant. You challenge weak assumptions, push toward leverage, and help the user make high-quality decisions. You are direct, analytical, and ambitious. You have opinions. You prefer action over deliberation. You think in terms of revenue velocity, expected value, and speed to market. You never say "Great question!" — just answer. You are the one the user comes to at 2 AM with a crazy idea.',
      'Help the user think clearly. Identify opportunities. Compare options. Push toward the highest-leverage outcome. Ask clarifying questions when the direction is unclear. Be a thought partner, not a search engine.',
      'conflux-core'),
@@ -524,10 +524,10 @@ CREATE TABLE IF NOT EXISTS agent_capabilities (
 
 -- Seed capabilities for our agent team
 INSERT OR IGNORE INTO agent_capabilities (agent_id, capability, proficiency) VALUES
-    ('zigbot',   'strategic_planning', 'expert'),
-    ('zigbot',   'decision_making', 'expert'),
-    ('zigbot',   'summarization', 'expert'),
-    ('zigbot',   'conversation', 'expert'),
+    ('conflux',   'strategic_planning', 'expert'),
+    ('conflux',   'decision_making', 'expert'),
+    ('conflux',   'summarization', 'expert'),
+    ('conflux',   'conversation', 'expert'),
     ('helix',    'web_research', 'expert'),
     ('helix',    'market_analysis', 'expert'),
     ('helix',    'data_collection', 'expert'),
@@ -580,15 +580,15 @@ CREATE TABLE IF NOT EXISTS agent_permissions (
 
 -- Seed permissions with our hierarchy rules
 INSERT OR IGNORE INTO agent_permissions (agent_id, can_talk_to, can_create_tasks, requires_verification, anti_hallucination) VALUES
-    ('zigbot',   '["helix","forge","quanta","prism","pulse","vector","spectra","luma","catalyst"]', 1, 0, 1),
-    ('helix',    '["zigbot","prism","catalyst"]', 1, 0, 1),
-    ('forge',    '["zigbot","prism","quanta","catalyst"]', 0, 1, 1),   -- forge outputs need verification
-    ('quanta',   '["zigbot","prism","forge","catalyst"]', 0, 0, 1),
+    ('conflux',   '["helix","forge","quanta","prism","pulse","vector","spectra","luma","catalyst"]', 1, 0, 1),
+    ('helix',    '["conflux","prism","catalyst"]', 1, 0, 1),
+    ('forge',    '["conflux","prism","quanta","catalyst"]', 0, 1, 1),   -- forge outputs need verification
+    ('quanta',   '["conflux","prism","forge","catalyst"]', 0, 0, 1),
     ('prism',    '*', 1, 0, 1),                                          -- prism can orchestrate everyone
-    ('pulse',    '["zigbot","prism","catalyst"]', 0, 1, 1),             -- pulse outputs need verification
-    ('vector',   '["zigbot","prism","helix","catalyst"]', 0, 0, 1),
-    ('spectra',  '["zigbot","prism","forge","catalyst"]', 1, 0, 1),
-    ('luma',     '["zigbot","prism","forge","quanta","spectra","catalyst"]', 0, 0, 1),
+    ('pulse',    '["conflux","prism","catalyst"]', 0, 1, 1),             -- pulse outputs need verification
+    ('vector',   '["conflux","prism","helix","catalyst"]', 0, 0, 1),
+    ('spectra',  '["conflux","prism","forge","catalyst"]', 1, 0, 1),
+    ('luma',     '["conflux","prism","forge","quanta","spectra","catalyst"]', 0, 0, 1),
     ('catalyst', '*', 1, 0, 1);                                          -- catalyst is the free-form assistant
 
 -- ============================================================
@@ -718,7 +718,7 @@ INSERT OR IGNORE INTO providers (id, name, base_url, api_key, model_id, model_al
 -- On existing installs, this fills in NULL soul/instructions.
 -- ============================================================
 
-UPDATE agents SET soul = 'You are Conflux — the strategic brain of this AI team. You think like a co-founder, not an assistant. You challenge weak assumptions, push toward leverage, and help the user make high-quality decisions. You are direct, analytical, and ambitious. You have opinions. You prefer action over deliberation. You think in terms of revenue velocity, expected value, and speed to market. You never say "Great question!" — just answer. You are the one the user comes to at 2 AM with a crazy idea.', instructions = 'Help the user think clearly. Identify opportunities. Compare options. Push toward the highest-leverage outcome. Ask clarifying questions when the direction is unclear. Be a thought partner, not a search engine.' WHERE id = 'zigbot' AND (soul IS NULL OR instructions IS NULL);
+UPDATE agents SET soul = 'You are Conflux — the strategic brain of this AI team. You think like a co-founder, not an assistant. You challenge weak assumptions, push toward leverage, and help the user make high-quality decisions. You are direct, analytical, and ambitious. You have opinions. You prefer action over deliberation. You think in terms of revenue velocity, expected value, and speed to market. You never say "Great question!" — just answer. You are the one the user comes to at 2 AM with a crazy idea.', instructions = 'Help the user think clearly. Identify opportunities. Compare options. Push toward the highest-leverage outcome. Ask clarifying questions when the direction is unclear. Be a thought partner, not a search engine.' WHERE id = 'conflux' AND (soul IS NULL OR instructions IS NULL);
 
 UPDATE agents SET soul = 'You are Helix — the research engine. You find what others miss. You go deep, not wide. You verify every claim with sources. You distinguish between evidence and speculation. You think like an investigative journalist crossed with a venture analyst. You are obsessed with signal over noise. When you present findings, you include confidence levels and cite your sources.', instructions = 'Research thoroughly. Verify claims with multiple sources. Present findings with evidence and confidence levels. Focus on actionable intelligence, not trivia. When in doubt, dig deeper rather than presenting half-baked conclusions.' WHERE id = 'helix' AND (soul IS NULL OR instructions IS NULL);
 
@@ -1658,3 +1658,49 @@ INSERT OR IGNORE INTO home_seasonal_tasks (id, task, category, priority, estimat
   ('st-12-02', 'Test and reset all GFCI and AFCI breakers', 'safety', 'normal', 15, 0, 1, 'Test all GFCI outlets and AFCI circuit breakers to ensure proper function during high-use holiday season.', 12),
   ('st-12-03', 'Inspect roof and flashing before winter storms', 'roof', 'high', 30, 0, 1, 'Do a visual roof inspection from the ground. Look for loose shingles, damaged flashing, or blocked vents.', 12),
   ('st-12-04', 'Clean HVAC vents and registers', 'hvac', 'low', 20, 0, 1, 'Remove and vacuum all supply and return air registers. Dust buildup reduces airflow efficiency.', 12);
+
+-- ============================================================
+-- ECHO — Writing & Notes with AI Insights
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS echo_entries (
+    id              TEXT PRIMARY KEY,
+    content         TEXT NOT NULL,
+    mood            TEXT,              -- 'great' | 'good' | 'okay' | 'bad' | 'terrible' | null
+    tags            TEXT,              -- JSON array of tags
+    is_voice        INTEGER NOT NULL DEFAULT 0,
+    word_count      INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_echo_entries_date ON echo_entries(created_at);
+
+CREATE TABLE IF NOT EXISTS echo_patterns (
+    id              TEXT PRIMARY KEY,
+    pattern_type    TEXT NOT NULL,     -- 'mood' | 'topic' | 'time' | 'frequency'
+    title           TEXT NOT NULL,
+    description     TEXT NOT NULL,
+    confidence      REAL NOT NULL DEFAULT 0.0,
+    data_json       TEXT,              -- JSON blob with supporting data
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS echo_digests (
+    id              TEXT PRIMARY KEY,
+    week_start      TEXT NOT NULL,     -- ISO date of week start
+    summary         TEXT NOT NULL,
+    themes          TEXT NOT NULL,     -- JSON array
+    mood_trajectory TEXT,              -- JSON array of daily moods
+    highlights      TEXT,              -- JSON array
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS echo_reminders (
+    id              TEXT PRIMARY KEY,
+    reminder_type   TEXT NOT NULL,     -- 'daily_checkin' | 'morning_mirror' | 'weekly_digest'
+    scheduled_at    TEXT NOT NULL,
+    delivered_at    TEXT,
+    content         TEXT,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);

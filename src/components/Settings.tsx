@@ -4,7 +4,6 @@ import { open } from '@tauri-apps/plugin-shell';
 import { AGENT_PROFILES, AGENT_PROFILE_MAP } from '../data/agent-descriptions';
 import Avatar from './Avatar';
 import ProviderSettings from './settings/ProviderSettings';
-import AgentEditor from './settings/AgentEditor';
 import GoogleSettings from './settings/GoogleSettings';
 import NotificationSettings from './settings/NotificationSettings';
 import EmailSettings from './settings/EmailSettings';
@@ -210,78 +209,6 @@ function AppearanceSection() {
             <span>Dark</span>
           </button>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Section 3: Agents ──
-
-function AgentsSection() {
-  const [selectedIds, setSelectedIds] = useState<string[]>(() => {
-    try {
-      const stored = localStorage.getItem('conflux-selected-agents');
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  const toggleAgent = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      localStorage.setItem('conflux-selected-agents', JSON.stringify(next));
-      return next;
-    });
-  };
-
-  const navigateToMarketplace = () => {
-    window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: 'marketplace' }));
-  };
-
-  const resetAll = () => {
-    if (!window.confirm('Reset all agents? This will clear your selections and reload.')) return;
-    localStorage.removeItem('conflux-selected-agents');
-    window.location.reload();
-  };
-
-  // Only show work agents (not coming-soon)
-  const workAgents = AGENT_PROFILES.filter((a) => !a.comingSoon);
-
-  return (
-    <div className="settings-section">
-      <div className="settings-section-title">🤖 Agents</div>
-
-      <div className="settings-agent-list">
-        {workAgents.map((profile) => {
-          const enabled = selectedIds.includes(profile.id);
-          return (
-            <div key={profile.id} className="settings-agent-row">
-              <Avatar
-                agentId={profile.id}
-                name={profile.name}
-                emoji={profile.emoji}
-                status={enabled ? 'idle' : 'offline'}
-                size="sm"
-                showStatus={false}
-              />
-              <div className="settings-agent-info">
-                <span className="settings-agent-name">{profile.name}</span>
-                <span className="settings-agent-role">{profile.role}</span>
-              </div>
-              <ToggleSwitch checked={enabled} onChange={() => toggleAgent(profile.id)} />
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="settings-actions" style={{ marginTop: 12 }}>
-        <button className="settings-button" onClick={navigateToMarketplace}>
-          🛒 Manage in Marketplace
-        </button>
-        <button className="settings-button danger" onClick={resetAll}>
-          ↺ Reset All Agents
-        </button>
       </div>
     </div>
   );
@@ -494,8 +421,18 @@ export default function Settings() {
       <AppearanceSection />
       <NotificationSettings />
       <EmailSettings />
-      <AgentsSection />
-      <AgentEditor />
+      <div className="settings-section">
+        <div className="settings-section-title">🤖 Agents</div>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+          Manage your AI agents in the dedicated Agents app.
+        </p>
+        <button
+          className="settings-button"
+          onClick={() => window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: { viewId: 'agents' } }))}
+        >
+          🧩 Open Agents App
+        </button>
+      </div>
       <div className="settings-section">
         <div className="settings-section-title">🔧 Engine</div>
       </div>

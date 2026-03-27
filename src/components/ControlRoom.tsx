@@ -8,7 +8,7 @@ interface ControlRoomProps {
 }
 
 const AGENT_COLORS: Record<string, string> = {
-  zigbot: '#22d3ee',
+  conflux: '#22d3ee',
   helix: '#8b5cf6',
   forge: '#f97316',
   prism: '#3b82f6',
@@ -40,9 +40,9 @@ const AGENT_APP_MAP: Record<string, string> = {
   foundation: 'home',
 };
 
-// Hub (ZigBot/Conflux) at center, others around it
+// Hub (Conflux/Conflux) at center, others around it
 const ORB_POSITIONS: Record<string, { x: number; y: number }> = {
-  zigbot:   { x: 50, y: 45 },
+  conflux:   { x: 50, y: 45 },
   helix:    { x: 22, y: 28 },
   forge:    { x: 78, y: 28 },
   prism:    { x: 30, y: 65 },
@@ -69,27 +69,27 @@ function getOrbPosition(agent: Agent): { x: number; y: number } {
 }
 
 function getOrbSize(agent: Agent): string {
-  if (agent.id === 'zigbot' || agent.id === 'vector') return 'orb-hub';
+  if (agent.id === 'conflux' || agent.id === 'vector') return 'orb-hub';
   if (agent.status === 'working') return 'orb-large';
   if (agent.status === 'thinking') return 'orb-medium';
   return 'orb-small';
 }
 
-// Display name: ZigBot → Conflux for the user
+// Display name: Conflux → Conflux for the user
 function getDisplayName(agent: Agent): string {
-  if (agent.id === 'zigbot') return 'Conflux';
+  if (agent.id === 'conflux') return 'Conflux';
   return agent.name;
 }
 
 export default function ControlRoom({ agents, onNavigate, onOpenChat }: ControlRoomProps) {
   const connections = useMemo(() => {
     const conns: [Agent, Agent][] = [];
-    const hub = agents.find(a => a.id === 'zigbot');
+    const hub = agents.find(a => a.id === 'conflux');
     if (!hub) return conns;
 
     // Hub connects to all active agents
     for (const agent of agents) {
-      if (agent.id !== 'zigbot' && agent.status !== 'offline') {
+      if (agent.id !== 'conflux' && agent.status !== 'offline') {
         conns.push([hub, agent]);
       }
     }
@@ -173,7 +173,7 @@ export default function ControlRoom({ agents, onNavigate, onOpenChat }: ControlR
                 boxShadow: `0 0 20px ${color}20, inset 0 0 15px ${color}10`,
               }}
             >
-              {agent.id === 'zigbot' ? '⚡' : agent.emoji}
+              {agent.id === 'conflux' ? '⚡' : agent.emoji}
             </div>
             <div className={`orb-status-dot status-${agent.status}`} />
             <div className="orb-label">{displayName}</div>

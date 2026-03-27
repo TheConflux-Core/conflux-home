@@ -23,7 +23,7 @@ export interface AgentProfile {
 
 export const AGENT_PROFILES: AgentProfile[] = [
   {
-    id: 'zigbot',
+    id: 'conflux',
     name: 'Conflux',
     emoji: '🤖',
     role: 'Strategic Partner',
@@ -33,8 +33,8 @@ export const AGENT_PROFILES: AgentProfile[] = [
     personality: 'Direct, analytical, ambitious, disciplined. Doesn\'t sugarcoat — tells you what you need to hear, not what you want to hear.',
     skills: ['Strategic planning', 'Opportunity evaluation', 'Decision analysis', 'Prioritization', 'Business modeling'],
     bestFor: ['Making tough business decisions', 'Evaluating opportunities', 'Strategic planning sessions', 'Setting priorities and focus'],
-    avatarPath: '/avatars/zigbot.png',
-    color: AGENT_COLORS.zigbot,
+    avatarPath: '/avatars/conflux.png',
+    color: AGENT_COLORS.conflux,
     category: 'work',
   },
   {
