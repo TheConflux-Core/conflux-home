@@ -413,6 +413,7 @@ const [activeSnake, setActiveSnake] = useState(false);
         selectedAgent={selectedAgent}
         engineConnected={connected}
         controlRoom={controlRoom}
+        onNavigate={(v) => setView(v as View)}
       />
 
       {controlRoom ? (
