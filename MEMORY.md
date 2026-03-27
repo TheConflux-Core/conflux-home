@@ -123,8 +123,8 @@ Quanta (verification)
 - 🛒 Smart grocery with aisle sorting + pantry awareness
 
 ### What's Built
-- **204 Rust commands** (155 base + 9 budget + 12 kitchen + 15 orbit + 5 horizon + 8 current)
-- **74 DB tables** (55 base + budget_goals + meal_photos + life_tasks + life_habits + life_habit_logs + life_daily_focus + life_schedules + life_nudges + dreams + dream_milestones + dream_tasks + dream_progress + daily_briefings + ripples + signal_threads + questions + reading_patterns)
+- **212+ Rust commands** (155 base + 9 budget + 12 kitchen + 15 orbit + 5 horizon + 8 current + 8 echo/agents)
+- **82+ DB tables** (55 base + budget_goals + meal_photos + life_tasks + life_habits + life_habit_logs + life_daily_focus + life_schedules + life_nudges + dreams + dream_milestones + dream_tasks + dream_progress + daily_briefings + ripples + signal_threads + questions + reading_patterns + echo tables)
 - **Budget (Pulse):** 9 commands, emerald design system, NL entry, pattern detection, goals
 - **Kitchen (Hearth):** 12 commands, amber design system, home menu, cooking mode, pantry intelligence
 - **Life Autopilot (Orbit):** 15 commands, violet glassmorphism, focus engine, morning brief, habit tracking, smart reschedule, NL input, decision helper, heatmap
@@ -134,22 +134,21 @@ Quanta (verification)
 ### Apps Completed
 1. ✅ **Budget (Pulse)** — Dark emerald, SVG ring, NL entry, pattern detection, goals
 2. ✅ **Kitchen (Hearth)** — Warm amber, ember particles, home menu, cooking mode, pantry AI
-3. ✅ **Life Autopilot (Orbit)** — Soft violet, focus engine, morning brief, habits, smart reschedule, NL input, nudges, decision helper, heatmap
+3. ✅ **Life Autopilot (Orbit)** — Soft violet, focus engine, morning brief, habits, smart reschedule, NL input, nudges, decision helper, heatmap. **FREEZE BUG FIXED** (`755ab3f`)
 4. ✅ **Dreams (Horizon)** — Deep blue, mountain visualization, summit glow, AI goal decomposition, velocity tracking, milestone trail, altitude gauge, motivational narratives
 5. ⏸️ **Diary (Mirror)** — ATTEMPTED + ROLLED BACK (see notes below). Widget removed from UI. Rust code preserved.
 6. ✅ **Feed (Current)** — Electric white, glassmorphism, 3-tab dashboard (Briefing/Feed/Intelligence), daily briefing, ripple radar, signal threads, NL Q&A engine, cognitive pattern analysis
+7. ✅ **Games Hub + Minesweeper** — Green/white classic, 3 difficulties, cascade reveal, flagging, best times, sound effects
+8. ✅ **Snake** — Emerald serpent, neon glow on black, 4 modes (Classic/Zen/Challenge/Speedrun), 60fps canvas, pulsing gold food, death particles, 5 sound effects, direction queue, d-pad mobile (`5b29822`)
+9. ✅ **Home (Foundation)** — Blueprint gray, 10 Rust commands, 6 components, 6 hooks, 5 tabs (Overview/Diagnose/Calendar/Vault/Chat), 3 DB tables + 48 seasonal seed tasks, keyword-based AI (ready for LLM swap). Committed `2dc9c63`
+10. ✅ **Pac-Man** — Neon yellow on black, 4 ghosts with classic AI, 3 difficulty modes, power pellets, death particles. Committed `c27ddb2`
+11. ✅ **Solitaire** — Golden Deck, full Klondike, drag-and-drop, double-click auto-move, score/timer/moves, win cascade. Committed `b03be7a`
+12. ✅ **Agents + Market (Family/Bazaar)** — Conflux purple + gold, 4-tab AgentsView, marketplace overhaul, discovery AI, recommendation engine. Committed `755ab3f`
+13. ✅ **Echo** — Communication hub, electric blue design, messaging threads. Committed `755ab3f`
 
-### Apps Remaining — Priority Order
-Each app needs: (1) AI features as heroes, (2) custom visual identity, (3) natural language interaction, (4) proactive agent insights.
-
-7. ✅ **Home (Foundation)** — Blueprint gray, 10 Rust commands, 6 components, 6 hooks, 5 tabs (Overview/Diagnose/Calendar/Vault/Chat), 3 DB tables + 48 seasonal seed tasks, keyword-based AI (ready for LLM swap). Committed `2dc9c63`
-
-### Apps Remaining — Priority Order
-Each app needs: (1) AI features as heroes, (2) custom visual identity, (3) natural language interaction, (4) proactive agent insights.
-
-8. **Games (Story)** — Rich burgundy, parchment, candlelight, AI storytelling, adaptive narrative
-9. **Agents + Market (Family/Bazaar)** — Conflux purple + gold, discovery AI, recommendation engine, marketplace
-10. **Settings** — Clean organization, better UX
+### Apps Remaining
+- **Settings** — Clean organization, better UX
+- **Conflux Stories v2** — AI interactive fiction, parchment aesthetic (last Games Hub game)
 
 ### Build Pattern (Proven — Repeat for Each App)
 The parallel agent dispatch pattern from Hearth works. For each app:
@@ -167,9 +166,10 @@ The parallel agent dispatch pattern from Hearth works. For each app:
 3. Auto-updater (Tauri updater plugin)
 4. Code signing (macOS/Windows certificates)
 5. First real users / beta testers
-6. **App-by-app AI + design passes** — 4 done (Pulse, Hearth, Orbit, Horizon), 7 to go
+6. **App-by-app AI + design passes** — 4 done (Pulse, Hearth, Orbit, Horizon), remaining apps to go
 7. **Agent life template** — how to breathe life/soul into applications
 8. **Guided tour** — post-WelcomeOverlay desktop walkthrough
+9. **Conflux Stories v2** — last planned game for Games Hub, AI interactive fiction
 
 ---
 
@@ -208,6 +208,7 @@ The CSS agent that used grok was an exception — not the rule.
 | Job | Schedule | ID |
 |-----|----------|-----|
 | ZigBot Diary — Nightly Reflection | 11:20 PM MST daily | `ffebea42-414c-4ab5-81aa-d46637fb80c1` |
+| LIFE Pass Driver — Pulse Check | Every 10 min | `53608c7a-1b1a-467c-8ce1-e8ab05ceaed7` |
 | Vector's daily jokes | 9 AM MST daily | `0b1fd7ec-d75e-447d-9ca1-ae98e888494e` |
 
 All pipeline crons, discovery crons, prompt factory crons, reflection crons (Helix/Vector/Forge/Quanta/Pulse), and domain asset crons are **DISABLED**. See MEMORY_ARCHIVE.md for full cron ID list.
@@ -232,13 +233,14 @@ Full session transcript and vision capture. Read this at session start alongside
 
 **Build phases from CANDLELIT_2:**
 1. Games Hub + Minesweeper ✅ COMPLETE (`f5cad37`)
-2. Desktop Life — ambient animations, status rings, dock breathing
+2. Snake ✅ COMPLETE (`5b29822`) — emerald serpent, 4 modes, canvas rendering
+3. Desktop Life — ambient animations, status rings, dock breathing
    → EVOLVED INTO: Neural Mesh — agent orbs, voice activation, hands-free mode
    → Vision doc: `/home/calo/.openclaw/workspace/NEURAL_MESH_VISION.md`
 3. One app as gold standard (Pulse/Budget)
 4. Batch the rest (Hearth, Orbit, Horizon, Current, Foundation)
 5. Google Center + Agent Chat Rework
-6. Diary Rebuild + Games Expansion (Solitaire, Snake, Pac-Man, Stories v2)
+6. Diary Rebuild + Games Expansion (Stories v2)
 7. Agents + Market (Family, Bazaar, Customizer)
 
 **Detailed build spec:** `/home/calo/.openclaw/workspace/BUILD_SPEC.md`
@@ -248,17 +250,22 @@ Every phase has CSS line estimates, component specs, agent counts, and build pat
 
 ## Current Priority
 
-**Phase 1: Games Hub + Minesweeper — The Hook.**
+**All primary apps COMPLETE. Conflux Home is feature-rich.**
 
-✅ Budget (Pulse) — DONE (recovered)
-✅ Kitchen (Hearth) — DONE (recovered)
-✅ Life Autopilot (Orbit) — DONE (recovered)
-✅ Dreams (Horizon) — DONE (recovered)
+✅ Budget (Pulse), Kitchen (Hearth), Life Autopilot (Orbit — freeze FIXED), Dreams (Horizon), Feed (Current), Games Hub (Minesweeper + Snake + Pac-Man + Solitaire), Home (Foundation), Agents + Market, Echo
 ⏸️ Diary (Mirror) — ROLLED BACK (widget removed, Rust code preserved)
-✅ Feed (Current) — DONE (committed `8aa890e`)
-➡️ **NEXT: Games (Story)** — Rich burgundy, parchment, candlelight, AI storytelling, adaptive narrative
 
-### Current Build Notes (Session 2026-03-24, 20:06–20:46 MST)
+### What's Left
+1. **Conflux Stories v2** — last game for the hub, AI interactive fiction with parchment aesthetic
+2. **Settings** — polish pass
+3. **Ship items:** Auth, Stripe billing, auto-updater, code signing, beta testers
+
+### Current Build Notes (Session 2026-03-27)
+**Build:** Agents + Marketplace + Echo + Orbit freeze fix
+**Commit:** `755ab3f` (30 files, +3,621 lines)
+**Result:** TypeScript clean. Rust clean. All uncommitted work saved.
+
+### Previous Build Notes (Session 2026-03-24, 20:06–20:46 MST)
 **Build:** Feed → Current v2 (Intelligence Briefing)
 **Method:** 3-batch parallel dispatch (11 agents total)
 **Batch 1:** CSS (1,255 lines), prompts (7 templates), types (8 interfaces) — parallel
@@ -330,45 +337,101 @@ Mirror was attempted but the app froze when clicking the Diary widget. Root caus
 1. User auth / accounts (currently user_id: "default")
 2. Stripe billing ($14.99/mo Pro tier)
 
----
-*Last updated: 2026-03-25 00:49 MST — CANDLELIT_2 session active, Games Hub + Minesweeper building, Phase 1/7*
+### Auto-Updater — WORKING (iterated v0.1.1→v0.1.16+ on March 25-26)
+- **Plugin:** `tauri-plugin-updater v2` in Cargo.toml + lib.rs
+- **Signing key:** `~/.tauri/conflux-key` (private, no password) / `.pub` (public, in tauri.conf.json)
+- **Endpoint:** GitHub Releases — updates.json per release
+- **Current version:** v0.1.16+ (auto-update chain working on Windows)
+- **Lesson:** Auto-updater has N links in the chain (updates.json URL, signing, GitHub assets, version matching, Tauri config). Debug the whole chain, not individual links.
 
-## Dream Cycle Update — 2026-03-25
+### Security — API Key Leak (March 26, 2026)
+- GitGuardian flagged Mistral, Cerebras, OpenRouter keys exposed in public repo
+- Keys rotated. New keys stored in GitHub Secrets + local env vars
+- **RULE:** NEVER commit API keys to repos. Use `gh secret set` for CI, env vars for local dev.
+- **TODO:** Implement pre-commit hooks + Sentinel (security agent) per ADVICE.md
+
+---
+*Last updated: 2026-03-26 23:30 MST — Dream cycle complete. Auto-updater working (v0.1.16), API keys rotated, ADVICE.md created, Windows as primary test platform confirmed.*
+
+## Dream Cycle Update — 2026-03-25 (Nightly)
 
 ### Key Learnings
-- **Revenue gap is the critical bottleneck:** 13 published products, $0 actual revenue. Building supply without distribution. 7/10 Conflux Home apps done but no users yet either.
-- **CSS class alignment = #1 visual bug source:** Every parallel agent build produces CSS/component mismatches. Must budget a CSS fix agent in every batch 3.
-- **Git reset --hard = catastrophic:** Wiped 4 overhauls. Recovery took 5 sequential workloads. Commit after every batch is non-negotiable.
-- **Parallel agent dispatch pattern is proven and reliable:** Hearth (12 agents), Orbit, Horizon, Feed (11 agents), Foundation — all succeeded with 3-batch pattern.
-- **Build velocity is exceptional:** 7 apps built/recovered + desktop polish in a single day (March 24). But velocity without distribution = sunk cost.
+- **Checkpoint discipline confirmed a 3rd time:** LIFE Pass rollback to `edb542b` saved us when immersive background changes broke all 7 apps. Isolated commits = instant recovery. This is a foundational principle now.
+- **CSS class alignment = persistent #1 visual bug source:** Snake build reused minesweeper class names — 10 mismatches found by CSS fix agent. Confirmed in 6+ parallel builds. Budget CSS fix agent in every batch 3.
+- **Don's visual corrections need clarifying questions:** LIFE pass "no blur, full space" was misinterpreted. His mental model is precise; his verbal descriptions sometimes leave room for interpretation. Ask before guessing.
+- **PATH/environment issues masquerade as system failures:** Gateway appeared to crash but was running fine — shell PATH (Node v18) != service binary (Node v22). Verify PID + binary + ports before diagnosing.
+- **Build velocity continues to be exceptional:** Snake + Solitaire + Google Center + CI pipeline + auto-updater + app icons — all in one day (March 25).
 
 ### Revised Strategies
-- **20% effort allocation to distribution:** While finishing remaining 3 apps, resume marketing cron or manual push for existing prompt packs. $0 revenue needs to change.
-- **Tauri snake_case mandate:** All Rust commands exposed to frontend MUST use snake_case. Add to build checklist.
-- **CSS fix agent in every batch 3:** Not optional. Every parallel build needs it.
-- **Consider extracting design system:** 7 app design systems (amber, violet, emerald, deep blue, blueprint gray, electric white, burgundy pending) could become a standalone template pack product.
+- **Commit before applying user-requested aesthetic changes:** LIFE pass rollback would have been trivial if we'd committed before changing the immersive background. Checkpoint before every Don-directed visual change.
+- **Verify process state before diagnosing crashes:** Check PID, binary path, listening ports before assuming failure. Gateway crashes ≠ CLI environment issues.
+- **CSS fix agent in every batch 3:** Not optional. Every parallel build needs it. (Confirmed again — Snake had 10 mismatches.)
 
 ### Dream Insights (REM)
-1. **Story engine → onboarding narrative:** Games (Story) adaptive narrative pattern could power Conflux Home's guided onboarding tour. Dual-purpose: app feature + UX improvement.
-2. **Design system as product:** 7 polished visual identities extracted into a "Conflux Design Tokens" pack — sells to devs, ships with Conflux Home.
-3. **Auto-resume pipeline question:** All pipeline crons halted March 24 for app focus. Need explicit decision on when/how to restart product discovery pipeline.
+1. **Google-first onboarding could be the hook:** What if onboarding was "Connect Google" → instant value (calendar, email, files) → THEN introduce agent teams? Google integration is tangible; agent orchestration is abstract.
+2. **Checkpoint discipline as product feature:** "Undo everything" for your digital life. Every action creates a checkpoint. User doesn't like a change → one click to revert. Worth filing for later.
+3. **Distribution before infrastructure:** We're building a release pipeline for an app with no users. CI failures (iOS, macOS signing) might be signals to test with a single real user first, then invest in multi-platform CI.
 
 ### Session Harvest Summary
-- **Note:** Session transcript harvesting limited — only cron sessions visible in last 72h. Working from MEMORY.md logs.
-- Total interactions assessed: ~25+ from March 24 session logs
-- High-salience events: 4 (git reset disaster, Mirror rollback, Foundation commit, 7-app milestone)
-- User corrections: 0 visible in this window
-- Strategic decisions: Pipeline halt, Conflux Home singular focus, Mirror rollback
+- Total interactions assessed: 17 events from 6 Discord sessions (March 25)
+- High-salience events: 9 (LIFE rollback, Snake/Solitaire builds, Google Center, gateway confusion, CI failures)
+- User corrections: 3 (onboarding centering, emoji animation, LIFE pass direction)
+- Strategic decisions: Conflux rename, auto-updater config, CI pipeline setup
 
 ### Memory Pruning Summary
-- Entries pruned: 0 (all memory entries currently salient due to active Conflux Home build)
-- Entries compressed: 2 (Nightly Pipeline details, Agent Self-Improvement cron IDs — both parked, already in archive)
-- MEMORY.md: 302 lines (within target)
+- Entries compressed: 4 (routine fixes — auth cleanup, centering, emoji, chat dropdown)
+- Entries preserved: 9 (high-salience — LIFE rollback, Snake/Solitaire, Google Center, CI, gateway)
+- Patterns strengthened: 2 (checkpoint discipline, CSS alignment)
+- New patterns: 2 (Don's correction style, PATH masquerading)
+- MEMORY.md: ~310 lines (within target)
 - MEMORY_ARCHIVE.md: 312 lines (reference file, healthy)
-- Recommendation: After Conflux Home ships, prune build-pattern details into archive
 
 ### Tomorrow's Focus
-- **Games (Story)** — Rich burgundy, parchment, candlelight, AI storytelling
-- Pickup instructions in MEMORY.md are current and accurate
-- Follow proven 3-batch parallel pattern
-- Non-negotiables: snake_case Tauri params, CSS fix agent, commit after every batch
+- **Conflux Stories v2** — last game for the Games Hub. Rich burgundy, parchment, candlelight, AI interactive fiction.
+- **CI pipeline** — resolve iOS/macOS failures before first real release.
+- **First real user** — Google auth is clean, onboarding is polished, app icons are ready.
+- Non-negotiables: snake_case Tauri params, CSS fix agent, commit after every batch, commit before Don-directed visual changes.
+
+## Dream Cycle Update — 2026-03-26 (Nightly)
+
+### Key Learnings
+- **API keys in public repos = catastrophic:** GitGuardian caught Mistral, Cerebras, OpenRouter keys in public GitHub. Immediate rotation required. This is now our #1 security rule. Pre-commit hooks and Sentinel agent are overdue.
+- **Auto-updater is a chain, not a button:** 16+ versions over 2 days because each fix exposed the next broken link (updates.json URL → signing → GitHub assets → version matching → Tauri config → download format). Debug systems end-to-end.
+- **Don tests on Windows. Always.** I assumed Linux multiple times. The app is a Windows desktop app. Windows is the primary test platform unless Don says otherwise.
+- **The build→ship→learn loop is extraordinary velocity:** 16 version iterations in 2 days. Don tests → reports → subagent dispatches → fix committed → new build → Don tests again. This is the fastest feedback loop in the studio.
+- **Orbit widget has a persistent freeze bug:** Survives across all versions. Likely architectural (infinite hook loop, circular dep, or Tauri command deadlock), not a simple code bug.
+
+### Revised Strategies
+- **Security before features:** ADVICE.md crystallized this. 9 agents building, 0 protecting. Sentinel + Aegis must be next agent hires.
+- **When Don says "test" or "install" = Windows:** Non-negotiable assumption going forward.
+- **Chain-debug complex systems:** Don't fix one link and assume the rest works. Trace the entire pipeline end-to-end before reporting success.
+- **Subagent dispatch for infrastructure bugs:** Don't block the main session on CI/auto-updater debugging. Spawn subagents, keep the conversation moving.
+
+### Dream Insights (REM)
+1. **Security agent as pre-commit hook:** What if Sentinel existed as a CI gate? Every push → secret scan → dependency audit → vulnerability check → merge. The API key leak would have been caught before push. This is buildable with existing tools (gitleaks, trivy) + a thin agent wrapper.
+2. **Auto-updater as a product:** We built release infrastructure that 16+ iterations couldn't break permanently. Other Tauri devs would pay for "auto-update as a service." Interesting but stay focused on Conflux Home.
+3. **Orbit freeze as canary:** A bug that survives every rebuild suggests a systemic issue. Investigating it could reveal patterns affecting other widgets silently. Worth a dedicated debugging session.
+
+### Session Harvest Summary
+- Total interactions assessed: 62 messages from 1 primary Discord session (March 25-26 marathon)
+- High-salience events: 9 (API key leak, auto-updater chain, first Windows install, ADVICE.md, orbit freeze, CI failures, download 404s, chat broken, account system discussion)
+- User corrections: 3 (settings gear location, Windows vs Linux assumption, chat broken in v0.1.7)
+- Strategic decisions: ADVICE.md agent team expansion, Neon DB for future accounts, lightweight auth architecture
+
+### Memory Pruning Summary
+- Entries compressed: 3 (DB cleanup strategy, account system discussion, mobile download)
+- Entries preserved: 9 (API leak, auto-updater, first install, ADVICE.md, orbit freeze, CI, 404s, chat break, secrets rotation)
+- Patterns strengthened: 2 (security-first, Windows primary platform)
+- New patterns: 2 (chain-debugging complex systems, subagent dispatch for infra bugs)
+- MEMORY.md: ~330 lines (slightly over target, acceptable given significance)
+- MEMORY_ARCHIVE.md: 312 lines (reference file, healthy)
+
+### Active Focus (March 27, 2026)
+- ✅ **Orbit freeze** — FIXED (commit `755ab3f`)
+- ✅ **Agents + Market** — COMPLETE (commit `755ab3f`)
+- ✅ **Echo** — COMPLETE (commit `755ab3f`)
+- **Stories v2** — last game for Games Hub, AI interactive fiction
+- **CI pipeline** — Windows build reliability
+- **Security gates** — pre-commit hooks for secret scanning
+- **Auto-updater** — need reliable Windows build
+- Non-negotiables: Windows = primary test platform, API keys NEVER in code
