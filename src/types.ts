@@ -44,7 +44,7 @@ export interface PipelineStatus {
   uptime: string;
 }
 
-export type View = 'dashboard' | 'chat' | 'google' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen' | 'budget' | 'feed' | 'life' | 'home' | 'dreams' | 'echo';
+export type View = 'dashboard' | 'chat' | 'google' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen' | 'budget' | 'feed' | 'life' | 'home' | 'dreams' | 'echo' | 'vault';
 
 // Agent accent colors for avatar rendering
 export const AGENT_COLORS: Record<string, string> = {
@@ -1160,4 +1160,72 @@ export interface FoundationDashboard {
   warranty_expiring_soon: number;
   predicted_failures: PredictedFailure[];
   seasonal_tasks: SeasonalTask[];
+}
+
+// ============================================================
+// VAULT — File Browser & Project Manager
+// ============================================================
+
+export interface VaultFile {
+  id: string;
+  path: string;
+  name: string;
+  file_type: 'image' | 'audio' | 'video' | 'code' | 'document' | 'archive' | 'other';
+  mime_type: string | null;
+  extension: string | null;
+  size_bytes: number;
+  thumbnail_path: string | null;
+  width: number | null;
+  height: number | null;
+  duration_secs: number | null;
+  created_by: string | null;  // agent id
+  source_prompt: string | null;
+  description: string | null;
+  is_favorite: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VaultProject {
+  id: string;
+  name: string;
+  description: string | null;
+  project_type: 'website' | 'design' | 'code' | 'media' | 'mixed' | null;
+  cover_file_id: string | null;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+  file_count: number;
+}
+
+export interface VaultProjectDetail {
+  project: VaultProject;
+  files: VaultFile[];
+}
+
+export interface VaultTag {
+  id: string;
+  name: string;
+  color: string | null;
+  tag_type: 'auto' | 'manual' | 'agent' | 'system';
+  file_count: number;
+}
+
+export interface VaultStats {
+  total_files: number;
+  total_size: number;
+  total_projects: number;
+}
+
+export type VaultViewMode = 'grid' | 'list' | 'timeline';
+export type VaultSortBy = 'name' | 'date' | 'size' | 'type';
+export type VaultSortDir = 'asc' | 'desc';
+
+export interface VaultFilter {
+  file_type: string | null;
+  tag_ids: string[];
+  project_id: string | null;
+  agent_id: string | null;
+  favorites_only: boolean;
+  search_query: string;
 }

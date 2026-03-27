@@ -1277,3 +1277,54 @@ pub struct DiaryMoodLog {
     pub trigger_event: Option<String>,
     pub created_at: String,
 }
+
+// ── Vault ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VaultFile {
+    pub id: String,
+    pub path: String,
+    pub name: String,
+    pub file_type: String,
+    pub mime_type: Option<String>,
+    pub extension: Option<String>,
+    pub size_bytes: i64,
+    pub thumbnail_path: Option<String>,
+    pub width: Option<i32>,
+    pub height: Option<i32>,
+    pub duration_secs: Option<f64>,
+    pub created_by: Option<String>,
+    pub source_prompt: Option<String>,
+    pub description: Option<String>,
+    pub is_favorite: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VaultProject {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub project_type: Option<String>,
+    pub cover_file_id: Option<String>,
+    pub is_archived: bool,
+    pub created_at: String,
+    pub updated_at: String,
+    pub file_count: Option<i64>,  // populated via JOIN
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VaultTag {
+    pub id: String,
+    pub name: String,
+    pub color: Option<String>,
+    pub tag_type: String,
+    pub file_count: Option<i64>,  // populated via JOIN
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VaultProjectDetail {
+    pub project: VaultProject,
+    pub files: Vec<VaultFile>,
+}
