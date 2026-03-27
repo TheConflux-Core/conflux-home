@@ -318,6 +318,20 @@ pub fn run() {
             commands::vault_get_tags,
             commands::vault_tag_file,
             commands::vault_untag_file,
+            // Studio — Creator Workspace
+            commands::studio_create_generation,
+            commands::studio_update_generation_status,
+            commands::studio_get_generations,
+            commands::studio_get_generation,
+            commands::studio_delete_generation,
+            commands::studio_upsert_prompt,
+            commands::studio_get_prompts,
+            commands::studio_update_usage,
+            commands::studio_get_usage,
+            commands::studio_set_api_keys,
+            commands::studio_get_api_keys_status,
+            commands::studio_generate_image,
+            commands::studio_generate_voice,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

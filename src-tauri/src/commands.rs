@@ -4370,3 +4370,299 @@ pub fn vault_tag_file(file_id: String, tag_name: String) -> Result<(), String> {
 pub fn vault_untag_file(file_id: String, tag_id: String) -> Result<(), String> {
     engine::db::vault_untag_file(&file_id, &tag_id).map_err(|e| e.to_string())
 }
+
+// ── Studio — Creator Workspace ──
+
+#[tauri::command]
+pub fn studio_create_generation(module: String, prompt: String, model: String, provider: String) -> Result<String, String> {
+    let id = format!("gen_{}", &uuid::Uuid::new_v4().to_string().replace("-", "")[..12]);
+    engine::db::studio_create_generation(&id, &module, &prompt, &model, &provider).map_err(|e| e.to_string())?;
+    Ok(id)
+}
+
+#[tauri::command]
+pub fn studio_update_generation_status(id: String, status: String, output_path: Option<String>, output_url: Option<String>, metadata_json: Option<String>, cost_cents: i64) -> Result<(), String> {
+    engine::db::studio_update_generation_status(&id, &status, output_path.as_deref(), output_url.as_deref(), metadata_json.as_deref(), cost_cents).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn studio_get_generations(module: Option<String>, limit: Option<i64>) -> Result<Vec<engine::types::StudioGeneration>, String> {
+    engine::db::studio_get_generations(module.as_deref(), limit.unwrap_or(50)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn studio_get_generation(id: String) -> Result<Option<engine::types::StudioGeneration>, String> {
+    engine::db::studio_get_generation(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn studio_delete_generation(id: String) -> Result<(), String> {
+    engine::db::studio_delete_generation(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn studio_upsert_prompt(prompt: String, module: String) -> Result<(), String> {
+    engine::db::studio_upsert_prompt(&prompt, &module).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn studio_get_prompts(module: Option<String>, limit: Option<i64>) -> Result<Vec<engine::types::StudioPromptHistory>, String> {
+    engine::db::studio_get_prompts(module.as_deref(), limit.unwrap_or(20)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn studio_update_usage(user_id: String, month: String, module: String, cost_cents: i64) -> Result<(), String> {
+    engine::db::studio_update_usage(&user_id, &month, &module, cost_cents).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn studio_get_usage(user_id: String, month: String) -> Result<Vec<engine::types::StudioUsageStats>, String> {
+    engine::db::studio_get_usage(&user_id, &month).map_err(|e| e.to_string())
+}
+
+// ── Studio: API Key Management ──
+
+#[tauri::command]
+pub fn studio_set_api_keys(replicate_key: Option<String>, elevenlabs_key: Option<String>) -> Result<(), String> {
+    let engine = engine::get_engine();
+    if let Some(key) = replicate_key {
+        engine.db().set_config("studio_replicate_key", &key).map_err(|e| e.to_string())?;
+    }
+    if let Some(key) = elevenlabs_key {
+        engine.db().set_config("studio_elevenlabs_key", &key).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn studio_get_api_keys_status() -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let replicate = engine.db().get_config("studio_replicate_key").map_err(|e| e.to_string())?;
+    let elevenlabs = engine.db().get_config("studio_elevenlabs_key").map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({
+        "replicate_configured": replicate.is_some() && !replicate.as_ref().unwrap().is_empty(),
+        "elevenlabs_configured": elevenlabs.is_some() && !elevenlabs.as_ref().unwrap().is_empty(),
+    }))
+}
+
+// ── Studio: Image Generation (Replicate) ──
+
+#[derive(serde::Deserialize)]
+struct ReplicatePrediction {
+    id: String,
+    status: String,
+    output: Option<serde_json::Value>,
+    error: Option<serde_json::Value>,
+}
+
+#[tauri::command]
+pub async fn studio_generate_image(generation_id: String, prompt: String, aspect_ratio: Option<String>) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let api_key = engine.db().get_config("studio_replicate_key")
+        .map_err(|e| e.to_string())?
+        .ok_or("Replicate API key not configured. Add it in Settings → Studio.")?;
+
+    if api_key.is_empty() {
+        return Err("Replicate API key is empty. Add it in Settings → Studio.".to_string());
+    }
+
+    // Update status to generating
+    engine::db::studio_update_generation_status(&generation_id, "generating", None, None, None, 0)
+        .map_err(|e| e.to_string())?;
+
+    let client = reqwest::Client::new();
+
+    // Determine dimensions from aspect ratio
+    let (width, height) = match aspect_ratio.as_deref() {
+        Some("16:9") => (1280, 720),
+        Some("9:16") => (720, 1280),
+        Some("4:3") => (1024, 768),
+        Some("3:4") => (768, 1024),
+        _ => (1024, 1024), // default 1:1
+    };
+
+    // Start prediction using Flux Schnell (fast, cheap)
+    let response = client.post("https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!({
+            "input": {
+                "prompt": prompt,
+                "width": width,
+                "height": height,
+                "num_outputs": 1,
+                "output_format": "png"
+            }
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to call Replicate: {}", e))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+            .map_err(|e| e.to_string())?;
+        return Err(format!("Replicate error ({}): {}", status, body));
+    }
+
+    let prediction: ReplicatePrediction = response.json().await
+        .map_err(|e| format!("Failed to parse Replicate response: {}", e))?;
+
+    // Poll for completion (max 60 seconds)
+    let prediction_id = prediction.id;
+    for _ in 0..30 {
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+        let poll = client.get(format!("https://api.replicate.com/v1/predictions/{}", prediction_id))
+            .header("Authorization", format!("Bearer {}", api_key))
+            .send()
+            .await
+            .map_err(|e| format!("Poll failed: {}", e))?;
+
+        let pred: ReplicatePrediction = poll.json().await
+            .map_err(|e| format!("Failed to parse poll response: {}", e))?;
+
+        match pred.status.as_str() {
+            "succeeded" => {
+                // Extract output URL
+                let output_url = pred.output
+                    .as_ref()
+                    .and_then(|o| o.as_array())
+                    .and_then(|arr| arr.first())
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+
+                let metadata = serde_json::json!({
+                    "width": width,
+                    "height": height,
+                    "format": "png",
+                    "model": "flux-schnell"
+                }).to_string();
+
+                // Update generation record
+                engine::db::studio_update_generation_status(
+                    &generation_id,
+                    "complete",
+                    None,
+                    Some(&output_url),
+                    Some(&metadata),
+                    3, // ~$0.03 cost
+                ).map_err(|e| e.to_string())?;
+
+                // Also save to prompt history
+                let _ = engine::db::studio_upsert_prompt(&prompt, "image");
+
+                // Update usage tracking
+                let month = chrono::Utc::now().format("%Y-%m").to_string();
+                let _ = engine::db::studio_update_usage("default", &month, "image", 3);
+
+                return Ok(serde_json::json!({
+                    "status": "complete",
+                    "output_url": output_url,
+                    "metadata": metadata
+                }));
+            }
+            "failed" | "canceled" => {
+                engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+                    .map_err(|e| e.to_string())?;
+                return Err(format!("Generation failed: {:?}", pred.error));
+            }
+            _ => continue, // still processing
+        }
+    }
+
+    // Timeout
+    engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+        .map_err(|e| e.to_string())?;
+    Err("Generation timed out after 60 seconds".to_string())
+}
+
+// ── Studio: Voice Generation (ElevenLabs) ──
+
+#[tauri::command]
+pub async fn studio_generate_voice(generation_id: String, text: String, voice_id: Option<String>) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let api_key = engine.db().get_config("studio_elevenlabs_key")
+        .map_err(|e| e.to_string())?
+        .ok_or("ElevenLabs API key not configured. Add it in Settings → Studio.")?;
+
+    if api_key.is_empty() {
+        return Err("ElevenLabs API key is empty. Add it in Settings → Studio.".to_string());
+    }
+
+    // Update status to generating
+    engine::db::studio_update_generation_status(&generation_id, "generating", None, None, None, 0)
+        .map_err(|e| e.to_string())?;
+
+    let client = reqwest::Client::new();
+
+    // Default to Rachel voice if no voice_id specified
+    let voice = voice_id.unwrap_or_else(|| "21m00Tcm4TlvDq8ikWAM".to_string());
+
+    let response = client.post(format!("https://api.elevenlabs.io/v1/text-to-speech/{}", voice))
+        .header("xi-api-key", &api_key)
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!({
+            "text": text,
+            "model_id": "eleven_multilingual_v2",
+            "voice_settings": {
+                "stability": 0.5,
+                "similarity_boost": 0.75
+            }
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to call ElevenLabs: {}", e))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+            .map_err(|e| e.to_string())?;
+        return Err(format!("ElevenLabs error ({}): {}", status, body));
+    }
+
+    // Save audio bytes to file
+    let bytes = response.bytes().await.map_err(|e| format!("Failed to read audio: {}", e))?;
+
+    // Create output directory
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let output_dir = format!("{}/.openclaw/studio/voice", home);
+    std::fs::create_dir_all(&output_dir).map_err(|e| format!("Failed to create dir: {}", e))?;
+
+    let filename = format!("{}.mp3", generation_id);
+    let output_path = format!("{}/{}", output_dir, filename);
+    std::fs::write(&output_path, &bytes).map_err(|e| format!("Failed to write audio: {}", e))?;
+
+    let metadata = serde_json::json!({
+        "format": "mp3",
+        "voice_id": voice,
+        "model": "eleven_multilingual_v2",
+        "char_count": text.len()
+    }).to_string();
+
+    // Update generation record
+    engine::db::studio_update_generation_status(
+        &generation_id,
+        "complete",
+        Some(&output_path),
+        None,
+        Some(&metadata),
+        2, // ~$0.02 cost
+    ).map_err(|e| e.to_string())?;
+
+    // Save to prompt history
+    let _ = engine::db::studio_upsert_prompt(&text, "voice");
+
+    // Update usage tracking
+    let month = chrono::Utc::now().format("%Y-%m").to_string();
+    let _ = engine::db::studio_update_usage("default", &month, "voice", 2);
+
+    Ok(serde_json::json!({
+        "status": "complete",
+        "output_path": output_path,
+        "metadata": metadata
+    }))
+}

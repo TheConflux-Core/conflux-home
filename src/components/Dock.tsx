@@ -22,6 +22,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   marketplace: { icon: '🛒', label: 'Market' },
   echo: { icon: '🪞', label: 'Echo' },
   vault: { icon: '🔐', label: 'Vault' },
+  studio: { icon: '✨', label: 'Studio' },
   settings: { icon: '⚙️', label: 'Settings' },
   onboarding: { icon: '👋', label: 'Onboarding' },
 };

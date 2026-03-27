@@ -31,6 +31,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   marketplace: { icon: '🛒', label: 'Market' },
   echo: { icon: '🪞', label: 'Echo' },
   vault: { icon: '🔐', label: 'Vault' },
+  studio: { icon: '✨', label: 'Studio' },
   settings: { icon: '⚙️', label: 'Settings' },
   onboarding: { icon: '👋', label: 'Onboarding' },
 };
@@ -49,6 +50,7 @@ const ALL_APPS: AppItem[] = [
   { id: 'agents', icon: '🧩', label: 'Agents', category: 'system', description: 'Manage your AI family' },
   { id: 'echo', icon: '🪞', label: 'Echo', category: 'life', description: 'The notebook that listens' },
   { id: 'vault', icon: '🔐', label: 'Vault', category: 'system', description: 'Encrypted password & credential manager' },
+  { id: 'studio', icon: '✨', label: 'Studio', category: 'work', description: 'AI creator workspace — images, video, music, voice, web, design' },
   { id: 'settings', icon: '⚙️', label: 'Settings', category: 'system', description: 'Configure your experience' },
 ];
 

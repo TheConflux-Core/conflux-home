@@ -4367,3 +4367,198 @@ pub fn vault_get_stats() -> Result<(i64, i64, i64)> {  // (total_files, total_si
     let total_projects: i64 = conn.query_row("SELECT COUNT(*) FROM vault_projects WHERE is_archived = 0", [], |r| r.get(0))?;
     Ok((total_files, total_size, total_projects))
 }
+
+// ============================================================
+// STUDIO — Creator Workspace
+// ============================================================
+
+pub fn studio_create_generation(id: &str, module: &str, prompt: &str, model: &str, provider: &str) -> Result<()> {
+    let conn = get_conn();
+    conn.execute(
+        "INSERT INTO studio_generations (id, module, prompt, model, provider, status) VALUES (?1, ?2, ?3, ?4, ?5, 'pending')",
+        params![id, module, prompt, model, provider],
+    )?;
+    Ok(())
+}
+
+pub fn studio_update_generation_status(id: &str, status: &str, output_path: Option<&str>, output_url: Option<&str>, metadata_json: Option<&str>, cost_cents: i64) -> Result<()> {
+    let conn = get_conn();
+    conn.execute(
+        "UPDATE studio_generations SET status = ?1, output_path = ?2, output_url = ?3, metadata_json = ?4, cost_cents = ?5 WHERE id = ?6",
+        params![status, output_path, output_url, metadata_json, cost_cents, id],
+    )?;
+    Ok(())
+}
+
+pub fn studio_get_generations(module: Option<&str>, limit: i64) -> Result<Vec<super::types::StudioGeneration>> {
+    let conn = get_conn();
+    if let Some(m) = module {
+        let mut stmt = conn.prepare(
+            "SELECT id, module, prompt, remix_of, model, provider, status, output_path, output_url, metadata_json, cost_cents, vault_file_id, created_at FROM studio_generations WHERE module = ?1 ORDER BY created_at DESC LIMIT ?2"
+        )?;
+        let rows = stmt.query_map(params![m, limit], |row| {
+            Ok(super::types::StudioGeneration {
+                id: row.get(0)?,
+                module: row.get(1)?,
+                prompt: row.get(2)?,
+                remix_of: row.get(3)?,
+                model: row.get(4)?,
+                provider: row.get(5)?,
+                status: row.get(6)?,
+                output_path: row.get(7)?,
+                output_url: row.get(8)?,
+                metadata_json: row.get(9)?,
+                cost_cents: row.get(10)?,
+                vault_file_id: row.get(11)?,
+                created_at: row.get(12)?,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    } else {
+        let mut stmt = conn.prepare(
+            "SELECT id, module, prompt, remix_of, model, provider, status, output_path, output_url, metadata_json, cost_cents, vault_file_id, created_at FROM studio_generations ORDER BY created_at DESC LIMIT ?1"
+        )?;
+        let rows = stmt.query_map(params![limit], |row| {
+            Ok(super::types::StudioGeneration {
+                id: row.get(0)?,
+                module: row.get(1)?,
+                prompt: row.get(2)?,
+                remix_of: row.get(3)?,
+                model: row.get(4)?,
+                provider: row.get(5)?,
+                status: row.get(6)?,
+                output_path: row.get(7)?,
+                output_url: row.get(8)?,
+                metadata_json: row.get(9)?,
+                cost_cents: row.get(10)?,
+                vault_file_id: row.get(11)?,
+                created_at: row.get(12)?,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+}
+
+pub fn studio_get_generation(id: &str) -> Result<Option<super::types::StudioGeneration>> {
+    let conn = get_conn();
+    let result = conn.query_row(
+        "SELECT id, module, prompt, remix_of, model, provider, status, output_path, output_url, metadata_json, cost_cents, vault_file_id, created_at FROM studio_generations WHERE id = ?1",
+        params![id],
+        |row| {
+            Ok(super::types::StudioGeneration {
+                id: row.get(0)?,
+                module: row.get(1)?,
+                prompt: row.get(2)?,
+                remix_of: row.get(3)?,
+                model: row.get(4)?,
+                provider: row.get(5)?,
+                status: row.get(6)?,
+                output_path: row.get(7)?,
+                output_url: row.get(8)?,
+                metadata_json: row.get(9)?,
+                cost_cents: row.get(10)?,
+                vault_file_id: row.get(11)?,
+                created_at: row.get(12)?,
+            })
+        },
+    );
+    match result {
+        Ok(gen) => Ok(Some(gen)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(e.into()),
+    }
+}
+
+pub fn studio_delete_generation(id: &str) -> Result<()> {
+    let conn = get_conn();
+    conn.execute("DELETE FROM studio_generations WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+pub fn studio_upsert_prompt(prompt: &str, module: &str) -> Result<()> {
+    let conn = get_conn();
+    // Check if prompt already exists for this module
+    let existing = conn.query_row(
+        "SELECT id FROM studio_prompts WHERE prompt = ?1 AND module = ?2",
+        params![prompt, module],
+        |row| row.get::<_, String>(0),
+    );
+    match existing {
+        Ok(id) => {
+            conn.execute(
+                "UPDATE studio_prompts SET use_count = use_count + 1, last_used = datetime('now') WHERE id = ?1",
+                params![id],
+            )?;
+        }
+        Err(rusqlite::Error::QueryReturnedNoRows) => {
+            conn.execute(
+                "INSERT INTO studio_prompts (id, prompt, module, use_count, last_used) VALUES (?1, ?2, ?3, 1, datetime('now'))",
+                params![uuid::Uuid::new_v4().to_string(), prompt, module],
+            )?;
+        }
+        Err(e) => return Err(e.into()),
+    }
+    Ok(())
+}
+
+pub fn studio_get_prompts(module: Option<&str>, limit: i64) -> Result<Vec<super::types::StudioPromptHistory>> {
+    let conn = get_conn();
+    if let Some(m) = module {
+        let mut stmt = conn.prepare(
+            "SELECT id, prompt, module, use_count, last_used FROM studio_prompts WHERE module = ?1 ORDER BY last_used DESC LIMIT ?2"
+        )?;
+        let rows = stmt.query_map(params![m, limit], |row| {
+            Ok(super::types::StudioPromptHistory {
+                id: row.get(0)?,
+                prompt: row.get(1)?,
+                module: row.get(2)?,
+                use_count: row.get(3)?,
+                last_used: row.get(4)?,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    } else {
+        let mut stmt = conn.prepare(
+            "SELECT id, prompt, module, use_count, last_used FROM studio_prompts ORDER BY last_used DESC LIMIT ?1"
+        )?;
+        let rows = stmt.query_map(params![limit], |row| {
+            Ok(super::types::StudioPromptHistory {
+                id: row.get(0)?,
+                prompt: row.get(1)?,
+                module: row.get(2)?,
+                use_count: row.get(3)?,
+                last_used: row.get(4)?,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+}
+
+pub fn studio_update_usage(user_id: &str, month: &str, module: &str, cost_cents: i64) -> Result<()> {
+    let conn = get_conn();
+    conn.execute(
+        "INSERT INTO studio_usage (id, user_id, month, module, generation_count, total_cost_cents)
+         VALUES (?1, ?2, ?3, ?4, 1, ?5)
+         ON CONFLICT(user_id, month, module) DO UPDATE SET generation_count = generation_count + 1, total_cost_cents = total_cost_cents + ?5",
+        params![uuid::Uuid::new_v4().to_string(), user_id, month, module, cost_cents],
+    )?;
+    Ok(())
+}
+
+pub fn studio_get_usage(user_id: &str, month: &str) -> Result<Vec<super::types::StudioUsageStats>> {
+    let conn = get_conn();
+    let mut stmt = conn.prepare(
+        "SELECT id, user_id, month, module, generation_count, total_cost_cents FROM studio_usage WHERE user_id = ?1 AND month = ?2"
+    )?;
+    let rows = stmt.query_map(params![user_id, month], |row| {
+        Ok(super::types::StudioUsageStats {
+            id: row.get(0)?,
+            user_id: row.get(1)?,
+            month: row.get(2)?,
+            module: row.get(3)?,
+            generation_count: row.get(4)?,
+            total_cost_cents: row.get(5)?,
+        })
+    })?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+}

@@ -44,7 +44,7 @@ export interface PipelineStatus {
   uptime: string;
 }
 
-export type View = 'dashboard' | 'chat' | 'google' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen' | 'budget' | 'feed' | 'life' | 'home' | 'dreams' | 'echo' | 'vault';
+export type View = 'dashboard' | 'chat' | 'google' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen' | 'budget' | 'feed' | 'life' | 'home' | 'dreams' | 'echo' | 'vault' | 'studio';
 
 // Agent accent colors for avatar rendering
 export const AGENT_COLORS: Record<string, string> = {
@@ -1229,3 +1229,65 @@ export interface VaultFilter {
   favorites_only: boolean;
   search_query: string;
 }
+
+// ============================================================
+// STUDIO — AI Creative Generation
+// ============================================================
+
+export type StudioModule = 'image' | 'video' | 'music' | 'voice' | 'code' | 'design';
+
+export interface StudioGeneration {
+  id: string;
+  module: StudioModule;
+  prompt: string;
+  remix_of: string | null;
+  model: string;
+  provider: string;
+  status: 'pending' | 'generating' | 'complete' | 'failed';
+  output_path: string | null;
+  output_url: string | null;
+  metadata_json: string | null;
+  cost_cents: number;
+  vault_file_id: string | null;
+  created_at: string;
+}
+
+export interface StudioPromptHistory {
+  id: string;
+  prompt: string;
+  module: StudioModule;
+  use_count: number;
+  last_used: string;
+}
+
+export interface StudioModelInfo {
+  id: string;
+  name: string;
+  provider: string;
+  module: StudioModule;
+  cost_per_generation: number;
+  is_available: boolean;
+}
+
+export interface StudioUsageStats {
+  month: string;
+  module: StudioModule;
+  generation_count: number;
+  total_cost_cents: number;
+}
+
+export interface StudioSettings {
+  default_model: string | null;
+  auto_save_to_vault: boolean;
+  output_quality: 'standard' | 'high' | 'ultra';
+  notification_on_complete: boolean;
+}
+
+export const STUDIO_MODULES: Record<StudioModule, { icon: string; label: string; description: string }> = {
+  image: { icon: '🖼️', label: 'Image', description: 'Generate, edit, and transform images' },
+  video: { icon: '🎬', label: 'Video', description: 'Create and animate video content' },
+  music: { icon: '🎵', label: 'Music', description: 'Compose music and sound effects' },
+  voice: { icon: '🗣️', label: 'Voice', description: 'Clone voices and generate speech' },
+  code: { icon: '💻', label: 'Web', description: 'Build websites and web apps' },
+  design: { icon: '🎨', label: 'Design', description: 'Create logos, templates, and brand assets' },
+};
