@@ -2,6 +2,7 @@
 // Initializes the Conflux Engine and exposes commands to the frontend.
 
 pub mod engine;
+pub mod voice;
 mod commands;
 
 use tauri::Manager;
@@ -332,6 +333,15 @@ pub fn run() {
             commands::studio_get_api_keys_status,
             commands::studio_generate_image,
             commands::studio_generate_voice,
+            // Voice Input
+            commands::voice_capture_start,
+            commands::voice_capture_stop,
+            commands::voice_transcribe,
+            commands::voice_capture_and_transcribe,
+            commands::voice_get_status,
+            commands::voice_list_devices,
+            commands::voice_get_config,
+            commands::voice_set_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

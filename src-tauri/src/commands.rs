@@ -4666,3 +4666,187 @@ pub async fn studio_generate_voice(generation_id: String, text: String, voice_id
         "metadata": metadata
     }))
 }
+
+// ═══════════════════════════════════════════════════════
+// Voice Input — Local speech capture & transcription
+// ═══════════════════════════════════════════════════════
+
+use crate::voice;
+use crate::voice::capture::{self, AUDIO_BUFFER};
+
+/// Start recording from the default microphone.
+#[tauri::command]
+pub fn voice_capture_start() -> Result<String, String> {
+    capture::start_recording()
+}
+
+/// Stop recording and return sample count.
+#[tauri::command]
+pub fn voice_capture_stop() -> Result<serde_json::Value, String> {
+    let count = capture::stop_recording()?;
+    Ok(serde_json::json!({
+        "samples": count,
+        "duration_seconds": count as f64 / 16000.0,
+    }))
+}
+
+/// Transcribe the current audio buffer using Whisper.
+#[tauri::command]
+pub fn voice_transcribe(app: tauri::AppHandle) -> Result<String, String> {
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    let resource_dir = app.path().resource_dir()
+        .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+
+    // Read model name from voice_config
+    let model_name = {
+        let engine = engine::get_engine();
+        let conn = engine.db().conn();
+        conn.query_row(
+            "SELECT value FROM voice_config WHERE key = 'model_name'",
+            [],
+            |row| row.get::<_, String>(0),
+        ).unwrap_or_else(|_| "base".to_string())
+    };
+
+    let path = voice::model::model_path(&resource_dir, &app_data_dir, &model_name);
+    if !path.exists() {
+        return Err(format!(
+            "Whisper model not found. Expected ggml-{}.bin in bundled resources or app data models/ directory.",
+            model_name
+        ));
+    }
+
+    // Copy audio buffer so we don't hold the lock during inference
+    let audio = {
+        let buf = AUDIO_BUFFER.lock().map_err(|e| e.to_string())?;
+        buf.clone()
+    };
+
+    if audio.is_empty() {
+        return Err("No audio recorded. Start recording first with voice_capture_start.".to_string());
+    }
+
+    voice::transcribe::transcribe_audio(&path, &audio)
+}
+
+/// Start recording, wait up to max_duration_ms, stop, then transcribe.
+/// Async so it doesn't block the UI thread.
+#[tauri::command]
+pub async fn voice_capture_and_transcribe(app: tauri::AppHandle, max_duration_ms: Option<u64>) -> Result<String, String> {
+    // Start recording (non-blocking)
+    capture::start_recording()?;
+
+    let timeout = max_duration_ms.unwrap_or(10000);
+    tokio::time::sleep(std::time::Duration::from_millis(timeout)).await;
+
+    // Check if we should abort (recording was stopped externally)
+    if !capture::is_recording() {
+        return Err("Recording was stopped before capture completed".to_string());
+    }
+
+    let count = capture::stop_recording()?;
+    log::info!("Captured {} samples ({:.1}s) for transcription", count, count as f64 / 16000.0);
+
+    // Get model path
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    let resource_dir = app.path().resource_dir()
+        .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+
+    let model_name = {
+        let engine = engine::get_engine();
+        let conn = engine.db().conn();
+        conn.query_row(
+            "SELECT value FROM voice_config WHERE key = 'model_name'",
+            [],
+            |row| row.get::<_, String>(0),
+        ).unwrap_or_else(|_| "base".to_string())
+    };
+
+    let path = voice::model::model_path(&resource_dir, &app_data_dir, &model_name);
+    if !path.exists() {
+        return Err(format!(
+            "Whisper model not found. Expected ggml-{}.bin in bundled resources or app data models/ directory.",
+            model_name
+        ));
+    }
+
+    let audio = {
+        let buf = AUDIO_BUFFER.lock().map_err(|e| e.to_string())?;
+        buf.clone()
+    };
+
+    if audio.is_empty() {
+        return Err("No audio captured. Is your microphone working?".to_string());
+    }
+
+    // Run whisper inference on a blocking thread (CPU-bound)
+    let result = tokio::task::spawn_blocking(move || {
+        voice::transcribe::transcribe_audio(&path, &audio)
+    }).await.map_err(|e| format!("Transcription task failed: {}", e))?;
+
+    result
+}
+
+/// Get current voice engine status.
+#[tauri::command]
+pub fn voice_get_status() -> Result<serde_json::Value, String> {
+    let recording = capture::is_recording();
+    let device_available = capture::input_device_available();
+    let sample_count = {
+        let buf = AUDIO_BUFFER.lock().map_err(|e| e.to_string())?;
+        buf.len()
+    };
+
+    Ok(serde_json::json!({
+        "recording": recording,
+        "deviceAvailable": device_available,
+        "samples": sample_count,
+        "duration_seconds": sample_count as f64 / 16000.0,
+    }))
+}
+
+/// List available microphone devices.
+#[tauri::command]
+pub fn voice_list_devices() -> Result<Vec<String>, String> {
+    capture::list_input_devices()
+}
+
+/// Get voice configuration from DB.
+#[tauri::command]
+pub fn voice_get_config() -> Result<Vec<serde_json::Value>, String> {
+    let engine = engine::get_engine();
+    let conn = engine.db().conn();
+
+    let mut stmt = conn.prepare("SELECT key, value, updated_at FROM voice_config")
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt.query_map([], |row| {
+        Ok(serde_json::json!({
+            "key": row.get::<_, String>(0)?,
+            "value": row.get::<_, String>(1)?,
+            "updated_at": row.get::<_, String>(2)?,
+        }))
+    }).map_err(|e| e.to_string())?;
+
+    let mut result = Vec::new();
+    for r in rows {
+        result.push(r.map_err(|e| e.to_string())?);
+    }
+    Ok(result)
+}
+
+/// Update a voice configuration value.
+#[tauri::command]
+pub fn voice_set_config(key: String, value: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let conn = engine.db().conn();
+
+    conn.execute(
+        "UPDATE voice_config SET value = ?1, updated_at = datetime('now') WHERE key = ?2",
+        rusqlite::params![value, key],
+    ).map_err(|e| e.to_string())?;
+
+    Ok(())
+}

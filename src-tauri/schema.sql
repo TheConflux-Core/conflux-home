@@ -1808,3 +1808,20 @@ CREATE TABLE IF NOT EXISTS studio_usage (
     total_cost_cents INTEGER NOT NULL DEFAULT 0,
     UNIQUE(user_id, month, module)
 );
+
+-- ============================================================
+-- VOICE — Speech Capture & Transcription Configuration
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS voice_config (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+INSERT OR IGNORE INTO voice_config (key, value) VALUES
+  ('model_name', 'base'),
+  ('language', 'en'),
+  ('max_duration_ms', '30000'),
+  ('sound_effects', 'false'),
+  ('device_id', 'default');

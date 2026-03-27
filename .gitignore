@@ -4,3 +4,4 @@ dist/
 .env.local
 .env
 src-tauri/target/
+src-tauri/models/*.bin

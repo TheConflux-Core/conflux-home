@@ -8,6 +8,7 @@ import type { BudgetGoal } from '../types';
 import InsightCard from './InsightCard';
 import PulseParticles from './PulseParticles';
 import '../styles/budget-pulse.css';
+import { MicButton } from './voice';
 
 function formatMoney(n: number): string {
   return `$${n.toFixed(2)}`;
@@ -289,15 +290,23 @@ export default function BudgetView() {
 
       {/* ── Natural Language Input ── */}
       <div className="pulse-nl-bar">
-        <input
-          className="pulse-nl-input"
-          type="text"
-          placeholder='Spent $45 on groceries...'
-          value={nlInput}
-          onChange={e => { setNlInput(e.target.value); setNlParsed(null); }}
-          onKeyDown={e => { if (e.key === 'Enter') handleNLParse(); }}
-          disabled={nlLoading}
-        />
+        <div className="input-with-mic">
+          <input
+            className="pulse-nl-input"
+            type="text"
+            placeholder='Spent $45 on groceries...'
+            value={nlInput}
+            onChange={e => { setNlInput(e.target.value); setNlParsed(null); }}
+            onKeyDown={e => { if (e.key === 'Enter') handleNLParse(); }}
+            disabled={nlLoading}
+          />
+          <MicButton
+            onTranscription={(text) => { setNlInput(text); setNlParsed(null); }}
+            variant="inline"
+            size="sm"
+            className="mic-button-inline"
+          />
+        </div>
         {nlLoading && (
           <div className="pulse-nl-result">
             <span className="pulse-spinner" />

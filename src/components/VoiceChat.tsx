@@ -19,10 +19,20 @@ export default function VoiceChat({ agent, onSendMessage, onClose }: VoiceChatPr
   const [isProcessing, setIsProcessing] = useState(false);
   const [showTextInput, setShowTextInput] = useState(false);
 
-  const { speak, stop, speaking, supported: ttsSupported } = useTTS();
-  const { listening, transcript, interimTranscript, supported: sttSupported, toggleListening, clearTranscript } = useVoiceInput();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hasSpokenRef = useRef(false);
+
+  const { speak, stop, speaking, supported: ttsSupported } = useTTS();
+
+  const handleVoiceTranscription = useCallback((text: string) => {
+    if (text.trim() && !isProcessing) {
+      handleSend(text);
+    }
+  }, [isProcessing]);
+
+  const { isListening, isTranscribing, isAvailable, error, toggleListening, clearError } = useVoiceInput({
+    onTranscription: handleVoiceTranscription,
+  });
 
   // Auto-scroll
   useEffect(() => {
@@ -42,17 +52,9 @@ export default function VoiceChat({ agent, onSendMessage, onClose }: VoiceChatPr
         .replace(/`(.*?)`/g, '$1')
         .replace(/\[(.*?)\]\(.*?\)/g, '$1')
         .trim();
-      speak(cleanText, { rate: 0.9, pitch: 1.1 }); // slightly higher pitch for friendly feel
+      speak(cleanText, { rate: 0.9, pitch: 1.1 });
     }
   }, [messages, ttsSupported, speak]);
-
-  // When voice input produces a final transcript, send it
-  useEffect(() => {
-    if (transcript && !listening && !isProcessing) {
-      handleSend(transcript);
-      clearTranscript();
-    }
-  }, [transcript, listening]);
 
   const handleSend = useCallback(async (text: string) => {
     if (!text.trim() || isProcessing) return;
@@ -66,7 +68,7 @@ export default function VoiceChat({ agent, onSendMessage, onClose }: VoiceChatPr
     try {
       const response = await onSendMessage(userMsg);
       setMessages(prev => [...prev, { role: 'agent', text: response }]);
-    } catch (e) {
+    } catch {
       setMessages(prev => [...prev, { role: 'agent', text: "Oops! Something went wrong. Let's try again! 😊" }]);
     } finally {
       setIsProcessing(false);
@@ -92,12 +94,19 @@ export default function VoiceChat({ agent, onSendMessage, onClose }: VoiceChatPr
             <div>
               <div className="voice-agent-name">{agent.name}</div>
               <div className="voice-agent-status">
-                {speaking ? '🔊 Speaking...' : listening ? '🎤 Listening...' : '💬 Ready to chat!'}
+                {speaking ? '🔊 Speaking...' : isListening ? '🎤 Listening...' : isTranscribing ? '⏳ Processing...' : '💬 Ready to chat!'}
               </div>
             </div>
           </div>
           <button className="voice-close-btn" onClick={onClose}>✕</button>
         </div>
+
+        {/* Error banner */}
+        {error && (
+          <div className="voice-error-banner" onClick={clearError}>
+            ⚠️ {error} — tap to dismiss
+          </div>
+        )}
 
         {/* Messages */}
         <div className="voice-messages">
@@ -134,16 +143,16 @@ export default function VoiceChat({ agent, onSendMessage, onClose }: VoiceChatPr
               </div>
             </div>
           )}
-          {listening && interimTranscript && (
+          {isTranscribing && (
             <div className="voice-message user">
-              <div className="voice-msg-bubble interim">{interimTranscript}...</div>
+              <div className="voice-msg-bubble interim">⏳ Transcribing...</div>
             </div>
           )}
           <div ref={messagesEndRef} />
         </div>
 
         {/* Quick Replies */}
-        {messages.length > 0 && !isProcessing && !listening && (
+        {messages.length > 0 && !isProcessing && !isListening && (
           <div className="voice-quick-replies">
             {quickReplies.map(reply => (
               <button
@@ -160,15 +169,15 @@ export default function VoiceChat({ agent, onSendMessage, onClose }: VoiceChatPr
         {/* Controls */}
         <div className="voice-controls">
           {/* Main Mic Button */}
-          {sttSupported && (
+          {isAvailable && (
             <button
-              className={`voice-mic-btn ${listening ? 'listening' : ''}`}
+              className={`voice-mic-btn ${isListening ? 'listening' : ''}`}
               onClick={toggleListening}
               disabled={isProcessing}
             >
-              <span className="mic-icon">{listening ? '🔴' : '🎤'}</span>
+              <span className="mic-icon">{isListening ? '🔴' : '🎤'}</span>
               <span className="mic-label">
-                {listening ? 'Tap to Stop' : 'Tap to Talk'}
+                {isListening ? 'Tap to Stop' : 'Tap to Talk'}
               </span>
             </button>
           )}
