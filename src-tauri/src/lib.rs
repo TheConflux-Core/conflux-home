@@ -299,6 +299,25 @@ pub fn run() {
             commands::get_system_info,
             commands::download_update_file,
             commands::run_installer,
+            // Vault — File Browser
+            commands::vault_scan_directory,
+            commands::vault_get_files,
+            commands::vault_search_files,
+            commands::vault_get_file,
+            commands::vault_delete_file,
+            commands::vault_toggle_favorite,
+            commands::vault_get_recent,
+            commands::vault_get_favorites,
+            commands::vault_get_stats,
+            commands::vault_create_project,
+            commands::vault_get_projects,
+            commands::vault_get_project_detail,
+            commands::vault_add_file_to_project,
+            commands::vault_remove_file_from_project,
+            commands::vault_delete_project,
+            commands::vault_get_tags,
+            commands::vault_tag_file,
+            commands::vault_untag_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

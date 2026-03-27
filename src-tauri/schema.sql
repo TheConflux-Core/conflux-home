@@ -1704,3 +1704,65 @@ CREATE TABLE IF NOT EXISTS echo_reminders (
     content         TEXT,
     created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+
+-- ============================================================
+-- VAULT — Local File Browser & Project Manager
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS vault_files (
+    id              TEXT PRIMARY KEY,
+    path            TEXT NOT NULL UNIQUE,          -- absolute path on disk
+    name            TEXT NOT NULL,
+    file_type       TEXT NOT NULL,                 -- 'image' | 'audio' | 'video' | 'code' | 'document' | 'archive' | 'other'
+    mime_type       TEXT,
+    extension       TEXT,
+    size_bytes      INTEGER NOT NULL DEFAULT 0,
+    thumbnail_path  TEXT,                          -- path to generated thumbnail
+    width           INTEGER,                       -- for images/video
+    height          INTEGER,                       -- for images/video
+    duration_secs   REAL,                          -- for audio/video
+    created_by      TEXT,                          -- agent id that created it, or null
+    source_prompt   TEXT,                          -- the prompt that generated it, if any
+    description     TEXT,                          -- AI-generated description
+    is_favorite     INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_vault_files_type ON vault_files(file_type);
+CREATE INDEX IF NOT EXISTS idx_vault_files_date ON vault_files(created_at);
+CREATE INDEX IF NOT EXISTS idx_vault_files_name ON vault_files(name);
+CREATE INDEX IF NOT EXISTS idx_vault_files_agent ON vault_files(created_by);
+
+CREATE TABLE IF NOT EXISTS vault_projects (
+    id              TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    description     TEXT,
+    project_type    TEXT,                          -- 'website' | 'design' | 'code' | 'media' | 'mixed' | null
+    cover_file_id   TEXT,                          -- file id for project thumbnail
+    is_archived     INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS vault_project_files (
+    project_id      TEXT NOT NULL REFERENCES vault_projects(id) ON DELETE CASCADE,
+    file_id         TEXT NOT NULL REFERENCES vault_files(id) ON DELETE CASCADE,
+    role            TEXT,                          -- 'main' | 'asset' | 'source' | 'output' | null
+    added_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    PRIMARY KEY (project_id, file_id)
+);
+
+CREATE TABLE IF NOT EXISTS vault_tags (
+    id              TEXT PRIMARY KEY,
+    name            TEXT NOT NULL UNIQUE,
+    color           TEXT,                          -- hex color for the tag pill
+    tag_type        TEXT,                          -- 'auto' | 'manual' | 'agent' | 'system'
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS vault_file_tags (
+    file_id         TEXT NOT NULL REFERENCES vault_files(id) ON DELETE CASCADE,
+    tag_id          TEXT NOT NULL REFERENCES vault_tags(id) ON DELETE CASCADE,
+    PRIMARY KEY (file_id, tag_id)
+);
