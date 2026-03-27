@@ -276,6 +276,14 @@ pub fn run() {
             commands::diary_get_all_entries,
             commands::diary_get_today,
             commands::diary_get_dashboard,
+            // Echo — Writing & Notes
+            commands::echo_write_entry,
+            commands::echo_get_entries,
+            commands::echo_delete_entry,
+            commands::echo_get_stats,
+            commands::echo_get_patterns,
+            commands::echo_create_pattern,
+            commands::echo_get_entries_by_date,
             // Current — Intelligence Briefing
             commands::current_daily_briefing,
             commands::current_detect_ripples,

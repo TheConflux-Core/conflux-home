@@ -20,6 +20,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   feed: { icon: '📰', label: 'Feed' },
   games: { icon: '📖', label: 'Stories' },
   marketplace: { icon: '🛒', label: 'Market' },
+  echo: { icon: '🪞', label: 'Echo' },
   settings: { icon: '⚙️', label: 'Settings' },
   onboarding: { icon: '👋', label: 'Onboarding' },
 };

@@ -3912,4 +3912,189 @@ impl EngineDb {
             params![id, agent_id, mood, intensity, tr])?;
         Ok(())
     }
+
+    // ── Echo Entries ──
+
+    pub fn echo_create_entry(&self, req: &crate::commands::EchoWriteRequest) -> Result<crate::commands::EchoEntry> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let tags_json = serde_json::to_string(&req.tags.clone().unwrap_or_default())?;
+        let word_count = req.content.split_whitespace().count() as i32;
+        let is_voice = req.is_voice.unwrap_or(false) as i32;
+        let now = chrono::Utc::now().to_rfc3339();
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO echo_entries (id, content, mood, tags, is_voice, word_count, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![id, req.content, req.mood, tags_json, is_voice, word_count, now, now],
+        )?;
+        Ok(crate::commands::EchoEntry {
+            id,
+            content: req.content.clone(),
+            mood: req.mood.clone(),
+            tags: req.tags.clone().unwrap_or_default(),
+            is_voice: is_voice != 0,
+            word_count,
+            created_at: now.clone(),
+            updated_at: now,
+        })
+    }
+
+    pub fn echo_get_entries(&self, limit: Option<i64>, offset: Option<i64>) -> Result<Vec<crate::commands::EchoEntry>> {
+        let limit = limit.unwrap_or(50);
+        let offset = offset.unwrap_or(0);
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, content, mood, tags, is_voice, word_count, created_at, updated_at
+             FROM echo_entries ORDER BY created_at DESC LIMIT ?1 OFFSET ?2"
+        )?;
+        let rows = stmt.query_map(params![limit, offset], |row| {
+            let tags_str: String = row.get(3)?;
+            let tags: Vec<String> = serde_json::from_str(&tags_str).unwrap_or_default();
+            Ok(crate::commands::EchoEntry {
+                id: row.get(0)?,
+                content: row.get(1)?,
+                mood: row.get(2)?,
+                tags,
+                is_voice: row.get::<_, i32>(4)? != 0,
+                word_count: row.get(5)?,
+                created_at: row.get(6)?,
+                updated_at: row.get(7)?,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn echo_get_entry(&self, id: &str) -> Result<Option<crate::commands::EchoEntry>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, content, mood, tags, is_voice, word_count, created_at, updated_at
+             FROM echo_entries WHERE id = ?1"
+        )?;
+        let mut rows = stmt.query_map(params![id], |row| {
+            let tags_str: String = row.get(3)?;
+            let tags: Vec<String> = serde_json::from_str(&tags_str).unwrap_or_default();
+            Ok(crate::commands::EchoEntry {
+                id: row.get(0)?,
+                content: row.get(1)?,
+                mood: row.get(2)?,
+                tags,
+                is_voice: row.get::<_, i32>(4)? != 0,
+                word_count: row.get(5)?,
+                created_at: row.get(6)?,
+                updated_at: row.get(7)?,
+            })
+        })?;
+        rows.next().transpose().map_err(Into::into)
+    }
+
+    pub fn echo_delete_entry(&self, id: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute("DELETE FROM echo_entries WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    pub fn echo_get_stats(&self) -> Result<crate::commands::EchoDailyBrief> {
+        let conn = self.conn();
+        let total: i32 = conn.query_row("SELECT COUNT(*) FROM echo_entries", [], |r| r.get(0))?;
+
+        // Entries today
+        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        let mut stmt = conn.prepare(
+            "SELECT id, content, mood, tags, is_voice, word_count, created_at, updated_at
+             FROM echo_entries WHERE DATE(created_at) >= ?1 ORDER BY created_at DESC"
+        )?;
+        let today_rows = stmt.query_map(params![today], |row| {
+            let tags_str: String = row.get(3)?;
+            let tags: Vec<String> = serde_json::from_str(&tags_str).unwrap_or_default();
+            Ok(crate::commands::EchoEntry {
+                id: row.get(0)?,
+                content: row.get(1)?,
+                mood: row.get(2)?,
+                tags,
+                is_voice: row.get::<_, i32>(4)? != 0,
+                word_count: row.get(5)?,
+                created_at: row.get(6)?,
+                updated_at: row.get(7)?,
+            })
+        })?;
+        let today_entries: Vec<_> = today_rows.collect::<Result<Vec<_>, _>>()?;
+
+        let avg_words: f64 = conn.query_row(
+            "SELECT COALESCE(AVG(word_count), 0) FROM echo_entries", [], |r| r.get(0)
+        )?;
+
+        // Simple streak: count consecutive days with entries
+        let streak = conn.query_row(
+            "SELECT COUNT(DISTINCT DATE(created_at)) FROM echo_entries WHERE created_at >= DATE('now', '-' || (
+                SELECT COUNT(DISTINCT DATE(created_at)) FROM echo_entries
+            ) || ' days')",
+            [], |r| r.get::<_, i32>(0)
+        ).unwrap_or(0);
+
+        Ok(crate::commands::EchoDailyBrief {
+            today_entries,
+            total_entries: total,
+            current_streak: streak,
+            avg_words_per_entry: avg_words,
+            top_mood: None,
+            recent_themes: vec![],
+        })
+    }
+
+    // ── Echo Patterns ──
+
+    pub fn echo_get_patterns(&self) -> Result<Vec<crate::commands::EchoPattern>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, pattern_type, title, description, confidence, data_json, created_at
+             FROM echo_patterns ORDER BY confidence DESC, created_at DESC"
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(crate::commands::EchoPattern {
+                id: row.get(0)?,
+                pattern_type: row.get(1)?,
+                title: row.get(2)?,
+                description: row.get(3)?,
+                confidence: row.get(4)?,
+                data_json: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn echo_create_pattern(&self, pattern_type: &str, title: &str, description: &str, confidence: f64, data_json: Option<&str>) -> Result<()> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+        let conn = self.conn();
+        conn.execute(
+            "INSERT INTO echo_patterns (id, pattern_type, title, description, confidence, data_json, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![id, pattern_type, title, description, confidence, data_json, now],
+        )?;
+        Ok(())
+    }
+
+    pub fn echo_get_entries_by_date(&self, date: &str) -> Result<Vec<crate::commands::EchoEntry>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, content, mood, tags, is_voice, word_count, created_at, updated_at
+             FROM echo_entries WHERE DATE(created_at) = ?1 ORDER BY created_at DESC"
+        )?;
+        let rows = stmt.query_map(params![date], |row| {
+            let tags_str: String = row.get(3)?;
+            let tags: Vec<String> = serde_json::from_str(&tags_str).unwrap_or_default();
+            Ok(crate::commands::EchoEntry {
+                id: row.get(0)?,
+                content: row.get(1)?,
+                mood: row.get(2)?,
+                tags,
+                is_voice: row.get::<_, i32>(4)? != 0,
+                word_count: row.get(5)?,
+                created_at: row.get(6)?,
+                updated_at: row.get(7)?,
+            })
+        })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
 }

@@ -44,11 +44,11 @@ export interface PipelineStatus {
   uptime: string;
 }
 
-export type View = 'dashboard' | 'chat' | 'google' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen' | 'budget' | 'feed' | 'life' | 'home' | 'dreams';
+export type View = 'dashboard' | 'chat' | 'google' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen' | 'budget' | 'feed' | 'life' | 'home' | 'dreams' | 'echo';
 
 // Agent accent colors for avatar rendering
 export const AGENT_COLORS: Record<string, string> = {
-  zigbot: '#00d4ff',    // cyan blue
+  conflux: '#00d4ff',    // cyan blue
   helix: '#00cc88',     // emerald green
   forge: '#ff8844',     // warm orange
   quanta: '#aabbff',    // cool blue
@@ -459,6 +459,65 @@ export const INCOME_CATEGORIES = [
   { id: 'investments', label: '📈 Investments', color: '#f59e0b' },
   { id: 'other_income', label: '💵 Other', color: '#6b7280' },
 ];
+
+// ── Echo Types ──
+
+export type EchoMood = 'great' | 'good' | 'okay' | 'bad' | 'terrible';
+
+export interface EchoEntry {
+  id: string;
+  content: string;
+  mood: EchoMood | null;
+  tags: string[];
+  is_voice: boolean;
+  word_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EchoPattern {
+  id: string;
+  pattern_type: 'mood' | 'topic' | 'time' | 'frequency';
+  title: string;
+  description: string;
+  confidence: number;
+  data_json: string | null;
+  created_at: string;
+}
+
+export interface EchoDigest {
+  id: string;
+  week_start: string;
+  summary: string;
+  themes: string[];
+  mood_trajectory: (EchoMood | null)[];
+  highlights: string[];
+  created_at: string;
+}
+
+export interface EchoDailyBrief {
+  today_entries: EchoEntry[];
+  total_entries: number;
+  current_streak: number;
+  avg_words_per_entry: number;
+  top_mood: EchoMood | null;
+  recent_themes: string[];
+}
+
+export interface EchoWriteRequest {
+  content: string;
+  mood?: EchoMood;
+  tags?: string[];
+  is_voice?: boolean;
+}
+
+export const ECHO_MOOD_CONFIG: Record<EchoMood, { emoji: string; label: string; color: string }> = {
+  great: { emoji: '😊', label: 'Great', color: '#22c55e' },
+  good: { emoji: '🙂', label: 'Good', color: '#84cc16' },
+  okay: { emoji: '😐', label: 'Okay', color: '#eab308' },
+  bad: { emoji: '😔', label: 'Bad', color: '#f97316' },
+  terrible: { emoji: '😢', label: 'Terrible', color: '#ef4444' },
+};
 
 // ── Content Feed ──
 

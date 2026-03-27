@@ -29,6 +29,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   feed: { icon: '📰', label: 'Feed' },
   games: { icon: '📖', label: 'Stories' },
   marketplace: { icon: '🛒', label: 'Market' },
+  echo: { icon: '🪞', label: 'Echo' },
   settings: { icon: '⚙️', label: 'Settings' },
   onboarding: { icon: '👋', label: 'Onboarding' },
 };
@@ -36,7 +37,6 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
 const ALL_APPS: AppItem[] = [
   { id: 'chat', icon: '💬', label: 'Chat', category: 'work', description: 'Talk with your AI agents' },
   { id: 'google', icon: '🔍', label: 'Google', category: 'work', description: 'Calendar, Mail & Drive' },
-  { id: 'agents', icon: '🧩', label: 'Agent Library', category: 'work', description: 'Browse and install agents' },
   { id: 'life', icon: '🧠', label: 'Life Autopilot', category: 'life', description: 'Document AI & smart reminders' },
   { id: 'home', icon: '🔧', label: 'Home Health', category: 'life', description: 'Bills, maintenance & appliances' },
   { id: 'dreams', icon: '🎯', label: 'Dream Builder', category: 'life', description: 'Goals into daily actions' },
@@ -45,6 +45,8 @@ const ALL_APPS: AppItem[] = [
   { id: 'feed', icon: '📰', label: 'Feed', category: 'fun', description: 'AI-curated content' },
   { id: 'games', icon: '📖', label: 'Stories', category: 'fun', description: 'Interactive adventure games' },
   { id: 'marketplace', icon: '🛒', label: 'Marketplace', category: 'system', description: 'Discover new apps & agents' },
+  { id: 'agents', icon: '🧩', label: 'Agents', category: 'system', description: 'Manage your AI family' },
+  { id: 'echo', icon: '🪞', label: 'Echo', category: 'life', description: 'The notebook that listens' },
   { id: 'settings', icon: '⚙️', label: 'Settings', category: 'system', description: 'Configure your experience' },
 ];
 
@@ -56,7 +58,7 @@ const CATEGORIES = [
   { id: 'system', label: 'System' },
 ];
 
-const DEFAULT_PINNED: View[] = ['chat', 'agents', 'kitchen', 'budget', 'settings'];
+const DEFAULT_PINNED: View[] = ['chat', 'kitchen', 'budget', 'settings'];
 
 export default function ConfluxBar({ currentView, agents, pinnedApps, onNavigate }: ConfluxBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);

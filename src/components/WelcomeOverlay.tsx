@@ -222,7 +222,7 @@ export default function WelcomeOverlay({
           {/* Conflux avatar */}
           <div className="welcome-conflux-avatar">
             <Avatar
-              agentId="zigbot"
+              agentId="conflux"
               name="Conflux"
               emoji="🤖"
               status="idle"

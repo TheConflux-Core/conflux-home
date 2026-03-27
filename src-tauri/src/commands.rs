@@ -50,6 +50,60 @@ pub struct AgentUpdateRequest {
     pub model_alias: Option<String>,
 }
 
+// ── Echo Types ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EchoEntry {
+    pub id: String,
+    pub content: String,
+    pub mood: Option<String>,
+    pub tags: Vec<String>,
+    pub is_voice: bool,
+    pub word_count: i32,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EchoPattern {
+    pub id: String,
+    pub pattern_type: String,
+    pub title: String,
+    pub description: String,
+    pub confidence: f64,
+    pub data_json: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EchoDigest {
+    pub id: String,
+    pub week_start: String,
+    pub summary: String,
+    pub themes: Vec<String>,
+    pub mood_trajectory: Vec<Option<String>>,
+    pub highlights: Vec<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EchoWriteRequest {
+    pub content: String,
+    pub mood: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub is_voice: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EchoDailyBrief {
+    pub today_entries: Vec<EchoEntry>,
+    pub total_entries: i32,
+    pub current_streak: i32,
+    pub avg_words_per_entry: f64,
+    pub top_mood: Option<String>,
+    pub recent_themes: Vec<String>,
+}
+
 // ── Chat Commands ──
 
 #[tauri::command]
@@ -3343,7 +3397,49 @@ pub fn diary_get_dashboard() -> Result<engine::types::DiaryDashboard, String> {
     engine.db().get_diary_dashboard().map_err(|e| e.to_string())
 }
 
+// ── Echo — Writing & Notes ──
 
+#[tauri::command]
+pub fn echo_write_entry(req: EchoWriteRequest) -> Result<EchoEntry, String> {
+    let engine = engine::get_engine();
+    engine.db().echo_create_entry(&req).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn echo_get_entries(limit: Option<i64>, offset: Option<i64>) -> Result<Vec<EchoEntry>, String> {
+    let engine = engine::get_engine();
+    engine.db().echo_get_entries(limit, offset).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn echo_delete_entry(id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().echo_delete_entry(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn echo_get_stats() -> Result<EchoDailyBrief, String> {
+    let engine = engine::get_engine();
+    engine.db().echo_get_stats().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn echo_get_patterns() -> Result<Vec<EchoPattern>, String> {
+    let engine = engine::get_engine();
+    engine.db().echo_get_patterns().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn echo_create_pattern(pattern_type: String, title: String, description: String, confidence: f64, data_json: Option<String>) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().echo_create_pattern(&pattern_type, &title, &description, confidence, data_json.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn echo_get_entries_by_date(date: String) -> Result<Vec<EchoEntry>, String> {
+    let engine = engine::get_engine();
+    engine.db().echo_get_entries_by_date(&date).map_err(|e| e.to_string())
+}
 
 
 // ── Current — Intelligence Briefing ──
