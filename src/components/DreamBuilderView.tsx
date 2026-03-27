@@ -4,6 +4,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useDreams } from '../hooks/useDreams';
 import { HorizonHero, HorizonGoalCard, HorizonMilestonePath, HorizonInsightCard, HorizonVelocity } from './horizon';
+import { MicButton } from './voice';
 import type { Dream, DreamVelocity, DreamMilestone, DreamTask, DreamProgress } from '../types';
 
 const CATEGORY_CONFIG: Record<string, { emoji: string; color: string; label: string }> = {
@@ -196,6 +197,7 @@ export default function DreamBuilderView() {
           <div className="horizon-section">
             <h3 className="horizon-section-title">📈 Log Progress</h3>
             <div className="horizon-progress-form">
+              <div className="input-with-mic">
               <input
                 type="text"
                 value={progressNote}
@@ -203,6 +205,13 @@ export default function DreamBuilderView() {
                 placeholder="What did you do today?"
                 className="horizon-input"
               />
+              <MicButton
+                onTranscription={(text) => setProgressNote(text)}
+                variant="inline"
+                size="sm"
+                className="mic-button-inline"
+              />
+            </div>
               <div className="horizon-progress-row">
                 <input
                   type="number"
@@ -268,13 +277,21 @@ export default function DreamBuilderView() {
                 <span>✨</span>
                 <span>New Dream</span>
               </div>
-              <input
-                type="text"
-                value={newTitle}
-                onChange={e => setNewTitle(e.target.value)}
-                placeholder="What's your dream?"
-                className="horizon-input"
-              />
+              <div className="input-with-mic">
+                <input
+                  type="text"
+                  value={newTitle}
+                  onChange={e => setNewTitle(e.target.value)}
+                  placeholder="What's your dream?"
+                  className="horizon-input"
+                />
+                <MicButton
+                  onTranscription={(text) => setNewTitle(text)}
+                  variant="inline"
+                  size="sm"
+                  className="mic-button-inline"
+                />
+              </div>
               <textarea
                 value={newDesc}
                 onChange={e => setNewDesc(e.target.value)}

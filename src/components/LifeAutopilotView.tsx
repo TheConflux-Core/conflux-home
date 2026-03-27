@@ -4,6 +4,7 @@
 import { useState, useCallback } from 'react';
 import { useOrbit } from '../hooks/useOrbit';
 import type { LifeTask, LifeHabit, LifeNudge, LifeDailyFocus } from '../types';
+import { MicButton } from './voice';
 
 /* ── Config ──────────────────────────────────── */
 
@@ -281,9 +282,17 @@ export default function LifeAutopilotView() {
       {/* Natural Language Input */}
       <div className="orbit-nl-section">
         <div className="orbit-nl-row">
-          <input type="text" className="orbit-nl-input" value={nlInput}
-            onChange={e => setNlInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleParseInput()}
-            placeholder='Quick add — e.g. "finish report by Friday" or "buy groceries"' />
+          <div className="input-with-mic">
+            <input type="text" className="orbit-nl-input" value={nlInput}
+              onChange={e => setNlInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleParseInput()}
+              placeholder='Quick add — e.g. "finish report by Friday" or "buy groceries"' />
+            <MicButton
+              onTranscription={(text) => setNlInput(text)}
+              variant="inline"
+              size="sm"
+              className="mic-button-inline"
+            />
+          </div>
           <button className="orbit-nl-btn" onClick={handleParseInput} disabled={nlParsing || !nlInput.trim()}>
             {nlParsing ? '...' : '→'}
           </button>

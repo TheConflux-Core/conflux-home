@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Agent } from '../types';
 import { Theme, getEffectiveTheme, applyTheme, saveTheme } from '../lib/theme';
 import ConnectivityWidget from './ConnectivityWidget';
+import { VoiceOverlay } from './voice';
 
 interface TopBarProps {
   selectedAgent: Agent | null;
@@ -38,6 +39,7 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom, on
     () => (localStorage.getItem('conflux-theme') as Theme) || 'system'
   );
   const [showConnectivity, setShowConnectivity] = useState(false);
+  const [showVoiceOverlay, setShowVoiceOverlay] = useState(false);
 
   useEffect(() => {
     const updateClock = () => {
@@ -103,6 +105,19 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom, on
 
       <div className="topbar-right">
         <span className="topbar-clock">{clock}</span>
+        <button
+          className="mic-button mic-button-topbar"
+          onClick={() => setShowVoiceOverlay(true)}
+          title="Voice input"
+          style={{ width: 32, height: 32 }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '100%', height: '100%' }}>
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <line x1="12" y1="19" x2="12" y2="23" />
+            <line x1="8" y1="23" x2="16" y2="23" />
+          </svg>
+        </button>
         <div className="topbar-status" onClick={() => setShowConnectivity(!showConnectivity)} style={{ cursor: 'pointer' }}>
           <div className={`topbar-status-dot ${engineConnected ? '' : 'disconnected'}`} />
         </div>
@@ -148,6 +163,14 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom, on
           🔗
         </button>
       </div>
+      <VoiceOverlay
+        active={showVoiceOverlay}
+        onTranscription={(text) => {
+          // Dispatch transcription event so other components can listen
+          window.dispatchEvent(new CustomEvent('conflux:voice-transcription', { detail: text }));
+        }}
+        onDone={() => setShowVoiceOverlay(false)}
+      />
     </div>
   );
 }

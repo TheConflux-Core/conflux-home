@@ -15,6 +15,7 @@ import KitchenDigestCard from './KitchenDigest';
 import SmartGrocery from './SmartGrocery';
 import PantryHeatmap from './PantryHeatmap';
 import CookingMode from './CookingMode';
+import { MicButton } from './voice';
 
 function getWeekStart(): string {
   const now = new Date();
@@ -143,14 +144,22 @@ export default function KitchenView() {
               <span>Add a meal with AI</span>
             </div>
             <div className="ai-add-row">
-              <input
-                type="text"
-                value={aiPrompt}
-                onChange={e => setAiPrompt(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAIAdd()}
-                placeholder="Describe a meal... e.g., 'chicken parmesan with spaghetti'"
-                className="ai-add-input"
-              />
+              <div className="input-with-mic">
+                <input
+                  type="text"
+                  value={aiPrompt}
+                  onChange={e => setAiPrompt(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleAIAdd()}
+                  placeholder="Describe a meal... e.g., 'chicken parmesan with spaghetti'"
+                  className="ai-add-input"
+                />
+                <MicButton
+                  onTranscription={(text) => setAiPrompt(text)}
+                  variant="inline"
+                  size="sm"
+                  className="mic-button-inline"
+                />
+              </div>
               <button className="btn-primary" onClick={handleAIAdd} disabled={aiLoading || !aiPrompt.trim()}>
                 {aiLoading ? '✨ Creating...' : 'Add'}
               </button>
