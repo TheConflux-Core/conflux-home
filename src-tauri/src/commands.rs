@@ -4047,6 +4047,8 @@ pub fn run_installer(installer_path: String) -> Result<(), String> {
             .args(["/i", &installer_path, "/quiet", "/norestart"])
             .spawn()
             .map_err(|e| format!("Failed to launch installer: {}", e))?;
+        // Quit so new version launches
+        std::process::exit(0);
     }
 
     #[cfg(target_os = "macos")]
@@ -4056,18 +4058,44 @@ pub fn run_installer(installer_path: String) -> Result<(), String> {
             .arg(&installer_path)
             .spawn()
             .map_err(|e| format!("Failed to open installer: {}", e))?;
+        // Quit so new version launches
+        std::process::exit(0);
     }
 
     #[cfg(target_os = "linux")]
     {
-        // Make AppImage executable and run
-        std::process::Command::new("chmod")
-            .args(["+x", &installer_path])
-            .output()
-            .map_err(|e| format!("Failed to chmod: {}", e))?;
-        std::process::Command::new(&installer_path)
-            .spawn()
-            .map_err(|e| format!("Failed to run installer: {}", e))?;
+        // Determine installer type
+        if installer_path.ends_with(".deb") {
+            // Install .deb package (needs sudo, so use pkexec or gksudo)
+            std::process::Command::new("pkexec")
+                .args(["dpkg", "-i", &installer_path])
+                .spawn()
+                .or_else(|_| {
+                    // Fallback: try gksudo
+                    std::process::Command::new("gksudo")
+                        .args(["dpkg", "-i", &installer_path])
+                        .spawn()
+                })
+                .or_else(|_| {
+                    // Fallback: try plain dpkg (may fail without sudo)
+                    std::process::Command::new("dpkg")
+                        .args(["-i", &installer_path])
+                        .spawn()
+                })
+                .map_err(|e| format!("Failed to run installer: {}", e))?;
+        } else {
+            // AppImage — make executable and run
+            std::process::Command::new("chmod")
+                .args(["+x", &installer_path])
+                .output()
+                .map_err(|e| format!("Failed to chmod: {}", e))?;
+            std::process::Command::new(&installer_path)
+                .spawn()
+                .map_err(|e| format!("Failed to run installer: {}", e))?;
+        }
+        
+        // Quit the app so the new version launches
+        std::process::exit(0);
     }
 
     Ok(())
