@@ -22,7 +22,6 @@ import SnakeGame from './components/SnakeGame';
 import PacmanGame from './components/PacmanGame';
 import SolitaireGame from './components/SolitaireGame';
 import StoryGameReader from './components/StoryGameReader';
-import AgentTemplateBrowser from './components/AgentTemplateBrowser';
 import ParentDashboard from './components/ParentDashboard';
 import VoiceChat from './components/VoiceChat';
 import KitchenView from './components/KitchenView';
@@ -32,6 +31,8 @@ import LifeAutopilotView from './components/LifeAutopilotView';
 import HomeHealthView from './components/HomeHealthView';
 import DreamBuilderView from './components/DreamBuilderView';
 import GoogleView from './components/GoogleView';
+import EchoView from './components/EchoView';
+import AgentsView from './components/AgentsView';
 import ImmersiveView from './components/ImmersiveView';
 import ControlRoom from './components/ControlRoom';
 import { useEngine } from './hooks/useEngine';
@@ -54,6 +55,7 @@ const VIEW_BACKGROUNDS: Record<string, string> = {
   games: '/backgrounds/games-bg.png',
   feed: '/backgrounds/feed-bg.png',
   marketplace: '/backgrounds/marketplace-bg.png',
+  echo: '/backgrounds/echo-bg.png',
   settings: '/backgrounds/settings-bg.png',
   dashboard: '/backgrounds/dashboard-bg.png',
 };
@@ -252,6 +254,24 @@ const [activeSnake, setActiveSnake] = useState(false);
     return result.content || "Hmm, let me think about that! 🤔";
   }, [selectedAgent, voiceSessionId, activeMemberId, activeMember]);
 
+  // Listen for marketplace navigation events (conflux:navigate with viewId/gameId)
+  useEffect(() => {
+    const handler = (e: CustomEvent<{ viewId: string; gameId?: string }>) => {
+      const detail = e.detail;
+      // Only handle marketplace-style events (object with viewId), ignore string events (e.g. settings)
+      if (!detail || typeof detail !== 'object' || !('viewId' in detail)) return;
+      const { viewId, gameId } = detail;
+      if (gameId === 'minesweeper') setActiveMinesweeper(true);
+      else if (gameId === 'snake') setActiveSnake(true);
+      else if (gameId === 'pacman') setActivePacman(true);
+      else if (gameId === 'solitaire') setActiveSolitaire(true);
+      else if (gameId === 'stories') setActiveGameId(null); // story games handled separately
+      else setImmersiveView(viewId as View);
+    };
+    window.addEventListener('conflux:navigate', handler as EventListener);
+    return () => window.removeEventListener('conflux:navigate', handler as EventListener);
+  }, []);
+
   // Listen for settings nav from TopBar gear icon
   useEffect(() => {
     const handler = (e: Event) => {
@@ -350,7 +370,7 @@ const [activeSnake, setActiveSnake] = useState(false);
         // Default to last-used agent, then "Conflux", then first active
         const lastAgentId = localStorage.getItem('conflux-last-chat-agent');
         const byLast = lastAgentId ? agents.find(a => a.id === lastAgentId) : null;
-        const byConflux = agents.find(a => a.id === 'zigbot' || a.name.toLowerCase() === 'conflux');
+        const byConflux = agents.find(a => a.id === 'conflux' || a.name.toLowerCase() === 'conflux');
         const byActive = agents.find(a => a.status !== 'offline');
         const pick = byLast || byConflux || byActive || agents[0];
         if (pick) setSelectedAgent(pick);
@@ -454,30 +474,9 @@ const [activeSnake, setActiveSnake] = useState(false);
           {immersiveView === 'dreams' && <DreamBuilderView />}
           {immersiveView === 'google' && <GoogleView />}
           {immersiveView === 'marketplace' && <Marketplace />}
+          {immersiveView === 'agents' && <AgentsView />}
+          {immersiveView === 'echo' && <EchoView />}
           {immersiveView === 'settings' && <Settings />}
-          {immersiveView === 'agents' && (
-            <div>
-              <div style={{ marginBottom: 24 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <div>
-                    <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-                      🧩 Agent Library
-                    </h3>
-                    <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                      {activeMember
-                        ? `Age-appropriate agents for ${activeMember.name}`
-                        : 'Browse and install agent templates for your family'}
-                    </p>
-                  </div>
-                </div>
-                <AgentTemplateBrowser
-                  member={activeMember ?? null}
-                  onClose={() => setImmersiveView(null)}
-                  onInstalled={() => refresh()}
-                />
-              </div>
-            </div>
-          )}
           {immersiveView === 'dashboard' && (
             <div>
               <h3 style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 4 }}>
@@ -633,7 +632,7 @@ const [activeSnake, setActiveSnake] = useState(false);
       <ConfluxBar
         currentView={view}
         agents={agents}
-        pinnedApps={['chat', 'agents', 'kitchen', 'budget', 'settings']}
+        pinnedApps={['chat', 'kitchen', 'budget', 'settings']}
         onNavigate={handleNavigate}
       />
 

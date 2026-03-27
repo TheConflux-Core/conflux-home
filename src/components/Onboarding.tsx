@@ -29,11 +29,11 @@ const GOALS: GoalOption[] = [
 ];
 
 const GOAL_AGENT_MAP: Record<string, string[]> = {
-  'building-a-business': ['zigbot', 'helix', 'forge', 'vector', 'pulse'],
-  'learning-research': ['helix', 'quanta', 'zigbot'],
+  'building-a-business': ['conflux', 'helix', 'forge', 'vector', 'pulse'],
+  'learning-research': ['helix', 'quanta', 'conflux'],
   'work-productivity': ['prism', 'forge', 'spectra', 'quanta'],
   'creative-projects': ['forge', 'pulse', 'helix'],
-  'everyday-life': ['zigbot', 'helix', 'catalyst'],
+  'everyday-life': ['conflux', 'helix', 'catalyst'],
 };
 
 interface AgentInfo {
@@ -45,7 +45,7 @@ interface AgentInfo {
 }
 
 const ALL_AGENTS: Record<string, AgentInfo> = {
-  zigbot: { id: 'zigbot', name: 'Conflux', emoji: '🤖', role: 'Strategic Partner', why: 'Guides your strategy and helps you think clearly about opportunities' },
+  conflux: { id: 'conflux', name: 'Conflux', emoji: '🤖', role: 'Strategic Partner', why: 'Guides your strategy and helps you think clearly about opportunities' },
   helix: { id: 'helix', name: 'Helix', emoji: '🔬', role: 'Market Researcher', why: 'Finds market data, competitor intel, and validates ideas' },
   forge: { id: 'forge', name: 'Forge', emoji: '🔨', role: 'Execution Builder', why: 'Builds products, writes code, and creates deliverables' },
   vector: { id: 'vector', name: 'Vector', emoji: '🧭', role: 'Business Strategist', why: 'Evaluates opportunities and keeps your portfolio on track' },
@@ -62,12 +62,12 @@ const ALL_AGENTS: Record<string, AgentInfo> = {
 const KEYWORD_RESPONSES = [
   {
     keywords: ['business', 'startup', 'company', 'agency', 'scale', 'revenue', 'growth', 'marketing', 'clients', 'sales', 'money', 'earn', 'income'],
-    agents: ['zigbot', 'helix', 'forge', 'vector', 'pulse'],
+    agents: ['conflux', 'helix', 'forge', 'vector', 'pulse'],
     response: "Got it. You're building something and you want to grow.\n\nI'm thinking:\n• Helix 🔬 — she'll dig into your market and find what your competitors are missing\n• Pulse 📣 — he handles all the marketing and launch strategy\n• Forge 🔨 — he builds. Landing pages, content, automation. Fast.\n\nAnd obviously me. I'm not going anywhere.",
   },
   {
     keywords: ['learn', 'research', 'study', 'understand', 'knowledge', 'analysis', 'curious', 'interesting', 'read', 'explore', 'figure out'],
-    agents: ['zigbot', 'helix', 'quanta'],
+    agents: ['conflux', 'helix', 'quanta'],
     response: "Love the curiosity. You want to dig deep and actually understand things.\n\nFor that:\n• Helix 🔬 — deep research specialist. Give her a question, she'll find answers nobody else has.\n• Quanta ✅ — she verifies everything. No fake facts.\n\nI'll be here to help you think through what you find.",
   },
   {
@@ -82,29 +82,29 @@ const KEYWORD_RESPONSES = [
   },
   {
     keywords: ['family', 'kids', 'schedule', 'meal', 'home', 'dinner', 'planning', 'calendar', 'grocery', 'chores', 'clean', 'organize'],
-    agents: ['zigbot', 'catalyst', 'spectra'],
+    agents: ['conflux', 'catalyst', 'spectra'],
     response: "Life gets busy. Let me help you take some of it back.\n\nYour daily team:\n• Catalyst ⚡ — she catches things before they slip through the cracks.\n• Spectra 🧩 — breaks overwhelming days into manageable pieces.\n\nAnd me — I'm always here when you need to think something through.",
   },
   {
     keywords: ['overwhelmed', 'stressed', 'too much', 'burned out', 'exhausted', 'anxious', 'busy', 'chaos', 'drowning'],
-    agents: ['catalyst', 'spectra', 'zigbot'],
+    agents: ['catalyst', 'spectra', 'conflux'],
     response: "I hear you. When everything feels like too much, that's usually because there's no system holding it together.\n\nLet's fix that:\n• Spectra 🧩 — she'll break the chaos into clear, doable pieces.\n• Catalyst ⚡ — she's your early warning system. Things stop falling through.\n\nAnd me — sometimes you just need someone to think with.",
   },
   {
     keywords: ['health', 'fitness', 'workout', 'diet', 'exercise', 'weight', 'sleep', 'wellness', 'cook', 'recipe'],
-    agents: ['catalyst', 'zigbot', 'helix'],
+    agents: ['catalyst', 'conflux', 'helix'],
     response: "Taking care of yourself is the foundation for everything else.\n\nYour wellness team:\n• Catalyst ⚡ — she'll help you build habits that stick.\n• Helix 🔬 — she can research the best approaches for your goals.\n\nSmall steps, big results. Let's go.",
   },
   {
     keywords: ['nothing', 'just looking', 'idk', "don't know", 'not sure', 'browsing', 'checking', 'playing around'],
-    agents: ['zigbot', 'helix', 'catalyst'],
+    agents: ['conflux', 'helix', 'catalyst'],
     response: "No worries — you don't need a big plan to get started. Sometimes the best things come from just exploring.\n\nI'll give you a versatile team:\n• Helix 🔬 — she's great at finding interesting things to dig into.\n• Catalyst ⚡ — she'll help you stay on top of the little stuff.\n\nWe'll figure it out together.",
   },
 ];
 
 // Agent personality one-liners
 const AGENT_HELLOS: Record<string, string> = {
-  zigbot: "I'm the one you come to when you need to think. Or when it's 2 AM and you have a crazy idea.",
+  conflux: "I'm the one you come to when you need to think. Or when it's 2 AM and you have a crazy idea.",
   helix: "I find things other people miss. Market signals, competitor moves, hidden opportunities.",
   forge: "You describe it, I build it. Landing pages, content, code. I don't do slow.",
   vector: "I'm the reality check. I'll tell you if your idea is gold or garbage.",
@@ -264,7 +264,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [activeModal, setActiveModal] = useState<string | null>(null);
 
   // Step 2 — Conversation
-  const [chatMessages, setChatMessages] = useState<Array<{role: 'zigbot' | 'user', text: string}>>([]);
+  const [chatMessages, setChatMessages] = useState<Array<{role: 'conflux' | 'user', text: string}>>([]);
   const [chatInput, setChatInput] = useState('');
   const [conversationDone, setConversationDone] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<string[]>([]);
@@ -287,7 +287,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   useEffect(() => {
     if (step === 2 && chatMessages.length === 0) {
       setChatMessages([{
-        role: 'zigbot',
+        role: 'conflux',
         text: "👋 Hey! I'm Conflux.\n\nWhat do you wish you had more help with? Doesn't have to be big — even just day-to-day stuff counts.\n\nNo wrong answers here.",
       }]);
     }
@@ -356,7 +356,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     if (!matched) {
       matched = {
         keywords: [],
-        agents: ['zigbot', 'helix', 'catalyst'],
+        agents: ['conflux', 'helix', 'catalyst'],
         response: "Interesting. I've got a good feeling about this.\n\nI'm starting you with a versatile team:\n• Helix 🔬 — she'll help you explore and figure things out.\n• Catalyst ⚡ — she keeps the day-to-day running smooth.\n\nAnd me, obviously. We'll figure out the rest as we go.",
       };
     }
@@ -365,7 +365,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     setSelectedAgents(new Set(matched!.agents));
 
     setTimeout(() => {
-      setChatMessages(prev => [...prev, { role: 'zigbot', text: matched!.response }]);
+      setChatMessages(prev => [...prev, { role: 'conflux', text: matched!.response }]);
       setConversationDone(true);
     }, 800);
   }, [chatInput]);
@@ -845,19 +845,19 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             className="animate-fade-in"
             style={{
               display: 'flex',
-              justifyContent: msg.role === 'zigbot' ? 'flex-start' : 'flex-end',
+              justifyContent: msg.role === 'conflux' ? 'flex-start' : 'flex-end',
               marginBottom: 12,
             }}
           >
-            {msg.role === 'zigbot' && (
+            {msg.role === 'conflux' && (
               <span style={{ fontSize: 20, marginRight: 8, flexShrink: 0, marginTop: 2 }}>🤖</span>
             )}
             <div style={{
               maxWidth: '80%',
               padding: '10px 14px',
               borderRadius: 14,
-              background: msg.role === 'zigbot' ? 'var(--bg-primary)' : 'var(--accent-primary)',
-              color: msg.role === 'zigbot' ? 'var(--text-primary)' : '#fff',
+              background: msg.role === 'conflux' ? 'var(--bg-primary)' : 'var(--accent-primary)',
+              color: msg.role === 'conflux' ? 'var(--text-primary)' : '#fff',
               fontSize: 14,
               lineHeight: 1.5,
               whiteSpace: 'pre-wrap',
