@@ -46,5 +46,10 @@ open = "5"                                                  # Open URLs in brows
 tauri-plugin-notification = "2"
 tauri-plugin-updater = "2"                              # Auto-update from GitHub Releases
 lettre = { version = "0.11", features = ["smtp-transport", "builder", "hostname", "rustls-tls"], default-features = false }  # Email sending (SMTP, rustls)
+
+# Voice Engine
+cpal = "0.15"
+whisper-rs = "0.12"
+hound = "3.5"
 # imap = "2"                                              # TODO: Add when OpenSSL available
 # native-tls = "0.2"                                      # TODO: Add when OpenSSL available

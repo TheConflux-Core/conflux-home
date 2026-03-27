@@ -1,107 +1,101 @@
-// Conflux Home — Voice Input Hook
-// Uses browser SpeechRecognition for hands-free input.
+// Conflux Home — Voice Input Hook (Tauri backend)
+// Split flow: start → user taps stop → transcribe
+// No blocking wait — user controls recording duration.
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 
-interface VoiceInputOptions {
-  language?: string;     // BCP 47 language tag, default 'en-US'
-  continuous?: boolean;  // keep listening after result
-  interimResults?: boolean; // show results while still speaking
+interface UseVoiceInputOptions {
+  onTranscription: (text: string) => void;
+  maxDurationMs?: number;
 }
 
-export function useVoiceInput(options?: VoiceInputOptions) {
-  const [listening, setListening] = useState(false);
-  const [transcript, setTranscript] = useState('');
-  const [interimTranscript, setInterimTranscript] = useState('');
-  const [supported, setSupported] = useState(false);
+interface UseVoiceInputReturn {
+  isListening: boolean;
+  isTranscribing: boolean;
+  isAvailable: boolean;
+  error: string | null;
+  startListening: () => Promise<void>;
+  stopListening: () => Promise<void>;
+  toggleListening: () => Promise<void>;
+  clearError: () => void;
+}
+
+export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputReturn {
+  const [isListening, setIsListening] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const recognitionRef = useRef<any>(null);
-  const finalTranscriptRef = useRef('');
+  const abortRef = useRef(false);
+  const autoStopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    setSupported(!!SpeechRecognition);
-  }, []);
+  const startListening = useCallback(async () => {
+    if (isListening || isTranscribing) return;
+    abortRef.current = false;
+    setError(null);
 
-  const startListening = useCallback(() => {
-    if (!supported) return;
+    try {
+      await invoke('voice_capture_start');
+      setIsListening(true);
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
+      // Auto-stop after maxDurationMs as a safety net
+      const maxMs = options.maxDurationMs ?? 30_000;
+      autoStopTimer.current = setTimeout(() => {
+        stopListening();
+      }, maxMs);
+    } catch (e) {
+      if (!abortRef.current) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    }
+  }, [isListening, isTranscribing, options.maxDurationMs]);
 
-    recognition.lang = options?.language ?? 'en-US';
-    recognition.continuous = options?.continuous ?? false;
-    recognition.interimResults = options?.interimResults ?? true;
+  const stopListening = useCallback(async () => {
+    if (autoStopTimer.current) {
+      clearTimeout(autoStopTimer.current);
+      autoStopTimer.current = null;
+    }
 
-    recognition.onstart = () => {
-      setListening(true);
-      setError(null);
-      finalTranscriptRef.current = '';
-      setTranscript('');
-      setInterimTranscript('');
-    };
+    abortRef.current = true;
+    setIsListening(false);
 
-    recognition.onresult = (event: any) => {
-      let interim = '';
-      let final = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (result.isFinal) {
-          final += result[0].transcript;
-        } else {
-          interim += result[0].transcript;
+    try {
+      // Stop recording
+      const result = await invoke<{ samples: number; duration_seconds: number }>('voice_capture_stop');
+
+      if (result.samples > 1600) { // At least 0.1s of audio
+        setIsTranscribing(true);
+        const text = await invoke<string>('voice_transcribe');
+        if (text) {
+          options.onTranscription(text);
         }
       }
-      if (final) {
-        finalTranscriptRef.current += final;
-        setTranscript(finalTranscriptRef.current);
+    } catch (e) {
+      if (!abortRef.current || (e instanceof Error && !e.message.includes('Not recording'))) {
+        setError(e instanceof Error ? e.message : String(e));
       }
-      setInterimTranscript(interim);
-    };
-
-    recognition.onerror = (event: any) => {
-      setError(event.error);
-      setListening(false);
-    };
-
-    recognition.onend = () => {
-      setListening(false);
-      setInterimTranscript('');
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
-  }, [supported, options?.language, options?.continuous, options?.interimResults]);
-
-  const stopListening = useCallback(() => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
+    } finally {
+      setIsTranscribing(false);
     }
-  }, []);
+  }, [options]);
 
-  const toggleListening = useCallback(() => {
-    if (listening) {
-      stopListening();
+  const toggleListening = useCallback(async () => {
+    if (isListening) {
+      await stopListening();
     } else {
-      startListening();
+      await startListening();
     }
-  }, [listening, startListening, stopListening]);
+  }, [isListening, startListening, stopListening]);
 
-  const clearTranscript = useCallback(() => {
-    setTranscript('');
-    setInterimTranscript('');
-    finalTranscriptRef.current = '';
-  }, []);
+  const clearError = useCallback(() => setError(null), []);
 
   return {
-    listening,
-    transcript,
-    interimTranscript,
-    supported,
+    isListening,
+    isTranscribing,
+    isAvailable: true,
     error,
     startListening,
     stopListening,
     toggleListening,
-    clearTranscript,
+    clearError,
   };
 }

@@ -4,6 +4,7 @@ import Avatar from './Avatar';
 import SessionSidebar from './SessionSidebar';
 import { Agent } from '../types';
 import { useEngineChat } from '../hooks/useEngineChat';
+import { MicButton } from './voice';
 
 // Configure marked for safe rendering
 marked.setOptions({
@@ -325,14 +326,21 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
 
       {/* Input */}
       <div className="chat-panel-input-area">
-        <input
-          className="chat-panel-input"
-          placeholder={`Message ${agent.name}...`}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-          disabled={streaming}
-        />
+        <div className="input-with-mic">
+          <input
+            className="chat-panel-input"
+            placeholder={`Message ${agent.name}...`}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+            disabled={streaming}
+          />
+          <MicButton
+            variant="inline"
+            size="sm"
+            onTranscription={(text) => setInput(prev => prev + text)}
+          />
+        </div>
         <button
           className="chat-panel-send"
           onClick={handleSend}
