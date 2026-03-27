@@ -1766,3 +1766,45 @@ CREATE TABLE IF NOT EXISTS vault_file_tags (
     tag_id          TEXT NOT NULL REFERENCES vault_tags(id) ON DELETE CASCADE,
     PRIMARY KEY (file_id, tag_id)
 );
+
+-- ============================================================
+-- STUDIO — Creator Workspace
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS studio_generations (
+    id              TEXT PRIMARY KEY,
+    module          TEXT NOT NULL,        -- 'image' | 'video' | 'music' | 'voice' | 'code' | 'design'
+    prompt          TEXT NOT NULL,
+    remix_of        TEXT,                 -- parent generation id if remix
+    model           TEXT NOT NULL,
+    provider        TEXT NOT NULL,
+    status          TEXT NOT NULL,        -- 'pending' | 'generating' | 'complete' | 'failed'
+    output_path     TEXT,                 -- local file path
+    output_url      TEXT,                 -- provider URL if applicable
+    metadata_json   TEXT,                 -- dimensions, duration, format, etc
+    cost_cents      INTEGER NOT NULL DEFAULT 0,
+    vault_file_id   TEXT,                 -- linked vault file
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_studio_gen_module ON studio_generations(module);
+CREATE INDEX IF NOT EXISTS idx_studio_gen_status ON studio_generations(status);
+CREATE INDEX IF NOT EXISTS idx_studio_gen_date ON studio_generations(created_at);
+
+CREATE TABLE IF NOT EXISTS studio_prompts (
+    id              TEXT PRIMARY KEY,
+    prompt          TEXT NOT NULL,
+    module          TEXT NOT NULL,
+    use_count       INTEGER NOT NULL DEFAULT 1,
+    last_used       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS studio_usage (
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL DEFAULT 'default',
+    month           TEXT NOT NULL,        -- 'YYYY-MM'
+    module          TEXT NOT NULL,
+    generation_count INTEGER NOT NULL DEFAULT 0,
+    total_cost_cents INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(user_id, month, module)
+);

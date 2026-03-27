@@ -1328,3 +1328,41 @@ pub struct VaultProjectDetail {
     pub project: VaultProject,
     pub files: Vec<VaultFile>,
 }
+
+// ── Studio ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StudioGeneration {
+    pub id: String,
+    pub module: String,           // 'image' | 'video' | 'music' | 'voice' | 'code' | 'design'
+    pub prompt: String,
+    pub remix_of: Option<String>,
+    pub model: String,
+    pub provider: String,
+    pub status: String,           // 'pending' | 'generating' | 'complete' | 'failed'
+    pub output_path: Option<String>,
+    pub output_url: Option<String>,
+    pub metadata_json: Option<String>,
+    pub cost_cents: i64,
+    pub vault_file_id: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StudioPromptHistory {
+    pub id: String,
+    pub prompt: String,
+    pub module: String,
+    pub use_count: i64,
+    pub last_used: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StudioUsageStats {
+    pub id: String,
+    pub user_id: String,
+    pub month: String,
+    pub module: String,
+    pub generation_count: i64,
+    pub total_cost_cents: i64,
+}
