@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-shell';
 import { AGENT_PROFILES, AGENT_PROFILE_MAP } from '../data/agent-descriptions';
 import Avatar from './Avatar';
 import ProviderSettings from './settings/ProviderSettings';
@@ -404,10 +405,10 @@ function AboutSection() {
         <p className="settings-about-tagline">A home for your AI family</p>
 
         <div className="settings-about-links">
-          <a href="#" className="settings-link" onClick={(e) => e.preventDefault()}>
+          <a href="#" className="settings-link" onClick={(e) => { e.preventDefault(); open('https://theconflux.com'); }}>
             🌐 The Conflux
           </a>
-          <a href="#" className="settings-link" onClick={(e) => e.preventDefault()}>
+          <a href="#" className="settings-link" onClick={(e) => { e.preventDefault(); open('https://github.com/TheConflux-Core/conflux-home'); }}>
             💻 GitHub
           </a>
         </div>
@@ -418,8 +419,7 @@ function AboutSection() {
         <button
           className="settings-button"
           onClick={() => {
-            const url = `https://github.com/TheConflux-Core/conflux-home/issues/new?template=bug_report.yml&labels=bug&title=%5BBug%5D%20`;
-            window.open(url, '_blank');
+            open('https://github.com/TheConflux-Core/conflux-home/issues/new?template=bug_report.yml&labels=bug&title=%5BBug%5D%20');
           }}
         >
           🐛 Report a Bug
@@ -427,8 +427,7 @@ function AboutSection() {
         <button
           className="settings-button"
           onClick={() => {
-            const url = `https://github.com/TheConflux-Core/conflux-home/issues/new?template=feature_request.yml`;
-            window.open(url, '_blank');
+            open('https://github.com/TheConflux-Core/conflux-home/issues/new?template=feature_request.yml');
           }}
         >
           💡 Request a Feature
@@ -488,6 +487,7 @@ export default function Settings() {
 
   return (
     <div className="settings-page">
+      <AboutSection />
       <EngineSection />
       <ProviderSettings />
       <GoogleSettings />
@@ -504,7 +504,6 @@ export default function Settings() {
       <WebhookManager />
       <SkillsBrowser />
       <DataSection />
-      <AboutSection />
     </div>
   );
 }
