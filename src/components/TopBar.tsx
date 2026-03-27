@@ -7,6 +7,7 @@ interface TopBarProps {
   selectedAgent: Agent | null;
   engineConnected: boolean;
   controlRoom?: boolean;
+  onNavigate?: (view: string) => void;
 }
 
 function getThemeIcon(preference: Theme): string {
@@ -31,7 +32,7 @@ function cycleTheme(current: Theme): Theme {
   return 'light';
 }
 
-export default function TopBar({ selectedAgent, engineConnected, controlRoom }: TopBarProps) {
+export default function TopBar({ selectedAgent, engineConnected, controlRoom, onNavigate }: TopBarProps) {
   const [clock, setClock] = useState('');
   const [themePref, setThemePref] = useState<Theme>(
     () => (localStorage.getItem('conflux-theme') as Theme) || 'system'
@@ -123,10 +124,7 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom }: 
         </button>
         <button
           className="topbar-settings-btn"
-          onClick={() => {
-            const event = new CustomEvent('conflux:navigate', { detail: 'settings' });
-            window.dispatchEvent(event);
-          }}
+          onClick={() => onNavigate?.('settings')}
           title="Settings"
         >
           ⚙️
