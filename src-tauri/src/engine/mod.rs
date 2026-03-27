@@ -51,10 +51,28 @@ pub fn init_engine(db_path: &Path) -> Result<()> {
     match engine.db.get_config("xiaomi_api_key") {
         Ok(Some(key)) if !key.is_empty() => {
             router::configure_provider("xiaomi-mimo-flash", &key).ok();
-            router::configure_provider("xiaomi-mimo-pro", &key).ok();
+            router::configure_provider("xiaomi-mimo-flash", &key).ok();
             log::info!("[Engine] Xiaomi API key loaded");
         }
         _ => {}
+    }
+
+    // Load Studio API keys from environment variables (if not already in DB)
+    if engine.db.get_config("studio_replicate_key").ok().flatten().is_none() {
+        if let Ok(key) = std::env::var("REPLICATE_API_KEY") {
+            if !key.is_empty() {
+                engine.db.set_config("studio_replicate_key", &key).ok();
+                log::info!("[Engine] Replicate API key loaded from env");
+            }
+        }
+    }
+    if engine.db.get_config("studio_elevenlabs_key").ok().flatten().is_none() {
+        if let Ok(key) = std::env::var("ELEVENLABS_API_KEY") {
+            if !key.is_empty() {
+                engine.db.set_config("studio_elevenlabs_key", &key).ok();
+                log::info!("[Engine] ElevenLabs API key loaded from env");
+            }
+        }
     }
 
     ENGINE.set(engine)
