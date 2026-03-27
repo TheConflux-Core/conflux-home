@@ -4098,3 +4098,272 @@ impl EngineDb {
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 }
+
+// ============================================================
+// VAULT — File Browser Methods
+// ============================================================
+
+fn get_conn() -> std::sync::MutexGuard<'static, Connection> {
+    super::get_engine().db.conn()
+}
+
+pub fn vault_upsert_file(
+    id: &str,
+    path: &str,
+    name: &str,
+    file_type: &str,
+    mime_type: Option<&str>,
+    extension: Option<&str>,
+    size_bytes: i64,
+    thumbnail_path: Option<&str>,
+    width: Option<i32>,
+    height: Option<i32>,
+    duration_secs: Option<f64>,
+    created_by: Option<&str>,
+    source_prompt: Option<&str>,
+    description: Option<&str>,
+) -> Result<()> {
+    let conn = get_conn();
+    conn.execute(
+        "INSERT INTO vault_files (id, path, name, file_type, mime_type, extension, size_bytes, thumbnail_path, width, height, duration_secs, created_by, source_prompt, description)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+         ON CONFLICT(path) DO UPDATE SET name=excluded.name, file_type=excluded.file_type, mime_type=excluded.mime_type, extension=excluded.extension, size_bytes=excluded.size_bytes, thumbnail_path=excluded.thumbnail_path, width=excluded.width, height=excluded.height, duration_secs=excluded.duration_secs, description=excluded.description, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
+        params![id, path, name, file_type, mime_type, extension, size_bytes, thumbnail_path, width, height, duration_secs, created_by, source_prompt, description],
+    )?;
+    Ok(())
+}
+
+pub fn vault_get_files(file_type_filter: Option<&str>, limit: i64, offset: i64) -> Result<Vec<super::types::VaultFile>> {
+    let conn = get_conn();
+    let query = match file_type_filter {
+        Some(_) => "SELECT id, path, name, file_type, mime_type, extension, size_bytes, thumbnail_path, width, height, duration_secs, created_by, source_prompt, description, is_favorite, created_at, updated_at FROM vault_files WHERE file_type = ?1 ORDER BY updated_at DESC LIMIT ?2 OFFSET ?3",
+        None => "SELECT id, path, name, file_type, mime_type, extension, size_bytes, thumbnail_path, width, height, duration_secs, created_by, source_prompt, description, is_favorite, created_at, updated_at FROM vault_files ORDER BY updated_at DESC LIMIT ?1 OFFSET ?2",
+    };
+    let mut stmt = conn.prepare(query)?;
+    let rows = match file_type_filter {
+        Some(ft) => stmt.query_map(params![ft, limit, offset], map_vault_file)?,
+        None => stmt.query_map(params![limit, offset], map_vault_file)?,
+    };
+    rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+}
+
+pub fn vault_search(query: &str, limit: i64) -> Result<Vec<super::types::VaultFile>> {
+    let conn = get_conn();
+    let search_pattern = format!("%{}%", query);
+    let mut stmt = conn.prepare(
+        "SELECT id, path, name, file_type, mime_type, extension, size_bytes, thumbnail_path, width, height, duration_secs, created_by, source_prompt, description, is_favorite, created_at, updated_at
+         FROM vault_files
+         WHERE name LIKE ?1 OR description LIKE ?1 OR source_prompt LIKE ?1
+         ORDER BY updated_at DESC LIMIT ?2"
+    )?;
+    let rows = stmt.query_map(params![search_pattern, limit], |row| map_vault_file(row))?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+}
+
+pub fn vault_get_file_by_id(id: &str) -> Result<Option<super::types::VaultFile>> {
+    let conn = get_conn();
+    let mut stmt = conn.prepare(
+        "SELECT id, path, name, file_type, mime_type, extension, size_bytes, thumbnail_path, width, height, duration_secs, created_by, source_prompt, description, is_favorite, created_at, updated_at FROM vault_files WHERE id = ?1"
+    )?;
+    let mut rows = stmt.query_map(params![id], |row| map_vault_file(row))?;
+    rows.next().transpose().map_err(Into::into)
+}
+
+pub fn vault_delete_file(id: &str) -> Result<()> {
+    let conn = get_conn();
+    conn.execute("DELETE FROM vault_files WHERE id = ?", params![id])?;
+    Ok(())
+}
+
+pub fn vault_toggle_favorite(id: &str) -> Result<()> {
+    let conn = get_conn();
+    conn.execute("UPDATE vault_files SET is_favorite = CASE WHEN is_favorite = 0 THEN 1 ELSE 0 END WHERE id = ?", params![id])?;
+    Ok(())
+}
+
+pub fn vault_get_recent(limit: i64) -> Result<Vec<super::types::VaultFile>> {
+    let conn = get_conn();
+    let mut stmt = conn.prepare(
+        "SELECT id, path, name, file_type, mime_type, extension, size_bytes, thumbnail_path, width, height, duration_secs, created_by, source_prompt, description, is_favorite, created_at, updated_at FROM vault_files ORDER BY created_at DESC LIMIT ?1"
+    )?;
+    let rows = stmt.query_map(params![limit], |row| map_vault_file(row))?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+}
+
+pub fn vault_get_favorites() -> Result<Vec<super::types::VaultFile>> {
+    let conn = get_conn();
+    let mut stmt = conn.prepare(
+        "SELECT id, path, name, file_type, mime_type, extension, size_bytes, thumbnail_path, width, height, duration_secs, created_by, source_prompt, description, is_favorite, created_at, updated_at FROM vault_files WHERE is_favorite = 1 ORDER BY updated_at DESC"
+    )?;
+    let rows = stmt.query_map([], |row| map_vault_file(row))?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+}
+
+fn map_vault_file(row: &rusqlite::Row) -> rusqlite::Result<super::types::VaultFile> {
+    Ok(super::types::VaultFile {
+        id: row.get(0)?,
+        path: row.get(1)?,
+        name: row.get(2)?,
+        file_type: row.get(3)?,
+        mime_type: row.get(4)?,
+        extension: row.get(5)?,
+        size_bytes: row.get(6)?,
+        thumbnail_path: row.get(7)?,
+        width: row.get(8)?,
+        height: row.get(9)?,
+        duration_secs: row.get(10)?,
+        created_by: row.get(11)?,
+        source_prompt: row.get(12)?,
+        description: row.get(13)?,
+        is_favorite: row.get::<_, i64>(14)? != 0,
+        created_at: row.get(15)?,
+        updated_at: row.get(16)?,
+    })
+}
+
+// --- Projects ---
+
+pub fn vault_create_project(id: &str, name: &str, description: Option<&str>, project_type: Option<&str>) -> Result<()> {
+    let conn = get_conn();
+    conn.execute(
+        "INSERT INTO vault_projects (id, name, description, project_type) VALUES (?1, ?2, ?3, ?4)",
+        params![id, name, description, project_type],
+    )?;
+    Ok(())
+}
+
+pub fn vault_get_projects() -> Result<Vec<super::types::VaultProject>> {
+    let conn = get_conn();
+    let mut stmt = conn.prepare(
+        "SELECT p.id, p.name, p.description, p.project_type, p.cover_file_id, p.is_archived, p.created_at, p.updated_at, COUNT(pf.file_id) as file_count
+         FROM vault_projects p
+         LEFT JOIN vault_project_files pf ON p.id = pf.project_id
+         WHERE p.is_archived = 0
+         GROUP BY p.id
+         ORDER BY p.updated_at DESC"
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok(super::types::VaultProject {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            description: row.get(2)?,
+            project_type: row.get(3)?,
+            cover_file_id: row.get(4)?,
+            is_archived: row.get::<_, i64>(5)? != 0,
+            created_at: row.get(6)?,
+            updated_at: row.get(7)?,
+            file_count: Some(row.get(8)?),
+        })
+    })?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+}
+
+pub fn vault_get_project_detail(project_id: &str) -> Result<Option<super::types::VaultProjectDetail>> {
+    let conn = get_conn();
+    let project = conn.query_row(
+        "SELECT id, name, description, project_type, cover_file_id, is_archived, created_at, updated_at FROM vault_projects WHERE id = ?1",
+        params![project_id],
+        |row| {
+            Ok(super::types::VaultProject {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                description: row.get(2)?,
+                project_type: row.get(3)?,
+                cover_file_id: row.get(4)?,
+                is_archived: row.get::<_, i64>(5)? != 0,
+                created_at: row.get(6)?,
+                updated_at: row.get(7)?,
+                file_count: None,
+            })
+        },
+    );
+    match project {
+        Ok(p) => {
+            let mut stmt = conn.prepare(
+                "SELECT f.id, f.path, f.name, f.file_type, f.mime_type, f.extension, f.size_bytes, f.thumbnail_path, f.width, f.height, f.duration_secs, f.created_by, f.source_prompt, f.description, f.is_favorite, f.created_at, f.updated_at
+                 FROM vault_files f
+                 JOIN vault_project_files pf ON f.id = pf.file_id
+                 WHERE pf.project_id = ?1
+                 ORDER BY pf.added_at DESC"
+            )?;
+            let rows = stmt.query_map(params![project_id], |row| map_vault_file(row))?;
+            let files = rows.collect::<Result<Vec<_>, _>>()?;
+            Ok(Some(super::types::VaultProjectDetail { project: p, files }))
+        }
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(e.into()),
+    }
+}
+
+pub fn vault_add_file_to_project(project_id: &str, file_id: &str, role: Option<&str>) -> Result<()> {
+    let conn = get_conn();
+    conn.execute(
+        "INSERT OR IGNORE INTO vault_project_files (project_id, file_id, role) VALUES (?1, ?2, ?3)",
+        params![project_id, file_id, role],
+    )?;
+    Ok(())
+}
+
+pub fn vault_remove_file_from_project(project_id: &str, file_id: &str) -> Result<()> {
+    let conn = get_conn();
+    conn.execute("DELETE FROM vault_project_files WHERE project_id = ?1 AND file_id = ?2", params![project_id, file_id])?;
+    Ok(())
+}
+
+pub fn vault_delete_project(id: &str) -> Result<()> {
+    let conn = get_conn();
+    conn.execute("DELETE FROM vault_projects WHERE id = ?", params![id])?;
+    Ok(())
+}
+
+// --- Tags ---
+
+pub fn vault_upsert_tag(id: &str, name: &str, color: Option<&str>, tag_type: &str) -> Result<()> {
+    let conn = get_conn();
+    conn.execute(
+        "INSERT INTO vault_tags (id, name, color, tag_type) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(name) DO UPDATE SET color=excluded.color",
+        params![id, name, color, tag_type],
+    )?;
+    Ok(())
+}
+
+pub fn vault_tag_file(file_id: &str, tag_id: &str) -> Result<()> {
+    let conn = get_conn();
+    conn.execute("INSERT OR IGNORE INTO vault_file_tags (file_id, tag_id) VALUES (?1, ?2)", params![file_id, tag_id])?;
+    Ok(())
+}
+
+pub fn vault_untag_file(file_id: &str, tag_id: &str) -> Result<()> {
+    let conn = get_conn();
+    conn.execute("DELETE FROM vault_file_tags WHERE file_id = ?1 AND tag_id = ?2", params![file_id, tag_id])?;
+    Ok(())
+}
+
+pub fn vault_get_tags() -> Result<Vec<super::types::VaultTag>> {
+    let conn = get_conn();
+    let mut stmt = conn.prepare(
+        "SELECT t.id, t.name, t.color, t.tag_type, COUNT(ft.file_id) as file_count
+         FROM vault_tags t
+         LEFT JOIN vault_file_tags ft ON t.id = ft.tag_id
+         GROUP BY t.id
+         ORDER BY file_count DESC"
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok(super::types::VaultTag {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            color: row.get(2)?,
+            tag_type: row.get(3)?,
+            file_count: Some(row.get(4)?),
+        })
+    })?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+}
+
+pub fn vault_get_stats() -> Result<(i64, i64, i64)> {  // (total_files, total_size, total_projects)
+    let conn = get_conn();
+    let total_files: i64 = conn.query_row("SELECT COUNT(*) FROM vault_files", [], |r| r.get(0))?;
+    let total_size: i64 = conn.query_row("SELECT COALESCE(SUM(size_bytes), 0) FROM vault_files", [], |r| r.get(0))?;
+    let total_projects: i64 = conn.query_row("SELECT COUNT(*) FROM vault_projects WHERE is_archived = 0", [], |r| r.get(0))?;
+    Ok((total_files, total_size, total_projects))
+}

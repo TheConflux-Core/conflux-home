@@ -30,6 +30,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   games: { icon: '📖', label: 'Stories' },
   marketplace: { icon: '🛒', label: 'Market' },
   echo: { icon: '🪞', label: 'Echo' },
+  vault: { icon: '🔐', label: 'Vault' },
   settings: { icon: '⚙️', label: 'Settings' },
   onboarding: { icon: '👋', label: 'Onboarding' },
 };
@@ -47,6 +48,7 @@ const ALL_APPS: AppItem[] = [
   { id: 'marketplace', icon: '🛒', label: 'Marketplace', category: 'system', description: 'Discover new apps & agents' },
   { id: 'agents', icon: '🧩', label: 'Agents', category: 'system', description: 'Manage your AI family' },
   { id: 'echo', icon: '🪞', label: 'Echo', category: 'life', description: 'The notebook that listens' },
+  { id: 'vault', icon: '🔐', label: 'Vault', category: 'system', description: 'Encrypted password & credential manager' },
   { id: 'settings', icon: '⚙️', label: 'Settings', category: 'system', description: 'Configure your experience' },
 ];
 

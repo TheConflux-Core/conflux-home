@@ -35,6 +35,7 @@ import EchoView from './components/EchoView';
 import AgentsView from './components/AgentsView';
 import ImmersiveView from './components/ImmersiveView';
 import ControlRoom from './components/ControlRoom';
+import VaultView from './components/VaultView';
 import { useEngine } from './hooks/useEngine';
 import { useToast } from './hooks/useToast';
 import { useFamily } from './hooks/useFamily';
@@ -56,6 +57,7 @@ const VIEW_BACKGROUNDS: Record<string, string> = {
   feed: '/backgrounds/feed-bg.png',
   marketplace: '/backgrounds/marketplace-bg.png',
   echo: '/backgrounds/echo-bg.png',
+  vault: '/backgrounds/vault-bg.png',
   settings: '/backgrounds/settings-bg.png',
   dashboard: '/backgrounds/dashboard-bg.png',
 };
@@ -476,6 +478,7 @@ const [activeSnake, setActiveSnake] = useState(false);
           {immersiveView === 'marketplace' && <Marketplace />}
           {immersiveView === 'agents' && <AgentsView />}
           {immersiveView === 'echo' && <EchoView />}
+          {immersiveView === 'vault' && <VaultView />}
           {immersiveView === 'settings' && <Settings />}
           {immersiveView === 'dashboard' && (
             <div>

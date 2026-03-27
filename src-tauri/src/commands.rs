@@ -4211,3 +4211,162 @@ pub fn run_installer(installer_path: String) -> Result<(), String> {
 
     Ok(())
 }
+
+// ============================================================
+// VAULT — File Browser Commands
+// ============================================================
+
+#[tauri::command]
+pub fn vault_scan_directory(dir_path: String) -> Result<Vec<engine::types::VaultFile>, String> {
+    use std::fs;
+    let entries = fs::read_dir(&dir_path).map_err(|e| e.to_string())?;
+    for entry in entries {
+        if let Ok(entry) = entry {
+            let path = entry.path();
+            if path.is_dir() { continue; }
+            let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+            let extension = path.extension().map(|e| e.to_string_lossy().to_string());
+            let metadata = fs::metadata(&path).map_err(|e| e.to_string())?;
+            let size_bytes = metadata.len() as i64;
+            let file_type = detect_file_type(&extension);
+            let mime_type = detect_mime_type(&extension);
+            let id = uuid::Uuid::new_v4().to_string();
+            let path_str = path.to_string_lossy().to_string();
+            let _ = engine::db::vault_upsert_file(
+                &id, &path_str, &name, &file_type,
+                mime_type.as_deref(), extension.as_deref(),
+                size_bytes, None, None, None, None, None, None, None,
+            );
+        }
+    }
+    engine::db::vault_get_files(None, 100, 0).map_err(|e| e.to_string())
+}
+
+fn detect_file_type(ext: &Option<String>) -> String {
+    match ext.as_deref() {
+        Some("jpg") | Some("jpeg") | Some("png") | Some("gif") | Some("webp") | Some("svg") | Some("bmp") => "image".to_string(),
+        Some("mp3") | Some("wav") | Some("ogg") | Some("flac") | Some("aac") | Some("m4a") => "audio".to_string(),
+        Some("mp4") | Some("webm") | Some("avi") | Some("mov") | Some("mkv") => "video".to_string(),
+        Some("rs") | Some("ts") | Some("tsx") | Some("js") | Some("jsx") | Some("py") | Some("go") | Some("c") | Some("cpp") | Some("h") | Some("css") | Some("html") | Some("json") | Some("toml") | Some("yaml") | Some("yml") => "code".to_string(),
+        Some("pdf") | Some("doc") | Some("docx") | Some("txt") | Some("md") | Some("csv") | Some("xls") | Some("xlsx") => "document".to_string(),
+        Some("zip") | Some("tar") | Some("gz") | Some("rar") | Some("7z") => "archive".to_string(),
+        _ => "other".to_string(),
+    }
+}
+
+fn detect_mime_type(ext: &Option<String>) -> Option<String> {
+    match ext.as_deref() {
+        Some("jpg") | Some("jpeg") => Some("image/jpeg".to_string()),
+        Some("png") => Some("image/png".to_string()),
+        Some("gif") => Some("image/gif".to_string()),
+        Some("webp") => Some("image/webp".to_string()),
+        Some("svg") => Some("image/svg+xml".to_string()),
+        Some("mp3") => Some("audio/mpeg".to_string()),
+        Some("wav") => Some("audio/wav".to_string()),
+        Some("ogg") => Some("audio/ogg".to_string()),
+        Some("mp4") => Some("video/mp4".to_string()),
+        Some("webm") => Some("video/webm".to_string()),
+        Some("pdf") => Some("application/pdf".to_string()),
+        Some("json") => Some("application/json".to_string()),
+        Some("html") => Some("text/html".to_string()),
+        Some("css") => Some("text/css".to_string()),
+        Some("txt") | Some("md") => Some("text/plain".to_string()),
+        _ => None,
+    }
+}
+
+#[tauri::command]
+pub fn vault_get_files(file_type: Option<String>, limit: Option<i64>, offset: Option<i64>) -> Result<Vec<engine::types::VaultFile>, String> {
+    engine::db::vault_get_files(file_type.as_deref(), limit.unwrap_or(100), offset.unwrap_or(0)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn vault_search_files(query: String) -> Result<Vec<engine::types::VaultFile>, String> {
+    engine::db::vault_search(&query, 50).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn vault_get_file(id: String) -> Result<Option<engine::types::VaultFile>, String> {
+    engine::db::vault_get_file_by_id(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn vault_delete_file(id: String) -> Result<(), String> {
+    // Also delete from disk
+    if let Ok(Some(file)) = engine::db::vault_get_file_by_id(&id) {
+        let _ = std::fs::remove_file(&file.path);
+    }
+    engine::db::vault_delete_file(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn vault_toggle_favorite(id: String) -> Result<(), String> {
+    engine::db::vault_toggle_favorite(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn vault_get_recent(limit: Option<i64>) -> Result<Vec<engine::types::VaultFile>, String> {
+    engine::db::vault_get_recent(limit.unwrap_or(20)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn vault_get_favorites() -> Result<Vec<engine::types::VaultFile>, String> {
+    engine::db::vault_get_favorites().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn vault_get_stats() -> Result<(i64, i64, i64), String> {
+    engine::db::vault_get_stats().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn vault_create_project(name: String, description: Option<String>, project_type: Option<String>) -> Result<String, String> {
+    let id = uuid::Uuid::new_v4().to_string();
+    engine::db::vault_create_project(&id, &name, description.as_deref(), project_type.as_deref()).map_err(|e| e.to_string())?;
+    Ok(id)
+}
+
+#[tauri::command]
+pub fn vault_get_projects() -> Result<Vec<engine::types::VaultProject>, String> {
+    engine::db::vault_get_projects().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn vault_get_project_detail(project_id: String) -> Result<Option<engine::types::VaultProjectDetail>, String> {
+    engine::db::vault_get_project_detail(&project_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn vault_add_file_to_project(project_id: String, file_id: String, role: Option<String>) -> Result<(), String> {
+    engine::db::vault_add_file_to_project(&project_id, &file_id, role.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn vault_remove_file_from_project(project_id: String, file_id: String) -> Result<(), String> {
+    engine::db::vault_remove_file_from_project(&project_id, &file_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn vault_delete_project(id: String) -> Result<(), String> {
+    engine::db::vault_delete_project(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn vault_get_tags() -> Result<Vec<engine::types::VaultTag>, String> {
+    engine::db::vault_get_tags().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn vault_tag_file(file_id: String, tag_name: String) -> Result<(), String> {
+    let tag_id = uuid::Uuid::new_v4().to_string();
+    engine::db::vault_upsert_tag(&tag_id, &tag_name, None, "manual").map_err(|e| e.to_string())?;
+    // Get existing tag id if tag already exists
+    let tags = engine::db::vault_get_tags().map_err(|e| e.to_string())?;
+    let actual_tag_id = tags.iter().find(|t| t.name == tag_name).map(|t| t.id.clone()).unwrap_or(tag_id);
+    engine::db::vault_tag_file(&file_id, &actual_tag_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn vault_untag_file(file_id: String, tag_id: String) -> Result<(), String> {
+    engine::db::vault_untag_file(&file_id, &tag_id).map_err(|e| e.to_string())
+}
