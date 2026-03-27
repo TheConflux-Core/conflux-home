@@ -85,13 +85,13 @@ export function useAutoUpdate() {
       
       let filename: string;
       if (isLinux) {
-        filename = 'Conflux.Home_amd64.deb';
+        filename = 'Conflux.Home_amd64.AppImage';  // No sudo needed
       } else if (isMac) {
         filename = 'Conflux.Home_x64.app.tar.gz';
       } else if (isWindows) {
         filename = 'Conflux.Home_x64-setup.exe';
       } else {
-        filename = 'Conflux.Home_amd64.deb';
+        filename = 'Conflux.Home_amd64.AppImage';
       }
       
       const downloadUrl = `https://github.com/TheConflux-Core/conflux-home/releases/download/v${version}/${filename}`;
