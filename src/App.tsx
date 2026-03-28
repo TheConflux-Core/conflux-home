@@ -9,6 +9,7 @@ import Marketplace from './components/Marketplace';
 import AgentDetail from './components/AgentDetail';
 import Onboarding from './components/Onboarding';
 import WelcomeOverlay from './components/WelcomeOverlay';
+import LoginScreen from './components/LoginScreen';
 import Settings from './components/Settings';
 import SplashScreen from './components/SplashScreen';
 import ToastContainer from './components/Toast';
@@ -40,10 +41,12 @@ import StudioView from './components/StudioView';
 import { useEngine } from './hooks/useEngine';
 import { useToast } from './hooks/useToast';
 import { useFamily } from './hooks/useFamily';
+import { useAuth } from './hooks/useAuth';
 import { useStoryGames, useStoryGame, useStorySeeds } from './hooks/useStoryGame';
 import { useLearningProgress, useLearningGoals } from './hooks/useLearning';
 import { initTheme, getSavedWallpaper } from './lib/theme';
 import { registerShortcuts } from './lib/shortcuts';
+import { trackEvent } from './lib/telemetry';
 import './styles/animations.css';
 
 // Background images for immersive views
@@ -89,6 +92,10 @@ export default function App() {
   const [loaded, setLoaded] = useState(false);
   const { toasts, toast, dismiss } = useToast();
   const toastRef = useRef(toast);
+
+  // ── Supabase Auth ──
+  const { user, loading: authLoading, signInWithEmail } = useAuth();
+  const authenticated = !!user;
 
   // Initialize theme system once on mount
   useEffect(() => {
@@ -177,6 +184,33 @@ export default function App() {
       return [];
     }
   });
+
+  // Restore onboarding state from Supabase if localStorage is empty
+  useEffect(() => {
+    if (!user || isOnboarded) return
+    import('./lib/supabase').then(async ({ supabase }) => {
+      const { data } = await supabase
+        .from('ch_profiles')
+        .select('onboarded, display_name, onboarding_goals, selected_agents')
+        .eq('id', user.id)
+        .single()
+      if (data?.onboarded) {
+        localStorage.setItem('conflux-onboarded', 'true')
+        if (data.display_name) {
+          localStorage.setItem('conflux-name', data.display_name)
+          setUserName(data.display_name)
+        }
+        if (data.selected_agents) {
+          localStorage.setItem('conflux-selected-agents', JSON.stringify(data.selected_agents))
+          setSelectedAgentIds(data.selected_agents)
+        }
+        if (data.onboarding_goals) {
+          localStorage.setItem('conflux-goals', JSON.stringify(data.onboarding_goals))
+        }
+        setIsOnboarded(true)
+      }
+    })
+  }, [user, isOnboarded])
 
   const { connected, agents, refresh } = useEngine();
 
@@ -320,11 +354,25 @@ const [activeSnake, setActiveSnake] = useState(false);
     setUserName(name);
     setSelectedAgentIds(agentIds);
 
+    // Save onboarding state to Supabase
+    if (user) {
+      import('./lib/supabase').then(({ supabase }) => {
+        supabase.from('ch_profiles').upsert({
+          id: user.id,
+          onboarded: true,
+          onboarding_goals: goals,
+          selected_agents: agentIds,
+          display_name: name,
+        }).then()
+      })
+      trackEvent(user.id, null, 'onboarding_completed', { goals, agentIds })
+    }
+
     // Show welcome if not already welcomed
     const alreadyWelcomed = localStorage.getItem('conflux-welcomed') === 'true';
     setShowWelcome(!alreadyWelcomed);
     setIsOnboarded(true);
-  }, []);
+  }, [user]);
 
   // Handle welcome dismiss
   const handleWelcomeComplete = useCallback(() => {
@@ -413,6 +461,19 @@ const [activeSnake, setActiveSnake] = useState(false);
   // ── Gate: Splash screen ──
   if (!loaded) {
     return <SplashScreen onComplete={() => setLoaded(true)} />;
+  }
+
+  // ── Gate: Auth ──
+  if (authLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#0a0a1a' }}>
+        <div style={{ fontSize: 32 }}>🤖</div>
+      </div>
+    );
+  }
+
+  if (!authenticated) {
+    return <LoginScreen onAuthSuccess={() => { /* auth state change triggers re-render via useAuth */ }} />;
   }
 
   // ── Gate: Onboarding ──
