@@ -25,6 +25,8 @@ pub struct ChatResponse {
     pub tokens_used: i64,
     pub latency_ms: i64,
     pub calls_remaining: i64,
+    pub credits_remaining: Option<i64>,
+    pub credit_source: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -110,8 +112,10 @@ pub struct EchoDailyBrief {
 pub async fn engine_chat(window: tauri::Window, req: ChatRequest) -> Result<ChatResponse, String> {
     let engine = engine::get_engine();
 
-    if !engine.has_quota("default").map_err(|e| e.to_string())? {
-        return Err("Daily free limit reached. Upgrade to Pro for unlimited calls.".to_string());
+    // Check quota (cloud-aware)
+    let quota = engine.has_quota("default").await.map_err(|e| e.to_string())?;
+    if !quota.allowed {
+        return Err(format!("{} limit reached. Upgrade for more credits.", quota.source));
     }
 
     let _ = window.emit("engine:thinking", ());
@@ -128,6 +132,25 @@ pub async fn engine_chat(window: tauri::Window, req: ChatRequest) -> Result<Chat
 
     let limit = get_daily_limit(engine);
 
+    // Log to cloud and charge credits (fire and forget)
+    let credit_costs = super::engine::cloud::get_credit_costs().await.unwrap_or_default();
+    let credits = super::engine::cloud::credit_cost_for_model(&response.model, &response.provider_id, "core", &credit_costs);
+
+    let _ = super::engine::cloud::log_usage_to_cloud(
+        "default", &req.session_id, &req.agent_id,
+        &response.model, &response.provider_id, "core",
+        response.tokens_used, response.latency_ms, "success", credits,
+    ).await;
+
+    // Charge credits (don't fail the response if this fails for free users)
+    let (credits_remaining, credit_source) = match super::engine::cloud::charge_credits("default", credits, "").await {
+        Ok(new_balance) => (Some(new_balance), Some(quota.source.clone())),
+        Err(e) => {
+            log::warn!("[Engine] Credit charge failed: {}", e);
+            (None, None)
+        }
+    };
+
     Ok(ChatResponse {
         content: response.content,
         model: response.model,
@@ -136,6 +159,8 @@ pub async fn engine_chat(window: tauri::Window, req: ChatRequest) -> Result<Chat
         tokens_used: response.tokens_used,
         latency_ms: response.latency_ms,
         calls_remaining: (limit - calls).max(0),
+        credits_remaining,
+        credit_source,
     })
 }
 
@@ -143,10 +168,12 @@ pub async fn engine_chat(window: tauri::Window, req: ChatRequest) -> Result<Chat
 pub async fn engine_chat_stream(window: tauri::Window, req: ChatRequest) -> Result<(), String> {
     let engine = engine::get_engine();
 
-    if !engine.has_quota("default").map_err(|e| e.to_string())? {
-        window.emit("engine:error", "Daily free limit reached. Upgrade to Pro for unlimited calls.")
-            .map_err(|e| e.to_string())?;
-        return Err("Daily free limit reached.".to_string());
+    // Check quota (cloud-aware)
+    let quota = engine.has_quota("default").await.map_err(|e| e.to_string())?;
+    if !quota.allowed {
+        let msg = format!("{} limit reached. Upgrade for more credits.", quota.source);
+        window.emit("engine:error", &msg).map_err(|e| e.to_string())?;
+        return Err(msg);
     }
 
     let _ = window.emit("engine:thinking", ());
@@ -165,6 +192,21 @@ pub async fn engine_chat_stream(window: tauri::Window, req: ChatRequest) -> Resu
 
             let limit = get_daily_limit(engine);
 
+            // Log to cloud and charge credits (fire and forget)
+            let credit_costs = super::engine::cloud::get_credit_costs().await.unwrap_or_default();
+            let credits = super::engine::cloud::credit_cost_for_model(&response.model, &response.provider_id, "core", &credit_costs);
+
+            let _ = super::engine::cloud::log_usage_to_cloud(
+                "default", &req.session_id, &req.agent_id,
+                &response.model, &response.provider_id, "core",
+                response.tokens_used, response.latency_ms, "success", credits,
+            ).await;
+
+            match super::engine::cloud::charge_credits("default", credits, "").await {
+                Ok(_) => {}
+                Err(e) => { log::warn!("[Engine] Credit charge failed: {}", e); }
+            }
+
             // Emit response in word-chunks for streaming feel
             let words: Vec<&str> = response.content.split_whitespace().collect();
             for chunk in words.chunks(4) {
@@ -181,6 +223,7 @@ pub async fn engine_chat_stream(window: tauri::Window, req: ChatRequest) -> Resu
                 "tokens_used": response.tokens_used,
                 "latency_ms": response.latency_ms,
                 "calls_remaining": (limit - calls).max(0),
+                "credit_source": quota.source,
             })).map_err(|e| e.to_string())?;
 
             Ok(())
@@ -4849,4 +4892,39 @@ pub fn voice_set_config(key: String, value: String) -> Result<(), String> {
     ).map_err(|e| e.to_string())?;
 
     Ok(())
+}
+
+// ═══════════════════════════════════════════════════════
+// Cloud — Supabase Credit & Usage System
+// ═══════════════════════════════════════════════════════
+
+/// Get the user's current credit balance from Supabase.
+#[tauri::command]
+pub async fn get_credit_balance(user_id: String) -> Result<engine::cloud::CreditBalance, String> {
+    engine::cloud::check_cloud_balance(&user_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Get usage history for a user from Supabase.
+#[tauri::command]
+pub async fn get_usage_history(user_id: String, limit: Option<i32>) -> Result<Vec<engine::cloud::UsageEntry>, String> {
+    engine::cloud::get_usage_history(&user_id, limit.unwrap_or(50))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Get aggregated usage stats for a user over the last N days.
+#[tauri::command]
+pub async fn get_usage_stats(user_id: String, days: Option<i32>) -> Result<engine::cloud::UsageStats, String> {
+    engine::cloud::get_usage_stats(&user_id, days.unwrap_or(30))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Create a Stripe Checkout Session for one-time credit pack purchase.
+/// Pack IDs: 's' ($5/1,500), 'm' ($10/3,200), 'l' ($20/7,000), 'xl' ($50/18,000)
+#[tauri::command]
+pub async fn purchase_credits(user_id: String, pack: String) -> Result<String, String> {
+    super::stripe::stripe_create_credit_pack_session(user_id, pack).await
 }

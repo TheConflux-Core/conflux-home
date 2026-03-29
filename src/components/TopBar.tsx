@@ -3,6 +3,7 @@ import { Agent } from '../types';
 import { Theme, getEffectiveTheme, applyTheme, saveTheme } from '../lib/theme';
 import ConnectivityWidget from './ConnectivityWidget';
 import { VoiceOverlay } from './voice';
+import { useCredits } from '../hooks/useCredits';
 
 interface TopBarProps {
   selectedAgent: Agent | null;
@@ -40,6 +41,7 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom, on
   );
   const [showConnectivity, setShowConnectivity] = useState(false);
   const [showVoiceOverlay, setShowVoiceOverlay] = useState(false);
+  const { balance, loading: creditsLoading } = useCredits();
 
   useEffect(() => {
     const updateClock = () => {
@@ -104,6 +106,23 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom, on
       </div>
 
       <div className="topbar-right">
+        {!creditsLoading && balance && (
+          <span style={{
+            fontSize: 11,
+            color: 'var(--text-muted)',
+            padding: '2px 8px',
+            borderRadius: 6,
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            whiteSpace: 'nowrap',
+            marginRight: 4,
+          }}>
+            {balance.source === 'free'
+              ? `⚡ ${balance.daily_remaining ?? 0}/${balance.daily_limit ?? 0} today`
+              : `⚡ ${(balance.total_available ?? 0).toLocaleString()} credits`
+            }
+          </span>
+        )}
         <span className="topbar-clock">{clock}</span>
         <button
           className="mic-button mic-button-topbar"
