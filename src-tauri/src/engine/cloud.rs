@@ -223,10 +223,10 @@ pub async fn check_cloud_balance(user_id: &str) -> Result<CreditStatus> {
         .ok_or_else(|| anyhow::anyhow!("No credit account found for user {}", user_id))?;
 
     let balance = account["balance"].as_i64().unwrap_or(0);
-    let deposit_balance = account["deposit_balance"].as_i64().unwrap_or(0);
+    let deposit_balance = balance; // All balance is usable (deposit + subscription grant both tracked here)
 
     // Fetch active subscription (if any)
-    let sub_query = format!("user_id=eq.{}&status=eq.active&select=*", user_id);
+    let sub_query = format!("user_id=eq.{}&subscription_status=eq.active&select=*", user_id);
     let (has_active_subscription, subscription_plan, monthly_credits, monthly_used) =
         match supabase_get("ch_subscriptions", &sub_query) {
             Ok(builder) => match builder.send().await {
@@ -236,8 +236,8 @@ pub async fn check_cloud_balance(user_id: &str) -> Result<CreditStatus> {
                         (
                             true,
                             sub["plan"].as_str().unwrap_or("free").to_string(),
-                            sub["monthly_credits"].as_i64().unwrap_or(0),
-                            sub["monthly_used"].as_i64().unwrap_or(0),
+                            sub["credits_included"].as_i64().unwrap_or(0),
+                            sub["credits_used"].as_i64().unwrap_or(0),
                         )
                     } else {
                         (false, "free".to_string(), 0, 0)
@@ -248,10 +248,18 @@ pub async fn check_cloud_balance(user_id: &str) -> Result<CreditStatus> {
             Err(_) => (false, "free".to_string(), 0, 0),
         };
 
-    let total_available = balance + deposit_balance + if has_active_subscription {
-        monthly_credits - monthly_used
+    let total_available = balance + if has_active_subscription {
+        (monthly_credits - monthly_used).max(0)
     } else {
         0
+    };
+
+    let source = if has_active_subscription {
+        "subscription".to_string()
+    } else if balance > 0 {
+        "deposit".to_string()
+    } else {
+        "free".to_string()
     };
 
     Ok(CreditStatus {
@@ -262,7 +270,7 @@ pub async fn check_cloud_balance(user_id: &str) -> Result<CreditStatus> {
         monthly_used,
         deposit_balance,
         total_available,
-        source: "cloud".to_string(),
+        source,
     })
 }
 
