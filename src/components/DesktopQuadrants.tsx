@@ -1,4 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCredits, useUsageStats, useUsageHistory } from '../hooks/useCredits';
+import { useAuth } from '../hooks/useAuth';
+
 import { View, Agent } from '../types';
 
 // ── App definitions ──
@@ -60,6 +63,35 @@ const CATEGORIES: CategoryDef[] = [
   },
 ];
 
+
+function timeAgo(dateString: string): string {
+    const now = new Date();
+    const date = new Date(dateString);
+    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    let interval = seconds / 31536000;
+    if (interval > 1) {
+        return Math.floor(interval) + "y ago";
+    }
+    interval = seconds / 2592000;
+    if (interval > 1) {
+        return Math.floor(interval) + "mo ago";
+    }
+    interval = seconds / 86400;
+    if (interval > 1) {
+        return Math.floor(interval) + "d ago";
+    }
+    interval = seconds / 3600;
+    if (interval > 1) {
+        return Math.floor(interval) + "h ago";
+    }
+    interval = seconds / 60;
+    if (interval > 1) {
+        return Math.floor(interval) + "m ago";
+    }
+    return Math.floor(seconds) + "s ago";
+}
+
 // ── Status helpers ──
 
 const STATUS_COLORS: Record<string, string> = {
@@ -115,6 +147,12 @@ function RingGauge({ value, max, color, label, sublabel }: { value: number; max:
 }
 
 function IntelDashboard({ agents }: IntelDashboardProps) {
+  const { balance, loading: creditsLoading } = useCredits();
+  const { stats, loading: statsLoading } = useUsageStats(7);
+  const { entries, loading: historyLoading } = useUsageHistory(10);
+
+  const allLoading = creditsLoading || statsLoading || historyLoading;
+
   const activeAgents = agents.filter(a => a.status !== 'offline');
   const workingCount = agents.filter(a => a.status === 'working' || a.status === 'thinking').length;
   const onlinePct = agents.length > 0 ? Math.round((activeAgents.length / agents.length) * 100) : 0;
@@ -175,48 +213,71 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
           </div>
         </div>
 
-        {/* Metrics Section — card grid */}
+        {/* CREDITS Section */}
         <div className="intel-section">
-          <div className="intel-section-title">METRICS</div>
+          <div className="intel-section-title">CREDITS</div>
           <div className="intel-metrics-grid">
             <div className="intel-metric-card">
-              <span className="intel-metric-icon">🔋</span>
-              <span className="intel-metric-value">94%</span>
-              <span className="intel-metric-label">System</span>
+              <span className="intel-metric-icon">⚡</span>
+              <span className="intel-metric-value">{allLoading ? '---' : balance?.total_available.toLocaleString() || '0.00'}</span>
+              <span className="intel-metric-label">Available</span>
             </div>
             <div className="intel-metric-card">
-              <span className="intel-metric-icon">📡</span>
-              <span className="intel-metric-value">12h 34m</span>
-              <span className="intel-metric-label">Uptime</span>
+              <span className="intel-metric-icon">🔄</span>
+              <span className="intel-metric-value">{allLoading ? '---' : (balance?.subscription_plan === 'free' ? 'Free' : balance?.subscription_plan || 'N/A')}</span>
+              <span className="intel-metric-label">Plan</span>
             </div>
             <div className="intel-metric-card">
-              <span className="intel-metric-icon">🧠</span>
-              <span className="intel-metric-value">2.1 GB</span>
-              <span className="intel-metric-label">Memory</span>
+              <span className="intel-metric-icon">📊</span>
+              <span className="intel-metric-value">{allLoading ? '---' : `${balance?.monthly_used?.toFixed(0) || '0'}/${balance?.monthly_credits?.toFixed(0) || '0'}`}</span>
+              <span className="intel-metric-label">Monthly</span>
             </div>
+            {balance?.source === 'free' && (
+            <div className="intel-metric-card">
+              <span className="intel-metric-icon">☀️</span>
+              <span className="intel-metric-value">{allLoading ? '---' : `${balance.daily_used?.toFixed(0) || '0'}/${balance.daily_limit?.toFixed(0) || '0'}`}</span>
+              <span className="intel-metric-label">Daily Left</span>
+            </div>
+            )}
           </div>
         </div>
 
-        {/* Activity Section */}
+        {/* RECENT USAGE Section */}
         <div className="intel-section">
-          <div className="intel-section-title">ACTIVITY</div>
+          <div className="intel-section-title">RECENT USAGE</div>
           <div className="intel-section-content">
-            <div className="intel-activity-item">
-              <span className="intel-activity-dot" />
-              <span>Mission-1223: completed</span>
-              <span className="intel-activity-time">2h</span>
-            </div>
-            <div className="intel-activity-item">
-              <span className="intel-activity-dot" />
-              <span>Budget updated</span>
-              <span className="intel-activity-time">4h</span>
-            </div>
-            <div className="intel-activity-item">
-              <span className="intel-activity-dot" />
-              <span>New agent online</span>
-              <span className="intel-activity-time">6h</span>
-            </div>
+            {allLoading ? (
+                <div className="intel-activity-item">Loading usage history...</div>
+            ) : entries.length > 0 ? (
+                entries.slice(0, 8).map((entry) => (
+                    <div key={entry.id} className="intel-activity-item">
+                        <span className="intel-activity-dot" style={{ background: STATUS_COLORS[entry.status === 'success' ? 'working' : 'error'] }} />
+                        <span>{entry.model}: {entry.tokens_used} tokens</span>
+                        <span className="intel-activity-time">{entry.credits_charged?.toLocaleString() || '0'} cr, {timeAgo(entry.created_at)}</span>
+                    </div>
+                ))
+            ) : (
+                <div className="intel-activity-item">No recent usage.</div>
+            )}
           </div>
+        </div>
+
+        {/* USAGE BREAKDOWN Section */}
+        <div className="intel-section">
+            <div className="intel-section-title">USAGE BREAKDOWN</div>
+            <div className="intel-section-content">
+                {allLoading ? (
+                    <div className="intel-activity-item">Loading usage stats...</div>
+                ) : stats?.by_model && stats.by_model.length > 0 ? (
+                    stats.by_model.slice(0, 4).map((modelStats) => (
+                        <div key={modelStats.model} className="intel-activity-item">
+                            <span>{modelStats.model}: {modelStats.calls} calls, {modelStats.credits.toLocaleString()} cr</span>
+                        </div>
+                    ))
+                ) : (
+                    <div className="intel-activity-item">No usage breakdown available.</div>
+                )}
+            </div>
         </div>
       </div>
     </div>

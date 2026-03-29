@@ -151,6 +151,7 @@ export function useCloudChat(options: UseCloudChatOptions): UseCloudChatResult {
         messages: apiMessages,
         max_tokens: 4096,
         temperature: 0.7,
+        stream: true, // ENABLE STREAMING
       };
 
       const res = await fetch(`${CONFLUX_ROUTER_URL}/v1/chat/completions`, {
@@ -163,6 +164,8 @@ export function useCloudChat(options: UseCloudChatOptions): UseCloudChatResult {
       });
 
       if (!res.ok) {
+        setStreaming(false); // Stop streaming on error
+        setThinking(false);
         const errData = await res.json().catch(() => ({}));
         if (res.status === 402) {
           setError('Insufficient credits — upgrade or purchase more');
@@ -180,20 +183,63 @@ export function useCloudChat(options: UseCloudChatOptions): UseCloudChatResult {
         return;
       }
 
-      const data: CloudChatResponse = await res.json();
       setThinking(false);
 
-      const responseContent = data.choices?.[0]?.message?.content ?? 'No response';
-      
-      setMessages(prev =>
-        prev.map(m =>
-          m.id === assistantId
-            ? { ...m, content: responseContent }
-            : m
-        )
-      );
+      // Read the SSE stream
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullContent = '';
 
-      // Update credits from response header
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Parse SSE lines
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data: ')) continue;
+          const data = trimmed.slice(6); // Remove "data: " prefix
+          if (data === '[DONE]') {
+            setStreaming(false); // Stream finished
+            break;
+          }
+
+          try {
+            const chunk = JSON.parse(data);
+            const delta = chunk.choices?.[0]?.delta?.content;
+            if (delta) {
+              fullContent += delta;
+              // Update the assistant message incrementally
+              setMessages(prev =>
+                prev.map(m =>
+                  m.id === assistantId
+                    ? { ...m, content: fullContent }
+                    : m
+                )
+              );
+            }
+          } catch { /* skip malformed chunks */ }
+        }
+      }
+
+      // If no content received but stream ended without error, show a fallback
+      if (fullContent === '' && error === null) {
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === assistantId && m.content === ''
+              ? { ...m, content: '[No response received]' }
+              : m
+          )
+        );
+      }
+
+      // Read credits from response headers
       const creditsCharged = res.headers.get('X-Conflux-Credits-Charged');
       if (creditsCharged) {
         setCredits(prev => Math.max(0, prev - parseInt(creditsCharged, 10)));
@@ -209,9 +255,6 @@ export function useCloudChat(options: UseCloudChatOptions): UseCloudChatResult {
             : m
         )
       );
-    } finally {
-      setStreaming(false);
-      setThinking(false);
     }
   }, [agentId, model, systemPrompt, messages, getToken]);
 
