@@ -10,6 +10,7 @@ pub mod memory;
 pub mod google;
 pub mod cron;
 pub mod orbit_prompts;
+pub mod cloud;
 
 pub use db::EngineDb;
 
@@ -778,12 +779,41 @@ impl ConfluxEngine {
         self.db.increment_quota(user_id, &today, tokens, provider_id)
     }
 
-    pub fn has_quota(&self, user_id: &str) -> Result<bool> {
+    pub async fn has_quota(&self, user_id: &str) -> Result<cloud::QuotaStatus> {
+        // Try cloud first
+        match cloud::check_cloud_balance(user_id).await {
+            Ok(status) => {
+                if status.has_active_subscription {
+                    return Ok(cloud::QuotaStatus {
+                        allowed: status.total_available > 0,
+                        source: "subscription".to_string(),
+                        remaining: status.total_available,
+                    });
+                }
+                if status.deposit_balance > 0 {
+                    return Ok(cloud::QuotaStatus {
+                        allowed: true,
+                        source: "deposit".to_string(),
+                        remaining: status.deposit_balance,
+                    });
+                }
+            }
+            Err(e) => {
+                log::warn!("[Engine] Cloud balance check failed, falling back to local: {}", e);
+            }
+        }
+
+        // Fallback: free tier daily limit (local SQLite)
         let quota = self.get_quota(user_id)?;
         let limit: i64 = self.db.get_config("free_daily_limit")?
             .unwrap_or_else(|| "50".to_string())
             .parse()
             .unwrap_or(50);
-        Ok(quota.calls_used < limit)
+        let remaining = (limit - quota.calls_used).max(0);
+        Ok(cloud::QuotaStatus {
+            allowed: remaining > 0,
+            source: "free".to_string(),
+            remaining,
+        })
     }
 }

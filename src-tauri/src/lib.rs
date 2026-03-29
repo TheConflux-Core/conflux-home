@@ -4,16 +4,34 @@
 pub mod engine;
 pub mod voice;
 mod commands;
+mod stripe;
+use dotenvy;
 
-use tauri::Manager;
+
+use tauri::{Manager, Emitter};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    dotenvy::dotenv().ok();
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            log::info!("Second instance detected with args: {:?}", args);
+            // On Windows/Linux, deep link URL arrives as a CLI argument
+            for arg in args {
+                if arg.starts_with("conflux://") {
+                    log::info!("Forwarding deep link URL: {}", arg);
+                    // Emit to the frontend so it can handle the auth callback
+                    if let Some(win) = app.get_webview_window("main") {
+                        let _ = win.emit("deep-link://new-url", vec![arg.as_str()]);
+                    }
+                }
+            }
+        }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_log::Builder::default()
@@ -32,6 +50,36 @@ pub fn run() {
                 .expect("Failed to initialize Conflux Engine");
 
             log::info!("Conflux Engine initialized at {:?}", db_path);
+
+            // Register conflux:// protocol on Linux
+            #[cfg(target_os = "linux")]
+            {
+                let app_id = "conflux-home";
+                let exe_path = std::env::current_exe().unwrap_or_default();
+                let desktop_dir = std::path::PathBuf::from(
+                    std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string())
+                ).join(".local/share/applications");
+                let _ = std::fs::create_dir_all(&desktop_dir);
+                let desktop_file = desktop_dir.join(format!("{}.desktop", app_id));
+                let desktop_content = format!(
+                    "[Desktop Entry]\n\
+                     Type=Application\n\
+                     Name=Conflux Home\n\
+                     Exec={} %u\n\
+                     MimeType=x-scheme-handler/conflux;\n\
+                     NoDisplay=true\n",
+                    exe_path.display()
+                );
+                let _ = std::fs::write(&desktop_file, desktop_content);
+                let _ = std::process::Command::new("xdg-mime")
+                    .args(["default", &format!("{}.desktop", app_id), "x-scheme-handler/conflux"])
+                    .output();
+                let _ = std::process::Command::new("update-desktop-database")
+                    .arg(&desktop_dir)
+                    .output();
+                log::info!("Registered conflux:// protocol handler");
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -342,6 +390,17 @@ pub fn run() {
             commands::voice_list_devices,
             commands::voice_get_config,
             commands::voice_set_config,
+            // Cloud — Supabase Credit & Usage System
+            commands::get_credit_balance,
+            commands::get_usage_history,
+            commands::get_usage_stats,
+            commands::purchase_credits,
+            // Stripe — Subscription Management
+            stripe::stripe_create_checkout_session,
+            stripe::stripe_create_credit_pack_session,
+            stripe::stripe_create_portal_session,
+            stripe::stripe_get_subscription,
+            stripe::stripe_get_prices,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
