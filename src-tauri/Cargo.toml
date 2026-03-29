@@ -18,6 +18,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.5.6", features = [] }
 
 [dependencies]
+dotenvy = "0.15"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
@@ -44,6 +45,8 @@ urlencoding = "2"                                           # URL encoding for s
 base64 = "0.22"                                             # Base64 encoding for Gmail
 open = "5"                                                  # Open URLs in browser
 tauri-plugin-notification = "2"
+tauri-plugin-deep-link = "2"
+tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"                              # Auto-update from GitHub Releases
 lettre = { version = "0.11", features = ["smtp-transport", "builder", "hostname", "rustls-tls"], default-features = false }  # Email sending (SMTP, rustls)
 

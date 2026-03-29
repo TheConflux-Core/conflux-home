@@ -11,6 +11,8 @@ import CronManager from './settings/CronManager';
 import TaskView from './settings/TaskView';
 import WebhookManager from './settings/WebhookManager';
 import SkillsBrowser from './settings/SkillsBrowser';
+import BillingSection from './settings/BillingSection';
+import UsageSection from './settings/UsageSection';
 
 // ── Constants ──
 
@@ -419,6 +421,8 @@ export default function Settings() {
       <ProviderSettings />
       <GoogleSettings />
       <AppearanceSection />
+      <BillingSection />
+      <UsageSection />
       <NotificationSettings />
       <EmailSettings />
       <div className="settings-section">

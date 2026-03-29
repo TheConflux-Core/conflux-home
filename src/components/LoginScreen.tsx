@@ -1,7 +1,29 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link'
 
 interface LoginScreenProps {
   onAuthSuccess: () => void
+}
+
+/** Parse a conflux://auth/callback URL into tokens.
+ *  Format: conflux://auth/callback#access_token=xxx&refresh_token=yyy
+ *  Also handles: conflux://auth/callback?access_token=xxx&refresh_token=yyy  */
+function parseAuthTokens(url: string): { access_token: string; refresh_token: string } | null {
+  try {
+    const hashIdx = url.indexOf('#')
+    const queryIdx = url.indexOf('?')
+    const sepIdx = hashIdx !== -1 ? hashIdx : queryIdx
+    if (sepIdx === -1) return null
+
+    const fragment = url.slice(sepIdx + 1)
+    const params = new URLSearchParams(fragment)
+    const access_token = params.get('access_token')
+    const refresh_token = params.get('refresh_token')
+    if (!access_token || !refresh_token) return null
+    return { access_token, refresh_token }
+  } catch {
+    return null
+  }
 }
 
 export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
@@ -9,9 +31,59 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const processedUrls = useRef<Set<string>>(new Set())
 
-  // We need the signInWithEmail from useAuth — but LoginScreen doesn't own the hook.
-  // Instead we import supabase directly for this one-off call.
+  /** Handle a deep link URL: extract tokens and set the Supabase session. */
+  const handleDeepLink = useCallback(async (url: string) => {
+    if (!url.includes('conflux://')) return
+    if (processedUrls.current.has(url)) return
+    processedUrls.current.add(url)
+
+    const tokens = parseAuthTokens(url)
+    if (!tokens) return
+
+    try {
+      const { supabase } = await import('../lib/supabase')
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+      })
+      if (sessionError) {
+        console.error('Deep link auth error:', sessionError.message)
+        setError(sessionError.message)
+      }
+      // onAuthStateChange in useAuth will trigger onAuthSuccess automatically
+    } catch (err: any) {
+      console.error('Deep link session error:', err)
+      setError(err?.message ?? 'Failed to complete sign-in.')
+    }
+  }, [])
+
+  // ── Listen for deep link URLs ──
+  // 1. onOpenUrl — works on macOS, iOS, Android (emitted when app is already running).
+  //    On Windows/Linux with single-instance plugin, second instances forward via this event.
+  useEffect(() => {
+    const unlistenPromise = onOpenUrl((urls) => {
+      if (urls && urls.length > 0) {
+        handleDeepLink(urls[0])
+      }
+    })
+    return () => { unlistenPromise.then(fn => fn()) }
+  }, [handleDeepLink])
+
+  // 2. getCurrent — checks if the app was LAUNCHED by a deep link (all platforms).
+  //    On Windows/Linux, the OS passes the URL as a CLI argument when spawning.
+  useEffect(() => {
+    getCurrent().then((urls) => {
+      if (urls && urls.length > 0) {
+        handleDeepLink(urls[0])
+      }
+    }).catch((err) => {
+      // getCurrent may fail in web dev mode (no Tauri runtime)
+      console.debug('getCurrent deep link check:', err)
+    })
+  }, [handleDeepLink])
+
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -25,7 +97,12 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
     setLoading(true)
     try {
       const { supabase } = await import('../lib/supabase')
-      const { error: authError } = await supabase.auth.signInWithOtp({ email: trimmed })
+      const { error: authError } = await supabase.auth.signInWithOtp({
+        email: trimmed,
+        options: {
+          emailRedirectTo: 'conflux://auth/callback',
+        },
+      })
       if (authError) {
         setError(authError.message)
       } else {
@@ -39,9 +116,7 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
   }, [email])
 
   // Listen for auth state change while on login screen — once session appears, call onAuthSuccess
-  // We do a lightweight poll via supabase.auth.onAuthStateChange
   if (typeof window !== 'undefined') {
-    // Register once globally — the listener is idempotent across renders
     const w = window as any
     if (!w.__confluxAuthListener) {
       w.__confluxAuthListener = true

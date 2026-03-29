@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
 import { Agent, View } from './types';
 import TopBar from './components/TopBar';
 import Desktop from './components/Desktop';
@@ -42,6 +43,9 @@ import { useEngine } from './hooks/useEngine';
 import { useToast } from './hooks/useToast';
 import { useFamily } from './hooks/useFamily';
 import { useAuth } from './hooks/useAuth';
+import { useSubscription } from './hooks/useSubscription';
+import FeatureGate from './components/FeatureGate';
+import { AuthProvider } from './contexts/AuthContext';
 import { useStoryGames, useStoryGame, useStorySeeds } from './hooks/useStoryGame';
 import { useLearningProgress, useLearningGoals } from './hooks/useLearning';
 import { initTheme, getSavedWallpaper } from './lib/theme';
@@ -96,6 +100,48 @@ export default function App() {
   // ── Supabase Auth ──
   const { user, loading: authLoading, signInWithEmail } = useAuth();
   const authenticated = !!user;
+  const subscription = useSubscription();
+
+  // Global deep link handler for billing redirects
+  useEffect(() => {
+    console.log('[DeepLink] Registering billing deep link handlers');
+
+    // 1. Tauri deep-link plugin
+    const unlistenPromise = onOpenUrl((urls) => {
+      console.log('[DeepLink] onOpenUrl fired:', urls);
+      const url = urls?.[0] ?? '';
+      if (url.includes('billing/success')) {
+        console.log('[DeepLink] Billing success — refreshing subscription');
+        subscription.refresh();
+      }
+    });
+
+    // 2. getCurrent — app launched by deep link
+    getCurrent().then((urls) => {
+      console.log('[DeepLink] getCurrent:', urls);
+      const url = urls?.[0] ?? '';
+      if (url.includes('billing/success')) {
+        console.log('[DeepLink] Billing success (getCurrent) — refreshing subscription');
+        subscription.refresh();
+      }
+    }).catch((e) => console.log('[DeepLink] getCurrent error:', e));
+
+    // 3. Raw Tauri event — single-instance plugin forwarding
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen<string[]>('deep-link://new-url', (event) => {
+        console.log('[DeepLink] Raw event:', event.payload);
+        const url = event.payload?.[0] ?? '';
+        if (url.includes('billing/success')) {
+          console.log('[DeepLink] Billing success (raw event) — refreshing subscription');
+          subscription.refresh();
+        }
+      }).then(fn => {
+        // Store unlisten for cleanup (we'll just let it live for now)
+      }).catch(e => console.log('[DeepLink] listen error:', e));
+    });
+
+    return () => { unlistenPromise.then(fn => fn()) };
+  }, [subscription.refresh]);
 
   // Initialize theme system once on mount
   useEffect(() => {
@@ -256,7 +302,7 @@ const [activeSnake, setActiveSnake] = useState(false);
     if (!sessionId) {
       sessionId = await invoke<string>('engine_create_session', {
         agentId: selectedAgent.id,
-        userId: 'default',
+        userId: user!.id,
         title: null,
       });
       setVoiceSessionId(sessionId);
@@ -493,6 +539,7 @@ const [activeSnake, setActiveSnake] = useState(false);
   }
 
   return (
+    <AuthProvider>
     <div className="desktop-shell">
       <TopBar
         selectedAgent={selectedAgent}
@@ -711,5 +758,6 @@ const [activeSnake, setActiveSnake] = useState(false);
       {/* Toast notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
+    </AuthProvider>
   );
 }
