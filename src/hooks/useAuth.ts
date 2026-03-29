@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
+import { invoke } from '@tauri-apps/api/core'
 import { supabase } from '../lib/supabase'
 import { trackEvent, registerDevice } from '../lib/telemetry'
 
 const APP_VERSION = import.meta.env.VITE_APP_VERSION ?? '0.1.0'
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? ''
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? ''
 
 function getOsInfo(): string {
   const ua = navigator.userAgent
@@ -49,6 +52,16 @@ export function useAuth(): UseAuthReturn {
 
     return () => subscription.unsubscribe()
   }, [])
+
+  // Pass Supabase credentials to Rust backend when session changes
+  useEffect(() => {
+    if (!session?.access_token) return
+    invoke('set_supabase_session', {
+      supabaseUrl: SUPABASE_URL,
+      supabaseAnonKey: SUPABASE_ANON_KEY,
+      accessToken: session.access_token,
+    }).catch((err) => console.warn('Failed to sync Supabase session to backend:', err))
+  }, [session?.access_token])
 
   // Fire telemetry on confirmed session
   useEffect(() => {

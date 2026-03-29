@@ -4928,3 +4928,19 @@ pub async fn get_usage_stats(user_id: String, days: Option<i32>) -> Result<engin
 pub async fn purchase_credits(user_id: String, pack: String) -> Result<String, String> {
     super::stripe::stripe_create_credit_pack_session(user_id, pack).await
 }
+
+/// Store Supabase session credentials in engine config for cloud API calls.
+/// Called by the frontend after login so the Rust backend can make authenticated Supabase requests.
+#[tauri::command]
+pub async fn set_supabase_session(
+    supabase_url: String,
+    supabase_anon_key: String,
+    access_token: String,
+) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let db = engine.db();
+    db.set_config("supabase_url", &supabase_url).map_err(|e| e.to_string())?;
+    db.set_config("supabase_anon_key", &supabase_anon_key).map_err(|e| e.to_string())?;
+    db.set_config("supabase_auth_token", &access_token).map_err(|e| e.to_string())?;
+    Ok(())
+}

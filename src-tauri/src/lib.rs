@@ -395,6 +395,7 @@ pub fn run() {
             commands::get_usage_history,
             commands::get_usage_stats,
             commands::purchase_credits,
+            commands::set_supabase_session,
             // Stripe — Subscription Management
             stripe::stripe_create_checkout_session,
             stripe::stripe_create_credit_pack_session,
