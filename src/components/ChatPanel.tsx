@@ -4,6 +4,8 @@ import Avatar from './Avatar';
 import SessionSidebar from './SessionSidebar';
 import { Agent } from '../types';
 import { useEngineChat } from '../hooks/useEngineChat';
+import { useCloudChat } from '../hooks/useCloudChat';
+import { useAuth } from '../hooks/useAuth';
 import { MicButton } from './voice';
 
 // Configure marked for safe rendering
@@ -35,10 +37,31 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
   const [input, setInput] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [cloudMode, setCloudMode] = useState(true); // default to cloud
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const { messages, sendMessage, streaming, thinking, error, remainingCalls, isQuotaExceeded, sessionId, loadSession } = useEngineChat(agent?.id ?? null);
+  // Auth for cloud mode
+  const { session } = useAuth();
+  const getToken = useCallback(async () => session?.access_token ?? null, [session?.access_token]);
+
+  // Engine chat (local Rust backend)
+  const engineChat = useEngineChat(agent?.id ?? null);
+
+  // Cloud chat (Conflux Router Edge Function)
+  const cloudChat = useCloudChat({
+    userId: session?.user?.id ?? '',
+    agentId: agent?.id ?? null,
+    model: 'gpt-4o-mini',
+    getToken,
+  });
+
+  // Use cloud mode when authenticated, engine otherwise
+  const useCloud = cloudMode && !!session;
+  const { messages, sendMessage, streaming, thinking, error, remainingCalls, isQuotaExceeded } = useCloud ? cloudChat : engineChat;
+  const credits = useCloud ? cloudChat.credits : engineChat.remainingCalls;
+  const sessionId = useCloud ? null : engineChat.sessionId;
+  const loadSession = useCloud ? async () => {} : engineChat.loadSession;
 
   // Reset input when agent changes
   useEffect(() => {
@@ -211,6 +234,26 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
         >
           {isExpanded ? '⊟' : '⛶'}
         </button>
+        {/* Cloud/Engine toggle */}
+        {session && (
+          <button
+            onClick={() => setCloudMode(!cloudMode)}
+            style={{
+              fontSize: 10,
+              padding: '3px 8px',
+              borderRadius: 12,
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+              background: cloudMode ? 'rgba(100, 150, 255, 0.15)' : 'rgba(255, 255, 255, 0.08)',
+              color: cloudMode ? '#7aa2f7' : 'var(--text-muted)',
+            }}
+            title={cloudMode ? 'Using Conflux Router (cloud)' : 'Using local engine'}
+          >
+            {cloudMode ? '☁️ Cloud' : '⚙️ Local'}
+          </button>
+        )}
         {/* Quota badge */}
         <div style={{
           fontSize: 11,
@@ -231,7 +274,9 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
         }}>
           {isQuotaExceeded
             ? '🔒 Limit reached'
-            : `${remainingCalls} free left`}
+            : useCloud
+              ? `⚡ ${credits.toLocaleString()} credits`
+              : `${remainingCalls} free left`}
         </div>
         <button className="chat-panel-close" onClick={onClose} aria-label="Close chat">
           ✕
