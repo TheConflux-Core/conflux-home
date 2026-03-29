@@ -4,7 +4,11 @@ import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
 import { Agent, View } from './types';
 import TopBar from './components/TopBar';
 import Desktop from './components/Desktop';
+import DesktopV2 from './components/DesktopV2';
+import './styles-quadrants.css';
 import ConfluxBar from './components/ConfluxBar';
+import ConfluxBarV2 from './components/ConfluxBarV2';
+import './styles-conflux-bar-v2.css';
 import ChatPanel from './components/ChatPanel';
 import Marketplace from './components/Marketplace';
 import AgentDetail from './components/AgentDetail';
@@ -91,6 +95,7 @@ export default function App() {
   const [expandedChat, setExpandedChat] = useState(false);
   const [voiceChatOpen, setVoiceChatOpen] = useState(false);
   const [wallpaper, setWallpaper] = useState(() => getDefaultWallpaper());
+  const [useBarV2, setUseBarV2] = useState(true);
   const [liveAgents, setLiveAgents] = useState(0);
   const [engineHealthy, setEngineHealthy] = useState(true);
   const [loaded, setLoaded] = useState(false);
@@ -146,6 +151,17 @@ export default function App() {
   // Initialize theme system once on mount
   useEffect(() => {
     initTheme();
+  }, []);
+
+  // Expose bar v2 toggle for console testing
+  useEffect(() => {
+    (window as any).__toggleBarV2 = () => setUseBarV2(v => !v);
+  }, []);
+
+  // Quadrants desktop toggle
+  const [useQuadrants, setUseQuadrants] = useState(true);
+  useEffect(() => {
+    (window as any).__toggleQuadrants = () => setUseQuadrants(v => !v);
   }, []);
 
   // Fetch live dashboard stats
@@ -545,7 +561,8 @@ const [activeSnake, setActiveSnake] = useState(false);
         selectedAgent={selectedAgent}
         engineConnected={connected}
         controlRoom={controlRoom}
-        onNavigate={(v) => setView(v as View)}
+        currentView={view}
+        onNavigate={(v) => handleNavigate(v as View)}
       />
 
       {controlRoom ? (
@@ -562,11 +579,19 @@ const [activeSnake, setActiveSnake] = useState(false);
           }}
         />
       ) : (
-        <Desktop
-          agents={selectedAgentIds.length > 0 ? filteredAgents : agents}
-          wallpaper={wallpaper || undefined}
-          onNavigate={(v) => setImmersiveView(v)}
-        />
+        useQuadrants ? (
+          <DesktopV2
+            agents={selectedAgentIds.length > 0 ? filteredAgents : agents}
+            wallpaper={wallpaper || undefined}
+            onNavigate={(v) => setImmersiveView(v)}
+          />
+        ) : (
+          <Desktop
+            agents={selectedAgentIds.length > 0 ? filteredAgents : agents}
+            wallpaper={wallpaper || undefined}
+            onNavigate={(v) => setImmersiveView(v)}
+          />
+        )
       )}
 
       {/* Family Switcher — moved to TopBar popup (removed from desktop) */}
@@ -743,12 +768,21 @@ const [activeSnake, setActiveSnake] = useState(false);
         />
       )}
 
-      <ConfluxBar
-        currentView={view}
-        agents={agents}
-        pinnedApps={['chat', 'kitchen', 'budget', 'settings']}
-        onNavigate={handleNavigate}
-      />
+      {useBarV2 ? (
+        <ConfluxBarV2
+          currentView={view}
+          agents={agents}
+          pinnedApps={['chat', 'kitchen', 'budget', 'settings']}
+          onNavigate={handleNavigate}
+        />
+      ) : (
+        <ConfluxBar
+          currentView={view}
+          agents={agents}
+          pinnedApps={['chat', 'kitchen', 'budget', 'settings']}
+          onNavigate={handleNavigate}
+        />
+      )}
 
       {/* Agent Detail Modal — listens for conflux:agent-detail events */}
       <AgentDetail />

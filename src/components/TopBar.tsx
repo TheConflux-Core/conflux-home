@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { Agent } from '../types';
 import { Theme, getEffectiveTheme, applyTheme, saveTheme } from '../lib/theme';
 import ConnectivityWidget from './ConnectivityWidget';
-import { VoiceOverlay } from './voice';
 import { useCredits } from '../hooks/useCredits';
 
 interface TopBarProps {
   selectedAgent: Agent | null;
   engineConnected: boolean;
   controlRoom?: boolean;
+  currentView?: string;
   onNavigate?: (view: string) => void;
 }
 
@@ -34,13 +34,12 @@ function cycleTheme(current: Theme): Theme {
   return 'light';
 }
 
-export default function TopBar({ selectedAgent, engineConnected, controlRoom, onNavigate }: TopBarProps) {
+export default function TopBar({ selectedAgent, engineConnected, controlRoom, currentView, onNavigate }: TopBarProps) {
   const [clock, setClock] = useState('');
   const [themePref, setThemePref] = useState<Theme>(
     () => (localStorage.getItem('conflux-theme') as Theme) || 'system'
   );
   const [showConnectivity, setShowConnectivity] = useState(false);
-  const [showVoiceOverlay, setShowVoiceOverlay] = useState(false);
   const { balance, loading: creditsLoading } = useCredits();
 
   useEffect(() => {
@@ -98,7 +97,19 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom, on
     <div className="topbar">
       <div className="topbar-left">
         <span className="topbar-logo">⚡</span>
-        <span className="topbar-title">Conflux Home <span style={{ fontSize: 10, opacity: 0.5, marginLeft: 4 }}>v{import.meta.env.VITE_APP_VERSION || '?'}</span></span>
+        <span className="topbar-title">
+          Conflux Home{' '}
+          <span
+            style={{ fontSize: 10, opacity: 0.5, marginLeft: 4, cursor: 'default', userSelect: 'none' }}
+            onClick={() => {
+              const event = new CustomEvent('conflux:toggle-control-room');
+              window.dispatchEvent(event);
+            }}
+            title=""
+          >
+            v{import.meta.env.VITE_APP_VERSION || '?'}
+          </span>
+        </span>
       </div>
 
       <div className="topbar-center">
@@ -123,20 +134,6 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom, on
             }
           </span>
         )}
-        <span className="topbar-clock">{clock}</span>
-        <button
-          className="mic-button mic-button-topbar"
-          onClick={() => setShowVoiceOverlay(true)}
-          title="Voice input"
-          style={{ width: 32, height: 32 }}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '100%', height: '100%' }}>
-            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-            <line x1="12" y1="19" x2="12" y2="23" />
-            <line x1="8" y1="23" x2="16" y2="23" />
-          </svg>
-        </button>
         <div className="topbar-status" onClick={() => setShowConnectivity(!showConnectivity)} style={{ cursor: 'pointer' }}>
           <div className={`topbar-status-dot ${engineConnected ? '' : 'disconnected'}`} />
         </div>
@@ -150,6 +147,14 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom, on
           </div>
         )}
         <button
+          className="topbar-google-btn"
+          onClick={() => setShowConnectivity(!showConnectivity)}
+          title="Google & Connectivity"
+          style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', padding: '4px 6px', opacity: 0.6 }}
+        >
+          🔗
+        </button>
+        <button
           className="topbar-theme-btn"
           onClick={handleToggleTheme}
           title={`Theme: ${getThemeLabel(themePref)} (click to cycle)`}
@@ -158,38 +163,20 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom, on
         </button>
         <button
           className="topbar-settings-btn"
-          onClick={() => onNavigate?.('settings')}
-          title="Settings"
+          onClick={() => {
+            if (currentView === 'settings') {
+              onNavigate?.('dashboard');
+            } else {
+              onNavigate?.('settings');
+            }
+          }}
+          title={currentView === 'settings' ? 'Close Settings' : 'Settings'}
         >
           ⚙️
         </button>
-        <button
-          className={`topbar-control-room-btn${controlRoom ? ' active' : ''}`}
-          onClick={() => {
-            const event = new CustomEvent('conflux:toggle-control-room');
-            window.dispatchEvent(event);
-          }}
-          title="Toggle Control Room (dev)"
-        >
-          🌐
-        </button>
-        <button
-          className="topbar-google-btn"
-          onClick={() => setShowConnectivity(!showConnectivity)}
-          title="Google & Connectivity"
-          style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', padding: '4px 8px' }}
-        >
-          🔗
-        </button>
+        <span className="topbar-clock">{clock}</span>
       </div>
-      <VoiceOverlay
-        active={showVoiceOverlay}
-        onTranscription={(text) => {
-          // Dispatch transcription event so other components can listen
-          window.dispatchEvent(new CustomEvent('conflux:voice-transcription', { detail: text }));
-        }}
-        onDone={() => setShowVoiceOverlay(false)}
-      />
+      {/* VoiceOverlay removed — mic button removed, new voice method coming soon */}
     </div>
   );
 }
