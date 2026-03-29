@@ -557,17 +557,20 @@
 
 .quadrant-expanded-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 20px;
   padding: 28px;
+  max-width: 1280px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
   overflow-y: auto;
   max-height: calc(100vh - 120px);
-  box-sizing: border-box;
 }
 
 /* Expanded widget cards — bigger, more impactful */
 .quadrant-expanded-grid .desktop-widget {
-  min-height: 180px;
+  min-height: 200px;
   border-radius: 20px;
   animation: widget-enter 0.3s ease-out both;
   transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, border-color 0.25s ease;
@@ -598,18 +601,23 @@
 }
 
 /* Bigger icon and text in expanded widgets */
+.quadrant-expanded-grid .widget-body {
+  padding: 24px 20px 20px;
+}
+
 .quadrant-expanded-grid .widget-icon {
-  font-size: 44px;
+  font-size: 48px;
 }
 
 .quadrant-expanded-grid .widget-label {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 800;
 }
 
 .quadrant-expanded-grid .widget-preview {
   font-size: 14px;
   color: rgba(255, 255, 255, 0.45);
+  margin-top: 4px;
 }
 
 /* ══════════════════════════════════════

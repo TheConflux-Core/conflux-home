@@ -256,7 +256,7 @@ function ExpandedView({ category, onBack, onNavigate }: ExpandedViewProps) {
                 background: `linear-gradient(90deg, ${category.color}, ${category.color}44)`,
               }}
             />
-            <div className="widget-body" style={{ padding: '20px 18px 16px' }}>
+            <div className="widget-body">
               <span className="widget-icon">{app.icon}</span>
               <span className="widget-label">{app.label}</span>
               <span className="widget-preview">{app.preview}</span>
