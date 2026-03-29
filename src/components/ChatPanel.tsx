@@ -7,6 +7,7 @@ import { useEngineChat } from '../hooks/useEngineChat';
 import { useCloudChat } from '../hooks/useCloudChat';
 import { useAuth } from '../hooks/useAuth';
 import { MicButton } from './voice';
+import { ModelOptions, DEFAULT_MODEL, ModelOption } from '../data/models';
 
 // Configure marked for safe rendering
 marked.setOptions({
@@ -37,9 +38,11 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
   const [input, setInput] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [cloudMode, setCloudMode] = useState(true); // default to cloud
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<ModelOption>(DEFAULT_MODEL);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const agentDropdownRef = useRef<HTMLDivElement>(null);
+  const modelDropdownRef = useRef<HTMLDivElement>(null);
 
   // Auth for cloud mode
   const { session } = useAuth();
@@ -52,12 +55,12 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
   const cloudChat = useCloudChat({
     userId: session?.user?.id ?? '',
     agentId: agent?.id ?? null,
-    model: 'gpt-4o-mini',
+    model: selectedModel.id,
     getToken,
   });
 
-  // Use cloud mode when authenticated, engine otherwise
-  const useCloud = cloudMode && !!session;
+  // Unified: use cloud when authenticated, engine as fallback
+  const useCloud = !!session;
   const { messages, sendMessage, streaming, thinking, error, remainingCalls, isQuotaExceeded } = useCloud ? cloudChat : engineChat;
   const credits = useCloud ? cloudChat.credits : engineChat.remainingCalls;
   const sessionId = useCloud ? null : engineChat.sessionId;
@@ -95,17 +98,28 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
     return () => window.removeEventListener('keydown', handler);
   }, [isOpen, onClose]);
 
-  // Close dropdown on click outside
+  // Close dropdowns on click outside
   useEffect(() => {
-    if (!dropdownOpen) return;
     const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (dropdownOpen && agentDropdownRef.current && !agentDropdownRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);
+      }
+      if (modelDropdownOpen && modelDropdownRef.current && !modelDropdownRef.current.contains(e.target as Node)) {
+        setModelDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [dropdownOpen]);
+  }, [dropdownOpen, modelDropdownOpen]);
+
+  const getQualityIndicator = (quality: ModelOption['quality']) => {
+    switch (quality) {
+      case 'basic': return '🟢';
+      case 'good': return '🔵';
+      case 'excellent': return '🟣';
+      default: return '';
+    }
+  };
 
   if (!agent) {
     return (
@@ -167,7 +181,7 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
           showStatus={true}
         />
         {/* Agent name with dropdown */}
-        <div className="chat-panel-header-info" ref={dropdownRef} style={{ position: 'relative' }}>
+        <div className="chat-panel-header-info" ref={agentDropdownRef} style={{ position: 'relative' }}>
           <div
             className="chat-panel-header-name"
             onClick={() => agents.length > 1 && setDropdownOpen(!dropdownOpen)}
@@ -217,66 +231,47 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
         >
           🕐
         </button>
-        {/* Expand button */}
-        <button
-          onClick={onToggleExpand}
-          style={{
-            background: isExpanded ? 'var(--accent-primary)' : 'rgba(255,255,255,0.08)',
-            border: 'none',
-            borderRadius: 6,
-            padding: '4px 8px',
-            fontSize: 14,
-            cursor: 'pointer',
-            color: isExpanded ? '#000' : 'var(--text-muted)',
-            lineHeight: 1,
-          }}
-          title={isExpanded ? 'Minimize chat' : 'Expand chat'}
-        >
-          {isExpanded ? '⊟' : '⛶'}
-        </button>
-        {/* Cloud/Engine toggle */}
+        {/* Model Selector Dropdown — shown when authenticated */}
         {session && (
-          <button
-            onClick={() => setCloudMode(!cloudMode)}
-            style={{
-              fontSize: 10,
-              padding: '3px 8px',
-              borderRadius: 12,
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: 600,
-              whiteSpace: 'nowrap',
-              background: cloudMode ? 'rgba(100, 150, 255, 0.15)' : 'rgba(255, 255, 255, 0.08)',
-              color: cloudMode ? '#7aa2f7' : 'var(--text-muted)',
-            }}
-            title={cloudMode ? 'Using Conflux Router (cloud)' : 'Using local engine'}
-          >
-            {cloudMode ? '☁️ Cloud' : '⚙️ Local'}
-          </button>
+          <div className="chat-model-selector" ref={modelDropdownRef}>
+            <button
+              className="chat-model-selector-button"
+              onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
+              title={`Current model: ${selectedModel.name}`}
+            >
+              {getQualityIndicator(selectedModel.quality)} {selectedModel.name}
+              <span style={{ fontSize: 10, opacity: 0.6, transition: 'transform 0.15s', transform: modelDropdownOpen ? 'rotate(180deg)' : 'none' }}>▾</span>
+            </button>
+            {modelDropdownOpen && (
+              <div className="chat-model-dropdown">
+                {['free', 'pro', 'ultra'].map(tier => (
+                  <div key={tier}>
+                    <div className="chat-model-dropdown-header">
+                      {tier === 'free' ? 'Free' : tier === 'pro' ? 'Pro' : 'Ultra'}
+                    </div>
+                    {ModelOptions.filter(m => m.tier === tier).map(model => (
+                      <button
+                        key={model.id}
+                        className={`chat-model-dropdown-item ${model.id === selectedModel.id ? 'active' : ''}`}
+                        onClick={() => {
+                          setSelectedModel(model);
+                          setModelDropdownOpen(false);
+                        }}
+                      >
+                        {getQualityIndicator(model.quality)} {model.name} {model.isPaid && <span style={{ marginLeft: 'auto', opacity: 0.8 }}>💎</span>}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
-        {/* Quota badge */}
-        <div style={{
-          fontSize: 11,
-          padding: '3px 8px',
-          borderRadius: 12,
-          background: isQuotaExceeded
-            ? 'rgba(255, 68, 68, 0.15)'
-            : remainingCalls <= 10
-              ? 'rgba(255, 170, 0, 0.15)'
-              : 'rgba(100, 200, 100, 0.12)',
-          color: isQuotaExceeded
-            ? '#ff6666'
-            : remainingCalls <= 10
-              ? '#ffaa00'
-              : 'var(--accent-primary)',
-          fontWeight: 600,
-          whiteSpace: 'nowrap',
-        }}>
+        {/* Credits badge */}
+        <div className="chat-credits-badge">
           {isQuotaExceeded
             ? '🔒 Limit reached'
-            : useCloud
-              ? `⚡ ${credits.toLocaleString()} credits`
-              : `${remainingCalls} free left`}
+            : `⚡ ${credits.toLocaleString()}`}
         </div>
         <button className="chat-panel-close" onClick={onClose} aria-label="Close chat">
           ✕
@@ -371,7 +366,8 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
 
       {/* Input */}
       <div className="chat-panel-input-area">
-        <div className="input-with-mic">
+        {/* Top row: full width input + send */}
+        <div className="chat-input-row">
           <input
             className="chat-panel-input"
             placeholder={`Message ${agent.name}...`}
@@ -380,19 +376,34 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
             disabled={streaming}
           />
+          <button
+            className="chat-panel-send"
+            onClick={handleSend}
+            disabled={streaming || !input.trim()}
+          >
+            {streaming ? '···' : '↑'}
+          </button>
+        </div>
+        {/* Bottom bar: expand + mic + model info */}
+        <div className="chat-input-toolbar">
+          <button
+            className="chat-expand-btn"
+            onClick={onToggleExpand}
+            title={isExpanded ? 'Shrink' : 'Expand'}
+          >
+            {isExpanded ? '↙' : '↗'}
+          </button>
           <MicButton
             variant="inline"
             size="sm"
             onTranscription={(text) => setInput(prev => prev + text)}
           />
+          {session && (
+            <span className="chat-model-tag">
+              {getQualityIndicator(selectedModel.quality)} {selectedModel.name}
+            </span>
+          )}
         </div>
-        <button
-          className="chat-panel-send"
-          onClick={handleSend}
-          disabled={streaming || !input.trim()}
-        >
-          {streaming ? '...' : 'Send'}
-        </button>
       </div>
     </div>
   );
