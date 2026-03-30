@@ -132,6 +132,37 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
 
   return (
     <div style={styles.container}>
+      {/* Subtle radial glow behind the card */}
+      <div style={{
+        position: 'absolute',
+        width: 500,
+        height: 500,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(124, 58, 237, 0.08) 0%, transparent 70%)',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        pointerEvents: 'none',
+        zIndex: 0,
+      }} />
+      <style>{`
+        .login-input:focus {
+          border-color: rgba(124, 58, 237, 0.5) !important;
+          box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+        }
+        .login-button:hover:not(:disabled) {
+          opacity: 0.9;
+          transform: translateY(-1px);
+          box-shadow: 0 6px 24px rgba(124, 58, 237, 0.4);
+        }
+        .login-button:active:not(:disabled) {
+          transform: translateY(0);
+        }
+        .login-resend:hover {
+          background: rgba(255, 255, 255, 0.08) !important;
+          border-color: rgba(255, 255, 255, 0.2) !important;
+        }
+      `}</style>
       <div style={styles.card}>
         {/* Logo / Title */}
         <div style={styles.logoArea}>
@@ -149,6 +180,7 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
               onChange={(e) => { setEmail(e.target.value); setError(null) }}
               placeholder="you@example.com"
               style={styles.input}
+              className="login-input"
               autoFocus
               disabled={loading}
             />
@@ -156,6 +188,7 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
             <button
               type="submit"
               disabled={loading || !email.trim()}
+              className="login-button"
               style={{
                 ...styles.button,
                 opacity: loading || !email.trim() ? 0.5 : 1,
@@ -178,6 +211,7 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
             </p>
             <button
               onClick={() => { setSent(false); setError(null) }}
+              className="login-resend"
               style={styles.resendButton}
             >
               Use a different email
@@ -198,119 +232,144 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
 const styles: Record<string, React.CSSProperties> = {
   container: {
     display: 'flex',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: '100vh',
-    background: '#0a0a1a',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    padding: 20,
+    width: '100vw',
+    background: 'linear-gradient(160deg, #0a0a1a 0%, #0d0b24 40%, #110e2a 100%)',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif',
+    padding: 24,
+    boxSizing: 'border-box' as const,
+    position: 'relative',
+    overflow: 'hidden',
   },
   card: {
-    background: '#12122a',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 20,
-    padding: '48px 40px',
-    maxWidth: 420,
+    background: 'rgba(18, 18, 42, 0.75)',
+    backdropFilter: 'blur(24px)',
+    WebkitBackdropFilter: 'blur(24px)',
+    border: '1px solid rgba(139, 92, 246, 0.15)',
+    borderRadius: 24,
+    padding: '52px 44px',
+    maxWidth: 440,
     width: '100%',
     textAlign: 'center',
-    boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+    boxShadow: '0 24px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255,255,255,0.04) inset, 0 1px 0 rgba(255,255,255,0.06) inset',
+    position: 'relative',
+    zIndex: 1,
   },
   logoArea: {
-    marginBottom: 36,
+    marginBottom: 40,
   },
   logoEmoji: {
-    fontSize: 48,
-    marginBottom: 12,
+    fontSize: 52,
+    marginBottom: 16,
+    display: 'block',
+    filter: 'drop-shadow(0 4px 12px rgba(139, 92, 246, 0.3))',
   },
   title: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: 700,
     color: '#ffffff',
-    margin: '0 0 6px',
-    letterSpacing: '-0.5px',
+    margin: '0 0 8px',
+    letterSpacing: '-0.6px',
+    lineHeight: 1.2,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#8888aa',
+    fontSize: 15,
+    color: '#8b8baa',
     margin: 0,
+    fontWeight: 400,
+    letterSpacing: '0.2px',
   },
   form: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 14,
+    gap: 16,
     textAlign: 'left',
   },
   label: {
     fontSize: 13,
     fontWeight: 600,
-    color: '#aaaacc',
-    letterSpacing: '0.3px',
+    color: '#b0b0cc',
+    letterSpacing: '0.4px',
+    textTransform: 'uppercase' as const,
   },
   input: {
     width: '100%',
-    padding: '14px 16px',
-    borderRadius: 12,
+    padding: '16px 18px',
+    borderRadius: 14,
     border: '1px solid rgba(255,255,255,0.1)',
-    background: '#0d0d22',
+    background: 'rgba(13, 13, 34, 0.8)',
     color: '#ffffff',
     fontSize: 15,
     outline: 'none',
     boxSizing: 'border-box' as const,
-    transition: 'border-color 0.2s',
+    transition: 'border-color 0.25s, box-shadow 0.25s',
   },
   error: {
     color: '#ff6b6b',
     fontSize: 13,
     margin: 0,
+    padding: '8px 12px',
+    background: 'rgba(255, 107, 107, 0.08)',
+    borderRadius: 10,
+    border: '1px solid rgba(255, 107, 107, 0.15)',
   },
   button: {
-    padding: '14px 24px',
-    borderRadius: 12,
+    padding: '16px 24px',
+    borderRadius: 14,
     border: 'none',
-    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+    background: 'linear-gradient(135deg, #7C3AED, #8b5cf6, #6366f1)',
+    backgroundSize: '200% 200%',
     color: '#ffffff',
     fontSize: 15,
     fontWeight: 600,
     cursor: 'pointer',
     marginTop: 4,
-    transition: 'opacity 0.2s',
+    transition: 'opacity 0.25s, transform 0.15s, box-shadow 0.25s',
+    boxShadow: '0 4px 16px rgba(124, 58, 237, 0.3)',
+    letterSpacing: '0.2px',
   },
   spinner: {
     fontSize: 16,
   },
   checkEmail: {
     textAlign: 'center',
-    padding: '20px 0',
+    padding: '24px 0',
   },
   checkEmoji: {
-    fontSize: 48,
+    fontSize: 52,
     marginBottom: 16,
+    display: 'block',
   },
   checkTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 700,
     color: '#ffffff',
-    margin: '0 0 10px',
+    margin: '0 0 12px',
+    letterSpacing: '-0.3px',
   },
   checkText: {
     fontSize: 14,
     color: '#aaaacc',
-    lineHeight: 1.6,
-    margin: '0 0 20px',
+    lineHeight: 1.7,
+    margin: '0 0 24px',
   },
   resendButton: {
-    padding: '10px 20px',
-    borderRadius: 10,
+    padding: '12px 24px',
+    borderRadius: 12,
     border: '1px solid rgba(255,255,255,0.12)',
-    background: 'transparent',
-    color: '#8888aa',
+    background: 'rgba(255, 255, 255, 0.04)',
+    color: '#9999bb',
     fontSize: 13,
     cursor: 'pointer',
+    transition: 'background 0.2s, border-color 0.2s',
   },
   footer: {
     fontSize: 12,
     color: '#555577',
-    marginTop: 28,
-    lineHeight: 1.5,
+    marginTop: 32,
+    lineHeight: 1.6,
   },
 }
