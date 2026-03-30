@@ -21,6 +21,7 @@ export interface AgentMessage {
   content: string;
   timestamp: string;
   type: 'user' | 'agent' | 'system';
+  model?: string; // Routed model name (set after response completes)
 }
 
 export interface AgentTemplate {
