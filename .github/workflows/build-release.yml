@@ -123,10 +123,10 @@ jobs:
         run: npm ci
 
       - name: Download Whisper model
+        shell: bash
         run: |
           mkdir -p src-tauri/models
-          curl -L -o src-tauri/models/ggml-base.bin \
-            https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
+          curl -L -o src-tauri/models/ggml-base.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
 
       - name: Build Tauri app (signed)
         env:
