@@ -273,7 +273,7 @@ jobs:
 
           DEB_SIG=$(cat /tmp/sigs/*.deb.sig 2>/dev/null | head -1 || echo "")
           APPIMAGE_SIG=$(cat /tmp/sigs/*.AppImage.sig 2>/dev/null | head -1 || echo "")
-          MSI_SIG=$(cat /tmp/sigs/*.msi.sig 2>/dev/null | head -1 || echo "")
+          NSIS_SIG=$(cat /tmp/sigs/*.exe.sig 2>/dev/null | head -1 || echo "")
 
           # macOS updater artifacts: .app.tar.gz.sig (one per arch)
           # Try to get x64 and aarch64 sigs separately by matching naming convention
@@ -301,8 +301,8 @@ jobs:
                 "url": "https://github.com/${REPO}/releases/download/${TAG}/Conflux.Home_amd64.deb"
               },
               "windows-x86_64": {
-                "signature": "${MSI_SIG}",
-                "url": "https://github.com/${REPO}/releases/download/${TAG}/Conflux.Home_x64.msi"
+                "signature": "${NSIS_SIG}",
+                "url": "https://github.com/${REPO}/releases/download/${TAG}/Conflux.Home_x64-setup.exe"
               },
               "darwin-x86_64": {
                 "signature": "${MAC_X64_SIG}",
