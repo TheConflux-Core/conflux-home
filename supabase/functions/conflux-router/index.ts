@@ -1183,6 +1183,263 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
     }
 
+    // ============================================================
+    // ADMIN ENDPOINTS — require JWT auth + admin role
+    // ============================================================
+
+    async function requireAdmin(req: Request): Promise<{ userId: string } | Response> {
+      const auth = await authenticate(req);
+      if (!auth || auth.isApiKey) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      // Check admin flag in user metadata or profiles table
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("is_admin")
+        .eq("user_id", auth.userId)
+        .single();
+
+      if (!profile?.is_admin) {
+        return new Response(JSON.stringify({ error: "Forbidden — admin only" }), {
+          status: 403,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      return { userId: auth.userId };
+    }
+
+    // --- GET /v1/admin/routing ---
+    if (req.method === "GET" && path.endsWith("/v1/admin/routing")) {
+      const gate = await requireAdmin(req);
+      if (gate instanceof Response) return gate;
+
+      const { data, error } = await supabase
+        .from("routing_config")
+        .select("*")
+        .order("task_type");
+
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ data: data ?? [] }), {
+        status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    // --- PUT /v1/admin/routing ---
+    if (req.method === "PUT" && path.endsWith("/v1/admin/routing")) {
+      const gate = await requireAdmin(req);
+      if (gate instanceof Response) return gate;
+
+      const body = await req.json().catch(() => ({}));
+      const { task_type, tier, preferred_models, min_tool_reliability, description } = body;
+
+      if (!task_type) {
+        return new Response(JSON.stringify({ error: "task_type is required" }), {
+          status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+
+      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (tier) updates.tier = tier;
+      if (preferred_models) updates.preferred_models = preferred_models;
+      if (min_tool_reliability) updates.min_tool_reliability = min_tool_reliability;
+      if (description) updates.description = description;
+
+      const { data, error } = await supabase
+        .from("routing_config")
+        .update(updates)
+        .eq("task_type", task_type)
+        .select();
+
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+
+      // Clear router cache so changes take effect immediately
+      modelRoutesCache.clear();
+      cacheTime = 0;
+
+      return new Response(JSON.stringify({ data: data?.[0] ?? null }), {
+        status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    // --- GET /v1/admin/models ---
+    if (req.method === "GET" && path.endsWith("/v1/admin/models")) {
+      const gate = await requireAdmin(req);
+      if (gate instanceof Response) return gate;
+
+      const { data, error } = await supabase
+        .from("model_routes")
+        .select("model_alias, provider, tier, tool_calling, enabled, credit_cost_per_1k_in, credit_cost_per_1k_out")
+        .order("tier")
+        .order("model_alias");
+
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ data: data ?? [], count: data?.length ?? 0 }), {
+        status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    // --- PUT /v1/admin/models/:alias ---
+    if (req.method === "PUT" && path.includes("/v1/admin/models/")) {
+      const gate = await requireAdmin(req);
+      if (gate instanceof Response) return gate;
+
+      const alias = path.split("/v1/admin/models/")[1]?.split("/")[0];
+      if (!alias) {
+        return new Response(JSON.stringify({ error: "Model alias required in URL" }), {
+          status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+
+      const body = await req.json().catch(() => ({}));
+      const updates: Record<string, unknown> = {};
+      if (body.tier !== undefined) updates.tier = body.tier;
+      if (body.enabled !== undefined) updates.enabled = body.enabled;
+      if (body.tool_calling !== undefined) updates.tool_calling = body.tool_calling;
+      if (body.credit_cost_per_1k_in !== undefined) updates.credit_cost_per_1k_in = body.credit_cost_per_1k_in;
+      if (body.credit_cost_per_1k_out !== undefined) updates.credit_cost_per_1k_out = body.credit_cost_per_1k_out;
+
+      if (Object.keys(updates).length === 0) {
+        return new Response(JSON.stringify({ error: "No valid fields to update" }), {
+          status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data, error } = await supabase
+        .from("model_routes")
+        .update(updates)
+        .eq("model_alias", alias)
+        .select();
+
+      if (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+
+      // Clear router cache
+      modelRoutesCache.clear();
+      cacheTime = 0;
+
+      return new Response(JSON.stringify({ data: data?.[0] ?? null }), {
+        status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    // --- GET /v1/admin/margin — Margin dashboard ---
+    if (req.method === "GET" && path.endsWith("/v1/admin/margin")) {
+      const gate = await requireAdmin(req);
+      if (gate instanceof Response) return gate;
+
+      const urlObj = new URL(req.url);
+      const days = parseInt(urlObj.searchParams.get("days") ?? "30");
+      const since = new Date(Date.now() - days * 86400000).toISOString();
+
+      // API usage stats
+      const { data: apiUsage } = await supabase
+        .from("api_usage_log")
+        .select("model_alias, provider, credits_charged, provider_cost_usd, latency_ms, status")
+        .gte("created_at", since);
+
+      // App usage stats
+      const { data: appUsage } = await supabase
+        .from("usage_log")
+        .select("model_alias, credits_charged, provider_cost_usd")
+        .gte("created_at", since);
+
+      // Revenue from API credit transactions (purchases)
+      const { data: apiRevenue } = await supabase
+        .from("api_credit_transactions")
+        .select("amount, created_at")
+        .eq("type", "purchase")
+        .gte("created_at", since);
+
+      // Aggregate
+      const totalApiRequests = apiUsage?.length ?? 0;
+      const totalAppRequests = appUsage?.length ?? 0;
+      const totalProviderCost = [
+        ...(apiUsage ?? []),
+        ...(appUsage ?? []),
+      ].reduce((sum, r) => sum + (Number(r.provider_cost_usd) || 0), 0);
+      const totalCreditsCharged = [
+        ...(apiUsage ?? []),
+        ...(appUsage ?? []),
+      ].reduce((sum, r) => sum + (Number(r.credits_charged) || 0), 0);
+      const totalApiRevenue = (apiRevenue ?? []).reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+
+      // Per-model breakdown
+      const modelStats: Record<string, { requests: number; cost: number; credits: number }> = {};
+      for (const row of [...(apiUsage ?? []), ...(appUsage ?? [])]) {
+        const alias = row.model_alias ?? "unknown";
+        if (!modelStats[alias]) modelStats[alias] = { requests: 0, cost: 0, credits: 0 };
+        modelStats[alias].requests++;
+        modelStats[alias].cost += Number(row.provider_cost_usd) || 0;
+        modelStats[alias].credits += Number(row.credits_charged) || 0;
+      }
+
+      // Avg latency by model
+      const latencyStats: Record<string, { total: number; count: number }> = {};
+      for (const row of apiUsage ?? []) {
+        const alias = row.model_alias ?? "unknown";
+        if (!latencyStats[alias]) latencyStats[alias] = { total: 0, count: 0 };
+        latencyStats[alias].total += Number(row.latency_ms) || 0;
+        latencyStats[alias].count++;
+      }
+
+      const avgLatency: Record<string, number> = {};
+      for (const [alias, s] of Object.entries(latencyStats)) {
+        avgLatency[alias] = s.count > 0 ? Math.round(s.total / s.count) : 0;
+      }
+
+      return new Response(JSON.stringify({
+        period_days: days,
+        summary: {
+          total_api_requests: totalApiRequests,
+          total_app_requests: totalAppRequests,
+          total_requests: totalApiRequests + totalAppRequests,
+          total_provider_cost_usd: Number(totalProviderCost.toFixed(6)),
+          total_credits_charged: totalCreditsCharged,
+          total_api_revenue_credits: totalApiRevenue,
+          // Rough USD estimate: credits at ~$0.002 avg
+          estimated_revenue_usd: Number((totalApiRevenue * 0.002).toFixed(2)),
+          margin_usd: Number((totalApiRevenue * 0.002 - totalProviderCost).toFixed(4)),
+          margin_pct: totalApiRevenue > 0
+            ? Number(((1 - totalProviderCost / (totalApiRevenue * 0.002)) * 100).toFixed(1))
+            : null,
+        },
+        per_model: Object.entries(modelStats)
+          .sort((a, b) => b[1].cost - a[1].cost)
+          .map(([alias, s]) => ({
+            model: alias,
+            requests: s.requests,
+            provider_cost_usd: Number(s.cost.toFixed(6)),
+            credits_charged: s.credits,
+            avg_latency_ms: avgLatency[alias] ?? null,
+          })),
+        errors: {
+          api_errors: (apiUsage ?? []).filter(r => r.status === "error").length,
+          rate_limited: (apiUsage ?? []).filter(r => r.status === "rate_limited").length,
+          insufficient_credits: (apiUsage ?? []).filter(r => r.status === "insufficient_credits").length,
+        },
+      }), {
+        status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
     // --- 404 ---
     return new Response(JSON.stringify({ error: "Not found" }), {
       status: 404,
