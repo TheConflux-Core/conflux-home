@@ -1440,6 +1440,309 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
     }
 
+    // --- GET /v1/admin/costs/daily — Daily cost aggregation ---
+    if (req.method === "GET" && path.endsWith("/v1/admin/costs/daily")) {
+      const gate = await requireAdmin(req);
+      if (gate instanceof Response) return gate;
+
+      const urlObj = new URL(req.url);
+      const days = parseInt(urlObj.searchParams.get("days") ?? "30");
+      const providerFilter = urlObj.searchParams.get("provider");
+      const since = new Date(Date.now() - days * 86400000).toISOString();
+
+      // Fetch API usage
+      let apiQuery = supabase
+        .from("api_usage_log")
+        .select("model_alias, provider, credits_charged, provider_cost_usd, created_at")
+        .gte("created_at", since);
+      if (providerFilter) apiQuery = apiQuery.eq("provider", providerFilter);
+      const { data: apiUsage } = await apiQuery;
+
+      // Fetch app usage
+      let appQuery = supabase
+        .from("usage_log")
+        .select("model_alias, credits_charged, provider_cost_usd, created_at")
+        .gte("created_at", since);
+      if (providerFilter) appQuery = appQuery.eq("provider", providerFilter);
+      const { data: appUsage } = await appQuery;
+
+      // Revenue from API credit purchases
+      const { data: apiRevenue } = await supabase
+        .from("api_credit_transactions")
+        .select("amount, created_at")
+        .eq("type", "purchase")
+        .gte("created_at", since);
+
+      // Group by date
+      const daily: Record<string, {
+        api_requests: number;
+        app_requests: number;
+        provider_cost_usd: number;
+        credits_charged: number;
+      }> = {};
+
+      for (const row of apiUsage ?? []) {
+        const date = row.created_at?.slice(0, 10) ?? "unknown";
+        if (!daily[date]) daily[date] = { api_requests: 0, app_requests: 0, provider_cost_usd: 0, credits_charged: 0 };
+        daily[date].api_requests++;
+        daily[date].provider_cost_usd += Number(row.provider_cost_usd) || 0;
+        daily[date].credits_charged += Number(row.credits_charged) || 0;
+      }
+      for (const row of appUsage ?? []) {
+        const date = row.created_at?.slice(0, 10) ?? "unknown";
+        if (!daily[date]) daily[date] = { api_requests: 0, app_requests: 0, provider_cost_usd: 0, credits_charged: 0 };
+        daily[date].app_requests++;
+        daily[date].provider_cost_usd += Number(row.provider_cost_usd) || 0;
+        daily[date].credits_charged += Number(row.credits_charged) || 0;
+      }
+
+      // Revenue by date (purchases)
+      const revenueByDate: Record<string, number> = {};
+      for (const row of apiRevenue ?? []) {
+        const date = row.created_at?.slice(0, 10) ?? "unknown";
+        revenueByDate[date] = (revenueByDate[date] ?? 0) + (Number(row.amount) || 0);
+      }
+
+      const dailyRows = Object.entries(daily)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, d]) => {
+          const total_requests = d.api_requests + d.app_requests;
+          const creditsRevenue = revenueByDate[date] ?? 0;
+          const estimated_revenue_usd = creditsRevenue * 0.002;
+          const margin_usd = estimated_revenue_usd - d.provider_cost_usd;
+          const margin_pct = creditsRevenue > 0
+            ? Number(((1 - d.provider_cost_usd / estimated_revenue_usd) * 100).toFixed(1))
+            : null;
+          return {
+            date,
+            api_requests: d.api_requests,
+            app_requests: d.app_requests,
+            total_requests,
+            provider_cost_usd: Number(d.provider_cost_usd.toFixed(6)),
+            credits_charged: d.credits_charged,
+            estimated_revenue_usd: Number(estimated_revenue_usd.toFixed(2)),
+            margin_usd: Number(margin_usd.toFixed(4)),
+            margin_pct,
+          };
+        });
+
+      // Totals
+      const totals = dailyRows.reduce((acc, r) => ({
+        total_requests: acc.total_requests + r.total_requests,
+        api_requests: acc.api_requests + r.api_requests,
+        app_requests: acc.app_requests + r.app_requests,
+        provider_cost_usd: acc.provider_cost_usd + r.provider_cost_usd,
+        credits_charged: acc.credits_charged + r.credits_charged,
+        estimated_revenue_usd: acc.estimated_revenue_usd + r.estimated_revenue_usd,
+        margin_usd: acc.margin_usd + r.margin_usd,
+      }), { total_requests: 0, api_requests: 0, app_requests: 0, provider_cost_usd: 0, credits_charged: 0, estimated_revenue_usd: 0, margin_usd: 0 });
+
+      return new Response(JSON.stringify({
+        period_days: days,
+        provider_filter: providerFilter ?? null,
+        days: dailyRows,
+        totals: {
+          ...totals,
+          provider_cost_usd: Number(totals.provider_cost_usd.toFixed(6)),
+          estimated_revenue_usd: Number(totals.estimated_revenue_usd.toFixed(2)),
+          margin_usd: Number(totals.margin_usd.toFixed(4)),
+          margin_pct: totals.estimated_revenue_usd > 0
+            ? Number(((totals.margin_usd / totals.estimated_revenue_usd) * 100).toFixed(1))
+            : null,
+        },
+      }), {
+        status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    // --- GET /v1/admin/costs/by-model — Per-model cost breakdown ---
+    if (req.method === "GET" && path.endsWith("/v1/admin/costs/by-model")) {
+      const gate = await requireAdmin(req);
+      if (gate instanceof Response) return gate;
+
+      const urlObj = new URL(req.url);
+      const days = parseInt(urlObj.searchParams.get("days") ?? "30");
+      const since = new Date(Date.now() - days * 86400000).toISOString();
+
+      // Fetch API usage (has tokens and latency)
+      const { data: apiUsage } = await supabase
+        .from("api_usage_log")
+        .select("model_alias, provider, tokens_in, tokens_out, credits_charged, provider_cost_usd, latency_ms, status, created_at")
+        .gte("created_at", since);
+
+      // Fetch app usage
+      const { data: appUsage } = await supabase
+        .from("usage_log")
+        .select("model_alias, credits_charged, provider_cost_usd, created_at")
+        .gte("created_at", since);
+
+      // Load model routes for tier info
+      const { data: routes } = await supabase
+        .from("model_routes")
+        .select("model_alias, tier, provider");
+      const routeMap = new Map((routes ?? []).map((r: { model_alias: string }) => [r.model_alias, r]));
+
+      // Aggregate per model
+      const modelStats: Record<string, {
+        provider: string;
+        total_requests: number;
+        total_tokens_in: number;
+        total_tokens_out: number;
+        provider_cost_usd: number;
+        credits_charged: number;
+        total_latency_ms: number;
+        latency_count: number;
+        error_count: number;
+      }> = {};
+
+      for (const row of apiUsage ?? []) {
+        const alias = row.model_alias ?? "unknown";
+        if (!modelStats[alias]) modelStats[alias] = {
+          provider: row.provider ?? "unknown",
+          total_requests: 0, total_tokens_in: 0, total_tokens_out: 0,
+          provider_cost_usd: 0, credits_charged: 0,
+          total_latency_ms: 0, latency_count: 0, error_count: 0,
+        };
+        const s = modelStats[alias];
+        s.total_requests++;
+        s.total_tokens_in += Number(row.tokens_in) || 0;
+        s.total_tokens_out += Number(row.tokens_out) || 0;
+        s.provider_cost_usd += Number(row.provider_cost_usd) || 0;
+        s.credits_charged += Number(row.credits_charged) || 0;
+        s.total_latency_ms += Number(row.latency_ms) || 0;
+        s.latency_count++;
+        if (row.status === "error") s.error_count++;
+      }
+      for (const row of appUsage ?? []) {
+        const alias = row.model_alias ?? "unknown";
+        if (!modelStats[alias]) modelStats[alias] = {
+          provider: routeMap.get(alias)?.provider ?? "unknown",
+          total_requests: 0, total_tokens_in: 0, total_tokens_out: 0,
+          provider_cost_usd: 0, credits_charged: 0,
+          total_latency_ms: 0, latency_count: 0, error_count: 0,
+        };
+        const s = modelStats[alias];
+        s.total_requests++;
+        s.provider_cost_usd += Number(row.provider_cost_usd) || 0;
+        s.credits_charged += Number(row.credits_charged) || 0;
+      }
+
+      const byModel = Object.entries(modelStats)
+        .sort((a, b) => b[1].provider_cost_usd - a[1].provider_cost_usd)
+        .map(([alias, s]) => ({
+          model_alias: alias,
+          provider: s.provider,
+          tier: routeMap.get(alias)?.tier ?? null,
+          total_requests: s.total_requests,
+          total_tokens_in: s.total_tokens_in,
+          total_tokens_out: s.total_tokens_out,
+          provider_cost_usd: Number(s.provider_cost_usd.toFixed(6)),
+          credits_charged: s.credits_charged,
+          avg_latency_ms: s.latency_count > 0 ? Math.round(s.total_latency_ms / s.latency_count) : null,
+          error_count: s.error_count,
+          error_rate_pct: s.total_requests > 0
+            ? Number(((s.error_count / s.total_requests) * 100).toFixed(1))
+            : 0,
+        }));
+
+      return new Response(JSON.stringify({
+        period_days: days,
+        models: byModel,
+      }), {
+        status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    // --- GET /v1/admin/costs/by-provider — Per-provider aggregation ---
+    if (req.method === "GET" && path.endsWith("/v1/admin/costs/by-provider")) {
+      const gate = await requireAdmin(req);
+      if (gate instanceof Response) return gate;
+
+      const urlObj = new URL(req.url);
+      const days = parseInt(urlObj.searchParams.get("days") ?? "30");
+      const since = new Date(Date.now() - days * 86400000).toISOString();
+
+      // Fetch API usage (has provider and latency)
+      const { data: apiUsage } = await supabase
+        .from("api_usage_log")
+        .select("model_alias, provider, credits_charged, provider_cost_usd, latency_ms, created_at")
+        .gte("created_at", since);
+
+      // Fetch app usage with provider info
+      const { data: appUsage } = await supabase
+        .from("usage_log")
+        .select("model_alias, credits_charged, provider_cost_usd, created_at")
+        .gte("created_at", since);
+
+      // Load model routes to resolve provider for app usage
+      const { data: routes } = await supabase
+        .from("model_routes")
+        .select("model_alias, provider");
+      const routeProviderMap = new Map((routes ?? []).map((r: { model_alias: string }) => [r.model_alias, r.provider]));
+
+      // Aggregate per provider
+      const providerStats: Record<string, {
+        total_requests: number;
+        provider_cost_usd: number;
+        credits_charged: number;
+        models_used: Set<string>;
+        total_latency_ms: number;
+        latency_count: number;
+      }> = {};
+
+      for (const row of apiUsage ?? []) {
+        const prov = row.provider ?? "unknown";
+        if (!providerStats[prov]) providerStats[prov] = {
+          total_requests: 0, provider_cost_usd: 0, credits_charged: 0,
+          models_used: new Set(), total_latency_ms: 0, latency_count: 0,
+        };
+        const s = providerStats[prov];
+        s.total_requests++;
+        s.provider_cost_usd += Number(row.provider_cost_usd) || 0;
+        s.credits_charged += Number(row.credits_charged) || 0;
+        if (row.model_alias) s.models_used.add(row.model_alias);
+        s.total_latency_ms += Number(row.latency_ms) || 0;
+        s.latency_count++;
+      }
+      for (const row of appUsage ?? []) {
+        const prov = routeProviderMap.get(row.model_alias ?? "") ?? "unknown";
+        if (!providerStats[prov]) providerStats[prov] = {
+          total_requests: 0, provider_cost_usd: 0, credits_charged: 0,
+          models_used: new Set(), total_latency_ms: 0, latency_count: 0,
+        };
+        const s = providerStats[prov];
+        s.total_requests++;
+        s.provider_cost_usd += Number(row.provider_cost_usd) || 0;
+        s.credits_charged += Number(row.credits_charged) || 0;
+        if (row.model_alias) s.models_used.add(row.model_alias);
+      }
+
+      const byProvider = Object.entries(providerStats)
+        .sort((a, b) => b[1].provider_cost_usd - a[1].provider_cost_usd)
+        .map(([prov, s]) => ({
+          provider: prov,
+          total_requests: s.total_requests,
+          provider_cost_usd: Number(s.provider_cost_usd.toFixed(6)),
+          credits_charged: s.credits_charged,
+          models_used: Array.from(s.models_used).sort(),
+          avg_latency_ms: s.latency_count > 0 ? Math.round(s.total_latency_ms / s.latency_count) : null,
+        }));
+
+      const totals = byProvider.reduce((acc, p) => ({
+        total_requests: acc.total_requests + p.total_requests,
+        provider_cost_usd: acc.provider_cost_usd + p.provider_cost_usd,
+        credits_charged: acc.credits_charged + p.credits_charged,
+      }), { total_requests: 0, provider_cost_usd: 0, credits_charged: 0 });
+
+      return new Response(JSON.stringify({
+        period_days: days,
+        providers: byProvider,
+        totals,
+      }), {
+        status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
     // --- 404 ---
     return new Response(JSON.stringify({ error: "Not found" }), {
       status: 404,
