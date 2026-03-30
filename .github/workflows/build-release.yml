@@ -45,6 +45,12 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Download Whisper model
+        run: |
+          mkdir -p src-tauri/models
+          curl -L -o src-tauri/models/ggml-base.bin \
+            https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
+
       - name: Build Tauri app (signed)
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -115,6 +121,12 @@ jobs:
 
       - name: Install npm dependencies
         run: npm ci
+
+      - name: Download Whisper model
+        run: |
+          mkdir -p src-tauri/models
+          curl -L -o src-tauri/models/ggml-base.bin \
+            https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
 
       - name: Build Tauri app (signed)
         env:
@@ -198,6 +210,12 @@ jobs:
 
       - name: Install npm dependencies
         run: npm ci
+
+      - name: Download Whisper model
+        run: |
+          mkdir -p src-tauri/models
+          curl -L -o src-tauri/models/ggml-base.bin \
+            https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
 
       - name: Build Tauri app (signed)
         env:
@@ -368,6 +386,12 @@ jobs:
 
       - name: Install npm dependencies
         run: npm ci
+
+      - name: Download Whisper model
+        run: |
+          mkdir -p src-tauri/models
+          curl -L -o src-tauri/models/ggml-base.bin \
+            https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
 
       - name: Init Tauri Android
         env:
