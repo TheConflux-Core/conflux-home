@@ -1,8 +1,8 @@
 {
   "_meta": {
-    "version": "1.0",
-    "generated": "2026-03-30",
-    "description": "Deterministic model routing config for Conflux Home",
+    "version": "2.1",
+    "generated": "2026-03-30T17:53:00Z",
+    "description": "Per-model penny credits. 3 task types downgraded for cost savings.",
     "target_margin": "40-60%"
   },
   "task_types": {
@@ -91,7 +91,7 @@
       ]
     },
     "file_ops": {
-      "tier": "pro",
+      "tier": "core",
       "description": "File read/write/edit, directory operations, search.",
       "min_tool_reliability": "reliable",
       "preferred_models": [
@@ -115,7 +115,7 @@
       ]
     },
     "creative": {
-      "tier": "pro",
+      "tier": "core",
       "description": "Creative writing, content generation, brainstorming.",
       "min_tool_reliability": "basic",
       "preferred_models": [
@@ -127,7 +127,7 @@
       ]
     },
     "deep_reasoning": {
-      "tier": "ultra",
+      "tier": "pro",
       "description": "Research, analysis, complex multi-step reasoning.",
       "min_tool_reliability": "reliable",
       "preferred_models": [
@@ -170,28 +170,64 @@
   },
   "tool_reliability": {
     "reliable": [
-      "claude-opus", "claude-sonnet", "claude-sonnet-4.5", "claude-haiku", "claude-haiku-3.5",
-      "gpt-4o", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o-mini",
-      "gemini-pro", "gemini-2.5-flash", "gemini-flash",
-      "deepseek-r1", "deepseek-chat",
-      "grok-3", "grok-3-mini", "grok-4.1-fast", "grok-4.20", "grok-code-fast",
+      "claude-opus",
+      "claude-sonnet",
+      "claude-sonnet-4.5",
+      "claude-haiku",
+      "claude-haiku-3.5",
+      "gpt-4o",
+      "gpt-4.1",
+      "gpt-4.1-mini",
+      "gpt-4.1-nano",
+      "gpt-4o-mini",
+      "gemini-pro",
+      "gemini-2.5-flash",
+      "gemini-flash",
+      "deepseek-r1",
+      "deepseek-chat",
+      "grok-3",
+      "grok-3-mini",
+      "grok-4.1-fast",
+      "grok-4.20",
+      "grok-code-fast",
       "mimo-v2-pro",
-      "mistral-medium", "mistral-small", "mistral-large", "mistral-codestral",
-      "o1", "o3", "o3-mini", "o4-mini", "codex-mini"
+      "mistral-medium",
+      "mistral-small",
+      "mistral-large",
+      "mistral-codestral",
+      "o1",
+      "o3",
+      "o3-mini",
+      "o4-mini",
+      "codex-mini"
     ],
     "basic": [
-      "llama-3.3-70b-groq", "llama-3.3-70b-cf",
-      "llama-4-scout-cf", "llama-4-scout-groq",
-      "llama-3.1-8b-cerebras", "llama-3.1-8b-groq", "llama-3.1-8b-cf", "llama-3.1-70b-cf",
-      "mimo-v2", "mimo-v2-omni",
-      "ministral-8b", "ministral-3b", "ministral-14b",
+      "llama-3.3-70b-groq",
+      "llama-3.3-70b-cf",
+      "llama-4-scout-cf",
+      "llama-4-scout-groq",
+      "llama-3.1-8b-cerebras",
+      "llama-3.1-8b-groq",
+      "llama-3.1-8b-cf",
+      "llama-3.1-70b-cf",
+      "mimo-v2",
+      "mimo-v2-omni",
+      "ministral-8b",
+      "ministral-3b",
+      "ministral-14b",
       "pixtral-12b",
-      "qwen-3-235b-cerebras", "qwen3-32b-groq", "qwen2.5-coder-cf",
+      "qwen-3-235b-cerebras",
+      "qwen3-32b-groq",
+      "qwen2.5-coder-cf",
       "glm-4.7-cerebras",
-      "gpt-oss-120b-cerebras", "gpt-oss-120b-groq", "gpt-oss-120b-cf", "gpt-oss-20b-groq",
+      "gpt-oss-120b-cerebras",
+      "gpt-oss-120b-groq",
+      "gpt-oss-120b-cf",
+      "gpt-oss-20b-groq",
       "mistral-small-3.1-cf",
       "gemma-3-12b-cf",
-      "kimi-k2.5-cf", "kimi-k2-groq",
+      "kimi-k2.5-cf",
+      "kimi-k2-groq",
       "deepseek-r1-distill-cf"
     ]
   }

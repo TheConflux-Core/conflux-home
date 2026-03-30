@@ -26,11 +26,11 @@ const CORS_HEADERS = {
 // ============================================================
 
 const PACKS: Record<string, { credits: number; amount: number; name: string; priceId: string }> = {
-  starter:    { credits: 5000,   amount: 999,   name: "API Starter",    priceId: "price_1TGDSvHV6B3tDjUwePZZOUdh" },
-  growth:     { credits: 15000,  amount: 2499,  name: "API Growth",     priceId: "price_1TGDTiHV6B3tDjUwAQ9FhblY" },
-  scale:      { credits: 35000,  amount: 4999,  name: "API Scale",      priceId: "price_1TGDU7HV6B3tDjUwIZnvWgwF" },
-  business:   { credits: 80000,  amount: 9999,  name: "API Business",   priceId: "price_1TGDUbHV6B3tDjUwDxdIz914" },
-  enterprise: { credits: 180000, amount: 19999, name: "API Enterprise", priceId: "price_1TGdh7HV6B3tDjUwR37CnyP4" },
+  starter:    { credits: 500,    amount: 499,   name: "API Starter",    priceId: "price_1TGDSvHV6B3tDjUwePZZOUdh" },
+  growth:     { credits: 2000,   amount: 1499,  name: "API Growth",     priceId: "price_1TGDTiHV6B3tDjUwAQ9FhblY" },
+  scale:      { credits: 5000,   amount: 3999,  name: "API Scale",      priceId: "price_1TGDU7HV6B3tDjUwIZnvWgwF" },
+  business:   { credits: 15000,  amount: 9999,  name: "API Business",   priceId: "price_1TGDUbHV6B3tDjUwDxdIz914" },
+  enterprise: { credits: 50000,  amount: 29999, name: "API Enterprise", priceId: "price_1TGdh7HV6B3tDjUwR37CnyP4" },
 };
 
 // ============================================================
