@@ -40,6 +40,7 @@ import GoogleView from './components/GoogleView';
 import EchoView from './components/EchoView';
 import AgentsView from './components/AgentsView';
 import ImmersiveView from './components/ImmersiveView';
+import ApiDashboard from './components/ApiDashboard';
 import ControlRoom from './components/ControlRoom';
 import VaultView from './components/VaultView';
 import StudioView from './components/StudioView';
@@ -73,6 +74,7 @@ const VIEW_BACKGROUNDS: Record<string, string> = {
   studio: '/backgrounds/studio-bg.png',
   settings: '/backgrounds/settings-bg.png',
   dashboard: '/backgrounds/dashboard-bg.png',
+  'api-dashboard': '/backgrounds/dashboard-bg.png', // Re-using an existing dashboard background
 };
 
 // Default wallpapers
@@ -616,6 +618,7 @@ const [activeSnake, setActiveSnake] = useState(false);
           {immersiveView === 'vault' && <VaultView />}
           {immersiveView === 'studio' && <StudioView />}
           {immersiveView === 'settings' && <Settings />}
+          {immersiveView === 'api-dashboard' && <ApiDashboard />}
           {immersiveView === 'dashboard' && (
             <div>
               <h3 style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 4 }}>

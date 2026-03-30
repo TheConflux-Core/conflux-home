@@ -34,6 +34,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   studio: { icon: '✨', label: 'Studio' },
   settings: { icon: '⚙️', label: 'Settings' },
   onboarding: { icon: '👋', label: 'Onboarding' },
+  'api-dashboard': { icon: '📊', label: 'API' },
 };
 
 const ALL_APPS: AppItem[] = [
@@ -51,6 +52,7 @@ const ALL_APPS: AppItem[] = [
   { id: 'echo', icon: '🪞', label: 'Echo', category: 'life', description: 'The notebook that listens' },
   { id: 'vault', icon: '🔐', label: 'Vault', category: 'system', description: 'Encrypted password & credential manager' },
   { id: 'studio', icon: '✨', label: 'Studio', category: 'work', description: 'AI creator workspace — images, video, music, voice, web, design' },
+  { id: 'api-dashboard', icon: '📊', label: 'API Dashboard', category: 'work', description: 'Manage your API usage and credits' },
   { id: 'settings', icon: '⚙️', label: 'Settings', category: 'system', description: 'Configure your experience' },
 ];
 
