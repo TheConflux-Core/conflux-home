@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@^2";
 
 // ============================================================
 // CONFLUX ROUTER — /v1/chat/completions
-// Auth → Credit check → Route to provider → Stream response → Deduct credits
+// Auth → Rate limit (free tier) → Credit check → Route to provider → Stream response → Deduct credits
 // ============================================================
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -13,13 +13,38 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 // --- Types ---
 
+type TaskType =
+  | "simple_chat"
+  | "summarize"
+  | "extract"
+  | "translate"
+  | "code_gen"
+  | "tool_orchestrate"
+  | "image_gen"
+  | "file_ops"
+  | "web_browse"
+  | "creative"
+  | "deep_reasoning"
+  | "agentic_complex";
+
+type ToolReliability = "reliable" | "basic" | "none";
+type ModelTier = "core" | "pro" | "ultra";
+
+interface RoutingRule {
+  tier: ModelTier;
+  description: string;
+  min_tool_reliability: ToolReliability;
+  preferred_models: string[];
+}
+
 interface ChatMessage {
   role: string;
   content: string;
 }
 
 interface ChatRequest {
-  model: string;
+  model?: string;
+  task_type?: TaskType;
   messages: ChatMessage[];
   max_tokens?: number;
   temperature?: number;
@@ -45,6 +70,201 @@ interface ProviderConfig {
   base_url: string;
   enabled: boolean;
 }
+
+interface RateLimitInfo {
+  limit: number;
+  remaining: number;
+  reset: string; // ISO-8601
+}
+
+// ============================================================
+// EMBEDDED ROUTING CONFIG (from routing-config.json)
+// Edge functions can't import local files, so this is inlined.
+// ============================================================
+
+const TASK_TYPES: Record<string, RoutingRule> = {
+  simple_chat: {
+    tier: "core",
+    description: "Greeting, basic Q&A, text formatting. No tools needed.",
+    min_tool_reliability: "basic",
+    preferred_models: [
+      "gpt-4o-mini",
+      "deepseek-chat",
+      "gemini-flash",
+      "grok-3-mini",
+      "mistral-small",
+    ],
+  },
+  summarize: {
+    tier: "core",
+    description: "Text extraction, classification, summarization. Light file read.",
+    min_tool_reliability: "basic",
+    preferred_models: [
+      "gpt-4o-mini",
+      "claude-haiku",
+      "deepseek-chat",
+      "mistral-medium",
+      "gemini-flash",
+    ],
+  },
+  extract: {
+    tier: "core",
+    description: "Data extraction, parsing, structured output from text.",
+    min_tool_reliability: "basic",
+    preferred_models: [
+      "gpt-4o-mini",
+      "deepseek-chat",
+      "claude-haiku",
+      "grok-4.1-fast",
+      "mistral-small",
+    ],
+  },
+  translate: {
+    tier: "core",
+    description: "Language translation, localization.",
+    min_tool_reliability: "basic",
+    preferred_models: [
+      "gpt-4o-mini",
+      "deepseek-chat",
+      "claude-haiku",
+      "gemini-flash",
+      "mistral-medium",
+    ],
+  },
+  code_gen: {
+    tier: "pro",
+    description: "Write code, fix bugs, refactor. Needs file read/write/exec.",
+    min_tool_reliability: "reliable",
+    preferred_models: [
+      "gemini-2.5-flash",
+      "gpt-4.1-mini",
+      "deepseek-r1",
+      "grok-code-fast",
+      "mistral-codestral",
+    ],
+  },
+  tool_orchestrate: {
+    tier: "pro",
+    description: "Multi-step tool chaining, API calls, file operations.",
+    min_tool_reliability: "reliable",
+    preferred_models: [
+      "gpt-4.1-mini",
+      "grok-code-fast",
+      "gemini-2.5-flash",
+      "mimo-v2-pro",
+      "mistral-large",
+    ],
+  },
+  image_gen: {
+    tier: "pro",
+    description: "Image creation, editing, vision tasks. Needs tool + vision.",
+    min_tool_reliability: "reliable",
+    preferred_models: [
+      "grok-code-fast",
+      "gpt-4.1-mini",
+      "gemini-2.5-flash",
+      "mistral-large",
+      "deepseek-r1",
+    ],
+  },
+  file_ops: {
+    tier: "pro",
+    description: "File read/write/edit, directory operations, search.",
+    min_tool_reliability: "reliable",
+    preferred_models: [
+      "gpt-4.1-mini",
+      "gemini-2.5-flash",
+      "grok-code-fast",
+      "deepseek-r1",
+      "mistral-large",
+    ],
+  },
+  web_browse: {
+    tier: "pro",
+    description: "Web scraping, search, URL fetching, browser automation.",
+    min_tool_reliability: "reliable",
+    preferred_models: [
+      "gpt-4.1-mini",
+      "gemini-2.5-flash",
+      "grok-code-fast",
+      "deepseek-r1",
+      "mimo-v2-pro",
+    ],
+  },
+  creative: {
+    tier: "pro",
+    description: "Creative writing, content generation, brainstorming.",
+    min_tool_reliability: "basic",
+    preferred_models: [
+      "gemini-2.5-flash",
+      "gpt-4.1-mini",
+      "grok-code-fast",
+      "mistral-large",
+      "deepseek-r1",
+    ],
+  },
+  deep_reasoning: {
+    tier: "ultra",
+    description: "Research, analysis, complex multi-step reasoning.",
+    min_tool_reliability: "reliable",
+    preferred_models: [
+      "claude-sonnet",
+      "gpt-4.1",
+      "gemini-pro",
+      "grok-4.20",
+      "claude-sonnet-4.5",
+    ],
+  },
+  agentic_complex: {
+    tier: "ultra",
+    description: "Full workflows, 20+ tool calls, error recovery needed.",
+    min_tool_reliability: "reliable",
+    preferred_models: [
+      "claude-opus",
+      "gpt-4o",
+      "grok-4.20",
+      "claude-sonnet",
+      "gpt-4.1",
+    ],
+  },
+};
+
+const TIER_DEFAULTS: Record<ModelTier, { max_tokens: number; temperature: number; cost_per_1k_credits: number }> = {
+  core: { max_tokens: 4096, temperature: 0.7, cost_per_1k_credits: 1 },
+  pro: { max_tokens: 8192, temperature: 0.7, cost_per_1k_credits: 2 },
+  ultra: { max_tokens: 16384, temperature: 0.7, cost_per_1k_credits: 5 },
+};
+
+const TOOL_RELIABILITY: Record<string, string[]> = {
+  reliable: [
+    "claude-opus", "claude-sonnet", "claude-sonnet-4.5", "claude-haiku", "claude-haiku-3.5",
+    "gpt-4o", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o-mini",
+    "gemini-pro", "gemini-2.5-flash", "gemini-flash",
+    "deepseek-r1", "deepseek-chat",
+    "grok-3", "grok-3-mini", "grok-4.1-fast", "grok-4.20", "grok-code-fast",
+    "mimo-v2-pro",
+    "mistral-medium", "mistral-small", "mistral-large", "mistral-codestral",
+    "o1", "o3", "o3-mini", "o4-mini", "codex-mini",
+  ],
+  basic: [
+    "llama-3.3-70b-groq", "llama-3.3-70b-cf",
+    "llama-4-scout-cf", "llama-4-scout-groq",
+    "llama-3.1-8b-cerebras", "llama-3.1-8b-groq", "llama-3.1-8b-cf", "llama-3.1-70b-cf",
+    "mimo-v2", "mimo-v2-omni",
+    "ministral-8b", "ministral-3b", "ministral-14b",
+    "pixtral-12b",
+    "qwen-3-235b-cerebras", "qwen3-32b-groq", "qwen2.5-coder-cf",
+    "glm-4.7-cerebras",
+    "gpt-oss-120b-cerebras", "gpt-oss-120b-groq", "gpt-oss-120b-cf", "gpt-oss-20b-groq",
+    "mistral-small-3.1-cf",
+    "gemma-3-12b-cf",
+    "kimi-k2.5-cf", "kimi-k2-groq",
+    "deepseek-r1-distill-cf",
+  ],
+};
+
+// Free tier constants
+const FREE_TIER_MONTHLY_LIMIT = 1000;
 
 // --- Cache (in-memory for this function instance) ---
 let modelRoutesCache: Map<string, ModelRoute> = new Map();
@@ -74,9 +294,102 @@ async function loadCaches() {
   cacheTime = Date.now();
 }
 
+// --- Deterministic Model Router (embedded) ---
+
+function meetsReliability(modelAlias: string, minLevel: ToolReliability): boolean {
+  if (minLevel === "basic") {
+    return (
+      TOOL_RELIABILITY.reliable.includes(modelAlias) ||
+      TOOL_RELIABILITY.basic.includes(modelAlias)
+    );
+  }
+  if (minLevel === "reliable") {
+    return TOOL_RELIABILITY.reliable.includes(modelAlias);
+  }
+  return true; // 'none' — any model qualifies
+}
+
+interface RouteSelection {
+  modelAlias: string;
+  tier: ModelTier;
+  taskType: string;
+}
+
+/**
+ * Select the best model for a given task type.
+ * Only considers models that exist in modelRoutesCache (i.e. enabled in DB).
+ */
+function selectModelForTask(
+  taskType: string,
+  availableModels: Map<string, ModelRoute>
+): RouteSelection | null {
+  const rule = TASK_TYPES[taskType];
+  if (!rule) {
+    console.warn(`[Router] Unknown task type: ${taskType}`);
+    return null;
+  }
+
+  // Find first preferred model that:
+  // 1. Meets the tool reliability requirement
+  // 2. Exists in modelRoutesCache (is enabled in DB)
+  const selected = rule.preferred_models.find(
+    (alias) =>
+      meetsReliability(alias, rule.min_tool_reliability) &&
+      availableModels.has(alias)
+  );
+
+  if (!selected) {
+    console.warn(
+      `[Router] No enabled model found for task "${taskType}" with min reliability "${rule.min_tool_reliability}"`
+    );
+    return null;
+  }
+
+  return {
+    modelAlias: selected,
+    tier: rule.tier,
+    taskType,
+  };
+}
+
+/**
+ * Find the cheapest available core-tier model (for free-tier fallback).
+ */
+function findCheapestCoreModel(
+  availableModels: Map<string, ModelRoute>
+): ModelRoute | null {
+  let cheapest: ModelRoute | null = null;
+  for (const route of availableModels.values()) {
+    if (route.tier === "core" && route.enabled) {
+      if (
+        !cheapest ||
+        route.credit_cost_per_1k_in < cheapest.credit_cost_per_1k_in
+      ) {
+        cheapest = route;
+      }
+    }
+  }
+  return cheapest;
+}
+
+/**
+ * Find the first enabled model in the cheapest tier (general fallback).
+ */
+function findFallbackModel(
+  availableModels: Map<string, ModelRoute>
+): ModelRoute | null {
+  // Prefer core → pro → ultra
+  for (const tier of ["core", "pro", "ultra"] as ModelTier[]) {
+    for (const route of availableModels.values()) {
+      if (route.tier === tier && route.enabled) return route;
+    }
+  }
+  return null;
+}
+
 // --- Auth ---
 
-async function authenticate(req: Request): Promise<{ userId: string } | null> {
+async function authenticate(req: Request): Promise<{ userId: string; isApiKey: boolean } | null> {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) return null;
 
@@ -107,14 +420,47 @@ async function authenticate(req: Request): Promise<{ userId: string } | null> {
       .update({ last_used_at: new Date().toISOString() })
       .eq("key_hash", hashHex);
 
-    return { userId: data.user_id };
+    return { userId: data.user_id, isApiKey: true };
   }
 
   // Otherwise, treat as Supabase JWT
   const { data: { user }, error } = await supabase.auth.getUser(token);
   if (error || !user) return null;
 
-  return { userId: user.id };
+  return { userId: user.id, isApiKey: false };
+}
+
+// --- Free Tier Rate Limiting ---
+
+/**
+ * Check the user's monthly call count against the free tier limit.
+ * Returns rate limit info. The caller should check remaining > 0.
+ */
+async function checkRateLimit(userId: string): Promise<RateLimitInfo> {
+  const now = new Date();
+  // First day of current month
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  // First day of next month
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+
+  const { count, error } = await supabase
+    .from("usage_log")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .gte("created_at", monthStart);
+
+  if (error) {
+    console.error("Rate limit query error:", error);
+    // On error, be permissive — allow the request
+    return { limit: FREE_TIER_MONTHLY_LIMIT, remaining: FREE_TIER_MONTHLY_LIMIT, reset: nextMonth };
+  }
+
+  const used = count ?? 0;
+  return {
+    limit: FREE_TIER_MONTHLY_LIMIT,
+    remaining: Math.max(0, FREE_TIER_MONTHLY_LIMIT - used),
+    reset: nextMonth,
+  };
 }
 
 // --- Credit Check ---
@@ -170,6 +516,35 @@ async function checkCredits(
 
     // Still failed — return 500 free credits as fallback
     return { hasCredits: true, estimatedCost: 1, balance: 500, tier: "core" };
+  }
+
+  const result = data[0];
+  return {
+    hasCredits: result.has_credits,
+    estimatedCost: result.estimated_cost,
+    balance: result.current_balance,
+    tier: result.model_tier,
+  };
+}
+
+// --- API Credit Check (for API key users) ---
+
+async function checkApiCredits(
+  userId: string,
+  modelAlias: string,
+  estimatedTokensIn: number,
+  estimatedTokensOut: number
+): Promise<{ hasCredits: boolean; estimatedCost: number; balance: number; tier: string }> {
+  const { data, error } = await supabase.rpc("check_api_credits", {
+    p_user_id: userId,
+    p_model_alias: modelAlias,
+    p_estimated_tokens_in: estimatedTokensIn,
+    p_estimated_tokens_out: estimatedTokensOut,
+  });
+
+  if (error || !data || data.length === 0) {
+    console.error("API credit check failed:", { userId, error: error?.message });
+    return { hasCredits: false, estimatedCost: 0, balance: 0, tier: "core" };
   }
 
   const result = data[0];
@@ -268,6 +643,21 @@ async function callProvider(
 function estimateTokens(text: string): number {
   // Rough: ~4 chars per token for English
   return Math.ceil(text.length / 4);
+}
+
+// --- Provider Cost Lookup ---
+
+async function getProviderCost(provider: string, modelId: string, tokensIn: number, tokensOut: number): Promise<number> {
+  const { data } = await supabase
+    .from('provider_pricing')
+    .select('cost_per_1k_input, cost_per_1k_output')
+    .eq('provider', provider)
+    .eq('model_id', modelId)
+    .single();
+
+  if (!data) return 0; // Unknown model, log 0 cost
+
+  return (tokensIn / 1000) * data.cost_per_1k_input + (tokensOut / 1000) * data.cost_per_1k_output;
 }
 
 // --- CORS ---
@@ -370,6 +760,43 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
     }
 
+    // --- GET /v1/api-credits — API key user's credit balance (JWT only) ---
+    if (req.method === "GET" && path.endsWith("/v1/api-credits")) {
+      const auth = await authenticate(req);
+      if (!auth) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+
+      // Only JWT-authenticated users can check API credit balance
+      if (auth.isApiKey) {
+        return new Response(JSON.stringify({ error: "Forbidden", message: "Use your JWT token to check API credits" }), {
+          status: 403,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data, error } = await supabase
+        .from("api_credit_accounts")
+        .select("balance, total_purchased, total_consumed")
+        .eq("user_id", auth.userId)
+        .single();
+
+      if (error || !data) {
+        return new Response(JSON.stringify({ balance: 0, total_purchased: 0, total_consumed: 0 }), {
+          status: 200,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
     // --- POST /v1/chat/completions — The main router ---
     if (req.method === "POST" && path.endsWith("/v1/chat/completions")) {
       const startTime = Date.now();
@@ -385,30 +812,173 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
       // 2. Parse request
       const body: ChatRequest = await req.json();
-      const { model, messages, max_tokens = 4096, temperature = 0.7, stream = false } = body;
+      const { model, task_type, messages, max_tokens, temperature, stream = false } = body;
 
-      if (!model || !messages || messages.length === 0) {
-        return new Response(JSON.stringify({ error: "Bad request", message: "model and messages are required" }), {
+      if (!messages || messages.length === 0) {
+        return new Response(JSON.stringify({ error: "Bad request", message: "messages are required" }), {
           status: 400,
           headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
         });
       }
 
-      // 3. Load caches + resolve model
-      await loadCaches();
-      const route = modelRoutesCache.get(model);
-
-      if (!route) {
-        return new Response(JSON.stringify({ error: "Model not found", message: `Unknown model: ${model}` }), {
-          status: 404,
+      if (!model && !task_type) {
+        return new Response(JSON.stringify({ error: "Bad request", message: "Either model or task_type is required" }), {
+          status: 400,
           headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
         });
       }
 
-      // 4. Credit check
+      // Validate task_type if provided
+      if (task_type && !TASK_TYPES[task_type]) {
+        return new Response(
+          JSON.stringify({
+            error: "Bad request",
+            message: `Invalid task_type: ${task_type}. Valid types: ${Object.keys(TASK_TYPES).join(", ")}`,
+          }),
+          {
+            status: 400,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // 3. Load caches
+      await loadCaches();
+
+      // 4. Rate limiting (split by auth type)
+      let rateInfo: RateLimitInfo;
+      if (auth.isApiKey) {
+        // API key users: rate limit against api_usage_log for current month
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+        const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+
+        const { count: apiCount, error: apiRateError } = await supabase
+          .from("api_usage_log")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", auth.userId)
+          .gte("created_at", monthStart);
+
+        if (apiRateError) {
+          console.error("API rate limit query error:", apiRateError);
+          rateInfo = { limit: FREE_TIER_MONTHLY_LIMIT, remaining: FREE_TIER_MONTHLY_LIMIT, reset: nextMonth };
+        } else {
+          const used = apiCount ?? 0;
+          rateInfo = {
+            limit: FREE_TIER_MONTHLY_LIMIT,
+            remaining: Math.max(0, FREE_TIER_MONTHLY_LIMIT - used),
+            reset: nextMonth,
+          };
+        }
+      } else {
+        // JWT users: existing free tier rate limit
+        rateInfo = await checkRateLimit(auth.userId);
+      }
+      if (rateInfo.remaining <= 0) {
+        return new Response(
+          JSON.stringify({
+            error: "Rate limit exceeded",
+            message: `Free tier allows ${rateInfo.limit} calls/month. Upgrade at https://theconflux.ai/pricing`,
+            limit: rateInfo.limit,
+            remaining: 0,
+            reset: rateInfo.reset,
+          }),
+          {
+            status: 429,
+            headers: {
+              ...CORS_HEADERS,
+              "Content-Type": "application/json",
+              "X-RateLimit-Limit": String(rateInfo.limit),
+              "X-RateLimit-Remaining": "0",
+              "X-RateLimit-Reset": rateInfo.reset,
+            },
+          }
+        );
+      }
+
+      // 5. Resolve model — deterministic routing or explicit model
+      let resolvedModel: string;
+      let routedTaskType: string | null = null;
+      let routedTier: ModelTier = "core";
+      let wasRouted = false;
+
+      if (task_type && !model) {
+        // Use deterministic router
+        const selection = selectModelForTask(task_type, modelRoutesCache);
+        if (selection) {
+          resolvedModel = selection.modelAlias;
+          routedTaskType = task_type;
+          routedTier = selection.tier;
+          wasRouted = true;
+        } else {
+          // No matching model for task type — fall back to cheapest available
+          const fallback = findFallbackModel(modelRoutesCache);
+          if (!fallback) {
+            return new Response(
+              JSON.stringify({ error: "No models available", message: "No enabled models found in any tier" }),
+              {
+                status: 503,
+                headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+              }
+            );
+          }
+          resolvedModel = fallback.model_alias;
+          routedTaskType = task_type;
+          routedTier = fallback.tier as ModelTier;
+          wasRouted = true;
+        }
+
+        // Free tier enforcement: only core models allowed
+        // If the routed model is pro/ultra, override to best available core model
+        if (routedTier !== "core") {
+          const rule = TASK_TYPES[task_type];
+          // Try to find a core-tier model from the task's preferred list
+          const coreOverride = rule?.preferred_models.find(
+            (alias) =>
+              modelRoutesCache.has(alias) &&
+              modelRoutesCache.get(alias)?.tier === "core"
+          );
+          if (coreOverride) {
+            resolvedModel = coreOverride;
+            routedTier = "core";
+          } else {
+            // No preferred core model available — find cheapest core
+            const cheapestCore = findCheapestCoreModel(modelRoutesCache);
+            if (cheapestCore) {
+              resolvedModel = cheapestCore.model_alias;
+              routedTier = "core";
+            }
+            // If no core models at all, proceed with the original (edge case)
+          }
+        }
+      } else {
+        // Explicit model — backward compatible
+        resolvedModel = model!;
+      }
+
+      // 6. Look up route
+      const route = modelRoutesCache.get(resolvedModel);
+      if (!route) {
+        return new Response(
+          JSON.stringify({ error: "Model not found", message: `Unknown model: ${resolvedModel}` }),
+          {
+            status: 404,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Final tier from actual route (in case of overrides)
+      if (wasRouted) {
+        routedTier = route.tier as ModelTier;
+      }
+
+      // 7. Credit check (split by auth type)
       const estimatedTokensIn = messages.reduce((sum, m) => sum + estimateTokens(m.content), 0);
-      const estimatedTokensOut = max_tokens;
-      const creditCheck = await checkCredits(auth.userId, model, estimatedTokensIn, estimatedTokensOut);
+      const estimatedTokensOut = max_tokens ?? 4096;
+      const creditCheck = auth.isApiKey
+        ? await checkApiCredits(auth.userId, resolvedModel, estimatedTokensIn, estimatedTokensOut)
+        : await checkCredits(auth.userId, resolvedModel, estimatedTokensIn, estimatedTokensOut);
 
       if (!creditCheck.hasCredits) {
         return new Response(
@@ -420,33 +990,65 @@ Deno.serve(async (req: Request): Promise<Response> => {
           }),
           {
             status: 402,
+            headers: {
+              ...CORS_HEADERS,
+              "Content-Type": "application/json",
+              "X-RateLimit-Limit": String(rateInfo.limit),
+              "X-RateLimit-Remaining": String(rateInfo.remaining),
+              "X-RateLimit-Reset": rateInfo.reset,
+            },
+          }
+        );
+      }
+
+      // 8. Resolve provider
+      const providerConfig = providerCache.get(route.provider);
+      if (!providerConfig) {
+        return new Response(
+          JSON.stringify({ error: "Provider unavailable", message: `Provider ${route.provider} is not configured` }),
+          {
+            status: 503,
             headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
           }
         );
       }
 
-      // 5. Resolve provider
-      const providerConfig = providerCache.get(route.provider);
-      if (!providerConfig) {
-        return new Response(JSON.stringify({ error: "Provider unavailable", message: `Provider ${route.provider} is not configured` }), {
-          status: 503,
-          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-        });
-      }
+      // 9. Call provider
+      // Use tier defaults for max_tokens/temperature if not explicitly provided
+      const tierDefaults = TIER_DEFAULTS[route.tier as ModelTier] ?? TIER_DEFAULTS.core;
+      const effectiveMaxTokens = max_tokens ?? tierDefaults.max_tokens;
+      const effectiveTemperature = temperature ?? tierDefaults.temperature;
 
-      // 6. Call provider
       const providerResponse = await callProvider(
         providerConfig,
         route.provider_model_id,
         messages,
-        Math.min(max_tokens, route.max_tokens),
-        temperature,
+        Math.min(effectiveMaxTokens, route.max_tokens),
+        effectiveTemperature,
         stream
       );
 
       const latencyMs = Date.now() - startTime;
 
-      // 7. Handle errors from provider
+      // Build rate limit headers for all responses
+      const rateLimitHeaders = {
+        "X-RateLimit-Limit": String(rateInfo.limit),
+        "X-RateLimit-Remaining": String(Math.max(0, rateInfo.remaining - 1)), // -1 for this call
+        "X-RateLimit-Reset": rateInfo.reset,
+      };
+
+      // Build routing headers
+      const routingHeaders: Record<string, string> = {};
+      if (wasRouted) {
+        routingHeaders["X-Conflux-Task-Type"] = routedTaskType ?? "";
+        routingHeaders["X-Conflux-Tier"] = routedTier;
+        routingHeaders["X-Conflux-Routed"] = "true";
+      } else {
+        routingHeaders["X-Conflux-Routed"] = "false";
+        routingHeaders["X-Conflux-Tier"] = route.tier;
+      }
+
+      // 10. Handle errors from provider
       if (!providerResponse.ok) {
         const errorBody = await providerResponse.text();
         console.error(`Provider error [${route.provider}/${route.provider_model_id}]:`, providerResponse.status, errorBody);
@@ -461,8 +1063,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
                 fallbackProvider,
                 fallbackRoute.provider_model_id,
                 messages,
-                Math.min(max_tokens, fallbackRoute.max_tokens),
-                temperature,
+                Math.min(effectiveMaxTokens, fallbackRoute.max_tokens),
+                effectiveTemperature,
                 stream
               );
 
@@ -470,14 +1072,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
                 // Deduct credits for fallback
                 const tokensIn = estimatedTokensIn;
                 const tokensOut = estimateTokens(await fallbackResponse.clone().text());
-                await supabase.rpc("deduct_credits", {
+                const providerCostUsd = await getProviderCost(fallbackRoute.provider, fallbackRoute.provider_model_id, tokensIn, tokensOut);
+                const deductRpc = auth.isApiKey ? "deduct_api_credits" : "deduct_credits";
+                await supabase.rpc(deductRpc, {
                   p_user_id: auth.userId,
-                  p_model_alias: model,
+                  p_model_alias: resolvedModel,
                   p_tokens_in: tokensIn,
                   p_tokens_out: tokensOut,
                   p_provider: fallbackRoute.provider,
                   p_status: "success",
                   p_latency_ms: Date.now() - startTime,
+                  p_provider_cost_usd: providerCostUsd,
                 });
 
                 return new Response(fallbackResponse.body, {
@@ -488,6 +1093,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
                     "X-Conflux-Provider": fallbackRoute.provider,
                     "X-Conflux-Model": fallbackRoute.model_alias,
                     "X-Conflux-Fallback": "true",
+                    ...routingHeaders,
+                    ...rateLimitHeaders,
                   },
                 });
               }
@@ -497,14 +1104,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
         // Log failed attempt
         try {
-          await supabase.rpc("deduct_credits", {
+          const deductRpc = auth.isApiKey ? "deduct_api_credits" : "deduct_credits";
+          await supabase.rpc(deductRpc, {
             p_user_id: auth.userId,
-            p_model_alias: model,
+            p_model_alias: resolvedModel,
             p_tokens_in: 0,
             p_tokens_out: 0,
             p_provider: route.provider,
             p_status: "error",
             p_latency_ms: latencyMs,
+            p_provider_cost_usd: 0,
           });
         } catch (e) {
           console.error("Error logging failed call:", e);
@@ -512,11 +1121,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
         return new Response(JSON.stringify({ error: "Provider error", message: errorBody }), {
           status: providerResponse.status,
-          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          headers: {
+            ...CORS_HEADERS,
+            "Content-Type": "application/json",
+            ...routingHeaders,
+            ...rateLimitHeaders,
+          },
         });
       }
 
-      // 8. Success — deduct credits and return response
+      // 11. Success — deduct credits and return response
       const responseBody = await providerResponse.text();
       let tokensIn = estimatedTokensIn;
       let tokensOut = estimatedTokensOut;
@@ -535,14 +1149,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
       // Deduct credits + log usage
       try {
-        const { error: rpcError } = await supabase.rpc("deduct_credits", {
+        const providerCostUsd = await getProviderCost(route.provider, route.provider_model_id, tokensIn, tokensOut);
+        const deductRpc = auth.isApiKey ? "deduct_api_credits" : "deduct_credits";
+        const { error: rpcError } = await supabase.rpc(deductRpc, {
           p_user_id: auth.userId,
-          p_model_alias: model,
+          p_model_alias: resolvedModel,
           p_tokens_in: tokensIn,
           p_tokens_out: tokensOut,
           p_provider: route.provider,
           p_status: "success",
           p_latency_ms: latencyMs,
+          p_provider_cost_usd: providerCostUsd,
         });
         if (rpcError) console.error("Credit deduction failed:", rpcError);
       } catch (e) {
@@ -560,6 +1177,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
             Math.ceil(tokensIn / 1000) * route.credit_cost_per_1k_in +
             Math.ceil(tokensOut / 1000) * route.credit_cost_per_1k_out
           ),
+          ...routingHeaders,
+          ...rateLimitHeaders,
         },
       });
     }

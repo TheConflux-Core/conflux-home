@@ -7,7 +7,6 @@ import { useEngineChat } from '../hooks/useEngineChat';
 import { useCloudChat } from '../hooks/useCloudChat';
 import { useAuth } from '../hooks/useAuth';
 import { MicButton } from './voice';
-import { ModelOptions, DEFAULT_MODEL, ModelOption } from '../data/models';
 
 // Configure marked for safe rendering
 marked.setOptions({
@@ -38,11 +37,8 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
   const [input, setInput] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<ModelOption>(DEFAULT_MODEL);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const agentDropdownRef = useRef<HTMLDivElement>(null);
-  const modelDropdownRef = useRef<HTMLDivElement>(null);
 
   // Auth for cloud mode
   const { session } = useAuth();
@@ -51,11 +47,10 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
   // Engine chat (local Rust backend)
   const engineChat = useEngineChat(agent?.id ?? null);
 
-  // Cloud chat (Conflux Router Edge Function)
+  // Cloud chat (Conflux Router Edge Function — uses deterministic task-type routing)
   const cloudChat = useCloudChat({
     userId: session?.user?.id ?? '',
     agentId: agent?.id ?? null,
-    model: selectedModel.id,
     getToken,
   });
 
@@ -98,28 +93,16 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
     return () => window.removeEventListener('keydown', handler);
   }, [isOpen, onClose]);
 
-  // Close dropdowns on click outside
+  // Close dropdown on click outside
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dropdownOpen && agentDropdownRef.current && !agentDropdownRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);
       }
-      if (modelDropdownOpen && modelDropdownRef.current && !modelDropdownRef.current.contains(e.target as Node)) {
-        setModelDropdownOpen(false);
-      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [dropdownOpen, modelDropdownOpen]);
-
-  const getQualityIndicator = (quality: ModelOption['quality']) => {
-    switch (quality) {
-      case 'basic': return '🟢';
-      case 'good': return '🔵';
-      case 'excellent': return '🟣';
-      default: return '';
-    }
-  };
+  }, [dropdownOpen]);
 
   if (!agent) {
     return (
@@ -231,42 +214,6 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
         >
           🕐
         </button>
-        {/* Model Selector Dropdown — shown when authenticated */}
-        {session && (
-          <div className="chat-model-selector" ref={modelDropdownRef}>
-            <button
-              className="chat-model-selector-button"
-              onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
-              title={`Current model: ${selectedModel.name}`}
-            >
-              {getQualityIndicator(selectedModel.quality)} {selectedModel.name}
-              <span style={{ fontSize: 10, opacity: 0.6, transition: 'transform 0.15s', transform: modelDropdownOpen ? 'rotate(180deg)' : 'none' }}>▾</span>
-            </button>
-            {modelDropdownOpen && (
-              <div className="chat-model-dropdown">
-                {['free', 'pro', 'ultra'].map(tier => (
-                  <div key={tier}>
-                    <div className="chat-model-dropdown-header">
-                      {tier === 'free' ? 'Free' : tier === 'pro' ? 'Pro' : 'Ultra'}
-                    </div>
-                    {ModelOptions.filter(m => m.tier === tier).map(model => (
-                      <button
-                        key={model.id}
-                        className={`chat-model-dropdown-item ${model.id === selectedModel.id ? 'active' : ''}`}
-                        onClick={() => {
-                          setSelectedModel(model);
-                          setModelDropdownOpen(false);
-                        }}
-                      >
-                        {getQualityIndicator(model.quality)} {model.name} {model.isPaid && <span style={{ marginLeft: 'auto', opacity: 0.8 }}>💎</span>}
-                      </button>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
         {/* Credits badge */}
         <div className="chat-credits-badge">
           {isQuotaExceeded
@@ -323,6 +270,20 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
                   />
                 ) : (
                   msg.content
+                )}
+                {isAgent && msg.model && (
+                  <span style={{
+                    display: 'inline-block',
+                    fontSize: 10,
+                    color: 'var(--text-muted)',
+                    background: 'rgba(255,255,255,0.06)',
+                    borderRadius: 4,
+                    padding: '1px 6px',
+                    marginTop: 4,
+                    opacity: 0.7,
+                  }}>
+                    {msg.model}
+                  </span>
                 )}
                 <div style={{
                   fontSize: 10,
@@ -398,11 +359,6 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
             size="sm"
             onTranscription={(text) => setInput(prev => prev + text)}
           />
-          {session && (
-            <span className="chat-model-tag">
-              {getQualityIndicator(selectedModel.quality)} {selectedModel.name}
-            </span>
-          )}
         </div>
       </div>
     </div>
