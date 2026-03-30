@@ -40,7 +40,10 @@
             "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDcyMDIwRjFBMDZFMkU3MzcKUldRMzUrSUdHZzhDY2hWZS9qcVRUU0tqQ1pmYjVoMncyQ0dSRUdBWkpBcVI3OXJ5d3l6MmhlamwK",
             "endpoints": [
                 "https://github.com/TheConflux-Core/conflux-home/releases/latest/download/updates.json"
-            ]
+            ],
+            "windows": {
+                "installMode": "passive"
+            }
         }
     },
     "bundle": {
@@ -70,6 +73,11 @@
             },
             "appimage": {
                 "bundleMediaFramework": false
+            }
+        },
+        "windows": {
+            "nsis": {
+                "installMode": "currentUser"
             }
         }
     }
