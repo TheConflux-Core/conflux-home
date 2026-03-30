@@ -678,7 +678,7 @@ impl EngineDb {
         model_alias: Option<&str>,
     ) -> Result<()> {
         let conn = self.conn();
-        let now = Self::now();
+        let _now = Self::now();
 
         // Build dynamic update query
         let mut sets: Vec<String> = Vec::new();
@@ -2016,10 +2016,10 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn install_agent_from_template(&self, template_id: &str, member_id: Option<&str>) -> Result<Option<super::types::Agent>> {
+    pub fn install_agent_from_template(&self, template_id: &str, _member_id: Option<&str>) -> Result<Option<super::types::Agent>> {
         let conn = self.conn();
         // Get template
-        let mut stmt = conn.prepare(
+        let _stmt = conn.prepare(
             "SELECT id, name, emoji, role_description, soul, instructions, model_alias, category
              FROM agent_templates WHERE id = ?1"
         )?;
@@ -3502,7 +3502,7 @@ impl EngineDb {
         Ok(map.into_iter().collect())
     }
 
-    pub fn get_bills_rolling_avg(&self, months: i64) -> Result<Vec<serde_json::Value>> {
+    pub fn get_bills_rolling_avg(&self, _months: i64) -> Result<Vec<serde_json::Value>> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
             "SELECT bill_type,
