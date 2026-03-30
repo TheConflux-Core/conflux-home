@@ -93,51 +93,46 @@ async function handleCheckoutCompleted(
       return;
     }
 
-    // Upsert credit_accounts: add credits to balance
+    // Upsert api_credit_accounts: add credits to balance
     const { data: existing } = await supabase
-      .from('credit_accounts')
-      .select('balance, total_purchased, total_deposited_cents')
+      .from('api_credit_accounts')
+      .select('balance, total_purchased')
       .eq('user_id', userId)
       .single();
 
     if (existing) {
       await supabase
-        .from('credit_accounts')
+        .from('api_credit_accounts')
         .update({
           balance: existing.balance + credits,
           total_purchased: existing.total_purchased + credits,
-          total_deposited_cents: existing.total_deposited_cents + (session.amount_total ?? 0),
-          last_topup_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq('user_id', userId);
     } else {
       await supabase
-        .from('credit_accounts')
+        .from('api_credit_accounts')
         .insert({
           user_id: userId,
           balance: credits,
           total_purchased: credits,
-          total_deposited_cents: session.amount_total ?? 0,
-          last_topup_at: new Date().toISOString(),
         });
     }
 
     // Log the transaction
     const { data: account } = await supabase
-      .from('credit_accounts')
+      .from('api_credit_accounts')
       .select('balance')
       .eq('user_id', userId)
       .single();
 
     await supabase
-      .from('credit_transactions')
+      .from('api_credit_transactions')
       .insert({
         user_id: userId,
         type: 'purchase',
         amount: credits,
         balance_after: account?.balance ?? credits,
-        description: `Credit pack: ${packName} ($${((session.amount_total ?? 0) / 100).toFixed(2)})`,
         stripe_payment_id: session.payment_intent,
       });
 
@@ -375,7 +370,7 @@ async function handleSubscriptionDeleted(
 
   if (sub) {
     const { data: creditAccount } = await supabase
-      .from("credit_accounts")
+      .from("api_credit_accounts")
       .select("balance")
       .eq("user_id", sub.user_id)
       .single();
