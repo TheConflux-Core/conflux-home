@@ -13,13 +13,17 @@ use tauri::{Manager, Emitter};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     dotenvy::dotenv().ok();
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_deep_link::init())
-        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+        .plugin(tauri_plugin_deep_link::init());
+
+    // Single-instance plugin only works on desktop (not Android/iOS)
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             log::info!("Second instance detected with args: {:?}", args);
             // On Windows/Linux, deep link URL arrives as a CLI argument
             for arg in args {
@@ -31,7 +35,10 @@ pub fn run() {
                     }
                 }
             }
-        }))
+        }));
+    }
+
+    builder
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_log::Builder::default()
