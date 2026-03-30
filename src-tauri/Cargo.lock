@@ -116,45 +116,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
-name = "app"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "chrono",
- "cpal",
- "dashmap",
- "dotenvy",
- "futures-util",
- "hound",
- "lettre",
- "log",
- "meval",
- "once_cell",
- "open",
- "regex",
- "reqwest 0.12.28",
- "rusqlite",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-deep-link",
- "tauri-plugin-dialog",
- "tauri-plugin-fs",
- "tauri-plugin-log",
- "tauri-plugin-notification",
- "tauri-plugin-shell",
- "tauri-plugin-single-instance",
- "tauri-plugin-updater",
- "thiserror 1.0.69",
- "tokio",
- "urlencoding",
- "uuid",
- "whisper-rs",
-]
-
-[[package]]
 name = "ar_archive_writer"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -764,6 +725,45 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
 dependencies = [
  "crossbeam-utils",
+]
+
+[[package]]
+name = "conflux-home"
+version = "0.1.17"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "chrono",
+ "cpal",
+ "dashmap",
+ "dotenvy",
+ "futures-util",
+ "hound",
+ "lettre",
+ "log",
+ "meval",
+ "once_cell",
+ "open",
+ "regex",
+ "reqwest 0.12.28",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-deep-link",
+ "tauri-plugin-dialog",
+ "tauri-plugin-fs",
+ "tauri-plugin-log",
+ "tauri-plugin-notification",
+ "tauri-plugin-shell",
+ "tauri-plugin-single-instance",
+ "tauri-plugin-updater",
+ "thiserror 1.0.69",
+ "tokio",
+ "urlencoding",
+ "uuid",
+ "whisper-rs",
 ]
 
 [[package]]

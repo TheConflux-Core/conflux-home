@@ -742,7 +742,7 @@ impl ConfluxEngine {
         self.db.uninstall_skill(id)
     }
 
-    pub fn test_provider(&self, id: &str) -> Result<router::ModelResponse> {
+    pub fn test_provider(&self, _id: &str) -> Result<router::ModelResponse> {
         // Run a test call using the tier-based router
         let rt = tokio::runtime::Runtime::new()?;
         rt.block_on(async {

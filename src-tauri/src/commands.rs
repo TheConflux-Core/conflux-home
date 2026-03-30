@@ -1341,10 +1341,10 @@ pub fn kitchen_add_ingredient(req: AddIngredientRequest) -> Result<(), String> {
 // ── Smart Kitchen — AI Meal Recognition ──
 
 #[tauri::command]
-pub async fn kitchen_recognize_meal(photo_base64: String) -> Result<engine::types::MealWithIngredients, String> {
-    let engine = engine::get_engine();
+pub async fn kitchen_recognize_meal(_photo_base64: String) -> Result<engine::types::MealWithIngredients, String> {
+    let _engine = engine::get_engine();
 
-    let prompt = "You are a culinary expert AI. Look at this photo of a meal and provide:
+    let _prompt = "You are a culinary expert AI. Look at this photo of a meal and provide:
 
 1. The name of the dish
 2. A brief description
@@ -1379,7 +1379,7 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
 Be accurate with costs. Use 2026 US grocery prices. List every ingredient.";
 
     // For now, use text-based recognition (photo support via vision API can be added later)
-    let messages = vec![engine::router::OpenAIMessage {
+    let _messages = vec![engine::router::OpenAIMessage {
         role: "user".to_string(),
         content: Some(format!("I'm describing a meal I want to add to my kitchen. Help me set it up with full details including ingredients and costs.\n\nDescribe what you see or tell me: what meal should we add?")),
         tool_call_id: None,
@@ -1474,7 +1474,7 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
         .map_err(|e| format!("Failed to parse AI response: {}. Raw: {}", e, json_str))?;
 
     let meal_id = uuid::Uuid::new_v4().to_string();
-    let meal = engine.db().create_meal(
+    let _meal = engine.db().create_meal(
         &meal_id, &ai_meal.name, ai_meal.description.as_deref(), ai_meal.cuisine.as_deref(),
         ai_meal.category.as_deref(), None, ai_meal.prep_time_min, ai_meal.cook_time_min,
         ai_meal.servings.unwrap_or(4), &ai_meal.difficulty.unwrap_or("normal".to_string()),
@@ -1854,7 +1854,7 @@ pub fn budget_parse_natural(input: String) -> Result<serde_json::Value, String> 
     let mut entry_type = "expense";
     let mut amount = 0.0;
     let mut category = "other";
-    let mut description = input.clone();
+    let description = input.clone();
 
     // Detect type
     if lower.contains("income") || lower.contains("paid") || lower.contains("earned") || lower.contains("salary") || lower.contains("got paid") {
@@ -2623,7 +2623,7 @@ pub async fn life_morning_brief() -> Result<String, String> {
 
 #[tauri::command]
 pub async fn life_smart_reschedule(task_id: String) -> Result<engine::types::LifeSchedule, String> {
-    let engine = engine::get_engine();
+    let _engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
     let schedule = engine::types::LifeSchedule {
         id: id.clone(),
@@ -2915,7 +2915,7 @@ pub fn home_detect_anomalies() -> Result<Vec<serde_json::Value>, String> {
     let anomalies: Vec<serde_json::Value> = raw.into_iter().map(|mut item| {
         let deviation = item["deviation_percent"].as_f64().unwrap_or(0.0);
         let is_anomalous = deviation.abs() > 20.0;
-        let bill_type = item["bill_type"].as_str().unwrap_or("unknown").to_string();
+        let _bill_type = item["bill_type"].as_str().unwrap_or("unknown").to_string();
 
         let (possible_causes, investigation, severity) = if deviation > 50.0 {
             (vec!["Major usage spike or rate increase", "Possible leak or malfunction", "Seasonal extreme weather"],
@@ -3007,7 +3007,7 @@ pub fn home_get_warranty_alerts() -> Result<Vec<serde_json::Value>, String> {
 
 /// Home AI chat — keyword-based smart replies (placeholder for LLM).
 #[tauri::command]
-pub fn home_chat(id: String, message: String) -> Result<serde_json::Value, String> {
+pub fn home_chat(_id: String, message: String) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
     let msg_lower = message.to_lowercase();
 
@@ -3054,7 +3054,7 @@ pub fn home_get_maintenance_report() -> Result<serde_json::Value, String> {
 
     let overdue_count = dashboard.overdue_maintenance.len();
     let upcoming_count = dashboard.upcoming_maintenance.len();
-    let appliance_count = dashboard.appliances_needing_service.len();
+    let _appliance_count = dashboard.appliances_needing_service.len();
 
     let mut highlights = Vec::new();
     let mut concerns = Vec::new();
