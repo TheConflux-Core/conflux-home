@@ -403,6 +403,12 @@ pub fn run() {
             commands::get_usage_stats,
             commands::purchase_credits,
             commands::set_supabase_session,
+            // Deterministic Router
+            commands::route_select_model,
+            commands::route_get_tier,
+            commands::route_get_task_types,
+            commands::route_model_supports_tools,
+            commands::route_get_reliable_tool_models,
             // Stripe — Subscription Management
             stripe::stripe_create_checkout_session,
             stripe::stripe_create_credit_pack_session,

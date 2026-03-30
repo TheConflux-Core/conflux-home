@@ -4,6 +4,7 @@
 pub mod db;
 pub mod types;
 pub mod router;
+pub mod deterministic;
 pub mod runtime;
 pub mod tools;
 pub mod memory;

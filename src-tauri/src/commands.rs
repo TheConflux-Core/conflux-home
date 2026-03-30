@@ -4944,3 +4944,38 @@ pub async fn set_supabase_session(
     db.set_config("supabase_auth_token", &access_token).map_err(|e| e.to_string())?;
     Ok(())
 }
+
+// ── Deterministic Router ──
+
+/// Select the best model for a given task type using deterministic routing.
+/// Returns model alias, provider, tier, tool reliability, and fallback chain.
+#[tauri::command]
+pub async fn route_select_model(task_type: String) -> Result<engine::deterministic::RouteSelection, String> {
+    engine::deterministic::select_model(&task_type)
+        .ok_or_else(|| format!("No model found for task type: {}", task_type))
+}
+
+/// Get the tier for a task type without selecting a specific model.
+#[tauri::command]
+pub async fn route_get_tier(task_type: String) -> Result<String, String> {
+    engine::deterministic::get_tier_for_task(&task_type)
+        .ok_or_else(|| format!("Unknown task type: {}", task_type))
+}
+
+/// Get all available task types with their top model picks.
+#[tauri::command]
+pub async fn route_get_task_types() -> Result<Vec<String>, String> {
+    Ok(engine::deterministic::get_task_types())
+}
+
+/// Check if a model reliably supports tool calling.
+#[tauri::command]
+pub async fn route_model_supports_tools(model_alias: String) -> Result<bool, String> {
+    Ok(engine::deterministic::model_supports_tools(&model_alias))
+}
+
+/// Get all models that reliably support tool calling.
+#[tauri::command]
+pub async fn route_get_reliable_tool_models() -> Result<Vec<String>, String> {
+    Ok(engine::deterministic::get_reliable_tool_models())
+}
