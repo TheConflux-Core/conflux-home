@@ -322,6 +322,47 @@ async function handleSubscriptionUpdated(
   }
 }
 
+async function handlePaymentIntentSucceeded(
+  paymentIntent: Stripe.PaymentIntent
+) {
+  const credits = paymentIntent.metadata?.credits;
+  const userId = paymentIntent.metadata?.user_id;
+
+  if (!credits || !userId) {
+    // Not an API credit purchase — skip
+    return;
+  }
+
+  const amount = parseInt(credits);
+  if (isNaN(amount) || amount <= 0) {
+    console.error("payment_intent.succeeded: invalid credits metadata", {
+      paymentIntentId: paymentIntent.id,
+      credits,
+    });
+    return;
+  }
+
+  const { error } = await supabase.rpc("add_api_credits", {
+    p_user_id: userId,
+    p_amount: amount,
+    p_stripe_payment_id: paymentIntent.id,
+  });
+
+  if (error) {
+    console.error("payment_intent.succeeded: add_api_credits failed", {
+      paymentIntentId: paymentIntent.id,
+      userId,
+      amount,
+      error: error.message,
+    });
+    return;
+  }
+
+  console.log(
+    `[API Credits] ${amount} credits added to user ${userId} via payment ${paymentIntent.id}`
+  );
+}
+
 async function handleSubscriptionDeleted(
   subscription: Stripe.Subscription
 ) {
@@ -410,6 +451,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       case "customer.subscription.deleted":
         await handleSubscriptionDeleted(
           event.data.object as Stripe.Subscription
+        );
+        break;
+
+      case "payment_intent.succeeded":
+        await handlePaymentIntentSucceeded(
+          event.data.object as Stripe.PaymentIntent
         );
         break;
 

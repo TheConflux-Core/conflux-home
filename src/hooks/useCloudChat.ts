@@ -1,11 +1,13 @@
 // Conflux Home — Cloud Chat Hook
 // Routes chat through the Conflux Router (Supabase Edge Function).
 // Uses Supabase JWT for auth, credit-based billing.
+// Uses deterministic task-type routing instead of explicit model selection.
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type { AgentMessage } from '../types';
+import { inferTaskType } from '../conflux-router/deterministic-router';
 
 const CONFLUX_ROUTER_URL = 'https://zcvhozqrssotirabdlzr.supabase.co/functions/v1/conflux-router';
 
@@ -36,7 +38,8 @@ interface CloudChatMessage {
 }
 
 interface CloudChatRequest {
-  model: string;
+  task_type?: string;
+  model?: string;
   messages: CloudChatMessage[];
   max_tokens?: number;
   temperature?: number;
@@ -60,13 +63,12 @@ interface CloudChatResponse {
 interface UseCloudChatOptions {
   userId: string;
   agentId: string | null;
-  model?: string;
   systemPrompt?: string;
   getToken: () => Promise<string | null>;
 }
 
 export function useCloudChat(options: UseCloudChatOptions): UseCloudChatResult {
-  const { agentId, model = 'gpt-4o-mini', systemPrompt, getToken } = options;
+  const { agentId, systemPrompt, getToken } = options;
 
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
@@ -146,12 +148,15 @@ export function useCloudChat(options: UseCloudChatOptions): UseCloudChatResult {
       // Add current message
       apiMessages.push({ role: 'user', content });
 
+      // Infer task type from the conversation for deterministic routing
+      const taskType = inferTaskType(apiMessages, false);
+
       const request: CloudChatRequest = {
-        model,
+        task_type: taskType,
         messages: apiMessages,
         max_tokens: 4096,
         temperature: 0.7,
-        stream: true, // ENABLE STREAMING
+        stream: true,
       };
 
       const res = await fetch(`${CONFLUX_ROUTER_URL}/v1/chat/completions`, {
@@ -184,6 +189,9 @@ export function useCloudChat(options: UseCloudChatOptions): UseCloudChatResult {
       }
 
       setThinking(false);
+
+      // Capture routed model from response headers
+      const routedModel = res.headers.get('X-Conflux-Model') ?? undefined;
 
       // Read the SSE stream
       const reader = res.body!.getReader();
@@ -228,6 +236,17 @@ export function useCloudChat(options: UseCloudChatOptions): UseCloudChatResult {
         }
       }
 
+      // Tag the completed message with the routed model name
+      if (routedModel) {
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === assistantId
+              ? { ...m, model: routedModel }
+              : m
+          )
+        );
+      }
+
       // If no content received but stream ended without error, show a fallback
       if (fullContent === '' && error === null) {
         setMessages(prev =>
@@ -256,7 +275,7 @@ export function useCloudChat(options: UseCloudChatOptions): UseCloudChatResult {
         )
       );
     }
-  }, [agentId, model, systemPrompt, messages, getToken]);
+  }, [agentId, systemPrompt, messages, getToken]);
 
   return {
     messages,
