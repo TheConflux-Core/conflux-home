@@ -32,6 +32,7 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          prefix-key: "linux-2204"
 
       - name: Install system dependencies
         run: |
