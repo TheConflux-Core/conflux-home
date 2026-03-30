@@ -136,7 +136,7 @@ pub async fn execute_tool(tool_name: &str, args: &Value) -> Result<ToolResult> {
 }
 
 /// Execute a tool with agent-specific permission checking.
-pub async fn execute_tool_for_agent(tool_name: &str, args: &Value, agent_id: &str) -> Result<ToolResult> {
+pub async fn execute_tool_for_agent(tool_name: &str, args: &Value, _agent_id: &str) -> Result<ToolResult> {
     // Google tools are checked separately (they require auth, not permissions)
     if matches!(tool_name, "google_auth" | "gmail_send" | "gmail_search" | "google_drive_list" |
         "google_doc_read" | "google_doc_write" | "google_sheet_read" | "google_sheet_write")
