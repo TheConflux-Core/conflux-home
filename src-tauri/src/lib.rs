@@ -398,7 +398,6 @@ pub fn run() {
             commands::voice_list_devices,
             commands::voice_get_config,
             commands::voice_set_config,
-            }
             // Cloud — Supabase Credit & Usage System
             commands::get_credit_balance,
             commands::get_usage_history,
