@@ -1,7 +1,7 @@
 {
   "name": "conflux-home",
-  "version": "0.1.19",
-  "description": "Conflux Home — A home for your AI family",
+  "version": "0.1.20",
+  "description": "Conflux Home \u2014 A home for your AI family",
   "type": "module",
   "scripts": {
     "dev": "vite",
