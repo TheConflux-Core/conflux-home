@@ -2,6 +2,7 @@
 // Initializes the Conflux Engine and exposes commands to the frontend.
 
 pub mod engine;
+#[cfg(not(target_os = "android"))]
 pub mod voice;
 mod commands;
 mod stripe;
@@ -388,7 +389,7 @@ pub fn run() {
             commands::studio_get_api_keys_status,
             commands::studio_generate_image,
             commands::studio_generate_voice,
-            // Voice Input
+            // Voice Input (desktop only — see cfg below)
             commands::voice_capture_start,
             commands::voice_capture_stop,
             commands::voice_transcribe,
@@ -397,6 +398,7 @@ pub fn run() {
             commands::voice_list_devices,
             commands::voice_get_config,
             commands::voice_set_config,
+            }
             // Cloud — Supabase Credit & Usage System
             commands::get_credit_balance,
             commands::get_usage_history,
