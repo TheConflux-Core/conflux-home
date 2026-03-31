@@ -620,6 +620,64 @@
   margin-top: 4px;
 }
 
+/* ── Themed widget accents ── */
+
+.widget-accent-themed {
+  background: var(--theme-accent-gradient, linear-gradient(90deg, #818cf8, #818cf844));
+  transition: background 0.4s ease;
+}
+
+.category-card-accent-themed {
+  background: linear-gradient(180deg, var(--theme-accent, #818cf8), transparent);
+  transition: background 0.4s ease;
+}
+
+/* ── Folder expansion tiles ── */
+
+.folder-back-tile {
+  border-style: dashed !important;
+  opacity: 0.8;
+}
+
+.folder-back-tile:hover {
+  opacity: 1;
+}
+
+.folder-indicator {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.35);
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.desktop-widget:hover .folder-indicator {
+  color: rgba(255, 255, 255, 0.7);
+  transform: translateX(3px);
+}
+
+.folder-item-locked {
+  opacity: 0.45;
+  cursor: default !important;
+  pointer-events: none;
+}
+
+.folder-item-badge {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 /* ══════════════════════════════════════
    Responsive — Mobile
    ══════════════════════════════════════ */
