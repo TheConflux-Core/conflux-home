@@ -1,0 +1,6 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicehash/tauri-schema/v2/schema.json",
+  "bundle": {
+    "resources": []
+  }
+}
