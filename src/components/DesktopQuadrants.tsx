@@ -284,6 +284,30 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
   );
 }
 
+// ── Folder App Definitions ──
+
+interface FolderItem {
+  id: string;
+  name: string;
+  icon: string;
+  subtitle: string;
+  status: 'available' | 'coming-soon';
+}
+
+const FOLDER_APPS: Record<string, { title: string; icon: string; items: FolderItem[] }> = {
+  games: {
+    title: 'Games',
+    icon: '🎮',
+    items: [
+      { id: 'minesweeper', name: 'Minesweeper', icon: '💣', subtitle: 'Classic · 9×9', status: 'available' },
+      { id: 'solitaire', name: 'Solitaire', icon: '🃏', subtitle: 'Classic Card Game', status: 'available' },
+      { id: 'pacman', name: 'Pac-Man', icon: '🟡', subtitle: 'Arcade Classic', status: 'available' },
+      { id: 'snake', name: 'Snake', icon: '🐍', subtitle: 'Arcade Classic', status: 'available' },
+      { id: 'stories', name: 'Conflux Stories', icon: '📖', subtitle: 'Interactive Fiction', status: 'coming-soon' },
+    ],
+  },
+};
+
 // ── Expanded Category View ──
 
 interface ExpandedViewProps {
@@ -293,6 +317,73 @@ interface ExpandedViewProps {
 }
 
 function ExpandedView({ category, onBack, onNavigate }: ExpandedViewProps) {
+  const [subFolder, setSubFolder] = useState<string | null>(null);
+
+  // If inside a sub-folder (like Games), show its items as a grid
+  if (subFolder) {
+    const folder = FOLDER_APPS[subFolder];
+    if (!folder) return null;
+
+    return (
+      <div className="quadrant-expanded">
+        <div className="quadrant-expanded-header">
+          <button className="quadrant-back-btn" onClick={() => setSubFolder(null)}>
+            ←
+          </button>
+          <span className="quadrant-expanded-title">
+            {folder.icon} {folder.title}
+          </span>
+        </div>
+        <div className="quadrant-expanded-grid">
+          {/* Back button tile */}
+          <div
+            className="desktop-widget folder-back-tile"
+            onClick={() => setSubFolder(null)}
+            style={{ '--widget-color': category.color } as React.CSSProperties}
+          >
+            <div className="widget-accent widget-accent-themed" />
+            <div className="widget-body">
+              <span className="widget-icon">↩️</span>
+              <span className="widget-label">Back</span>
+              <span className="widget-preview">Back to {category.label}</span>
+            </div>
+          </div>
+
+          {/* Game tiles */}
+          {folder.items.map((item) => (
+            <div
+              key={item.id}
+              className={`desktop-widget ${item.status === 'coming-soon' ? 'folder-item-locked' : ''}`}
+              onClick={() => {
+                if (item.status === 'available') {
+                  onNavigate('games');
+                  // Small delay to ensure immersiveView is set before game dispatch
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('conflux:navigate', {
+                      detail: { viewId: 'games', gameId: item.id },
+                    }));
+                  }, 0);
+                }
+              }}
+              style={{ '--widget-color': category.color } as React.CSSProperties}
+            >
+              <div className="widget-accent widget-accent-themed" />
+              {item.status === 'coming-soon' && (
+                <div className="folder-item-badge">Coming Soon</div>
+              )}
+              <div className="widget-body">
+                <span className="widget-icon">{item.icon}</span>
+                <span className="widget-label">{item.name}</span>
+                <span className="widget-preview">{item.subtitle}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Normal category expanded view
   return (
     <div className="quadrant-expanded">
       <div className="quadrant-expanded-header">
@@ -304,26 +395,45 @@ function ExpandedView({ category, onBack, onNavigate }: ExpandedViewProps) {
         </span>
       </div>
       <div className="quadrant-expanded-grid">
-        {category.apps.map((app) => (
-          <div
-            key={app.id}
-            className="desktop-widget"
-            onClick={() => onNavigate(app.id)}
-            style={{ '--widget-color': category.color } as React.CSSProperties}
-          >
-            <div
-              className="widget-accent"
-              style={{
-                background: `linear-gradient(90deg, ${category.color}, ${category.color}44)`,
-              }}
-            />
-            <div className="widget-body">
-              <span className="widget-icon">{app.icon}</span>
-              <span className="widget-label">{app.label}</span>
-              <span className="widget-preview">{app.preview}</span>
-            </div>
+        {/* Back to Desktop tile */}
+        <div
+          className="desktop-widget folder-back-tile"
+          onClick={onBack}
+          style={{ '--widget-color': category.color } as React.CSSProperties}
+        >
+          <div className="widget-accent widget-accent-themed" />
+          <div className="widget-body">
+            <span className="widget-icon">↩️</span>
+            <span className="widget-label">Back</span>
+            <span className="widget-preview">Back to Desktop</span>
           </div>
-        ))}
+        </div>
+
+        {category.apps.map((app) => {
+          const isFolder = app.id in FOLDER_APPS;
+          return (
+            <div
+              key={app.id}
+              className="desktop-widget"
+              onClick={() => {
+                if (isFolder) {
+                  setSubFolder(app.id);
+                } else {
+                  onNavigate(app.id);
+                }
+              }}
+              style={{ '--widget-color': category.color } as React.CSSProperties}
+            >
+              <div className="widget-accent widget-accent-themed" />
+              <div className="widget-body">
+                <span className="widget-icon">{app.icon}</span>
+                <span className="widget-label">{app.label}</span>
+                <span className="widget-preview">{app.preview}</span>
+              </div>
+              {isFolder && <span className="folder-indicator">▸</span>}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -369,8 +479,7 @@ export default function DesktopQuadrants({ onNavigate, agents }: DesktopQuadrant
             style={{ '--cat-color': cat.color } as React.CSSProperties}
           >
             <div
-              className="category-card-accent"
-              style={{ background: `linear-gradient(180deg, ${cat.color}, ${cat.color}44)` }}
+              className="category-card-accent category-card-accent-themed"
             />
             <span className="category-card-icon">{cat.icon}</span>
             <div className="category-card-info">

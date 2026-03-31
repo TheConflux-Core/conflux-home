@@ -103,7 +103,10 @@
 
 .immersive-overlay {
   position: fixed;
-  inset: 0;
+  top: 48px; /* below TopBar */
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 100;
   animation: immersive-enter 0.3s ease-out forwards;
   overflow-y: auto;

@@ -53,7 +53,7 @@ import FeatureGate from './components/FeatureGate';
 import { AuthProvider } from './contexts/AuthContext';
 import { useStoryGames, useStoryGame, useStorySeeds } from './hooks/useStoryGame';
 import { useLearningProgress, useLearningGoals } from './hooks/useLearning';
-import { initTheme, getSavedWallpaper } from './lib/theme';
+import { initTheme, getSavedWallpaper, getSavedColorTheme, COLOR_THEMES } from './lib/theme';
 import { registerShortcuts } from './lib/shortcuts';
 import { trackEvent } from './lib/telemetry';
 import './styles/animations.css';
@@ -77,10 +77,15 @@ const VIEW_BACKGROUNDS: Record<string, string> = {
   'api-dashboard': '/backgrounds/dashboard-bg.png', // Re-using an existing dashboard background
 };
 
-// Default wallpapers
+// Default wallpapers — uses color theme if set
 function getDefaultWallpaper(): string {
   const saved = getSavedWallpaper();
   if (saved) return saved;
+  // Use color theme wallpaper
+  const colorThemeId = getSavedColorTheme();
+  const colorTheme = COLOR_THEMES.find(t => t.id === colorThemeId);
+  if (colorTheme) return colorTheme.wallpaper;
+  // Fallback
   const isDark = document.body.classList.contains('dark') ||
     window.matchMedia('(prefers-color-scheme: dark)').matches;
   return isDark ? '/wallpapers/wallpaper-dark.png' : '/wallpapers/desktop-wallpaper.png';
@@ -363,11 +368,11 @@ const [activeSnake, setActiveSnake] = useState(false);
       // Only handle marketplace-style events (object with viewId), ignore string events (e.g. settings)
       if (!detail || typeof detail !== 'object' || !('viewId' in detail)) return;
       const { viewId, gameId } = detail;
-      if (gameId === 'minesweeper') setActiveMinesweeper(true);
-      else if (gameId === 'snake') setActiveSnake(true);
-      else if (gameId === 'pacman') setActivePacman(true);
-      else if (gameId === 'solitaire') setActiveSolitaire(true);
-      else if (gameId === 'stories') setActiveGameId(null); // story games handled separately
+      if (gameId === 'minesweeper') { setImmersiveView(viewId as View); setActiveMinesweeper(true); }
+      else if (gameId === 'snake') { setImmersiveView(viewId as View); setActiveSnake(true); }
+      else if (gameId === 'pacman') { setImmersiveView(viewId as View); setActivePacman(true); }
+      else if (gameId === 'solitaire') { setImmersiveView(viewId as View); setActiveSolitaire(true); }
+      else if (gameId === 'stories') { setImmersiveView(viewId as View); setActiveGameId(null); }
       else setImmersiveView(viewId as View);
     };
     window.addEventListener('conflux:navigate', handler as EventListener);
@@ -475,6 +480,13 @@ const [activeSnake, setActiveSnake] = useState(false);
   }, []);
 
   const handleNavigate = useCallback((v: View) => {
+    // Clear game state whenever we navigate away from games
+    setActiveMinesweeper(false);
+    setActiveSnake(false);
+    setActivePacman(false);
+    setActiveSolitaire(false);
+    setActiveGameId(null);
+
     setView(v);
     if (v === 'dashboard') {
       // Home → go to desktop (close any immersive view)

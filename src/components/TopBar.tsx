@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Agent } from '../types';
-import { Theme, getEffectiveTheme, applyTheme, saveTheme } from '../lib/theme';
+import { Theme, getEffectiveTheme, applyTheme, saveTheme, COLOR_THEMES, getSavedColorTheme, saveColorTheme } from '../lib/theme';
 import ConnectivityWidget from './ConnectivityWidget';
 import { useCredits } from '../hooks/useCredits';
 
@@ -12,35 +12,16 @@ interface TopBarProps {
   onNavigate?: (view: string) => void;
 }
 
-function getThemeIcon(preference: Theme): string {
-  switch (preference) {
-    case 'light': return '☀️';
-    case 'dark': return '🌙';
-    case 'system': return '💻';
-  }
-}
-
-function getThemeLabel(preference: Theme): string {
-  switch (preference) {
-    case 'light': return 'Light';
-    case 'dark': return 'Dark';
-    case 'system': return 'System';
-  }
-}
-
-function cycleTheme(current: Theme): Theme {
-  if (current === 'light') return 'dark';
-  if (current === 'dark') return 'system';
-  return 'light';
-}
-
 export default function TopBar({ selectedAgent, engineConnected, controlRoom, currentView, onNavigate }: TopBarProps) {
   const [clock, setClock] = useState('');
   const [themePref, setThemePref] = useState<Theme>(
     () => (localStorage.getItem('conflux-theme') as Theme) || 'system'
   );
+  const [colorTheme, setColorTheme] = useState(() => getSavedColorTheme());
+  const [showThemes, setShowThemes] = useState(false);
   const [showConnectivity, setShowConnectivity] = useState(false);
   const { balance, loading: creditsLoading } = useCredits();
+  const themeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const updateClock = () => {
@@ -69,15 +50,17 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom, cu
     return () => mql.removeEventListener('change', handler);
   }, [themePref]);
 
-  const handleToggleTheme = () => {
-    const next = cycleTheme(themePref);
-    setThemePref(next);
-    saveTheme(next);
-    const effective = getEffectiveTheme(next);
-    applyTheme(effective);
-    // Dispatch event so App.tsx stays in sync
-    window.dispatchEvent(new CustomEvent('conflux:theme-change', { detail: next }));
-  };
+  // Close theme picker on click outside
+  useEffect(() => {
+    if (!showThemes) return;
+    const handler = (e: MouseEvent) => {
+      if (themeRef.current && !themeRef.current.contains(e.target as Node)) {
+        setShowThemes(false);
+      }
+    };
+    const timer = setTimeout(() => document.addEventListener('mousedown', handler), 50);
+    return () => { clearTimeout(timer); document.removeEventListener('mousedown', handler); };
+  }, [showThemes]);
 
   // Close connectivity popup on click outside
   useEffect(() => {
@@ -88,10 +71,17 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom, cu
         setShowConnectivity(false);
       }
     };
-    // Delay to avoid immediate close on the click that opens it
     const timer = setTimeout(() => document.addEventListener('click', handler), 100);
     return () => { clearTimeout(timer); document.removeEventListener('click', handler); };
   }, [showConnectivity]);
+
+  const handleSelectColorTheme = (themeId: string) => {
+    setColorTheme(themeId);
+    saveColorTheme(themeId);
+    setShowThemes(false);
+  };
+
+  const currentThemeDef = COLOR_THEMES.find(t => t.id === colorTheme);
 
   return (
     <div className="topbar">
@@ -154,13 +144,80 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom, cu
         >
           🔗
         </button>
-        <button
-          className="topbar-theme-btn"
-          onClick={handleToggleTheme}
-          title={`Theme: ${getThemeLabel(themePref)} (click to cycle)`}
-        >
-          {getThemeIcon(themePref)}
-        </button>
+
+        {/* Theme Picker Dropdown */}
+        <div className="topbar-theme-picker" ref={themeRef} style={{ position: 'relative' }}>
+          <button
+            className="topbar-theme-btn"
+            onClick={() => setShowThemes(!showThemes)}
+            title="Change theme"
+          >
+            {currentThemeDef?.emoji ?? '◈'}
+          </button>
+
+          {showThemes && (
+            <div className="theme-dropdown" style={{
+              position: 'absolute',
+              top: '100%',
+              right: 0,
+              marginTop: 8,
+              zIndex: 200,
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: 14,
+              padding: 6,
+              minWidth: 200,
+              boxShadow: '0 12px 40px rgba(0,0,0,0.4)',
+              backdropFilter: 'blur(20px)',
+            }}>
+              <div style={{
+                fontSize: 10,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                color: 'var(--text-muted)',
+                padding: '8px 12px 6px',
+              }}>
+                Themes
+              </div>
+              {COLOR_THEMES.map((theme) => (
+                <button
+                  key={theme.id}
+                  onClick={() => handleSelectColorTheme(theme.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: 'none',
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: colorTheme === theme.id ? 700 : 400,
+                    color: colorTheme === theme.id ? 'var(--theme-accent, var(--text-primary))' : 'var(--text-secondary)',
+                    background: colorTheme === theme.id ? 'var(--theme-accent-glow, rgba(255,255,255,0.05))' : 'transparent',
+                    transition: 'background 0.15s ease, color 0.15s ease',
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (colorTheme !== theme.id) (e.target as HTMLElement).style.background = 'rgba(255,255,255,0.05)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (colorTheme !== theme.id) (e.target as HTMLElement).style.background = 'transparent';
+                  }}
+                >
+                  <span style={{ fontSize: 16 }}>{theme.emoji}</span>
+                  <span>{theme.name}</span>
+                  {colorTheme === theme.id && (
+                    <span style={{ marginLeft: 'auto', fontSize: 12, opacity: 0.6 }}>✓</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         <button
           className="topbar-settings-btn"
           onClick={() => {
@@ -176,7 +233,6 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom, cu
         </button>
         <span className="topbar-clock">{clock}</span>
       </div>
-      {/* VoiceOverlay removed — mic button removed, new voice method coming soon */}
     </div>
   );
 }
