@@ -395,12 +395,6 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Download Whisper model
-        run: |
-          mkdir -p src-tauri/models
-          curl -L -o src-tauri/models/ggml-base.bin \
-            https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
-
       - name: Init Tauri Android
         env:
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
@@ -422,6 +416,37 @@ jobs:
           VITE_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: npm run tauri android build -- --apk
+
+      - name: Sign APK
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          # Decode keystore from base64 secret
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > /tmp/release.keystore
+
+          # Find the unsigned APK
+          APK_PATH=$(find src-tauri/gen/android/app/build/outputs -name "*.apk" -type f | head -1)
+          SIGNED_APK="${APK_PATH%.apk}-signed.apk"
+
+          # Zipalign first, then sign
+          "$ANDROID_SDK_ROOT/build-tools/34.0.0/zipalign" -v -p 4 "$APK_PATH" "${APK_PATH%.apk}-aligned.apk"
+
+          "$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner" sign \
+            --ks /tmp/release.keystore \
+            --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" \
+            --key-pass "pass:$ANDROID_KEY_PASSWORD" \
+            --out "$SIGNED_APK" \
+            "${APK_PATH%.apk}-aligned.apk"
+
+          # Verify signing
+          "$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner" verify "$SIGNED_APK"
+
+          # Replace original with signed version
+          mv "$SIGNED_APK" "$APK_PATH"
 
       - name: Rename APK (remove version from filename)
         run: |
