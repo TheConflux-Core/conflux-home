@@ -487,6 +487,9 @@ const [activeSnake, setActiveSnake] = useState(false);
     setActiveSolitaire(false);
     setActiveGameId(null);
 
+    // Notify desktop components to collapse any expanded views
+    window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: v }));
+
     setView(v);
     if (v === 'dashboard') {
       // Home → go to desktop (close any immersive view)

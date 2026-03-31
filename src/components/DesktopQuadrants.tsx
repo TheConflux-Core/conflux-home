@@ -449,6 +449,28 @@ interface DesktopQuadrantsProps {
 export default function DesktopQuadrants({ onNavigate, agents }: DesktopQuadrantsProps) {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
+  // Collapse expanded view on Home navigation
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      // Reset on any non-game navigation (dashboard, chat, settings, etc.)
+      if (typeof detail === 'string' || (typeof detail === 'object' && detail?.viewId === 'dashboard')) {
+        setExpandedCategory(null);
+      }
+    };
+    window.addEventListener('conflux:navigate', handler as EventListener);
+    return () => window.removeEventListener('conflux:navigate', handler as EventListener);
+  }, []);
+
+  // Also reset on keyboard shortcut (Escape is handled in ImmersiveView, but for desktop we need this)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpandedCategory(null);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   // Expanded view
   if (expandedCategory) {
     const category = CATEGORIES.find((c) => c.id === expandedCategory);
