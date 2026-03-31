@@ -49,9 +49,7 @@
     "bundle": {
         "active": true,
         "createUpdaterArtifacts": true,
-        "resources": [
-            "models/ggml-base.bin"
-        ],
+        "resources": [],
         "targets": [
             "deb",
             "appimage",
