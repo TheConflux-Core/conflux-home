@@ -4719,6 +4719,7 @@ mod voice_commands {
     use crate::voice;
     use crate::voice::capture::{self, AUDIO_BUFFER};
     use crate::engine;
+    use tauri::Manager;
 
     /// Start recording from the default microphone.
     #[tauri::command]
