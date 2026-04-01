@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { marked } from 'marked';
 import Avatar from './Avatar';
 import SessionSidebar from './SessionSidebar';
 import { Agent } from '../types';
 import { useEngineChat } from '../hooks/useEngineChat';
-import { useCloudChat } from '../hooks/useCloudChat';
 import { useAuth } from '../hooks/useAuth';
 import { MicButton } from './voice';
 
@@ -40,26 +39,14 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const agentDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Auth for cloud mode
+  // Auth — pass user ID to engine for cloud credit tracking
   const { session } = useAuth();
-  const getToken = useCallback(async () => session?.access_token ?? null, [session?.access_token]);
 
-  // Engine chat (local Rust backend)
-  const engineChat = useEngineChat(agent?.id ?? null);
-
-  // Cloud chat (Conflux Router Edge Function — uses deterministic task-type routing)
-  const cloudChat = useCloudChat({
-    userId: session?.user?.id ?? '',
-    agentId: agent?.id ?? null,
-    getToken,
-  });
-
-  // Unified: use cloud when authenticated, engine as fallback
-  const useCloud = !!session;
-  const { messages, sendMessage, streaming, thinking, error, remainingCalls, isQuotaExceeded } = useCloud ? cloudChat : engineChat;
-  const credits = useCloud ? cloudChat.credits : engineChat.remainingCalls;
-  const sessionId = useCloud ? null : engineChat.sessionId;
-  const loadSession = useCloud ? async () => {} : engineChat.loadSession;
+  // Engine chat — handles personality, memory, sessions, tools, AND cloud credits
+  const { messages, sendMessage, streaming, thinking, error, remainingCalls, credits, isQuotaExceeded, sessionId, loadSession } = useEngineChat(
+    agent?.id ?? null,
+    session?.user?.id
+  );
 
   // Reset input when agent changes
   useEffect(() => {

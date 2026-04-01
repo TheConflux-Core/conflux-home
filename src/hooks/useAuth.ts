@@ -64,13 +64,14 @@ export function useAuth(): UseAuthReturn {
 
   // Pass Supabase credentials to Rust backend when session changes
   useEffect(() => {
-    if (!session?.access_token) return
+    if (!session?.access_token || !session?.user?.id) return
     invoke('set_supabase_session', {
       supabaseUrl: SUPABASE_URL,
       supabaseAnonKey: SUPABASE_ANON_KEY,
       accessToken: session.access_token,
+      userId: session.user.id,
     }).catch((err) => console.warn('Failed to sync Supabase session to backend:', err))
-  }, [session?.access_token])
+  }, [session?.access_token, session?.user?.id])
 
   // Fire telemetry on confirmed session
   useEffect(() => {

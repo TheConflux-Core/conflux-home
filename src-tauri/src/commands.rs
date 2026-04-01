@@ -112,8 +112,11 @@ pub struct EchoDailyBrief {
 pub async fn engine_chat(window: tauri::Window, req: ChatRequest) -> Result<ChatResponse, String> {
     let engine = engine::get_engine();
 
+    // Get real Supabase user ID for cloud credit operations
+    let user_id = get_supabase_user_id();
+
     // Check quota (cloud-aware)
-    let quota = engine.has_quota("default").await.map_err(|e| e.to_string())?;
+    let quota = engine.has_quota(&user_id).await.map_err(|e| e.to_string())?;
     if !quota.allowed {
         return Err(format!("{} limit reached. Upgrade for more credits.", quota.source));
     }
@@ -127,7 +130,7 @@ pub async fn engine_chat(window: tauri::Window, req: ChatRequest) -> Result<Chat
         req.max_tokens,
     ).await.map_err(|e| e.to_string())?;
 
-    let calls = engine.increment_quota("default", response.tokens_used, &response.provider_id)
+    let calls = engine.increment_quota(&user_id, response.tokens_used, &response.provider_id)
         .map_err(|e| e.to_string())?;
 
     let limit = get_daily_limit(engine);
@@ -137,13 +140,13 @@ pub async fn engine_chat(window: tauri::Window, req: ChatRequest) -> Result<Chat
     let credits = super::engine::cloud::credit_cost_for_model(&response.model, &response.provider_id, "core", &credit_costs);
 
     let _ = super::engine::cloud::log_usage_to_cloud(
-        "default", &req.session_id, &req.agent_id,
+        &user_id, &req.session_id, &req.agent_id,
         &response.model, &response.provider_id, "core",
         response.tokens_used, response.latency_ms, "success", credits,
     ).await;
 
     // Charge credits (don't fail the response if this fails for free users)
-    let (credits_remaining, credit_source) = match super::engine::cloud::charge_credits("default", credits, "").await {
+    let (credits_remaining, credit_source) = match super::engine::cloud::charge_credits(&user_id, credits, "").await {
         Ok(new_balance) => (Some(new_balance), Some(quota.source.clone())),
         Err(e) => {
             log::warn!("[Engine] Credit charge failed: {}", e);
@@ -168,8 +171,11 @@ pub async fn engine_chat(window: tauri::Window, req: ChatRequest) -> Result<Chat
 pub async fn engine_chat_stream(window: tauri::Window, req: ChatRequest) -> Result<(), String> {
     let engine = engine::get_engine();
 
+    // Get real Supabase user ID for cloud credit operations
+    let user_id = get_supabase_user_id();
+
     // Check quota (cloud-aware)
-    let quota = engine.has_quota("default").await.map_err(|e| e.to_string())?;
+    let quota = engine.has_quota(&user_id).await.map_err(|e| e.to_string())?;
     if !quota.allowed {
         let msg = format!("{} limit reached. Upgrade for more credits.", quota.source);
         window.emit("engine:error", &msg).map_err(|e| e.to_string())?;
@@ -187,7 +193,7 @@ pub async fn engine_chat_stream(window: tauri::Window, req: ChatRequest) -> Resu
 
     match result {
         Ok(response) => {
-            let calls = engine.increment_quota("default", response.tokens_used, &response.provider_id)
+            let calls = engine.increment_quota(&user_id, response.tokens_used, &response.provider_id)
                 .map_err(|e| e.to_string())?;
 
             let limit = get_daily_limit(engine);
@@ -197,15 +203,18 @@ pub async fn engine_chat_stream(window: tauri::Window, req: ChatRequest) -> Resu
             let credits = super::engine::cloud::credit_cost_for_model(&response.model, &response.provider_id, "core", &credit_costs);
 
             let _ = super::engine::cloud::log_usage_to_cloud(
-                "default", &req.session_id, &req.agent_id,
+                &user_id, &req.session_id, &req.agent_id,
                 &response.model, &response.provider_id, "core",
                 response.tokens_used, response.latency_ms, "success", credits,
             ).await;
 
-            match super::engine::cloud::charge_credits("default", credits, "").await {
-                Ok(_) => {}
-                Err(e) => { log::warn!("[Engine] Credit charge failed: {}", e); }
-            }
+            let credits_remaining = match super::engine::cloud::charge_credits(&user_id, credits, "").await {
+                Ok(new_balance) => Some(new_balance),
+                Err(e) => {
+                    log::warn!("[Engine] Credit charge failed: {}", e);
+                    None
+                }
+            };
 
             // Emit response in word-chunks for streaming feel
             let words: Vec<&str> = response.content.split_whitespace().collect();
@@ -223,6 +232,7 @@ pub async fn engine_chat_stream(window: tauri::Window, req: ChatRequest) -> Resu
                 "tokens_used": response.tokens_used,
                 "latency_ms": response.latency_ms,
                 "calls_remaining": (limit - calls).max(0),
+                "credits_remaining": credits_remaining,
                 "credit_source": quota.source,
             })).map_err(|e| e.to_string())?;
 
@@ -241,7 +251,8 @@ pub async fn engine_chat_stream(window: tauri::Window, req: ChatRequest) -> Resu
 #[tauri::command]
 pub fn engine_create_session(agent_id: String) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
-    let session = engine.create_session(&agent_id, "default").map_err(|e| e.to_string())?;
+    let user_id = get_supabase_user_id();
+    let session = engine.create_session(&agent_id, &user_id).map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(session).map_err(|e| e.to_string())?)
 }
 
@@ -287,7 +298,8 @@ pub fn engine_update_agent(req: AgentUpdateRequest) -> Result<(), String> {
 #[tauri::command]
 pub fn engine_get_quota() -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
-    let quota = engine.get_quota("default").map_err(|e| e.to_string())?;
+    let user_id = get_supabase_user_id();
+    let quota = engine.get_quota(&user_id).map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(quota).map_err(|e| e.to_string())?)
 }
 
@@ -933,7 +945,8 @@ pub fn engine_google_get_credentials() -> Result<serde_json::Value, String> {
 pub fn engine_health() -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
     let agents = engine.get_agents().map_err(|e| e.to_string())?;
-    let quota = engine.get_quota("default").map_err(|e| e.to_string())?;
+    let user_id = get_supabase_user_id();
+    let quota = engine.get_quota(&user_id).map_err(|e| e.to_string())?;
 
     Ok(serde_json::json!({
         "status": "healthy",
@@ -4972,6 +4985,14 @@ pub async fn purchase_credits(user_id: String, pack: String) -> Result<String, S
     super::stripe::stripe_create_credit_pack_session(user_id, pack).await
 }
 
+/// Get the stored Supabase user ID from engine config.
+fn get_supabase_user_id() -> String {
+    let engine = engine::get_engine();
+    engine.db().get_config("supabase_user_id")
+        .unwrap_or(None)
+        .unwrap_or_else(|| "default".to_string())
+}
+
 /// Store Supabase session credentials in engine config for cloud API calls.
 /// Called by the frontend after login so the Rust backend can make authenticated Supabase requests.
 #[tauri::command]
@@ -4979,12 +5000,14 @@ pub async fn set_supabase_session(
     supabase_url: String,
     supabase_anon_key: String,
     access_token: String,
+    user_id: String,
 ) -> Result<(), String> {
     let engine = engine::get_engine();
     let db = engine.db();
     db.set_config("supabase_url", &supabase_url).map_err(|e| e.to_string())?;
     db.set_config("supabase_anon_key", &supabase_anon_key).map_err(|e| e.to_string())?;
     db.set_config("supabase_auth_token", &access_token).map_err(|e| e.to_string())?;
+    db.set_config("supabase_user_id", &user_id).map_err(|e| e.to_string())?;
     Ok(())
 }
 
