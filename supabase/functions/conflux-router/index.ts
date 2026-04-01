@@ -8,8 +8,11 @@ import { createClient } from "npm:@supabase/supabase-js@^2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+// Separate anon client for JWT validation — getUser() works correctly with anon key
+const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // --- Types ---
 
@@ -424,8 +427,12 @@ async function authenticate(req: Request): Promise<{ userId: string; isApiKey: b
   }
 
   // Otherwise, treat as Supabase JWT
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return null;
+  // Use anon-key client for JWT validation — service role client doesn't validate user JWTs correctly
+  const { data: { user }, error } = await supabaseAuth.auth.getUser(token);
+  if (error || !user) {
+    console.error('[Auth] JWT validation failed:', error?.message);
+    return null;
+  }
 
   return { userId: user.id, isApiKey: false };
 }
