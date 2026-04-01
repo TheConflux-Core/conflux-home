@@ -478,9 +478,17 @@ async function checkCredits(
     p_estimated_tokens_out: estimatedTokensOut,
   });
 
-  // If user has no credits (0 balance from missing row), auto-create with free tier
-  if (error || !data || data.length === 0 || data[0]?.current_balance === 0) {
-    console.log(`Auto-creating credit account for user ${userId}`, { error: error?.message });
+  // If RPC failed entirely, log and auto-create
+  if (error) {
+    console.error(`[checkCredits] RPC error for user ${userId}:`, error.message);
+  }
+
+  // Check if user has no credit account (NULL from RPC = no row exists)
+  // Only auto-create if: RPC errored, returned no data, or balance is 0 with no prior consumption
+  const needsAutoCreate = error || !data || data.length === 0;
+
+  if (needsAutoCreate) {
+    console.log(`[checkCredits] No credit account for user ${userId}, auto-creating with 500 free credits`);
     const { error: upsertError } = await supabase
       .from("credit_accounts")
       .upsert({
@@ -491,10 +499,12 @@ async function checkCredits(
       }, { onConflict: "user_id" });
 
     if (upsertError) {
-      console.error("Failed to auto-create credit account:", upsertError);
+      console.error("[checkCredits] Failed to auto-create credit account:", upsertError);
+      // Return 500 credits so first chat works even if DB write failed
+      return { hasCredits: true, estimatedCost: 1, balance: 500, tier: "core" };
     }
 
-    // Retry the check
+    // Retry the check after creation
     const { data: retryData, error: retryError } = await supabase.rpc("check_user_credits", {
       p_user_id: userId,
       p_model_alias: modelAlias,
@@ -502,7 +512,9 @@ async function checkCredits(
       p_estimated_tokens_out: estimatedTokensOut,
     });
 
-    console.log("Retry credit check:", { retryData, retryError: retryError?.message });
+    if (retryError) {
+      console.error("[checkCredits] Retry RPC error:", retryError.message);
+    }
 
     if (retryData && retryData.length > 0) {
       const result = retryData[0];
@@ -514,11 +526,19 @@ async function checkCredits(
       };
     }
 
-    // Still failed — return 500 free credits as fallback
+    // Still failed — return 500 free credits as fallback so first chat works
     return { hasCredits: true, estimatedCost: 1, balance: 500, tier: "core" };
   }
 
+  // Normal path — user has a credit account
   const result = data[0];
+
+  // Edge case: 0 balance + 0 consumed = account was just created but not funded
+  // This shouldn't happen with the trigger, but handle it gracefully
+  if (result.current_balance === 0 && !result.has_credits) {
+    console.log(`[checkCredits] User ${userId} has 0 balance and insufficient credits`);
+  }
+
   return {
     hasCredits: result.has_credits,
     estimatedCost: result.estimated_cost,
@@ -1073,17 +1093,28 @@ Deno.serve(async (req: Request): Promise<Response> => {
                 const tokensIn = estimatedTokensIn;
                 const tokensOut = estimateTokens(await fallbackResponse.clone().text());
                 const providerCostUsd = await getProviderCost(fallbackRoute.provider, fallbackRoute.provider_model_id, tokensIn, tokensOut);
-                const deductRpc = auth.isApiKey ? "deduct_api_credits" : "deduct_credits";
-                await supabase.rpc(deductRpc, {
-                  p_user_id: auth.userId,
-                  p_model_alias: resolvedModel,
-                  p_tokens_in: tokensIn,
-                  p_tokens_out: tokensOut,
-                  p_provider: fallbackRoute.provider,
-                  p_status: "success",
-                  p_latency_ms: Date.now() - startTime,
-                  p_provider_cost_usd: providerCostUsd,
-                });
+                if (auth.isApiKey) {
+                  await supabase.rpc("deduct_api_credits", {
+                    p_user_id: auth.userId,
+                    p_model_alias: resolvedModel,
+                    p_tokens_in: tokensIn,
+                    p_tokens_out: tokensOut,
+                    p_provider: fallbackRoute.provider,
+                    p_status: "success",
+                    p_latency_ms: Date.now() - startTime,
+                    p_provider_cost_usd: providerCostUsd,
+                  });
+                } else {
+                  await supabase.rpc("deduct_credits", {
+                    p_user_id: auth.userId,
+                    p_model_alias: resolvedModel,
+                    p_tokens_in: tokensIn,
+                    p_tokens_out: tokensOut,
+                    p_provider: fallbackRoute.provider,
+                    p_status: "success",
+                    p_latency_ms: Date.now() - startTime,
+                  });
+                }
 
                 return new Response(fallbackResponse.body, {
                   status: fallbackResponse.status,
@@ -1104,17 +1135,28 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
         // Log failed attempt
         try {
-          const deductRpc = auth.isApiKey ? "deduct_api_credits" : "deduct_credits";
-          await supabase.rpc(deductRpc, {
-            p_user_id: auth.userId,
-            p_model_alias: resolvedModel,
-            p_tokens_in: 0,
-            p_tokens_out: 0,
-            p_provider: route.provider,
-            p_status: "error",
-            p_latency_ms: latencyMs,
-            p_provider_cost_usd: 0,
-          });
+          if (auth.isApiKey) {
+            await supabase.rpc("deduct_api_credits", {
+              p_user_id: auth.userId,
+              p_model_alias: resolvedModel,
+              p_tokens_in: 0,
+              p_tokens_out: 0,
+              p_provider: route.provider,
+              p_status: "error",
+              p_latency_ms: latencyMs,
+              p_provider_cost_usd: 0,
+            });
+          } else {
+            await supabase.rpc("deduct_credits", {
+              p_user_id: auth.userId,
+              p_model_alias: resolvedModel,
+              p_tokens_in: 0,
+              p_tokens_out: 0,
+              p_provider: route.provider,
+              p_status: "error",
+              p_latency_ms: latencyMs,
+            });
+          }
         } catch (e) {
           console.error("Error logging failed call:", e);
         }
@@ -1150,18 +1192,30 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // Deduct credits + log usage
       try {
         const providerCostUsd = await getProviderCost(route.provider, route.provider_model_id, tokensIn, tokensOut);
-        const deductRpc = auth.isApiKey ? "deduct_api_credits" : "deduct_credits";
-        const { error: rpcError } = await supabase.rpc(deductRpc, {
-          p_user_id: auth.userId,
-          p_model_alias: resolvedModel,
-          p_tokens_in: tokensIn,
-          p_tokens_out: tokensOut,
-          p_provider: route.provider,
-          p_status: "success",
-          p_latency_ms: latencyMs,
-          p_provider_cost_usd: providerCostUsd,
-        });
-        if (rpcError) console.error("Credit deduction failed:", rpcError);
+        if (auth.isApiKey) {
+          const { error: rpcError } = await supabase.rpc("deduct_api_credits", {
+            p_user_id: auth.userId,
+            p_model_alias: resolvedModel,
+            p_tokens_in: tokensIn,
+            p_tokens_out: tokensOut,
+            p_provider: route.provider,
+            p_status: "success",
+            p_latency_ms: latencyMs,
+            p_provider_cost_usd: providerCostUsd,
+          });
+          if (rpcError) console.error("API credit deduction failed:", rpcError);
+        } else {
+          const { error: rpcError } = await supabase.rpc("deduct_credits", {
+            p_user_id: auth.userId,
+            p_model_alias: resolvedModel,
+            p_tokens_in: tokensIn,
+            p_tokens_out: tokensOut,
+            p_provider: route.provider,
+            p_status: "success",
+            p_latency_ms: latencyMs,
+          });
+          if (rpcError) console.error("Credit deduction failed:", rpcError);
+        }
       } catch (e) {
         console.error("Credit deduction exception:", e);
       }
