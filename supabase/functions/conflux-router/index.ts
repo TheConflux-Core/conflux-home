@@ -91,6 +91,12 @@ const TASK_TYPES: Record<string, RoutingRule> = {
     description: "Greeting, basic Q&A, text formatting. No tools needed.",
     min_tool_reliability: "basic",
     preferred_models: [
+      "llama-3.3-70b-cf",
+      "llama-3.3-70b-groq",
+      "llama-3.3-70b",
+      "llama-4-scout-cf",
+      "llama-4-scout-groq",
+      "gpt-oss-120b-groq",
       "gpt-4o-mini",
       "deepseek-chat",
       "gemini-flash",
@@ -103,6 +109,9 @@ const TASK_TYPES: Record<string, RoutingRule> = {
     description: "Text extraction, classification, summarization. Light file read.",
     min_tool_reliability: "basic",
     preferred_models: [
+      "llama-3.3-70b-cf",
+      "llama-3.3-70b-groq",
+      "llama-3.3-70b",
       "gpt-4o-mini",
       "claude-haiku",
       "deepseek-chat",
@@ -115,6 +124,9 @@ const TASK_TYPES: Record<string, RoutingRule> = {
     description: "Data extraction, parsing, structured output from text.",
     min_tool_reliability: "basic",
     preferred_models: [
+      "llama-3.3-70b-cf",
+      "llama-3.3-70b-groq",
+      "llama-3.3-70b",
       "gpt-4o-mini",
       "deepseek-chat",
       "claude-haiku",
@@ -127,6 +139,9 @@ const TASK_TYPES: Record<string, RoutingRule> = {
     description: "Language translation, localization.",
     min_tool_reliability: "basic",
     preferred_models: [
+      "llama-3.3-70b-cf",
+      "llama-3.3-70b-groq",
+      "llama-3.3-70b",
       "gpt-4o-mini",
       "deepseek-chat",
       "claude-haiku",
