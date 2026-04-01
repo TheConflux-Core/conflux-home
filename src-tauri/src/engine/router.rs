@@ -292,7 +292,7 @@ fn builtin_providers() -> Vec<ModelProvider> {
             cost_per_1k_tokens: 0.0,
             max_tokens: 4096,
             rate_limit_rpm: 50,
-            is_enabled: true,
+            is_enabled: false,
         },
 
         // ══════════════════════════════════════════════════════════════
