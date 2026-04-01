@@ -267,7 +267,7 @@ const TOOL_RELIABILITY: Record<string, string[]> = {
 };
 
 // Free tier constants
-const FREE_TIER_MONTHLY_LIMIT = 1000;
+const FREE_TIER_MONTHLY_LIMIT = 500;
 
 // --- Cache (in-memory for this function instance) ---
 let modelRoutesCache: Map<string, ModelRoute> = new Map();
