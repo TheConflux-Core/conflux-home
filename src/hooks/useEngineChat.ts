@@ -14,6 +14,7 @@ export interface UseEngineChatResult {
   thinking: boolean;
   error: string | null;
   remainingCalls: number;
+  credits: number;
   isQuotaExceeded: boolean;
   mode: 'engine';
   sessionId: string | null;
@@ -62,14 +63,17 @@ interface StreamDonePayload {
   tokens_used: number;
   latency_ms: number;
   calls_remaining: number;
+  credits_remaining?: number;
+  credit_source?: string;
 }
 
-export function useEngineChat(agentId: string | null): UseEngineChatResult {
+export function useEngineChat(agentId: string | null, userId?: string): UseEngineChatResult {
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [remainingCalls, setRemainingCalls] = useState(50);
+  const [credits, setCredits] = useState(0);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const assistantIdRef = useRef<string | null>(null);
   const unlistenFnsRef = useRef<(() => void)[]>([]);
@@ -113,6 +117,16 @@ export function useEngineChat(agentId: string | null): UseEngineChatResult {
         if (!cancelled) {
           const limit = 50; // free_daily_limit
           setRemainingCalls(Math.max(0, limit - quota.calls_used));
+        }
+
+        // Load cloud credits if authenticated
+        if (userId) {
+          try {
+            const balance = await invoke<{ total_available: number }>('get_credit_balance', { userId });
+            if (!cancelled) setCredits(balance.total_available ?? 0);
+          } catch {
+            // Cloud credits not available — engine falls back to local quota
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -206,6 +220,10 @@ export function useEngineChat(agentId: string | null): UseEngineChatResult {
       const unlistenDone = await listen<StreamDonePayload>('engine:done', (event) => {
         const data = event.payload;
         setRemainingCalls(data.calls_remaining);
+        // Update credits if cloud credit info is available
+        if (data.credits_remaining !== undefined && data.credits_remaining !== null) {
+          setCredits(data.credits_remaining);
+        }
         setStreaming(false);
         setThinking(false);
 
@@ -287,6 +305,7 @@ export function useEngineChat(agentId: string | null): UseEngineChatResult {
     thinking,
     error,
     remainingCalls,
+    credits,
     isQuotaExceeded: remainingCalls <= 0,
     mode: 'engine',
     sessionId,
