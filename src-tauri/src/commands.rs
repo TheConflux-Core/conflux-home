@@ -4204,18 +4204,20 @@ pub fn run_installer(installer_path: String) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        // Run MSI installer with UAC prompt (passive shows progress bar)
-        // Use spawn and DON'T exit — let msiexec handle the restart
-        let child = std::process::Command::new("msiexec")
-            .args(["/i", &installer_path, "/passive", "/norestart"])
+        // NSIS .exe installer (currentUser mode — no UAC needed)
+        // Run the .exe directly with /S silent flag, then exit so the new version can launch
+        let child = std::process::Command::new(&installer_path)
+            .args(["/S"])
             .spawn()
             .map_err(|e| format!("Failed to launch installer: {}", e))?;
 
-        // Log success
         if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
             use std::io::Write;
-            let _ = writeln!(f, "[{}] MSI installer launched (pid: {})", chrono::Utc::now().to_rfc3339(), child.id());
+            let _ = writeln!(f, "[{}] NSIS installer launched (pid: {})", chrono::Utc::now().to_rfc3339(), child.id());
         }
+
+        // Exit the app so the installer can replace files
+        std::process::exit(0);
     }
 
     #[cfg(target_os = "macos")]
