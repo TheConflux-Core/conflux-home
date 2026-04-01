@@ -15,10 +15,16 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 // --- Price → Plan mapping ---
 const PRICE_TO_PLAN: Record<string, { plan: string; credits: number }> = {
+  // Live prices
+  "price_1THDieHGQzE1oe8rMwPmDe8l": { plan: "power", credits: 1500 },   // Power Monthly $24.99
+  "price_1THDuMHGQzE1oe8rmrxWbnEe": { plan: "power", credits: 1500 }, // Power Annual $249.99
+  "price_1THDieHGQzE1oe8rNiaQXG6R": { plan: "pro", credits: 3000 },    // Pro Monthly $49.99
+  "price_1THDuRHGQzE1oe8roIk2NiuC": { plan: "pro", credits: 3000 },    // Pro Annual $499.99
+  // Legacy test prices (kept for backwards compatibility)
   "price_1TFq8LHV6B3tDjUwOkouQQ5G": { plan: "power", credits: 1500 }, // Power Monthly $24.99
   "price_1TFqQDHV6B3tDjUwJiLW1faL": { plan: "power", credits: 1500 }, // Power Annual $249.99
-  "price_1TFqBmHV6B3tDjUw4ChQHlFI": { plan: "pro", credits: 3000 },  // Pro Monthly $49.99
-  "price_1TFqPOHV6B3tDjUw7vKzGgnw": { plan: "pro", credits: 3000 },  // Pro Annual $499.99
+  "price_1TFqBmHV6B3tDjUw4ChQHlFI": { plan: "pro", credits: 3000 },   // Pro Monthly $49.99
+  "price_1TFqPOHV6B3tDjUw7vKzGgnw": { plan: "pro", credits: 3000 },   // Pro Annual $499.99
 };
 
 // --- Helpers ---
