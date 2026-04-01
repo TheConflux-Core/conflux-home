@@ -19,6 +19,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Patch version from tag
+        run: |
+          VER="${{ github.ref_name }}"
+          VER="${VER#v}"
+          echo "Patching version to $VER"
+          sed -i "s/^version = .*/version = \"$VER\"/" src-tauri/Cargo.toml
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/" src-tauri/tauri.conf.json
+          sed -i "0,/\"version\": \"[^\"]*\"/{s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/}" package.json
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -109,6 +118,16 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Patch version from tag
+        shell: bash
+        run: |
+          VER="${{ github.ref_name }}"
+          VER="${VER#v}"
+          echo "Patching version to $VER"
+          sed -i "s/^version = .*/version = \"$VER\"/" src-tauri/Cargo.toml
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/" src-tauri/tauri.conf.json
+          sed -i "0,/\"version\": \"[^\"]*\"/{s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/}" package.json
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -203,6 +222,15 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
+
+      - name: Patch version from tag
+        run: |
+          VER="${{ github.ref_name }}"
+          VER="${VER#v}"
+          echo "Patching version to $VER"
+          sed -i '' "s/^version = .*/version = \"$VER\"/" src-tauri/Cargo.toml
+          sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/" src-tauri/tauri.conf.json
+          sed -i '' "0,/\"version\": \"[^\"]*\"/{s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/}" package.json
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -365,6 +393,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Patch version from tag
+        run: |
+          VER="${{ github.ref_name }}"
+          VER="${VER#v}"
+          echo "Patching version to $VER"
+          sed -i "s/^version = .*/version = \"$VER\"/" src-tauri/Cargo.toml
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/" src-tauri/tauri.conf.json
+          sed -i "0,/\"version\": \"[^\"]*\"/{s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/}" package.json
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
