@@ -53,7 +53,7 @@ import FeatureGate from './components/FeatureGate';
 import { AuthProvider } from './contexts/AuthContext';
 import { useStoryGames, useStoryGame, useStorySeeds } from './hooks/useStoryGame';
 import { useLearningProgress, useLearningGoals } from './hooks/useLearning';
-import { initTheme, getSavedWallpaper, getSavedColorTheme, COLOR_THEMES } from './lib/theme';
+import { initTheme, getSavedWallpaper, getSavedColorTheme, BASE_THEMES, COLOR_THEMES } from './lib/theme';
 import { registerShortcuts } from './lib/shortcuts';
 import { trackEvent } from './lib/telemetry';
 import './styles/animations.css';
@@ -81,9 +81,9 @@ const VIEW_BACKGROUNDS: Record<string, string> = {
 function getDefaultWallpaper(): string {
   const saved = getSavedWallpaper();
   if (saved) return saved;
-  // Use color theme wallpaper
+  // Use theme wallpaper (base or color)
   const colorThemeId = getSavedColorTheme();
-  const colorTheme = COLOR_THEMES.find(t => t.id === colorThemeId);
+  const colorTheme = BASE_THEMES.find(t => t.id === colorThemeId) ?? COLOR_THEMES.find(t => t.id === colorThemeId);
   if (colorTheme) return colorTheme.wallpaper;
   // Fallback
   const isDark = document.body.classList.contains('dark') ||

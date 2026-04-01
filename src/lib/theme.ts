@@ -12,11 +12,30 @@ export interface ColorThemeDef {
   vars: Record<string, string>;
 }
 
-export const COLOR_THEMES: ColorThemeDef[] = [
+/** Base themes — wallpaper only, no accent overrides */
+export const BASE_THEMES: ColorThemeDef[] = [
   {
     id: 'conflux',
     name: 'Conflux',
-    emoji: '💎',
+    emoji: '⚡',
+    wallpaper: '/wallpapers/desktop-wallpaper.png',
+    vars: {},
+  },
+  {
+    id: 'aegis',
+    name: 'Aegis',
+    emoji: '🌌',
+    wallpaper: '/wallpapers/wallpaper-dark.png',
+    vars: {},
+  },
+];
+
+/** Color themes — wallpaper + accent overrides */
+export const COLOR_THEMES: ColorThemeDef[] = [
+  {
+    id: 'catalyst',
+    name: 'Catalyst',
+    emoji: '💠',
     wallpaper: '/backgrounds/themes/conflux-default.jpg',
     vars: {
       '--theme-accent': '#818cf8',
@@ -28,7 +47,7 @@ export const COLOR_THEMES: ColorThemeDef[] = [
   {
     id: 'prism',
     name: 'Prism',
-    emoji: '🟣',
+    emoji: '🔮',
     wallpaper: '/backgrounds/themes/prism.jpg',
     vars: {
       '--theme-accent': '#a78bfa',
@@ -40,7 +59,7 @@ export const COLOR_THEMES: ColorThemeDef[] = [
   {
     id: 'forge',
     name: 'Forge',
-    emoji: '🟢',
+    emoji: '⚒️',
     wallpaper: '/backgrounds/themes/forge.jpg',
     vars: {
       '--theme-accent': '#34d399',
@@ -52,7 +71,7 @@ export const COLOR_THEMES: ColorThemeDef[] = [
   {
     id: 'luma',
     name: 'Luma',
-    emoji: '⚡',
+    emoji: '💡',
     wallpaper: '/backgrounds/themes/luma.jpg',
     vars: {
       '--theme-accent': '#fbbf24',
@@ -64,7 +83,7 @@ export const COLOR_THEMES: ColorThemeDef[] = [
   {
     id: 'vector',
     name: 'Vector',
-    emoji: '🔴',
+    emoji: '🎯',
     wallpaper: '/backgrounds/themes/vector.jpg',
     vars: {
       '--theme-accent': '#f87171',
@@ -76,7 +95,7 @@ export const COLOR_THEMES: ColorThemeDef[] = [
   {
     id: 'pulse',
     name: 'Pulse',
-    emoji: '🩷',
+    emoji: '💗',
     wallpaper: '/backgrounds/themes/pulse.jpg',
     vars: {
       '--theme-accent': '#f472b6',
@@ -88,7 +107,7 @@ export const COLOR_THEMES: ColorThemeDef[] = [
   {
     id: 'spectra',
     name: 'Spectra',
-    emoji: '🌊',
+    emoji: '🌈',
     wallpaper: '/backgrounds/themes/spectra.jpg',
     vars: {
       '--theme-accent': '#22d3ee',
@@ -100,7 +119,7 @@ export const COLOR_THEMES: ColorThemeDef[] = [
   {
     id: 'quanta',
     name: 'Quanta',
-    emoji: '⚪',
+    emoji: '⚛️',
     wallpaper: '/backgrounds/themes/quanta.jpg',
     vars: {
       '--theme-accent': '#e5e7eb',
@@ -112,7 +131,7 @@ export const COLOR_THEMES: ColorThemeDef[] = [
   {
     id: 'helix',
     name: 'Helix',
-    emoji: '🔥',
+    emoji: '🧬',
     wallpaper: '/backgrounds/themes/helix.jpg',
     vars: {
       '--theme-accent': '#d97706',
@@ -169,12 +188,18 @@ export function watchSystemTheme(callback: (theme: 'light' | 'dark') => void): (
 // ── Color Theme System ──
 
 /**
- * Apply a color theme's CSS custom properties to :root and set the wallpaper.
+ * Apply a theme's CSS custom properties to :root and set the wallpaper.
+ * Base themes only swap wallpaper (no accent overrides).
+ * Color themes set both wallpaper + accent CSS vars.
  */
 export function applyColorTheme(themeId: string): void {
-  const theme = COLOR_THEMES.find(t => t.id === themeId);
+  const theme = BASE_THEMES.find(t => t.id === themeId) ?? COLOR_THEMES.find(t => t.id === themeId);
   if (!theme) return;
 
+  // Always clear previous accent vars first
+  clearColorThemeVars();
+
+  // Apply new accent vars (base themes have empty vars, so nothing is set)
   const root = document.documentElement;
   for (const [key, value] of Object.entries(theme.vars)) {
     root.style.setProperty(key, value);

@@ -240,14 +240,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [step, setStep] = useState(0);
   const [animating, setAnimating] = useState(false);
 
-  // Force dark theme for onboarding
+  // Always dark mode
   useEffect(() => {
     document.body.classList.add('dark');
-    return () => {
-      // Restore user's actual preference after onboarding
-      const stored = localStorage.getItem('conflux-theme') as 'light' | 'dark' | 'system' | null;
-      if (stored === 'light') document.body.classList.remove('dark');
-    };
   }, []);
 
   // Step 0 — Welcome

@@ -26,8 +26,6 @@ const ACCENT_COLORS = [
   { name: 'Cyan', value: 'cyan', hex: '#00b4d8' },
 ];
 
-const WALLPAPER_LIGHT = '/wallpapers/desktop-wallpaper.png';
-const WALLPAPER_DARK = '/wallpapers/wallpaper-dark.png';
 
 // ── Toggle Switch Component ──
 
@@ -112,32 +110,9 @@ function EngineSection() {
 // ── Section 2: Appearance ──
 
 function AppearanceSection() {
-  const [theme, setTheme] = useState(
-    () => localStorage.getItem('conflux-theme') || 'light'
-  );
   const [accent, setAccent] = useState(
     () => localStorage.getItem('conflux-accent') || 'blue'
   );
-  const [wallpaper, setWallpaper] = useState(
-    () => localStorage.getItem('conflux-wallpaper') || WALLPAPER_LIGHT
-  );
-
-  const handleThemeChange = (t: string) => {
-    setTheme(t);
-    localStorage.setItem('conflux-theme', t);
-    window.dispatchEvent(new CustomEvent('conflux:theme-change', { detail: t }));
-
-    // Apply immediately
-    if (t === 'dark') {
-      document.body.classList.add('dark');
-    } else if (t === 'light') {
-      document.body.classList.remove('dark');
-    } else {
-      // System
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      document.body.classList.toggle('dark', prefersDark);
-    }
-  };
 
   const handleAccentChange = (value: string) => {
     setAccent(value);
@@ -146,35 +121,9 @@ function AppearanceSection() {
     window.dispatchEvent(new CustomEvent('conflux:accent-change', { detail: value }));
   };
 
-  const handleWallpaperChange = (url: string) => {
-    setWallpaper(url);
-    localStorage.setItem('conflux-wallpaper', url);
-    window.dispatchEvent(new CustomEvent('conflux:wallpaper-change', { detail: url }));
-  };
-
   return (
     <div className="settings-section">
       <div className="settings-section-title">🎨 Appearance</div>
-
-      {/* Theme */}
-      <div className="settings-row">
-        <span className="settings-label">Theme</span>
-        <div className="segmented-control">
-          {[
-            { key: 'light', label: 'Light ☀️' },
-            { key: 'dark', label: 'Dark 🌙' },
-            { key: 'system', label: 'System 💻' },
-          ].map((opt) => (
-            <button
-              key={opt.key}
-              className={`segment-btn ${theme === opt.key ? 'active' : ''}`}
-              onClick={() => handleThemeChange(opt.key)}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* Accent Color */}
       <div className="settings-row">
@@ -190,27 +139,6 @@ function AppearanceSection() {
               aria-label={c.name}
             />
           ))}
-        </div>
-      </div>
-
-      {/* Wallpaper */}
-      <div className="settings-row" style={{ alignItems: 'flex-start' }}>
-        <span className="settings-label">Wallpaper</span>
-        <div className="wallpaper-row">
-          <button
-            className={`wallpaper-thumb ${wallpaper === WALLPAPER_LIGHT ? 'selected' : ''}`}
-            onClick={() => handleWallpaperChange(WALLPAPER_LIGHT)}
-          >
-            <img src={WALLPAPER_LIGHT} alt="Light wallpaper" />
-            <span>Light</span>
-          </button>
-          <button
-            className={`wallpaper-thumb ${wallpaper === WALLPAPER_DARK ? 'selected' : ''}`}
-            onClick={() => handleWallpaperChange(WALLPAPER_DARK)}
-          >
-            <img src={WALLPAPER_DARK} alt="Dark wallpaper" />
-            <span>Dark</span>
-          </button>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Agent } from '../types';
-import { Theme, getEffectiveTheme, applyTheme, saveTheme, COLOR_THEMES, getSavedColorTheme, saveColorTheme } from '../lib/theme';
+import { Theme, getEffectiveTheme, applyTheme, saveTheme, BASE_THEMES, COLOR_THEMES, getSavedColorTheme, saveColorTheme } from '../lib/theme';
 import ConnectivityWidget from './ConnectivityWidget';
 import { useCredits } from '../hooks/useCredits';
 
@@ -180,6 +180,41 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom, cu
               }}>
                 Themes
               </div>
+              {BASE_THEMES.map((theme) => (
+                <button
+                  key={theme.id}
+                  onClick={() => handleSelectColorTheme(theme.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: 'none',
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: colorTheme === theme.id ? 700 : 400,
+                    color: colorTheme === theme.id ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    background: colorTheme === theme.id ? 'rgba(255,255,255,0.08)' : 'transparent',
+                    transition: 'background 0.15s ease, color 0.15s ease',
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (colorTheme !== theme.id) (e.target as HTMLElement).style.background = 'rgba(255,255,255,0.05)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (colorTheme !== theme.id) (e.target as HTMLElement).style.background = 'transparent';
+                  }}
+                >
+                  <span style={{ fontSize: 16 }}>{theme.emoji}</span>
+                  <span>{theme.name}</span>
+                  {colorTheme === theme.id && (
+                    <span style={{ marginLeft: 'auto', fontSize: 12, opacity: 0.6 }}>✓</span>
+                  )}
+                </button>
+              ))}
+              <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
               {COLOR_THEMES.map((theme) => (
                 <button
                   key={theme.id}
