@@ -12,7 +12,7 @@ INSERT INTO provider_config (provider, api_key_encrypted, base_url, priority, ra
     ('deepseek',  'SET_VIA_DASHBOARD', 'https://api.deepseek.com/v1',         7, 300, 100000),
     ('xai',       'SET_VIA_DASHBOARD', 'https://api.x.ai/v1',                 7, 300, 100000),
     ('mistral',   'SET_VIA_DASHBOARD', 'https://api.mistral.ai/v1',           7, 300, 100000),
-    ('cloudflare','SET_VIA_DASHBOARD', 'https://api.cloudflare.com/client/v4', 4, 500, 200000),
+    ('cloudflare','SET_VIA_DASHBOARD', 'https://api.cloudflare.com/client/v4/accounts/36d37d313aa8598b2735b28b4211862b/ai/v1', 4, 500, 200000),
     ('mimo',      'SET_VIA_DASHBOARD', 'https://api.mimo.ai/v1',              7, 300, 100000)
 ON CONFLICT (provider) DO NOTHING;
 
