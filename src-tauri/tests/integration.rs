@@ -105,8 +105,8 @@ mod integration_tests {
             match mimo {
                 Some(mut provider) => {
                     // Inject the key
-                    router::set_provider_key("xiaomi-mimo-flash",
-                        "sk-siu1za75os16yehaw7lx0xrmixmrrhvcj60njzox0mdlle72");
+                    let key = std::env::var("TEST_OPENROUTER_KEY").expect("TEST_OPENROUTER_KEY env var required");
+                    router::set_provider_key("xiaomi-mimo-flash", &key);
                     provider.is_enabled = true;
 
                     let messages = vec![router::OpenAIMessage {
@@ -139,8 +139,8 @@ mod integration_tests {
 
             match mimo {
                 Some(mut provider) => {
-                    router::set_provider_key("xiaomi-mimo-pro",
-                        "sk-siu1za75os16yehaw7lx0xrmixmrrhvcj60njzox0mdlle72");
+                    let key = std::env::var("TEST_OPENROUTER_KEY").expect("TEST_OPENROUTER_KEY env var required");
+                    router::set_provider_key("xiaomi-mimo-pro", &key);
                     provider.is_enabled = true;
 
                     let messages = vec![router::OpenAIMessage {
@@ -169,8 +169,8 @@ mod integration_tests {
     fn test_anthropic_key_valid() {
         // Test that Anthropic key is accepted (even if credits are 0)
         rt().block_on(async {
-            router::set_provider_key("anthropic-claude-sonnet",
-                "ANTHROPIC_KEY_REDACTED");
+            let anthropic_key = std::env::var("TEST_ANTHROPIC_KEY").expect("TEST_ANTHROPIC_KEY env var required");
+            router::set_provider_key("anthropic-claude-sonnet", &anthropic_key);
 
             let mut providers = router::get_all_providers();
             let claude = providers.drain(..).find(|p| p.id == "anthropic-claude-sonnet");
