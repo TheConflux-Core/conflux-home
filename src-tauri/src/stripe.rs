@@ -43,6 +43,12 @@ fn stripe_auth_header() -> Result<String, String> {
 
 fn map_price_to_plan(price_id: &str) -> String {
     match price_id {
+        // Live prices
+        "price_1THDieHGQzE1oe8rMwPmDe8l" => "power".to_string(),
+        "price_1THDuMHGQzE1oe8rmrxWbnEe" => "power".to_string(),
+        "price_1THDieHGQzE1oe8rNiaQXG6R" => "pro".to_string(),
+        "price_1THDuRHGQzE1oe8roIk2NiuC" => "pro".to_string(),
+        // Legacy test prices (kept for existing subscriptions)
         "price_1TFq8LHV6B3tDjUwOkouQQ5G" => "power".to_string(),
         "price_1TFqQDHV6B3tDjUwJiLW1faL" => "power".to_string(),
         "price_1TFqBmHV6B3tDjUw4ChQHlFI" => "pro".to_string(),
@@ -113,10 +119,10 @@ pub async fn stripe_create_credit_pack_session(
     pack: String,
 ) -> Result<String, String> {
     let (price_id, credits, pack_name) = match pack.as_str() {
-        "s"  => ("price_1TGDSvHV6B3tDjUwePZZOUdh", "1500",  "Credit Pack S"),
-        "m"  => ("price_1TGDTiHV6B3tDjUwAQ9FhblY", "3200",  "Credit Pack M"),
-        "l"  => ("price_1TGDU7HV6B3tDjUwIZnvWgwF", "7000",  "Credit Pack L"),
-        "xl" => ("price_1TGDUbHV6B3tDjUwDxdIz914", "18000", "Credit Pack XL"),
+        "s"  => ("price_1THDigHGQzE1oe8rH6GIhln2", "500",   "API Starter"),
+        "m"  => ("price_1THDieHGQzE1oe8rMYmKhVyV", "2000",  "API Growth"),
+        "l"  => ("price_1THDieHGQzE1oe8ro0GlIjac", "5000",  "API Scale"),
+        "xl" => ("price_1THDidHGQzE1oe8r7CYAUk6p", "15000", "API Business"),
         _ => return Err(format!("Unknown credit pack: '{}'. Valid: s, m, l, xl", pack)),
     };
 
@@ -241,7 +247,7 @@ pub async fn stripe_get_subscription(
 pub async fn stripe_get_prices() -> Result<Vec<StripePrice>, String> {
     Ok(vec![
         StripePrice {
-            id: "price_1TFq8LHV6B3tDjUwOkouQQ5G".to_string(),
+            id: "price_1THDieHGQzE1oe8rMwPmDe8l".to_string(),
             plan: "power".to_string(),
             amount: 24.99,
             interval: "month".to_string(),
@@ -249,7 +255,7 @@ pub async fn stripe_get_prices() -> Result<Vec<StripePrice>, String> {
             display_price: "$24.99/mo".to_string(),
         },
         StripePrice {
-            id: "price_1TFqQDHV6B3tDjUwJiLW1faL".to_string(),
+            id: "price_1THDuMHGQzE1oe8rmrxWbnEe".to_string(),
             plan: "power".to_string(),
             amount: 249.99,
             interval: "year".to_string(),
@@ -257,7 +263,7 @@ pub async fn stripe_get_prices() -> Result<Vec<StripePrice>, String> {
             display_price: "$249.99/yr".to_string(),
         },
         StripePrice {
-            id: "price_1TFqBmHV6B3tDjUw4ChQHlFI".to_string(),
+            id: "price_1THDieHGQzE1oe8rNiaQXG6R".to_string(),
             plan: "pro".to_string(),
             amount: 49.99,
             interval: "month".to_string(),
@@ -265,7 +271,7 @@ pub async fn stripe_get_prices() -> Result<Vec<StripePrice>, String> {
             display_price: "$49.99/mo".to_string(),
         },
         StripePrice {
-            id: "price_1TFqPOHV6B3tDjUw7vKzGgnw".to_string(),
+            id: "price_1THDuRHGQzE1oe8roIk2NiuC".to_string(),
             plan: "pro".to_string(),
             amount: 499.99,
             interval: "year".to_string(),

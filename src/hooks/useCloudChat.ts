@@ -90,8 +90,26 @@ export function useCloudChat(options: UseCloudChatOptions): UseCloudChatResult {
         if (res.ok) {
           const data = await res.json();
           if (!cancelled) setCredits(data.balance ?? 0);
+        } else if (res.status === 401) {
+          // Token expired — try to refresh session
+          console.warn('[CloudChat] JWT expired during credits load, attempting refresh');
+          const { supabase } = await import('../lib/supabase');
+          const { data: { session: refreshed } } = await supabase.auth.refreshSession();
+          if (refreshed?.access_token && !cancelled) {
+            const retry = await fetch(`${CONFLUX_ROUTER_URL}/v1/credits`, {
+              headers: { Authorization: `Bearer ${refreshed.access_token}` },
+            });
+            if (retry.ok) {
+              const data = await retry.json();
+              if (!cancelled) setCredits(data.balance ?? 0);
+            }
+          }
+        } else {
+          console.warn(`[CloudChat] Credits load failed: ${res.status}`);
         }
-      } catch { /* non-critical */ }
+      } catch (err) {
+        console.warn('[CloudChat] Credits load error:', err);
+      }
     }
     loadCredits();
   }, [getToken]);
@@ -99,10 +117,39 @@ export function useCloudChat(options: UseCloudChatOptions): UseCloudChatResult {
   const sendMessage = useCallback(async (content: string) => {
     if (!agentId) return;
 
-    const token = await getToken();
+    let token = await getToken();
     if (!token) {
       setError('Not authenticated — please log in');
       return;
+    }
+
+    // Helper: make the API call, refresh JWT on 401 and retry once
+    async function doFetch(messages: CloudChatMessage[], reqToken: string, retried = false): Promise<Response> {
+      const res = await fetch(`${CONFLUX_ROUTER_URL}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${reqToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          task_type: inferTaskType(messages, false),
+          messages,
+          max_tokens: 4096,
+          temperature: 0.7,
+          stream: true,
+        }),
+      });
+
+      if (res.status === 401 && !retried) {
+        console.warn('[CloudChat] JWT expired during chat, attempting refresh');
+        const { supabase: sb } = await import('../lib/supabase');
+        const { data: { session: refreshed } } = await sb.auth.refreshSession();
+        if (refreshed?.access_token) {
+          return doFetch(messages, refreshed.access_token, true);
+        }
+      }
+
+      return res;
     }
 
     // Add user message to UI
@@ -148,25 +195,8 @@ export function useCloudChat(options: UseCloudChatOptions): UseCloudChatResult {
       // Add current message
       apiMessages.push({ role: 'user', content });
 
-      // Infer task type from the conversation for deterministic routing
-      const taskType = inferTaskType(apiMessages, false);
-
-      const request: CloudChatRequest = {
-        task_type: taskType,
-        messages: apiMessages,
-        max_tokens: 4096,
-        temperature: 0.7,
-        stream: true,
-      };
-
-      const res = await fetch(`${CONFLUX_ROUTER_URL}/v1/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request),
-      });
+      // Use doFetch helper (handles JWT refresh on 401)
+      const res = await doFetch(apiMessages, token);
 
       if (!res.ok) {
         setStreaming(false); // Stop streaming on error
