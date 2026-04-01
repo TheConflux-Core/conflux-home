@@ -13,6 +13,7 @@ import WebhookManager from './settings/WebhookManager';
 import SkillsBrowser from './settings/SkillsBrowser';
 import BillingSection from './settings/BillingSection';
 import UsageSection from './settings/UsageSection';
+import { useAuth } from '../hooks/useAuth';
 
 // ── Constants ──
 
@@ -402,6 +403,32 @@ function AboutSection() {
   );
 }
 
+// ── Section: Account Info ──
+
+function AccountSection() {
+  const { user } = useAuth();
+
+  if (!user) return null;
+
+  return (
+    <div className="settings-section">
+      <div className="settings-section-title">👤 Account</div>
+
+      <div className="settings-row">
+        <span className="settings-label">Email</span>
+        <span className="settings-value" style={{ fontFamily: 'monospace', fontSize: 13 }}>{user.email}</span>
+      </div>
+
+      <div className="settings-row">
+        <span className="settings-label">Account ID</span>
+        <span className="settings-value" style={{ fontFamily: 'monospace', fontSize: 11, opacity: 0.7, userSelect: 'all', cursor: 'text' }} title="Click to select">
+          {user.id}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Settings Component ──
 
 export default function Settings() {
@@ -416,6 +443,7 @@ export default function Settings() {
 
   return (
     <div className="settings-page">
+      <AccountSection />
       <AboutSection />
       <EngineSection />
       <ProviderSettings />
