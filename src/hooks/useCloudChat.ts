@@ -77,12 +77,15 @@ export function useCloudChat(options: UseCloudChatOptions): UseCloudChatResult {
   const [credits, setCredits] = useState(0);
   const assistantIdRef = useRef<string | null>(null);
 
-  // Load credits on mount
+  // Load credits on mount (only if we have a valid token)
   useEffect(() => {
     let cancelled = false;
     async function loadCredits() {
       const token = await getToken();
-      if (!token || cancelled) return;
+      if (!token || cancelled) {
+        console.log('[CloudChat] No token available, skipping credits load');
+        return;
+      }
       try {
         const res = await fetch(`${CONFLUX_ROUTER_URL}/v1/credits`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -91,19 +94,9 @@ export function useCloudChat(options: UseCloudChatOptions): UseCloudChatResult {
           const data = await res.json();
           if (!cancelled) setCredits(data.balance ?? 0);
         } else if (res.status === 401) {
-          // Token expired — try to refresh session
-          console.warn('[CloudChat] JWT expired during credits load, attempting refresh');
-          const { supabase } = await import('../lib/supabase');
-          const { data: { session: refreshed } } = await supabase.auth.refreshSession();
-          if (refreshed?.access_token && !cancelled) {
-            const retry = await fetch(`${CONFLUX_ROUTER_URL}/v1/credits`, {
-              headers: { Authorization: `Bearer ${refreshed.access_token}` },
-            });
-            if (retry.ok) {
-              const data = await retry.json();
-              if (!cancelled) setCredits(data.balance ?? 0);
-            }
-          }
+          // Token expired — don't auto-refresh here; let the main auth hook handle it
+          // Auto-refreshing in this hook can cause infinite loops
+          console.warn('[CloudChat] JWT expired during credits load - user will be prompted to re-authenticate');
         } else {
           console.warn(`[CloudChat] Credits load failed: ${res.status}`);
         }
@@ -141,12 +134,8 @@ export function useCloudChat(options: UseCloudChatOptions): UseCloudChatResult {
       });
 
       if (res.status === 401 && !retried) {
-        console.warn('[CloudChat] JWT expired during chat, attempting refresh');
-        const { supabase: sb } = await import('../lib/supabase');
-        const { data: { session: refreshed } } = await sb.auth.refreshSession();
-        if (refreshed?.access_token) {
-          return doFetch(messages, refreshed.access_token, true);
-        }
+        // Token expired — don't auto-refresh here; let the main auth hook handle it
+        console.warn('[CloudChat] JWT expired during chat - user will be prompted to re-authenticate');
       }
 
       return res;

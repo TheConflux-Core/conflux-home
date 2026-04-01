@@ -35,15 +35,24 @@ export function useAuth(): UseAuthReturn {
 
   useEffect(() => {
     // Check existing session
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
+    supabase.auth.getSession().then(({ data: { session: s }, error }) => {
+      if (error) {
+        console.error('[useAuth] Failed to get session:', error.message)
+      }
       setSession(s)
       setUser(s?.user ?? null)
+      setLoading(false)
+    }).catch((err) => {
+      console.error('[useAuth] getSession promise error:', err)
+      setSession(null)
+      setUser(null)
       setLoading(false)
     })
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, s) => {
+        console.log('[useAuth] Auth state changed:', _event, 'session:', !!s)
         setSession(s)
         setUser(s?.user ?? null)
         setLoading(false)

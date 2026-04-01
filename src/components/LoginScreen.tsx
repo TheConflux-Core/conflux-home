@@ -116,19 +116,32 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
   }, [email])
 
   // Listen for auth state change while on login screen — once session appears, call onAuthSuccess
-  if (typeof window !== 'undefined') {
+  // Note: This is intentionally a one-time listener that's only set up when LoginScreen is first mounted
+  // The actual auth state management is handled by useAuth in App.tsx
+  useEffect(() => {
+    let mounted = true
     const w = window as any
+    let subscription: { unsubscribe: () => void } | null = null
+    
     if (!w.__confluxAuthListener) {
       w.__confluxAuthListener = true
       import('../lib/supabase').then(({ supabase }) => {
-        supabase.auth.onAuthStateChange((_event: string, session: any) => {
+        if (!mounted) return
+        const { data: { subscription: sub } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
+          console.log('[LoginScreen] Auth state changed:', _event, 'session:', !!session)
           if (session) {
             onAuthSuccess()
           }
         })
+        subscription = sub
       })
     }
-  }
+    return () => {
+      mounted = false
+      if (subscription) subscription.unsubscribe()
+      w.__confluxAuthListener = false
+    }
+  }, [])
 
   return (
     <div style={styles.container}>
