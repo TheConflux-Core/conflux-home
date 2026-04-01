@@ -248,10 +248,14 @@ pub async fn check_cloud_balance(user_id: &str) -> Result<CreditStatus> {
             Err(_) => (false, "free".to_string(), 0, 0),
         };
 
-    let total_available = balance + if has_active_subscription {
-        (monthly_credits - monthly_used).max(0)
+    // Don't double-count: subscription credits and balance are the same pool for free tier
+    // For paid tiers, balance = purchased credits, monthly_credits = subscription grant
+    // Only add subscription grant if it's a paid plan (not free)
+    let total_available = if subscription_plan != "free" && has_active_subscription {
+        balance + (monthly_credits - monthly_used).max(0)
     } else {
-        0
+        // Free tier: balance IS the monthly grant, don't add twice
+        balance
     };
 
     let source = if has_active_subscription {
