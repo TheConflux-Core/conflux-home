@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useAuth } from './useAuth';
+import { syncSessionToEngine } from '@/lib/syncSession';
 
 // ── Types ──
 
@@ -57,6 +58,8 @@ export function useCredits() {
     }
 
     try {
+      // Sync session first so the engine has a fresh JWT
+      await syncSessionToEngine();
       const result = await invoke<CreditBalance>('get_credit_balance', { userId: user.id });
       setBalance(result);
       setError(null);
@@ -94,6 +97,7 @@ export function useUsageHistory(limit: number = 20) {
     }
 
     try {
+      await syncSessionToEngine();
       const result = await invoke<UsageEntry[]>('get_usage_history', { userId: user.id, limit });
       setEntries(result);
     } catch (err) {
@@ -124,6 +128,7 @@ export function useUsageStats(days: number = 7) {
     }
 
     try {
+      await syncSessionToEngine();
       const result = await invoke<UsageStats>('get_usage_stats', { userId: user.id, days });
       setStats(result);
     } catch (err) {
