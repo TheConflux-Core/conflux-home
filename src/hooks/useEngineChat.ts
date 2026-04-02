@@ -305,36 +305,6 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
       console.log('[useEngineChat] ✅ Session synced successfully!');
 
       // Fire the streaming chat command
-      // Debug: test JWT against cloud router directly
-      const { data: { session: testSession } } = await supabase.auth.getSession();
-      if (testSession?.access_token) {
-        try {
-          // Decode JWT to check expiration
-          const parts = testSession.access_token.split('.');
-          if (parts.length === 3) {
-            const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-            const exp = new Date(payload.exp * 1000);
-            const now = new Date();
-            console.log('[useEngineChat] 🔍 JWT exp:', exp.toISOString(), 'now:', now.toISOString(), 'expired:', exp < now);
-          }
-          const testRes = await fetch(`${import.meta.env.VITE_CLOUD_ROUTER_URL}/v1/credits`, {
-            headers: { 'Authorization': `Bearer ${testSession.access_token}` }
-          });
-          console.log('[useEngineChat] 🔍 JWT test against cloud router:', testRes.status);
-          console.log('[useEngineChat] 🔍 JWT (full):', testSession.access_token);
-          console.log('[useEngineChat] 🔍 JWT length:', testSession.access_token.length);
-          if (testRes.ok) {
-            const testBody = await testRes.json();
-            console.log('[useEngineChat] 🔍 JWT test body:', JSON.stringify(testBody));
-          } else {
-            const testErr = await testRes.text();
-            console.error('[useEngineChat] ❌ JWT test failed:', testRes.status, testErr);
-          }
-        } catch (e) {
-          console.error('[useEngineChat] ❌ JWT test error:', e);
-        }
-      }
-
       console.log('[useEngineChat] Invoking engine_chat_stream...');
       await invoke('engine_chat_stream', {
         req: {
