@@ -83,10 +83,17 @@ export function useAuth(): UseAuthReturn {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, s) => {
-        console.log('[useAuth] Auth state changed:', _event, 'session:', !!s)
+        console.log('[useAuth] ══════════════════════════════════════════');
+        console.log('[useAuth] 🚀 Auth state changed:', _event);
+        console.log('[useAuth] Has session:', !!s);
+        if (s) {
+          console.log('[useAuth] User ID:', s.user?.id);
+          console.log('[useAuth] Token preview:', s.access_token?.substring(0, 10));
+        }
         setSession(s)
         setUser(s?.user ?? null)
         setLoading(false)
+        console.log('[useAuth] ✅ Session state updated');
       },
     )
 
@@ -96,13 +103,22 @@ export function useAuth(): UseAuthReturn {
   // Pass Supabase credentials to Rust backend when session changes
   // Also sync before each chat request to ensure we have a fresh token
   useEffect(() => {
-    if (!session?.access_token || !session?.user?.id) return
+    console.log('[useAuth] useAuth useEffect triggered');
+    console.log('[useAuth] session?.access_token:', !!session?.access_token);
+    console.log('[useAuth] session?.user?.id:', !!session?.user?.id);
+    if (!session?.access_token || !session?.user?.id) {
+      console.log('[useAuth] ❌ Skipping sync: no session or missing data');
+      return
+    }
+    console.log('[useAuth] 🚀 Syncing to engine...');
     invoke('set_supabase_session', {
       supabaseUrl: SUPABASE_URL,
       supabaseAnonKey: SUPABASE_ANON_KEY,
       accessToken: session.access_token,
       userId: session.user.id,
-    }).catch((err) => console.warn('Failed to sync Supabase session to backend:', err))
+    }).then(() => {
+      console.log('[useAuth] ✅ Synced to engine successfully');
+    }).catch((err) => console.warn('[useAuth] ❌ Failed to sync Supabase session to backend:', err))
   }, [session?.access_token, session?.user?.id, SUPABASE_URL, SUPABASE_ANON_KEY])
 
   // Fire telemetry on confirmed session
