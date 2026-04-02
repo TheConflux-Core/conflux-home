@@ -309,6 +309,14 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
       const { data: { session: testSession } } = await supabase.auth.getSession();
       if (testSession?.access_token) {
         try {
+          // Decode JWT to check expiration
+          const parts = testSession.access_token.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+            const exp = new Date(payload.exp * 1000);
+            const now = new Date();
+            console.log('[useEngineChat] 🔍 JWT exp:', exp.toISOString(), 'now:', now.toISOString(), 'expired:', exp < now);
+          }
           const testRes = await fetch(`${import.meta.env.VITE_CLOUD_ROUTER_URL}/v1/credits`, {
             headers: { 'Authorization': `Bearer ${testSession.access_token}` }
           });
