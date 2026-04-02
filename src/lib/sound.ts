@@ -644,6 +644,392 @@ class SoundManager {
     osc.start(now);
     osc.stop(now + 0.85);
   }
+
+  // ── Game Sounds: Minesweeper ──
+
+  playMinesweeperReveal(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('games');
+    if (!gain) return;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, now);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.08, now);
+    env.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    osc.connect(env);
+    env.connect(gain);
+    osc.start(now);
+    osc.stop(now + 0.12);
+  }
+
+  playMinesweeperFlag(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('games');
+    if (!gain) return;
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(600, now);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.1, now);
+    env.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    osc.connect(env);
+    env.connect(gain);
+    osc.start(now);
+    osc.stop(now + 0.17);
+  }
+
+  playMinesweeperExplode(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('games');
+    if (!gain) return;
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(100, now);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.2, now);
+    env.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+    osc.connect(env);
+    env.connect(gain);
+    osc.start(now);
+    osc.stop(now + 0.52);
+  }
+
+  playMinesweeperCascade(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('games');
+    if (!gain) return;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1200, now);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.04, now);
+    env.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    osc.connect(env);
+    env.connect(gain);
+    osc.start(now);
+    osc.stop(now + 0.08);
+  }
+
+  playMinesweeperWin(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('games');
+    if (!gain) return;
+    [523, 659, 784, 1047].forEach((freq, i) => {
+      const startAt = now + i * 0.12;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, startAt);
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0.1, startAt);
+      env.gain.exponentialRampToValueAtTime(0.001, startAt + 0.3);
+      osc.connect(env);
+      env.connect(gain);
+      osc.start(startAt);
+      osc.stop(startAt + 0.32);
+    });
+  }
+
+  // ── Game Sounds: Snake ──
+
+  playSnakeEat(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('games');
+    if (!gain) return;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, now);
+    osc.frequency.exponentialRampToValueAtTime(1000, now + 0.08);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.12, now);
+    env.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    osc.connect(env);
+    env.connect(gain);
+    osc.start(now);
+    osc.stop(now + 0.12);
+  }
+
+  playSnakeTurn(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('games');
+    if (!gain) return;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(400, now);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.05, now);
+    env.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    osc.connect(env);
+    env.connect(gain);
+    osc.start(now);
+    osc.stop(now + 0.08);
+  }
+
+  playSnakeDeath(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('games');
+    if (!gain) return;
+    // Low thud
+    const osc1 = ctx.createOscillator();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(100, now);
+    const env1 = ctx.createGain();
+    env1.gain.setValueAtTime(0.2, now);
+    env1.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    osc1.connect(env1);
+    env1.connect(gain);
+    osc1.start(now);
+    osc1.stop(now + 0.17);
+    // Descending tone
+    const osc2 = ctx.createOscillator();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(400, now + 0.1);
+    osc2.frequency.exponentialRampToValueAtTime(100, now + 0.4);
+    const env2 = ctx.createGain();
+    env2.gain.setValueAtTime(0.15, now + 0.1);
+    env2.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+    osc2.connect(env2);
+    env2.connect(gain);
+    osc2.start(now + 0.1);
+    osc2.stop(now + 0.47);
+  }
+
+  playSnakeNewBest(): void {
+    this.playMinesweeperWin(); // Reuse ascending chime
+  }
+
+  playSnakeSpeedUp(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('games');
+    if (!gain) return;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(500, now);
+    osc.frequency.exponentialRampToValueAtTime(800, now + 0.05);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.06, now);
+    env.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+    osc.connect(env);
+    env.connect(gain);
+    osc.start(now);
+    osc.stop(now + 0.09);
+  }
+
+  // ── Game Sounds: Pac-Man ──
+
+  playPacmanChomp(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('games');
+    if (!gain) return;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(200, now);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.08, now);
+    env.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    osc.connect(env);
+    env.connect(gain);
+    osc.start(now);
+    osc.stop(now + 0.1);
+  }
+
+  playPacmanPower(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('games');
+    if (!gain) return;
+    [800, 1000, 1200].forEach((freq, i) => {
+      const startAt = now + i * 0.06;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, startAt);
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0.1, startAt);
+      env.gain.exponentialRampToValueAtTime(0.001, startAt + 0.15);
+      osc.connect(env);
+      env.connect(gain);
+      osc.start(startAt);
+      osc.stop(startAt + 0.17);
+    });
+  }
+
+  playPacmanEatGhost(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('games');
+    if (!gain) return;
+    const osc = ctx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(300, now);
+    osc.frequency.exponentialRampToValueAtTime(800, now + 0.15);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.12, now);
+    env.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    osc.connect(env);
+    env.connect(gain);
+    osc.start(now);
+    osc.stop(now + 0.22);
+  }
+
+  playPacmanDeath(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('games');
+    if (!gain) return;
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(600, now);
+    osc.frequency.exponentialRampToValueAtTime(80, now + 0.6);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.18, now);
+    env.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+    osc.connect(env);
+    env.connect(gain);
+    osc.start(now);
+    osc.stop(now + 0.67);
+  }
+
+  playPacmanLevelClear(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('games');
+    if (!gain) return;
+    [523, 659, 784, 1047].forEach((freq, i) => {
+      const startAt = now + i * 0.15;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, startAt);
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0.12, startAt);
+      env.gain.exponentialRampToValueAtTime(0.001, startAt + 0.35);
+      osc.connect(env);
+      env.connect(gain);
+      osc.start(startAt);
+      osc.stop(startAt + 0.37);
+    });
+  }
+
+  // ── Game Sounds: Solitaire ──
+
+  playSolitaireFlip(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('games');
+    if (!gain) return;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1200, now);
+    osc.frequency.exponentialRampToValueAtTime(800, now + 0.05);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.08, now);
+    env.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    osc.connect(env);
+    env.connect(gain);
+    osc.start(now);
+    osc.stop(now + 0.1);
+  }
+
+  playSolitairePlace(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('games');
+    if (!gain) return;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(300, now);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.1, now);
+    env.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    osc.connect(env);
+    env.connect(gain);
+    osc.start(now);
+    osc.stop(now + 0.12);
+  }
+
+  playSolitaireFoundation(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('games');
+    if (!gain) return;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, now);
+    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.1, now);
+    env.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    osc.connect(env);
+    env.connect(gain);
+    osc.start(now);
+    osc.stop(now + 0.17);
+  }
+
+  playSolitaireWin(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('games');
+    if (!gain) return;
+    [523, 659, 784, 1047].forEach((freq, i) => {
+      const startAt = now + i * 0.12;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, startAt);
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0.12, startAt);
+      env.gain.exponentialRampToValueAtTime(0.001, startAt + 0.35);
+      osc.connect(env);
+      env.connect(gain);
+      osc.start(startAt);
+      osc.stop(startAt + 0.37);
+    });
+  }
+
+  playSolitaireShuffle(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('games');
+    if (!gain) return;
+    for (let i = 0; i < 3; i++) {
+      const startAt = now + i * 0.04;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600 + i * 200, startAt);
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0.06, startAt);
+      env.gain.exponentialRampToValueAtTime(0.001, startAt + 0.06);
+      osc.connect(env);
+      env.connect(gain);
+      osc.start(startAt);
+      osc.stop(startAt + 0.08);
+    }
+  }
+
+  playSolitaireInvalid(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('games');
+    if (!gain) return;
+    const osc = ctx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(200, now);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.06, now);
+    env.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    osc.connect(env);
+    env.connect(gain);
+    osc.start(now);
+    osc.stop(now + 0.12);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -672,6 +1058,29 @@ export const playTaskComplete = () => soundManager.playTaskComplete();
 export const startThinkingAmbient = () => soundManager.startThinkingAmbient();
 export const playTeamAlive = () => soundManager.playTeamAlive();
 export const playTourBlip = () => soundManager.playTourBlip();
+
+// Game sound exports
+export const playMinesweeperReveal = () => soundManager.playMinesweeperReveal();
+export const playMinesweeperFlag = () => soundManager.playMinesweeperFlag();
+export const playMinesweeperExplode = () => soundManager.playMinesweeperExplode();
+export const playMinesweeperCascade = () => soundManager.playMinesweeperCascade();
+export const playMinesweeperWin = () => soundManager.playMinesweeperWin();
+export const playSnakeEat = () => soundManager.playSnakeEat();
+export const playSnakeTurn = () => soundManager.playSnakeTurn();
+export const playSnakeDeath = () => soundManager.playSnakeDeath();
+export const playSnakeNewBest = () => soundManager.playSnakeNewBest();
+export const playSnakeSpeedUp = () => soundManager.playSnakeSpeedUp();
+export const playPacmanChomp = () => soundManager.playPacmanChomp();
+export const playPacmanPower = () => soundManager.playPacmanPower();
+export const playPacmanEatGhost = () => soundManager.playPacmanEatGhost();
+export const playPacmanDeath = () => soundManager.playPacmanDeath();
+export const playPacmanLevelClear = () => soundManager.playPacmanLevelClear();
+export const playSolitaireFlip = () => soundManager.playSolitaireFlip();
+export const playSolitairePlace = () => soundManager.playSolitairePlace();
+export const playSolitaireFoundation = () => soundManager.playSolitaireFoundation();
+export const playSolitaireWin = () => soundManager.playSolitaireWin();
+export const playSolitaireShuffle = () => soundManager.playSolitaireShuffle();
+export const playSolitaireInvalid = () => soundManager.playSolitaireInvalid();
 
 // Backwards compat with old sounds.ts
 export const playUIClick = playClick;
