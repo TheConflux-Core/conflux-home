@@ -128,7 +128,7 @@ function StatsCards({ stats }: { stats: ReturnType<typeof useUsageStats>['stats'
         textAlign: 'center',
       }}>
         <div style={{ fontSize: 16, fontWeight: 700, color: '#00cc88' }}>
-          {topProvider?.provider ?? '—'}
+          {topProvider?.provider_id ?? '—'}
         </div>
         <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>Top Provider</div>
       </div>
