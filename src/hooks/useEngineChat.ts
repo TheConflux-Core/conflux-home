@@ -297,6 +297,7 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
       console.log('[useEngineChat] Sync result:', syncResult);
 
       // Fire the streaming chat command
+      console.log('[useEngineChat] Invoking engine_chat_stream...');
       await invoke('engine_chat_stream', {
         req: {
           session_id: sessionId,
@@ -305,6 +306,7 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
           max_tokens: null,
         },
       });
+      console.log('[useEngineChat] engine_chat_stream invoke completed');
 
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Engine chat failed';
