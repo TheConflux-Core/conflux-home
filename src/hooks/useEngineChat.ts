@@ -275,12 +275,18 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
       unlistenFnsRef.current = [unlistenChunk, unlistenThinking, unlistenDone, unlistenError];
 
       // Ensure we have a fresh JWT before making the request
+      console.log('[useEngineChat] ══════════════════════════════════════════');
+      console.log('[useEngineChat] 🚀 Starting sendMessage...');
+      console.log('[useEngineChat] Session ID:', sessionId);
+      console.log('[useEngineChat] Agent ID:', agentId);
+      console.log('[useEngineChat] Message:', content);
       console.log('[useEngineChat] Syncing session before chat...');
       const syncResult = await syncSessionToEngine();
       
       if (!syncResult) {
         const errorMsg = 'Failed to sync session — please sign in again';
-        console.error('[useEngineChat]', errorMsg);
+        console.error('[useEngineChat] ❌', errorMsg);
+        console.log('[useEngineChat] ══════════════════════════════════════════');
         setError(errorMsg);
         setStreaming(false);
         setThinking(false);
@@ -295,6 +301,7 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
       }
       
       console.log('[useEngineChat] Sync result:', syncResult);
+      console.log('[useEngineChat] ✅ Session synced successfully!');
 
       // Fire the streaming chat command
       console.log('[useEngineChat] Invoking engine_chat_stream...');
@@ -306,7 +313,8 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
           max_tokens: null,
         },
       });
-      console.log('[useEngineChat] engine_chat_stream invoke completed');
+      console.log('[useEngineChat] ✅ engine_chat_stream invoke completed');
+      console.log('[useEngineChat] ══════════════════════════════════════════');
 
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Engine chat failed';

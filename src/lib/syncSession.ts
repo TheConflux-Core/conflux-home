@@ -12,11 +12,19 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? "";
 
 export async function syncSessionToEngine(): Promise<boolean> {
   try {
+    console.log('[syncSessionToEngine] ══════════════════════════════════════════');
+    console.log('[syncSessionToEngine] 🚀 Starting syncSessionToEngine...');
+    
     // Get the current session
+    console.log('[syncSessionToEngine] Calling supabase.auth.getSession()...');
     let { data: { session } } = await supabase.auth.getSession();
+    console.log('[syncSessionToEngine] Session obtained:', !!session);
+    console.log('[syncSessionToEngine] Has access_token:', !!session?.access_token);
+    console.log('[syncSessionToEngine] Has user.id:', !!session?.user?.id);
 
     if (!session?.access_token || !session?.user?.id) {
       console.warn("[syncSessionToEngine] No active session");
+      console.log('[syncSessionToEngine] ══════════════════════════════════════════');
       return false;
     }
 
@@ -46,6 +54,7 @@ export async function syncSessionToEngine(): Promise<boolean> {
     console.log(`[syncSessionToEngine] User ID: ${session.user.id}`);
     console.log(`[syncSessionToEngine] Supabase URL: ${SUPABASE_URL}`);
     console.log(`[syncSessionToEngine] Token expires in: ${session.expires_at ? Math.round((session.expires_at * 1000 - Date.now()) / 1000) + 's' : 'unknown'}`);
+    console.log(`[syncSessionToEngine] Calling invoke('set_supabase_session')...`);
 
     await invoke("set_supabase_session", {
       supabaseUrl: SUPABASE_URL,
@@ -54,10 +63,12 @@ export async function syncSessionToEngine(): Promise<boolean> {
       userId: session.user.id,
     });
 
-    console.log(`[syncSessionToEngine] ✅ Session synced to Rust engine`);
+    console.log(`[syncSessionToEngine] ✅ invoke('set_supabase_session') completed`);
+    console.log('[syncSessionToEngine] ══════════════════════════════════════════');
     return true;
   } catch (err) {
-    console.error("[syncSessionToEngine] Failed:", err);
+    console.error("[syncSessionToEngine] ❌ Failed:", err);
+    console.log('[syncSessionToEngine] ══════════════════════════════════════════');
     return false;
   }
 }

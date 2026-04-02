@@ -171,13 +171,23 @@ pub async fn engine_chat(window: tauri::Window, req: ChatRequest) -> Result<Chat
 
 #[tauri::command]
 pub async fn engine_chat_stream(window: tauri::Window, req: ChatRequest) -> Result<(), String> {
+    log::info!("[engine_chat_stream] ══════════════════════════════════════════");
+    log::info!("[engine_chat_stream] 🚀 START engine_chat_stream command");
+    log::info!("[engine_chat_stream] Session ID: {}", req.session_id);
+    log::info!("[engine_chat_stream] Agent ID: {}", req.agent_id);
+    log::info!("[engine_chat_stream] Message: {}", req.message);
+    
     let engine = engine::get_engine();
+    log::info!("[engine_chat_stream] ✅ Engine instance obtained");
 
     // Get real Supabase user ID for cloud credit operations
     let user_id = get_supabase_user_id();
+    log::info!("[engine_chat_stream] Supabase user ID: {}", user_id);
 
     // Check quota (cloud-aware)
+    log::info!("[engine_chat_stream] Checking quota for user: {}", user_id);
     let quota = engine.has_quota(&user_id).await.map_err(|e| e.to_string())?;
+    log::info!("[engine_chat_stream] Quota check result: allowed={}, source={}", quota.allowed, quota.source);
     if !quota.allowed {
         let msg = format!("{} limit reached. Upgrade for more credits.", quota.source);
         window.emit("engine:error", &msg).map_err(|e| e.to_string())?;
@@ -185,30 +195,41 @@ pub async fn engine_chat_stream(window: tauri::Window, req: ChatRequest) -> Resu
     }
 
     let _ = window.emit("engine:thinking", ());
+    log::info!("[engine_chat_stream] ✅ Sent engine:thinking event");
 
+    log::info!("[engine_chat_stream] Calling engine.chat()...");
     let result = engine.chat(
         &req.session_id,
         &req.agent_id,
         &req.message,
         req.max_tokens,
     ).await;
+    log::info!("[engine_chat_stream] engine.chat() returned");
 
     match result {
         Ok(response) => {
+            log::info!("[engine_chat_stream] ✅ engine.chat() SUCCESS");
+            log::info!("[engine_chat_stream] Response model: {}", response.model);
+            log::info!("[engine_chat_stream] Response provider: {}", response.provider_id);
+            log::info!("[engine_chat_stream] Response content length: {}", response.content.len());
+            
             let calls = engine.increment_quota(&user_id, response.tokens_used, &response.provider_id)
                 .map_err(|e| e.to_string())?;
+            log::info!("[engine_chat_stream] Quota incremented: {} calls", calls);
 
             let limit = get_daily_limit(engine);
 
             // Log to cloud and charge credits (fire and forget)
             let credit_costs = super::engine::cloud::get_credit_costs().await.unwrap_or_default();
             let credits = super::engine::cloud::credit_cost_for_model(&response.model, &response.provider_id, "core", &credit_costs);
+            log::info!("[engine_chat_stream] Credit cost for this request: {}", credits);
 
             let _ = super::engine::cloud::log_usage_to_cloud(
                 &user_id, &req.session_id, &req.agent_id,
                 &response.model, &response.provider_id, "core",
                 response.tokens_used, response.latency_ms, "success", credits,
             ).await;
+            log::info!("[engine_chat_stream] ✅ Logged usage to cloud");
 
             let credits_remaining = match super::engine::cloud::charge_credits(&user_id, credits, "").await {
                 Ok(new_balance) => Some(new_balance),
@@ -217,15 +238,18 @@ pub async fn engine_chat_stream(window: tauri::Window, req: ChatRequest) -> Resu
                     None
                 }
             };
+            log::info!("[engine_chat_stream] Credits remaining: {:?}", credits_remaining);
 
             // Emit response in word-chunks for streaming feel
             let words: Vec<&str> = response.content.split_whitespace().collect();
+            log::info!("[engine_chat_stream] Emitting {} word chunks...", words.len());
             for chunk in words.chunks(4) {
                 let chunk_text = chunk.join(" ") + " ";
                 let _ = window.emit("engine:chunk", serde_json::json!({ "text": chunk_text }));
                 tokio::time::sleep(std::time::Duration::from_millis(20)).await;
             }
 
+            log::info!("[engine_chat_stream] Sending engine:done event...");
             window.emit("engine:done", serde_json::json!({
                 "content": response.content,
                 "model": response.model,
@@ -237,12 +261,16 @@ pub async fn engine_chat_stream(window: tauri::Window, req: ChatRequest) -> Resu
                 "credits_remaining": credits_remaining,
                 "credit_source": quota.source,
             })).map_err(|e| e.to_string())?;
+            log::info!("[engine_chat_stream] ✅ engine:done event sent");
+            log::info!("[engine_chat_stream] ══════════════════════════════════════════");
 
             Ok(())
         }
         Err(e) => {
+            log::info!("[engine_chat_stream] ❌ engine.chat() FAILED: {}", e);
             let msg = e.to_string();
             window.emit("engine:error", &msg).map_err(|e| e.to_string())?;
+            log::info!("[engine_chat_stream] ❌ Sent engine:error event to UI");
             Err(msg)
         }
     }
