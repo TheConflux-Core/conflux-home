@@ -32,8 +32,8 @@ flowchart TD
         M --> N[www.theconflux.com/v1/chat/completions]
         N --> O[Edge Function Validates JWT]
         O --> P[Route to Provider API]
-        P --> Q[Stream Response (SSE)]
-        Q --> R[Emit Tauri Events]
+        P --> Q["Stream Response SSE"]
+        Q --> R["Emit Tauri Events"]
     end
     
     subgraph "REACT UI UPDATES"
@@ -88,7 +88,7 @@ flowchart TD
         K -- Anthropic --> M[api.anthropic.com/v1/messages]
         K -- Google --> N[generativelanguage.googleapis.com]
         K -- Xiaomi --> O[api.xiaomi.com/v1/chat]
-        K -- [20+ others] --> P[Provider API]
+        K -- "20+ others" --> P["Provider API"]
     end
     
     subgraph "PROVIDER RESPONSE"
@@ -97,7 +97,7 @@ flowchart TD
         N --> Q
         O --> Q
         P --> Q
-        Q --> R[Pipe to Client (SSE)]
+        Q --> R["Pipe to Client SSE"]
     end
     
     subgraph "USAGE LOGGING"
