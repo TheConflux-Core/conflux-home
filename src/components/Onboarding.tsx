@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { playTourBlip, playTeamAlive, playHeartbeat, playWelcomeChime } from '../lib/sound';
 
 import Avatar from './Avatar';
 import '../styles/animations.css';
@@ -248,6 +249,11 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [setupPhase, setSetupPhase] = useState<'connecting' | 'alive' | 'done'>('connecting');
   const [factIndex, setFactIndex] = useState(0);
   const [heartbeatPulse, setHeartbeatPulse] = useState(false);
+
+  // Play heartbeat sound when pulse activates
+  useEffect(() => {
+    if (heartbeatPulse) playHeartbeat();
+  }, [heartbeatPulse]);
   // BYOK removed — cloud router handles all providers
 
   // Step 2 — Conversation
@@ -270,6 +276,11 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   const nameInputRef = useRef<HTMLInputElement>(null);
 
+  // Play welcome chime on mount
+  useEffect(() => {
+    playWelcomeChime();
+  }, []);
+
   // ── Init chat on Step 2 ──
   useEffect(() => {
     if (step === 2 && chatMessages.length === 0) {
@@ -282,6 +293,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   // ── Navigation ──
   const goToStep = useCallback((nextStep: number) => {
+    playTourBlip();
     setAnimating(true);
     setTimeout(() => {
       setStep(nextStep);
@@ -431,9 +443,12 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   // ── Alive animation (Step 5) ──
   useEffect(() => {
-    if (step === 5) { // Updated from step 4 to step 5
+    if (step === 5) {
       setAlivePhase('loading');
-      const timer = setTimeout(() => setAlivePhase('ready'), 2500);
+      const timer = setTimeout(() => {
+        setAlivePhase('ready');
+        playTeamAlive();
+      }, 2500);
       return () => clearTimeout(timer);
     }
   }, [step]);
