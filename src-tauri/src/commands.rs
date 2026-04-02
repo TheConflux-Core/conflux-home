@@ -5012,11 +5012,18 @@ pub async fn set_supabase_session(
     // Log token update for debugging (first 10 chars only)
     let token_preview = if access_token.len() > 10 { &access_token[..10] } else { &access_token };
     log::info!("[set_supabase_session] Storing token (preview): {}...", token_preview);
+    log::info!("[set_supabase_session] User ID: {}", user_id);
+    log::info!("[set_supabase_session] Supabase URL: {}", supabase_url);
     
     db.set_config("supabase_url", &supabase_url).map_err(|e| e.to_string())?;
+    log::info!("[set_supabase_session] ✅ supabase_url stored");
     db.set_config("supabase_anon_key", &supabase_anon_key).map_err(|e| e.to_string())?;
+    log::info!("[set_supabase_session] ✅ supabase_anon_key stored");
     db.set_config("supabase_auth_token", &access_token).map_err(|e| e.to_string())?;
+    log::info!("[set_supabase_session] ✅ supabase_auth_token stored");
     db.set_config("supabase_user_id", &user_id).map_err(|e| e.to_string())?;
+    log::info!("[set_supabase_session] ✅ supabase_user_id stored");
+    log::info!("[set_supabase_session] ✅ All credentials synced successfully");
     Ok(())
 }
 

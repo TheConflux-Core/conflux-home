@@ -112,9 +112,10 @@ fn get_supabase_key() -> Result<String> {
 /// Read the user's auth token (JWT) from engine config.
 fn get_auth_token() -> Result<String> {
     let engine = get_engine();
-    engine.db().get_config("supabase_auth_token")
-        .map_err(|e| anyhow::anyhow!("Failed to read supabase_auth_token: {}", e))?
-        .ok_or_else(|| anyhow::anyhow!("supabase_auth_token not configured"))
+    let token = engine.db().get_config("supabase_auth_token")
+        .map_err(|e| anyhow::anyhow!("Failed to read supabase_auth_token: {}", e))?;
+    log::info!("[get_auth_token] Token found: {}", token.is_some());
+    token.ok_or_else(|| anyhow::anyhow!("supabase_auth_token not configured"))
 }
 
 /// Build a Supabase REST GET request.
