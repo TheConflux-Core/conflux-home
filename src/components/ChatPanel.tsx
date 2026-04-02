@@ -6,6 +6,7 @@ import { Agent } from '../types';
 import { useEngineChat } from '../hooks/useEngineChat';
 import { useAuth } from '../hooks/useAuth';
 import { MicButton } from './voice';
+import { playMessageSent, playMessageReceived, soundManager } from '../lib/sound';
 
 // Configure marked for safe rendering
 marked.setOptions({
@@ -63,12 +64,32 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
     }
   }, [messages, isOpen]);
 
+  // Play sound when a new assistant message arrives
+  const prevMsgCount = useRef(0);
+  useEffect(() => {
+    if (messages.length > prevMsgCount.current) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg && lastMsg.type === 'agent') {
+        playMessageReceived();
+      }
+    }
+    prevMsgCount.current = messages.length;
+  }, [messages]);
+
   const handleSend = useCallback(() => {
     if (!input.trim() || streaming || !agent) return;
     const content = input;
     setInput('');
+    playMessageSent();
     sendMessage(content);
   }, [input, streaming, agent, sendMessage]);
+
+  // Play thinking ambient while agent is processing
+  useEffect(() => {
+    if (!thinking) return;
+    const handle = soundManager.startThinkingAmbient();
+    return () => handle.stop();
+  }, [thinking]);
 
   // Keyboard shortcut: Escape to close
   useEffect(() => {

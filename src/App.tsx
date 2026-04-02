@@ -407,6 +407,7 @@ const [activeSnake, setActiveSnake] = useState(false);
         const agent = agents.find(a => a.id === detail.agentId);
         if (agent) {
           setSelectedAgent(agent);
+          soundManager.playAgentWake(agent.id);
           localStorage.setItem('conflux-last-chat-agent', agent.id);
           setChatOpen(true);
         }

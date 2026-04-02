@@ -441,27 +441,185 @@ class SoundManager {
     osc2.stop(now + 0.27);
   }
 
-  // Agents: Wake tone (unique per agent index)
-  playAgentWake(agentIndex: number): void {
+  // ── Agent Sounds ──
+
+  // Agent-specific 3-note wake melody
+  private agentTones: Record<string, number[]> = {
+    conflux: [261.63, 329.63, 392.00],  // C4 → E4 → G4
+    helix:   [369.99, 440.00, 554.37],   // F#4 → A4 → C#5
+    forge:   [146.83, 174.61, 220.00],   // D3 → F3 → A3
+    vector:  [392.00, 493.88, 587.33],   // G4 → B4 → D5
+    pulse:   [329.63, 415.30, 493.88],   // E4 → G#4 → B4
+    quanta:  [523.25, 659.25, 783.99],   // C5 → E5 → G5
+    prism:   [440.00, 554.37, 659.25],   // A4 → C#5 → E5
+    spectra: [246.94, 293.66, 369.99],   // B3 → D4 → F#4
+    luma:    [783.99, 987.77, 1174.66],  // G5 → B5 → D6
+    catalyst:[349.23, 440.00, 523.25],   // F4 → A4 → C5
+  };
+
+  playAgentWake(agentId: string): void {
     const ctx = this.getAudioContext();
     const now = ctx.currentTime;
     const gain = this.categoryGains.get('agents');
     if (!gain) return;
 
-    const freq = 300 + agentIndex * 50;
+    const notes = this.agentTones[agentId] || this.agentTones.conflux;
+    notes.forEach((freq, i) => {
+      const startAt = now + i * 0.12;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, startAt);
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0, startAt);
+      env.gain.linearRampToValueAtTime(0.2, startAt + 0.015);
+      env.gain.exponentialRampToValueAtTime(0.001, startAt + 0.25);
+      osc.connect(env);
+      env.connect(gain);
+      osc.start(startAt);
+      osc.stop(startAt + 0.27);
+    });
+  }
+
+  // Message sent — quick upward swoosh
+  playMessageSent(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('agents');
+    if (!gain) return;
     const osc = ctx.createOscillator();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(freq, now);
-
+    osc.frequency.setValueAtTime(400, now);
+    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
     const env = ctx.createGain();
     env.gain.setValueAtTime(0, now);
-    env.gain.linearRampToValueAtTime(0.25, now + 0.015);
-    env.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-
+    env.gain.linearRampToValueAtTime(0.12, now + 0.01);
+    env.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
     osc.connect(env);
     env.connect(gain);
     osc.start(now);
-    osc.stop(now + 0.22);
+    osc.stop(now + 0.14);
+  }
+
+  // Message received — soft pop/plink
+  playMessageReceived(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('agents');
+    if (!gain) return;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1200, now);
+    osc.frequency.exponentialRampToValueAtTime(800, now + 0.06);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0, now);
+    env.gain.linearRampToValueAtTime(0.18, now + 0.005);
+    env.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    osc.connect(env);
+    env.connect(gain);
+    osc.start(now);
+    osc.stop(now + 0.12);
+  }
+
+  // Task complete — bright chime with echo
+  playTaskComplete(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('agents');
+    if (!gain) return;
+    const notes = [523.25, 659.25, 783.99];
+    notes.forEach((freq, i) => {
+      const startAt = now + i * 0.07;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, startAt);
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0, startAt);
+      env.gain.linearRampToValueAtTime(0.2, startAt + 0.01);
+      env.gain.exponentialRampToValueAtTime(0.001, startAt + 0.5);
+      osc.connect(env);
+      env.connect(gain);
+      osc.start(startAt);
+      osc.stop(startAt + 0.52);
+    });
+  }
+
+  // Thinking/working ambient — returns handle to stop
+  private thinkingOscs: OscillatorNode[] = [];
+  private thinkingGain: GainNode | null = null;
+
+  startThinkingAmbient(): { stop: () => void } {
+    const ctx = this.getAudioContext();
+    const gain = this.categoryGains.get('agents');
+    if (!gain) return { stop: () => {} };
+    const now = ctx.currentTime;
+    const thinkGain = ctx.createGain();
+    thinkGain.gain.setValueAtTime(0, now);
+    thinkGain.gain.linearRampToValueAtTime(0.04, now + 0.5);
+    thinkGain.connect(gain);
+    this.thinkingGain = thinkGain;
+    const osc1 = ctx.createOscillator();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(80, now);
+    const osc2 = ctx.createOscillator();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(82, now);
+    osc1.connect(thinkGain);
+    osc2.connect(thinkGain);
+    osc1.start();
+    osc2.start();
+    this.thinkingOscs = [osc1, osc2];
+    return {
+      stop: () => {
+        const t = ctx.currentTime;
+        thinkGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+        osc1.stop(t + 0.35);
+        osc2.stop(t + 0.35);
+        this.thinkingOscs = [];
+        this.thinkingGain = null;
+      },
+    };
+  }
+
+  // Onboarding: Team alive celebration
+  playTeamAlive(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('onboarding');
+    if (!gain) return;
+    const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99];
+    notes.forEach((freq, i) => {
+      const startAt = now + i * 0.08;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, startAt);
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0, startAt);
+      env.gain.linearRampToValueAtTime(0.2, startAt + 0.01);
+      env.gain.exponentialRampToValueAtTime(0.001, startAt + 0.4);
+      osc.connect(env);
+      env.connect(gain);
+      osc.start(startAt);
+      osc.stop(startAt + 0.42);
+    });
+  }
+
+  // Onboarding: Tour step blip
+  playTourBlip(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('onboarding');
+    if (!gain) return;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, now);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0, now);
+    env.gain.linearRampToValueAtTime(0.15, now + 0.005);
+    env.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    osc.connect(env);
+    env.connect(gain);
+    osc.start(now);
+    osc.stop(now + 0.1);
   }
 
   // Boot-up tone
@@ -506,8 +664,14 @@ export const playError = () => soundManager.playError();
 export const playSuccess = () => soundManager.playSuccess();
 export const playWelcomeChime = () => soundManager.playWelcomeChime();
 export const playHeartbeat = () => soundManager.playHeartbeat();
-export const playAgentWake = (idx: number) => soundManager.playAgentWake(idx);
+export const playAgentWake = (id: string) => soundManager.playAgentWake(id);
 export const playBootUp = () => soundManager.playBootUp();
+export const playMessageSent = () => soundManager.playMessageSent();
+export const playMessageReceived = () => soundManager.playMessageReceived();
+export const playTaskComplete = () => soundManager.playTaskComplete();
+export const startThinkingAmbient = () => soundManager.startThinkingAmbient();
+export const playTeamAlive = () => soundManager.playTeamAlive();
+export const playTourBlip = () => soundManager.playTourBlip();
 
 // Backwards compat with old sounds.ts
 export const playUIClick = playClick;
