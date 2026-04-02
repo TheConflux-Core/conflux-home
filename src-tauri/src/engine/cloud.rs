@@ -10,6 +10,9 @@ use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use super::get_engine;
+use super::router::ModelResponse;
+use super::router::OpenAIMessage;
+use super::router::ToolCallRequest;
 
 // ── Types ──
 
@@ -460,6 +463,293 @@ pub async fn get_usage_history(user_id: &str, limit: i32) -> Result<Vec<UsageEnt
     }).collect();
 
     Ok(entries)
+}
+
+// ── Cloud Router Proxy ──
+
+/// Cloud router endpoint (conflux-cloud)
+const CLOUD_ROUTER_URL: &str = "https://theconflux.com/v1/chat/completions";
+
+/// Send a chat completion request to the cloud router.
+/// This is the main entry point for all inference in cloud-only mode.
+pub async fn cloud_chat(
+    task_type: Option<&str>,
+    messages: Vec<OpenAIMessage>,
+    max_tokens: Option<i64>,
+    temperature: Option<f64>,
+    tools: Option<Vec<serde_json::Value>>,
+) -> Result<ModelResponse> {
+    let token = get_auth_token()?;
+    
+    let mut request_body = serde_json::json!({
+        "messages": messages,
+        "stream": false,
+    });
+    
+    // Add optional fields
+    if let Some(task) = task_type {
+        request_body["task_type"] = serde_json::json!(task);
+    }
+    if let Some(max) = max_tokens {
+        request_body["max_tokens"] = serde_json::json!(max);
+    }
+    if let Some(temp) = temperature {
+        request_body["temperature"] = serde_json::json!(temp);
+    }
+    if let Some(t) = tools {
+        request_body["tools"] = serde_json::json!(t);
+    }
+    
+    let client = reqwest::Client::new();
+    let response = client
+        .post(CLOUD_ROUTER_URL)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Content-Type", "application/json")
+        .json(&request_body)
+        .send()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to call cloud router: {}", e))?;
+    
+    let status = response.status();
+    
+    // Handle errors from cloud router
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        
+        let error_msg = match status.as_u16() {
+            401 => "Unauthorized: Invalid or expired session. Please sign in again.".to_string(),
+            402 => format!("Insufficient credits: {}", body),
+            429 => "Rate limit exceeded. Please try again later.".to_string(),
+            503 => "Service temporarily unavailable. Please try again.".to_string(),
+            _ => format!("Cloud router error ({}): {}", status, body),
+        };
+        anyhow::bail!(error_msg);
+    }
+    
+    // Parse OpenAI-compatible response
+    #[derive(Debug, serde::Deserialize)]
+    struct CloudResponse {
+        id: Option<String>,
+        model: Option<String>,
+        choices: Vec<CloudChoice>,
+        usage: Option<CloudUsage>,
+    }
+    
+    #[derive(Debug, serde::Deserialize)]
+    struct CloudChoice {
+        index: Option<i64>,
+        message: Option<OpenAIMessage>,
+        finish_reason: Option<String>,
+    }
+    
+    #[derive(Debug, serde::Deserialize)]
+    struct CloudUsage {
+        prompt_tokens: Option<i64>,
+        completion_tokens: Option<i64>,
+        total_tokens: Option<i64>,
+    }
+    
+    let parsed: CloudResponse = response
+        .json()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to parse cloud router response: {}", e))?;
+    
+    let choice = parsed.choices.first();
+    
+    let content = choice
+        .and_then(|c| c.message.as_ref())
+        .and_then(|m| m.content.clone())
+        .unwrap_or_default();
+    
+    let tool_calls = choice
+        .and_then(|c| c.message.as_ref())
+        .and_then(|m| m.tool_calls.as_ref())
+        .map(|tc| {
+            tc.iter()
+                .filter_map(|call| {
+                    let id = call.get("id").and_then(|v| v.as_str())?.to_string();
+                    let name = call
+                        .get("function")
+                        .and_then(|f| f.get("name"))
+                        .and_then(|n| n.as_str())?
+                        .to_string();
+                    let arguments = call
+                        .get("function")
+                        .and_then(|f| f.get("arguments"))
+                        .and_then(|a| a.as_str())
+                        .unwrap_or("{}")
+                        .to_string();
+                    Some(ToolCallRequest {
+                        id,
+                        name,
+                        arguments,
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    
+    let tokens_used = parsed
+        .usage
+        .map(|u| u.total_tokens.unwrap_or(0))
+        .unwrap_or(0);
+    
+    Ok(ModelResponse {
+        content,
+        model: parsed.model.unwrap_or_else(|| "cloud-router".to_string()),
+        provider_id: "cloud-router".to_string(),
+        provider_name: "Conflux Cloud Router".to_string(),
+        tokens_used,
+        latency_ms: 0, // Cloud router handles its own latency tracking
+        tool_calls,
+    })
+}
+
+/// Send a streaming chat request to the cloud router.
+pub async fn cloud_chat_stream(
+    task_type: Option<&str>,
+    messages: Vec<OpenAIMessage>,
+    max_tokens: Option<i64>,
+    on_chunk: &mut dyn FnMut(&str) -> Result<()>,
+) -> Result<ModelResponse> {
+    let token = get_auth_token()?;
+    
+    let mut request_body = serde_json::json!({
+        "messages": messages,
+        "stream": true,
+    });
+    
+    if let Some(task) = task_type {
+        request_body["task_type"] = serde_json::json!(task);
+    }
+    if let Some(max) = max_tokens {
+        request_body["max_tokens"] = serde_json::json!(max);
+    }
+    
+    let client = reqwest::Client::new();
+    let response = client
+        .post(CLOUD_ROUTER_URL)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Content-Type", "application/json")
+        .json(&request_body)
+        .send()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to call cloud router (stream): {}", e))?;
+    
+    let status = response.status();
+    
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        
+        let error_msg = match status.as_u16() {
+            401 => "Unauthorized: Invalid or expired session. Please sign in again.".to_string(),
+            402 => format!("Insufficient credits: {}", body),
+            429 => "Rate limit exceeded. Please try again later.".to_string(),
+            503 => "Service temporarily unavailable. Please try again.".to_string(),
+            _ => format!("Cloud router error ({}): {}", status, body),
+        };
+        anyhow::bail!(error_msg);
+    }
+    
+    // Parse SSE stream from cloud router (OpenAI-compatible format)
+    let mut full_text = String::new();
+    let mut buffer = String::new();
+    let mut stream = response.bytes_stream();
+    
+    use futures_util::StreamExt;
+    
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| anyhow::anyhow!("Stream read error: {}", e))?;
+        let text = String::from_utf8_lossy(&chunk);
+        buffer.push_str(&text);
+        
+        while let Some(newline_pos) = buffer.find('\n') {
+            let line = buffer[..newline_pos].trim().to_string();
+            buffer = buffer[newline_pos + 1..].to_string();
+            
+            if line.is_empty() || line.starts_with(':') {
+                continue;
+            }
+            
+            if line == "data: [DONE]" {
+                let tokens_used = (full_text.len() as f64 / 4.0).ceil() as i64;
+                return Ok(ModelResponse {
+                    content: full_text,
+                    model: "cloud-router".to_string(),
+                    provider_id: "cloud-router".to_string(),
+                    provider_name: "Conflux Cloud Router".to_string(),
+                    tokens_used,
+                    latency_ms: 0,
+                    tool_calls: vec![],
+                });
+            }
+            
+            if let Some(data) = line.strip_prefix("data: ") {
+                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
+                    if let Some(content) = parsed
+                        .get("choices")
+                        .and_then(|c| c.get(0))
+                        .and_then(|c| c.get("delta"))
+                        .and_then(|d| d.get("content"))
+                        .and_then(|c| c.as_str())
+                    {
+                        full_text.push_str(content);
+                        on_chunk(content)?;
+                    }
+                }
+            }
+        }
+    }
+    
+    let tokens_used = (full_text.len() as f64 / 4.0).ceil() as i64;
+    Ok(ModelResponse {
+        content: full_text,
+        model: "cloud-router".to_string(),
+        provider_id: "cloud-router".to_string(),
+        provider_name: "Conflux Cloud Router".to_string(),
+        tokens_used,
+        latency_ms: 0,
+        tool_calls: vec![],
+    })
+}
+
+/// Get available models from cloud router.
+pub async fn cloud_get_models() -> Result<Vec<CloudModel>> {
+    let token = get_auth_token()?;
+    let url = format!("{}/v1/models", CLOUD_ROUTER_URL);
+    
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to fetch models: {}", e))?;
+    
+    if !response.status().is_success() {
+        anyhow::bail!("Failed to fetch models: {}", response.status());
+    }
+    
+    #[derive(Debug, serde::Deserialize)]
+    struct ModelsResponse {
+        data: Vec<CloudModel>,
+    }
+    
+    let parsed: ModelsResponse = response.json().await
+        .map_err(|e| anyhow::anyhow!("Failed to parse models response: {}", e))?;
+    
+    Ok(parsed.data)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CloudModel {
+    pub id: String,
+    pub provider: String,
+    pub tier: String,
+    pub context_window: i64,
+    pub max_tokens: i64,
+    pub credits_per_1k_input: i64,
+    pub credits_per_1k_output: i64,
 }
 
 /// Fetch usage stats for a user over the last N days.

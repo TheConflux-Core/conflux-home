@@ -116,13 +116,7 @@ const AGENT_HELLOS: Record<string, string> = {
   catalyst: "I'm the early warning system. If something's about to break, I'll let you know.",
 };
 
-// BYOK providers
-const BYOK_PROVIDERS = [
-  { id: 'openai', name: 'OpenAI', emoji: '🧠', placeholder: 'sk-...' },
-  { id: 'anthropic', name: 'Anthropic', emoji: '🏛️', placeholder: 'sk-ant-...' },
-  { id: 'gemini', name: 'Gemini', emoji: '💎', placeholder: 'AI...' },
-  { id: 'ollama', name: 'Ollama', emoji: '🦙', placeholder: 'http://localhost:11434' },
-];
+// BYOK removed — all inference runs through the Conflux cloud router
 
 // Setup facts
 const SETUP_FACTS = [
@@ -254,9 +248,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [setupPhase, setSetupPhase] = useState<'connecting' | 'alive' | 'done'>('connecting');
   const [factIndex, setFactIndex] = useState(0);
   const [heartbeatPulse, setHeartbeatPulse] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [byokKeys, setByokKeys] = useState<Record<string, string>>({});
-  const [activeModal, setActiveModal] = useState<string | null>(null);
+  // BYOK removed — cloud router handles all providers
 
   // Step 2 — Conversation
   const [chatMessages, setChatMessages] = useState<Array<{role: 'conflux' | 'user', text: string}>>([]);
@@ -323,15 +315,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     return () => { clearInterval(interval); clearTimeout(timer); };
   }, [step, setupPhase]);
 
-  // ── Provider: BYOK ──
-  const handleByokConnect = (providerId: string) => {
-    const key = byokKeys[providerId]?.trim();
-    if (!key) return;
-    localStorage.setItem('conflux-provider-setup', JSON.stringify({ type: 'byok', providers: [providerId] }));
-    setActiveModal(null);
-    setSetupPhase('alive');
-    setHeartbeatPulse(true);
-  };
+  // BYOK removed — cloud router handles all providers
 
   // ── Goals ──
   // ── Conversation ──
@@ -644,167 +628,18 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             Your team's heart is beating. ✨
           </h2>
 
-          {/* Advanced setup link */}
-          <button
+          {/* Cloud router — no BYOK needed */}
+          <p
             className="animate-fade-in"
-            onClick={() => setShowAdvanced(true)}
             style={{
-              background: 'none', border: 'none',
-              color: 'var(--text-muted)', fontSize: 13,
-              cursor: 'pointer', marginTop: 8,
+              color: '#10b981', fontSize: 13, marginTop: 12,
               '--stagger-delay': '700ms',
             } as React.CSSProperties}
           >
-            ⚙️ I have my own setup
-          </button>
+            ☁️ Connected to Conflux cloud — no keys needed
+          </p>
         </div>
       )}
-
-      {/* Advanced BYOK modal */}
-      {showAdvanced && (
-        <div
-          onClick={() => setShowAdvanced(false)}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 100,
-            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
-          }}
-        >
-          <div
-            className="animate-scale-in"
-            onClick={e => e.stopPropagation()}
-            style={{
-              background: 'var(--bg-card)', border: '1px solid var(--border)',
-              borderRadius: 20, padding: 28, maxWidth: 420, width: '100%',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
-            }}
-          >
-            {/* Close button */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
-                Bring Your Own Setup
-              </h3>
-              <button
-                onClick={() => setShowAdvanced(false)}
-                style={{
-                  background: 'none', border: 'none',
-                  color: 'var(--text-muted)', fontSize: 20,
-                  cursor: 'pointer', padding: 4, lineHeight: 1,
-                }}
-              >
-                ✕
-              </button>
-            </div>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
-              Connect your own provider to use your own API keys.
-            </p>
-
-            {/* Provider cards */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {BYOK_PROVIDERS.map(p => {
-                const hasKey = byokKeys[p.id]?.trim();
-                return (
-                  <div
-                    key={p.id}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 12,
-                      padding: '12px 14px',
-                      background: 'var(--bg-primary)',
-                      border: `1px solid ${hasKey ? '#10b981' : 'var(--border)'}`,
-                      borderRadius: 14,
-                    }}
-                  >
-                    <span style={{ fontSize: 24 }}>{p.emoji}</span>
-                    <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>
-                      {p.name}
-                    </span>
-                    {hasKey ? (
-                      <span style={{ fontSize: 13, color: '#10b981', fontWeight: 600 }}>✓ Connected</span>
-                    ) : (
-                      <button
-                        onClick={() => setActiveModal(p.id)}
-                        style={{
-                          background: 'none', border: '1px solid var(--border)',
-                          borderRadius: 10, padding: '8px 18px',
-                          color: 'var(--text-secondary)', fontSize: 13, fontWeight: 500,
-                          cursor: 'pointer', transition: 'all 0.15s ease',
-                        }}
-                      >
-                        Connect
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* BYOK key input modal */}
-      {activeModal && (() => {
-        const provider = BYOK_PROVIDERS.find(p => p.id === activeModal)!;
-        return (
-          <div
-            onClick={() => setActiveModal(null)}
-            style={{
-              position: 'fixed', inset: 0, zIndex: 110,
-              background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
-            }}
-          >
-            <div
-              className="animate-scale-in"
-              onClick={e => e.stopPropagation()}
-              style={{
-                background: 'var(--bg-card)', border: '1px solid var(--border)',
-                borderRadius: 16, padding: 28, maxWidth: 380, width: '100%',
-                boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                <span style={{ fontSize: 28 }}>{provider.emoji}</span>
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Connect {provider.name}
-                </h3>
-              </div>
-              <input
-                type="password"
-                placeholder={provider.placeholder}
-                value={byokKeys[provider.id] || ''}
-                onChange={e => setByokKeys(prev => ({ ...prev, [provider.id]: e.target.value }))}
-                onKeyDown={e => e.key === 'Enter' && handleByokConnect(provider.id)}
-                autoFocus
-                style={{
-                  width: '100%', padding: '12px 14px', borderRadius: 10,
-                  border: '1px solid var(--border)', background: 'var(--bg-primary)',
-                  color: 'var(--text-primary)', fontSize: 14, outline: 'none',
-                  boxSizing: 'border-box', marginBottom: 16,
-                }}
-              />
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                <button
-                  onClick={() => setActiveModal(null)}
-                  style={{
-                    background: 'none', border: '1px solid var(--border)',
-                    borderRadius: 8, padding: '8px 18px', color: 'var(--text-secondary)',
-                    fontSize: 13, cursor: 'pointer',
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="next-btn"
-                  onClick={() => handleByokConnect(provider.id)}
-                  style={{ width: 'auto', padding: '8px 20px' }}
-                >
-                  Connect
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
     </div>
   );
 

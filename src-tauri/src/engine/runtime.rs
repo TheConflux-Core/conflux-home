@@ -6,8 +6,9 @@ use anyhow::Result;
 use serde_json::Value;
 
 use super::db::EngineDb;
-use super::router;
+use super::cloud;
 use super::router::OpenAIMessage;
+use super::router::ModelResponse;
 use super::tools;
 
 const MAX_TOOL_ITERATIONS: usize = 3;
@@ -19,7 +20,7 @@ pub async fn process_turn(
     agent_id: &str,
     user_message: &str,
     max_tokens: Option<i64>,
-) -> Result<router::ModelResponse> {
+) -> Result<ModelResponse> {
     // 1. Load agent config
     let agent = db.get_agent(agent_id)?
         .ok_or_else(|| anyhow::anyhow!("Agent not found: {}", agent_id))?;
@@ -86,11 +87,11 @@ pub async fn process_turn(
 
     // 7. Tool calling loop
     let mut total_tokens: i64 = 0;
-    let mut final_response: Option<router::ModelResponse> = None;
+    let mut final_response: Option<ModelResponse> = None;
 
     for iteration in 0..MAX_TOOL_ITERATIONS {
-        let response = router::chat(
-            &agent.model_alias,
+        let response = cloud::cloud_chat(
+            Some(&agent.model_alias),
             messages.clone(),
             max_tokens,
             None,
@@ -165,8 +166,8 @@ pub async fn process_turn(
 
         // If this was the last iteration, force no tools
         if iteration == MAX_TOOL_ITERATIONS - 1 {
-            let final_resp = router::chat(
-                &agent.model_alias,
+            let final_resp = cloud::cloud_chat(
+                Some(&agent.model_alias),
                 messages.clone(),
                 max_tokens,
                 None,
@@ -223,7 +224,7 @@ pub async fn process_turn_stream(
     user_message: &str,
     max_tokens: Option<i64>,
     on_chunk: &mut dyn FnMut(&str) -> Result<()>,
-) -> Result<router::ModelResponse> {
+) -> Result<ModelResponse> {
     // 1. Load agent config
     let agent = db.get_agent(agent_id)?
         .ok_or_else(|| anyhow::anyhow!("Agent not found: {}", agent_id))?;
@@ -286,14 +287,14 @@ pub async fn process_turn_stream(
     tool_defs.extend(tools::get_integration_tool_definitions());
 
     // 7. Tool calling loop (non-streaming for tool detection, streaming for final text)
-    let mut final_response: Option<router::ModelResponse> = None;
+    let mut final_response: Option<ModelResponse> = None;
 
     for iteration in 0..MAX_TOOL_ITERATIONS {
         let is_final_pass = iteration == MAX_TOOL_ITERATIONS - 1;
 
         // For intermediate passes, use non-streaming to reliably capture tool_calls
-        let response = router::chat(
-            &agent.model_alias,
+        let response = cloud::cloud_chat(
+            Some(&agent.model_alias),
             messages.clone(),
             max_tokens,
             None,
@@ -368,8 +369,8 @@ pub async fn process_turn_stream(
 
         // Last iteration — force no tools, get final text
         if is_final_pass {
-            let final_resp = router::chat(
-                &agent.model_alias,
+            let final_resp = cloud::cloud_chat(
+                Some(&agent.model_alias),
                 messages.clone(),
                 max_tokens,
                 None,
