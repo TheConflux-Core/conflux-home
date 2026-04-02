@@ -17,6 +17,7 @@
     "fs:allow-create",
     "fs:allow-mkdir",
     "log:default",
-    "updater:default"
+    "updater:default",
+    "process:default"
   ]
 }

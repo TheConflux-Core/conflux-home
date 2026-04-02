@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { check } from '@tauri-apps/plugin-updater';
 import { invoke } from '@tauri-apps/api/core';
+import { exit } from '@tauri-apps/plugin-process';
 
 async function logToFile(message: string) {
   const timestamp = new Date().toISOString();
@@ -114,9 +115,13 @@ export function useAutoUpdate() {
       setState((s) => ({ ...s, downloading: false, downloaded: true }));
       await logToFile('Download complete. Ready to install.');
 
-      // Run the installer
+      // Run the installer (spawns NSIS /S in background)
       await invoke('run_installer', { installerPath: filePath });
-      await logToFile('Installer launched.');
+      await logToFile('Installer launched. Exiting gracefully...');
+
+      // Give the installer a moment to start, then exit gracefully
+      await new Promise(r => setTimeout(r, 500));
+      await exit(0);
     } catch (err: any) {
       const errorMessage = err?.message ?? err?.toString() ?? JSON.stringify(err) ?? 'Update failed';
       await logToFile(`ERROR: ${errorMessage}`);

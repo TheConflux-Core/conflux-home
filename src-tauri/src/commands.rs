@@ -4205,7 +4205,8 @@ pub fn run_installer(installer_path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         // NSIS .exe installer (currentUser mode — no UAC needed)
-        // Run the .exe directly with /S silent flag, then exit so the new version can launch
+        // Run the .exe directly with /S silent flag
+        // The frontend handles graceful exit after this returns
         let child = std::process::Command::new(&installer_path)
             .args(["/S"])
             .spawn()
@@ -4215,9 +4216,6 @@ pub fn run_installer(installer_path: String) -> Result<(), String> {
             use std::io::Write;
             let _ = writeln!(f, "[{}] NSIS installer launched (pid: {})", chrono::Utc::now().to_rfc3339(), child.id());
         }
-
-        // Exit the app so the installer can replace files
-        std::process::exit(0);
     }
 
     #[cfg(target_os = "macos")]

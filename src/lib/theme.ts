@@ -239,9 +239,8 @@ export function saveColorTheme(themeId: string): void {
 // ── Init ──
 
 export function initTheme(): void {
-  const storedTheme = localStorage.getItem(STORAGE_KEYS.theme) as Theme | null;
-  const effective = getEffectiveTheme(storedTheme ?? 'system');
-  applyTheme(effective);
+  // Always dark mode
+  applyTheme('dark');
 
   const storedAccent = localStorage.getItem(STORAGE_KEYS.accent) as AccentColor | null;
   if (storedAccent) {
