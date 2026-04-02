@@ -1,4 +1,11 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import {
+  playSnakeEat,
+  playSnakeTurn,
+  playSnakeDeath,
+  playSnakeNewBest,
+  playSnakeSpeedUp,
+} from '../lib/sound';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -130,7 +137,6 @@ export default function SnakeGame({ onBack }: SnakeGameProps) {
   const particlesRef = useRef<Particle[]>([]);
   const trailsRef = useRef<TrailSegment[]>([]);
   const foodSpawnTimeRef = useRef<number>(0);
-  const audioCtxRef = useRef<AudioContext | null>(null);
   const touchStartRef = useRef<Position | null>(null);
 
   // Keep refs in sync
@@ -139,73 +145,12 @@ export default function SnakeGame({ onBack }: SnakeGameProps) {
   // ── Sound Effects ────────────────────────────────────────────────────────
 
   const playSound = useCallback((type: 'eat' | 'turn' | 'speedup' | 'death' | 'newbest') => {
-    if (!audioCtxRef.current) {
-      try { audioCtxRef.current = new AudioContext(); } catch { return; }
-    }
-    const ctx = audioCtxRef.current;
-
-    if (type === 'newbest') {
-      [523, 659, 784, 1047].forEach((freq, i) => {
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.connect(g);
-        g.connect(ctx.destination);
-        o.frequency.value = freq;
-        o.type = 'sine';
-        const t = ctx.currentTime + i * 0.12;
-        g.gain.setValueAtTime(0.1, t);
-        g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-        o.start(t);
-        o.stop(t + 0.3);
-      });
-      return;
-    }
-
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
     switch (type) {
-      case 'eat': {
-        osc.frequency.setValueAtTime(400, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.08);
-        osc.type = 'sine';
-        gain.gain.setValueAtTime(0.12, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.08);
-        break;
-      }
-      case 'turn': {
-        osc.frequency.value = 1000;
-        osc.type = 'sine';
-        gain.gain.setValueAtTime(0.03, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.02);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.02);
-        break;
-      }
-      case 'speedup': {
-        osc.frequency.setValueAtTime(300, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(900, ctx.currentTime + 0.15);
-        osc.type = 'sine';
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.15);
-        break;
-      }
-      case 'death': {
-        osc.frequency.setValueAtTime(400, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.3);
-        osc.type = 'sawtooth';
-        gain.gain.setValueAtTime(0.15, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.3);
-        break;
-      }
+      case 'eat': playSnakeEat(); break;
+      case 'turn': playSnakeTurn(); break;
+      case 'speedup': playSnakeSpeedUp(); break;
+      case 'death': playSnakeDeath(); break;
+      case 'newbest': playSnakeNewBest(); break;
     }
   }, []);
 

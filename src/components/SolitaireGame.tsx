@@ -1,4 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import {
+  playSolitaireFlip,
+  playSolitairePlace,
+  playSolitaireFoundation,
+  playSolitaireWin,
+  playSolitaireShuffle,
+  playSolitaireInvalid,
+} from '../lib/sound';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -369,7 +377,6 @@ export default function SolitaireGame({ onBack }: SolitaireGameProps) {
   const timerRef = useRef<number>(0);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const animFrameRef = useRef<number>(0);
-  const audioCtxRef = useRef<AudioContext | null>(null);
   const particlesRef = useRef<Particle[]>([]);
   const clickTimeRef = useRef<number>(0);
   const clickCardRef = useRef<{ pile: string; index: number; cardIdx: number } | null>(null);
@@ -380,74 +387,13 @@ export default function SolitaireGame({ onBack }: SolitaireGameProps) {
   // ── Sound ──────────────────────────────────────────────────────────────────
 
   const playSound = useCallback((type: 'flip' | 'place' | 'foundation' | 'win' | 'shuffle' | 'invalid') => {
-    if (!audioCtxRef.current) {
-      try { audioCtxRef.current = new AudioContext(); } catch { return; }
-    }
-    const ctx = audioCtxRef.current!;
-
-    if (type === 'win') {
-      [523, 659, 784, 1047, 1319].forEach((freq, i) => {
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.connect(g); g.connect(ctx.destination);
-        o.frequency.value = freq;
-        o.type = 'sine';
-        const t = ctx.currentTime + i * 0.15;
-        g.gain.setValueAtTime(0.1, t);
-        g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-        o.start(t); o.stop(t + 0.4);
-      });
-      return;
-    }
-
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-
     switch (type) {
-      case 'flip': {
-        osc.frequency.setValueAtTime(600, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(900, ctx.currentTime + 0.05);
-        osc.type = 'sine';
-        gain.gain.setValueAtTime(0.08, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
-        osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.06);
-        break;
-      }
-      case 'place': {
-        osc.frequency.value = 300;
-        osc.type = 'sine';
-        gain.gain.setValueAtTime(0.06, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
-        osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.08);
-        break;
-      }
-      case 'foundation': {
-        osc.frequency.setValueAtTime(500, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.1);
-        osc.type = 'sine';
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
-        osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.12);
-        break;
-      }
-      case 'shuffle': {
-        osc.frequency.setValueAtTime(200, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.15);
-        osc.type = 'triangle';
-        gain.gain.setValueAtTime(0.05, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-        osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.15);
-        break;
-      }
-      case 'invalid': {
-        osc.frequency.value = 150;
-        osc.type = 'square';
-        gain.gain.setValueAtTime(0.04, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
-        osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.1);
-        break;
-      }
+      case 'flip': playSolitaireFlip(); break;
+      case 'place': playSolitairePlace(); break;
+      case 'foundation': playSolitaireFoundation(); break;
+      case 'win': playSolitaireWin(); break;
+      case 'shuffle': playSolitaireShuffle(); break;
+      case 'invalid': playSolitaireInvalid(); break;
     }
   }, []);
 
