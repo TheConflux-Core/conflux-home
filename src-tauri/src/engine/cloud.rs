@@ -518,14 +518,14 @@ pub async fn cloud_chat(
     // Handle errors from cloud router
     if !status.is_success() {
         let body = response.text().await.unwrap_or_default();
+        log::error!("[cloud_chat] Cloud router returned {}: {}", status, body);
+        log::error!("[cloud_chat] Token preview sent (first 20): {}", if token.len() > 20 { &token[..20] } else { &token });
         
         let error_msg = match status.as_u16() {
             401 => {
-                // Clear stale token when unauthorized
-                let engine = get_engine();
-                let _ = engine.db().set_config("supabase_auth_token", "");
-                log::warn!("[cloud_chat] Cleared stale supabase_auth_token due to 401 Unauthorized");
-                "Unauthorized: Invalid or expired session. Please sign in again. Your old session token has been cleared. Please re-authenticate.".to_string()
+                // DO NOT clear the token on 401 — it may be a transient error
+                log::warn!("[cloud_chat] 401 from cloud router. Response: {}", body);
+                format!("Unauthorized from cloud router (401): {}", body)
             },
             402 => format!("Insufficient credits: {}", body),
             429 => "Rate limit exceeded. Please try again later.".to_string(),
@@ -652,9 +652,11 @@ pub async fn cloud_chat_stream(
     
     if !status.is_success() {
         let body = response.text().await.unwrap_or_default();
+        log::error!("[cloud_chat_stream] Cloud router returned {}: {}", status, body);
+        log::error!("[cloud_chat_stream] Token preview sent (first 20): {}", if token.len() > 20 { &token[..20] } else { &token });
         
         let error_msg = match status.as_u16() {
-            401 => "Unauthorized: Invalid or expired session. Please sign in again.".to_string(),
+            401 => format!("Unauthorized from cloud router (401): {}", body),
             402 => format!("Insufficient credits: {}", body),
             429 => "Rate limit exceeded. Please try again later.".to_string(),
             503 => "Service temporarily unavailable. Please try again.".to_string(),
