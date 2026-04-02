@@ -19,14 +19,28 @@ export const BASE_THEMES: ColorThemeDef[] = [
     name: 'Conflux',
     emoji: '⚡',
     wallpaper: '/wallpapers/desktop-wallpaper.png',
-    vars: {},
+    vars: {
+      '--accent-primary': '#0071e3',
+      '--accent-glow': 'rgba(0, 113, 227, 0.3)',
+      '--theme-accent': '#0071e3',
+      '--theme-accent-glow': 'rgba(0, 113, 227, 0.15)',
+      '--theme-accent-gradient': 'linear-gradient(135deg, #0071e3, #0a84ff)',
+      '--theme-bg-tint': 'rgba(0, 113, 227, 0.03)',
+    },
   },
   {
     id: 'aegis',
     name: 'Aegis',
     emoji: '🌌',
     wallpaper: '/wallpapers/wallpaper-dark.png',
-    vars: {},
+    vars: {
+      '--accent-primary': '#00d4ff',
+      '--accent-glow': 'rgba(0, 212, 255, 0.3)',
+      '--theme-accent': '#00d4ff',
+      '--theme-accent-glow': 'rgba(0, 212, 255, 0.15)',
+      '--theme-accent-gradient': 'linear-gradient(135deg, #00d4ff, #0a84ff)',
+      '--theme-bg-tint': 'rgba(0, 212, 255, 0.03)',
+    },
   },
 ];
 
@@ -216,7 +230,7 @@ export function applyColorTheme(themeId: string): void {
  */
 export function clearColorThemeVars(): void {
   const root = document.documentElement;
-  for (const key of ['--theme-accent', '--theme-accent-glow', '--theme-accent-gradient', '--theme-bg-tint']) {
+  for (const key of ['--accent-primary', '--accent-glow', '--theme-accent', '--theme-accent-glow', '--theme-accent-gradient', '--theme-bg-tint']) {
     root.style.removeProperty(key);
   }
 }
