@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { soundManager } from './lib/sound';
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
 import { Agent, View } from './types';
 import TopBar from './components/TopBar';
@@ -158,6 +159,13 @@ export default function App() {
   // Initialize theme system once on mount
   useEffect(() => {
     initTheme();
+  }, []);
+
+  // Preload sound system on mount
+  useEffect(() => {
+    soundManager.preload().then(() => {
+      soundManager.playBootUp();
+    });
   }, []);
 
   // Expose bar v2 toggle for console testing

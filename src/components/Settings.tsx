@@ -13,7 +13,9 @@ import WebhookManager from './settings/WebhookManager';
 import SkillsBrowser from './settings/SkillsBrowser';
 import BillingSection from './settings/BillingSection';
 import UsageSection from './settings/UsageSection';
+import SoundSection from './settings/SoundSection';
 import { useAuth } from '../hooks/useAuth';
+import { playToggleOn, playToggleOff } from '../lib/sound';
 
 // ── Constants ──
 
@@ -39,7 +41,7 @@ function ToggleSwitch({
   return (
     <button
       className={`toggle-switch ${checked ? 'on' : ''}`}
-      onClick={() => onChange(!checked)}
+      onClick={() => { checked ? playToggleOff() : playToggleOn(); onChange(!checked); }}
       aria-label={checked ? 'Disable' : 'Enable'}
       type="button"
     >
@@ -395,6 +397,7 @@ export default function Settings() {
       <ProviderSettings />
       <GoogleSettings />
       <AppearanceSection />
+      <SoundSection />
       <BillingSection />
       <UsageSection />
       <NotificationSettings />

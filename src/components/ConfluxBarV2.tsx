@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { View, Agent } from '../types';
+import { playClick, playNavSwish } from '../lib/sound';
 
 interface ConfluxBarV2Props {
   currentView: View;
@@ -135,6 +136,7 @@ export default function ConfluxBarV2({ currentView, agents, onNavigate }: Conflu
   }, [activeAgents, workingAgents]);
 
   const handleAppClick = useCallback((view: View) => {
+    playNavSwish('forward');
     onNavigate(view);
     setMenuOpen(false);
   }, [onNavigate]);
@@ -142,6 +144,7 @@ export default function ConfluxBarV2({ currentView, agents, onNavigate }: Conflu
   const isChatOpen = currentView === 'chat';
 
   const handleHeroClick = useCallback(() => {
+    playClick();
     if (isChatOpen) {
       onNavigate('dashboard');
     } else {
@@ -222,7 +225,7 @@ export default function ConfluxBarV2({ currentView, agents, onNavigate }: Conflu
         {/* Left: Conflux Logo Start Button */}
         <button
           className={`conflux-logo-btn ${menuOpen ? 'active' : ''}`}
-          onClick={() => setMenuOpen(!menuOpen)}
+          onClick={() => { playClick(); setMenuOpen(!menuOpen); }}
           title="Start Menu"
         >
           ◈
