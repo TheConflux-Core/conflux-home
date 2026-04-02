@@ -1,4 +1,11 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import {
+  playPacmanChomp,
+  playPacmanPower,
+  playPacmanEatGhost,
+  playPacmanDeath,
+  playPacmanLevelClear,
+} from '../lib/sound';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -232,7 +239,6 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
   const releaseAccumRef = useRef<number>(0);
   const particlesRef = useRef<Particle[]>([]);
   const scorePopupsRef = useRef<ScorePopup[]>([]);
-  const audioCtxRef = useRef<AudioContext | null>(null);
   const touchStartRef = useRef<Position | null>(null);
   const chompCounterRef = useRef<number>(0);
   const deathPauseRef = useRef<number>(0);
@@ -244,69 +250,12 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
   // ── Sound ──────────────────────────────────────────────────────────────────
 
   const playSound = useCallback((type: 'chomp' | 'power' | 'eatghost' | 'death' | 'levelclear') => {
-    if (!audioCtxRef.current) {
-      try { audioCtxRef.current = new AudioContext(); } catch { return; }
-    }
-    const ctx = audioCtxRef.current!;
-
-    if (type === 'levelclear') {
-      [523, 659, 784, 1047].forEach((freq, i) => {
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.connect(g); g.connect(ctx.destination);
-        o.frequency.value = freq;
-        o.type = 'sine';
-        const t = ctx.currentTime + i * 0.12;
-        g.gain.setValueAtTime(0.1, t);
-        g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
-        o.start(t); o.stop(t + 0.25);
-      });
-      return;
-    }
-
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-
     switch (type) {
-      case 'chomp': {
-        const pitches = [440, 494, 523, 587, 659, 698, 784, 880];
-        const idx = chompCounterRef.current % pitches.length;
-        chompCounterRef.current++;
-        osc.frequency.value = pitches[idx];
-        osc.type = 'sine';
-        gain.gain.setValueAtTime(0.06, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
-        osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.04);
-        break;
-      }
-      case 'power': {
-        osc.frequency.setValueAtTime(150, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(60, ctx.currentTime + 0.2);
-        osc.type = 'sine';
-        gain.gain.setValueAtTime(0.15, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
-        osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.25);
-        break;
-      }
-      case 'eatghost': {
-        osc.frequency.setValueAtTime(300, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(900, ctx.currentTime + 0.1);
-        osc.type = 'square';
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
-        osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.1);
-        break;
-      }
-      case 'death': {
-        osc.frequency.setValueAtTime(500, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.4);
-        osc.type = 'sawtooth';
-        gain.gain.setValueAtTime(0.12, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
-        osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.45);
-        break;
-      }
+      case 'chomp': playPacmanChomp(); break;
+      case 'power': playPacmanPower(); break;
+      case 'eatghost': playPacmanEatGhost(); break;
+      case 'death': playPacmanDeath(); break;
+      case 'levelclear': playPacmanLevelClear(); break;
     }
   }, []);
 

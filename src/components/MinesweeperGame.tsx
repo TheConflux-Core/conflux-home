@@ -1,4 +1,11 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import {
+  playMinesweeperReveal,
+  playMinesweeperFlag,
+  playMinesweeperExplode,
+  playMinesweeperCascade,
+  playMinesweeperWin,
+} from '../lib/sound';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -174,7 +181,6 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
   });
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTargetRef = useRef<{ row: number; col: number } | null>(null);
 
@@ -204,70 +210,12 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
 
   const playSound = useCallback((type: 'reveal' | 'flag' | 'explode' | 'win' | 'cascade') => {
     if (muted) return;
-    if (!audioCtxRef.current) {
-      try {
-        audioCtxRef.current = new AudioContext();
-      } catch {
-        return;
-      }
-    }
-    const ctx = audioCtxRef.current;
-
-    if (type === 'win') {
-      [523, 659, 784, 1047].forEach((freq, i) => {
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.connect(g);
-        g.connect(ctx.destination);
-        o.frequency.value = freq;
-        o.type = 'sine';
-        const t = ctx.currentTime + i * 0.12;
-        g.gain.setValueAtTime(0.1, t);
-        g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-        o.start(t);
-        o.stop(t + 0.3);
-      });
-      return;
-    }
-
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
     switch (type) {
-      case 'reveal':
-        osc.frequency.value = 800;
-        osc.type = 'sine';
-        gain.gain.setValueAtTime(0.08, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.1);
-        break;
-      case 'flag':
-        osc.frequency.value = 600;
-        osc.type = 'triangle';
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.15);
-        break;
-      case 'explode':
-        osc.frequency.value = 100;
-        osc.type = 'sawtooth';
-        gain.gain.setValueAtTime(0.2, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.5);
-        break;
-      case 'cascade':
-        osc.frequency.value = 1200;
-        osc.type = 'sine';
-        gain.gain.setValueAtTime(0.04, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.06);
-        break;
+      case 'reveal': playMinesweeperReveal(); break;
+      case 'flag': playMinesweeperFlag(); break;
+      case 'explode': playMinesweeperExplode(); break;
+      case 'cascade': playMinesweeperCascade(); break;
+      case 'win': playMinesweeperWin(); break;
     }
   }, [muted]);
 
