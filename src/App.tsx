@@ -45,6 +45,8 @@ import ApiDashboard from './components/ApiDashboard';
 import ControlRoom from './components/ControlRoom';
 import VaultView from './components/VaultView';
 import StudioView from './components/StudioView';
+import GuidedTour from './components/GuidedTour';
+import { shouldAutoStartTour } from './hooks/useTourState';
 import { useEngine } from './hooks/useEngine';
 import { useToast } from './hooks/useToast';
 import { useFamily } from './hooks/useFamily';
@@ -58,6 +60,7 @@ import { initTheme, getSavedWallpaper, getSavedColorTheme, BASE_THEMES, COLOR_TH
 import { registerShortcuts } from './lib/shortcuts';
 import { trackEvent } from './lib/telemetry';
 import './styles/animations.css';
+import './styles/tour.css';
 
 // Background images for immersive views
 const VIEW_BACKGROUNDS: Record<string, string> = {
@@ -107,6 +110,7 @@ export default function App() {
   const [liveAgents, setLiveAgents] = useState(0);
   const [engineHealthy, setEngineHealthy] = useState(true);
   const [loaded, setLoaded] = useState(false);
+  const [showTour, setShowTour] = useState(false);
   const { toasts, toast, dismiss } = useToast();
   const toastRef = useRef(toast);
 
@@ -450,7 +454,19 @@ const [activeSnake, setActiveSnake] = useState(false);
   // Handle welcome dismiss
   const handleWelcomeComplete = useCallback(() => {
     setShowWelcome(false);
+    if (shouldAutoStartTour()) {
+      setShowTour(true);
+    }
   }, []);
+
+  // Auto-start tour for existing users who already welcomed but haven't done tour
+  useEffect(() => {
+    if (isOnboarded && !showWelcome && shouldAutoStartTour()) {
+      // Delay slightly so desktop renders first
+      const timer = setTimeout(() => setShowTour(true), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isOnboarded, showWelcome]);
 
   // Filter agents by selectedAgentIds if set
   const filteredAgents = useMemo(() => {
@@ -578,6 +594,7 @@ const [activeSnake, setActiveSnake] = useState(false);
   return (
     <AuthProvider>
     <div className="desktop-shell">
+      {showTour && <GuidedTour onComplete={() => setShowTour(false)} />}
       <TopBar
         selectedAgent={selectedAgent}
         engineConnected={connected}
