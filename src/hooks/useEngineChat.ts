@@ -321,6 +321,8 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
             headers: { 'Authorization': `Bearer ${testSession.access_token}` }
           });
           console.log('[useEngineChat] 🔍 JWT test against cloud router:', testRes.status);
+          console.log('[useEngineChat] 🔍 JWT (full):', testSession.access_token);
+          console.log('[useEngineChat] 🔍 JWT length:', testSession.access_token.length);
           if (testRes.ok) {
             const testBody = await testRes.json();
             console.log('[useEngineChat] 🔍 JWT test body:', JSON.stringify(testBody));
