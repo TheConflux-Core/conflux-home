@@ -621,6 +621,9 @@ pub async fn cloud_chat_stream(
     on_chunk: &mut dyn FnMut(&str) -> Result<()>,
 ) -> Result<ModelResponse> {
     let token = get_auth_token()?;
+    let token_preview = if token.len() > 10 { &token[..10] } else { &token };
+    log::info!("[cloud_chat_stream] URL: {}", CLOUD_ROUTER_URL);
+    log::info!("[cloud_chat_stream] Token preview: {}...", token_preview);
     
     let mut request_body = serde_json::json!({
         "messages": messages,
