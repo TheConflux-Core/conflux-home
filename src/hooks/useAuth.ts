@@ -34,20 +34,51 @@ export function useAuth(): UseAuthReturn {
   const hasTrackedSignup = useRef(false)
 
   useEffect(() => {
-    // Check existing session
-    supabase.auth.getSession().then(({ data: { session: s }, error }) => {
-      if (error) {
-        console.error('[useAuth] Failed to get session:', error.message)
+    // Check existing session and refresh if needed
+    const checkSession = async () => {
+      try {
+        // First, try to get a fresh session by refreshing
+        // This handles expired tokens from reinstall or long idle
+        const { data: { session: freshSession }, error: refreshError } = await supabase.auth.refreshSession()
+        
+        if (refreshError) {
+          console.log('[useAuth] Refresh failed, trying to get stored session...')
+          // Fallback to stored session
+          const { data: { session: s }, error: getSessionError } = await supabase.auth.getSession()
+          if (getSessionError) {
+            console.error('[useAuth] Failed to get session:', getSessionError.message)
+          }
+          
+          // If we have a stored session but can't refresh it, it's likely expired
+          // Clear it so the user can re-authenticate
+          if (s?.access_token) {
+            console.log('[useAuth] Stored session found but refresh failed - likely expired')
+            console.log('[useAuth] Clearing stale session to force re-authentication')
+            await supabase.auth.signOut()
+            setSession(null)
+            setUser(null)
+            setLoading(false)
+          } else {
+            setSession(s)
+            setUser(s?.user ?? null)
+            setLoading(false)
+          }
+        } else {
+          // Successfully refreshed
+          console.log('[useAuth] Session refreshed successfully')
+          setSession(freshSession)
+          setUser(freshSession?.user ?? null)
+          setLoading(false)
+        }
+      } catch (err) {
+        console.error('[useAuth] Session check error:', err)
+        setSession(null)
+        setUser(null)
+        setLoading(false)
       }
-      setSession(s)
-      setUser(s?.user ?? null)
-      setLoading(false)
-    }).catch((err) => {
-      console.error('[useAuth] getSession promise error:', err)
-      setSession(null)
-      setUser(null)
-      setLoading(false)
-    })
+    }
+
+    checkSession()
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(

@@ -446,6 +446,9 @@ async function authenticate(req: Request): Promise<{ userId: string; isApiKey: b
   const { data: { user }, error } = await supabaseAuth.auth.getUser(token);
   if (error || !user) {
     console.error('[Auth] JWT validation failed:', error?.message);
+    console.error('[Auth] Token preview (first 20 chars):', token.substring(0, 20));
+    console.error('[Auth] SUPABASE_ANON_KEY is set:', !!SUPABASE_ANON_KEY);
+    console.error('[Auth] SUPABASE_URL:', SUPABASE_URL);
     return null;
   }
 

@@ -519,7 +519,13 @@ pub async fn cloud_chat(
         let body = response.text().await.unwrap_or_default();
         
         let error_msg = match status.as_u16() {
-            401 => "Unauthorized: Invalid or expired session. Please sign in again.".to_string(),
+            401 => {
+                // Clear stale token when unauthorized
+                let engine = get_engine();
+                let _ = engine.db().set_config("supabase_auth_token", "");
+                log::warn!("[cloud_chat] Cleared stale supabase_auth_token due to 401 Unauthorized");
+                "Unauthorized: Invalid or expired session. Please sign in again. Your old session token has been cleared. Please re-authenticate.".to_string()
+            },
             402 => format!("Insufficient credits: {}", body),
             429 => "Rate limit exceeded. Please try again later.".to_string(),
             503 => "Service temporarily unavailable. Please try again.".to_string(),
