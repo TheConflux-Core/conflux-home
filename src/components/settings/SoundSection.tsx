@@ -105,7 +105,7 @@ export default function SoundSection() {
           label="Agents"
           value={settings.agents}
           onChange={(v) => updateSetting('agents', v)}
-          onTest={() => soundManager.playAgentWake(0)}
+          onTest={() => soundManager.playAgentWake('conflux')}
         />
         <VolumeSlider
           label="Games"
