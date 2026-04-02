@@ -304,6 +304,26 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
       console.log('[useEngineChat] ✅ Session synced successfully!');
 
       // Fire the streaming chat command
+      // Debug: test JWT against cloud router directly
+      const { data: { session: testSession } } = await supabase.auth.getSession();
+      if (testSession?.access_token) {
+        try {
+          const testRes = await fetch(`${import.meta.env.VITE_CLOUD_ROUTER_URL}/v1/credits`, {
+            headers: { 'Authorization': `Bearer ${testSession.access_token}` }
+          });
+          console.log('[useEngineChat] 🔍 JWT test against cloud router:', testRes.status);
+          if (testRes.ok) {
+            const testBody = await testRes.json();
+            console.log('[useEngineChat] 🔍 JWT test body:', JSON.stringify(testBody));
+          } else {
+            const testErr = await testRes.text();
+            console.error('[useEngineChat] ❌ JWT test failed:', testRes.status, testErr);
+          }
+        } catch (e) {
+          console.error('[useEngineChat] ❌ JWT test error:', e);
+        }
+      }
+
       console.log('[useEngineChat] Invoking engine_chat_stream...');
       await invoke('engine_chat_stream', {
         req: {
