@@ -22,19 +22,17 @@ export async function syncSessionToEngine(): Promise<boolean> {
       session = restored;
     }
 
-    // If still no session, try to refresh (handles expired tokens)
-    if (!session?.access_token) {
-      console.log("[syncSessionToEngine] Attempting to refresh session...");
-      const { data: { session: refreshed }, error } = await supabase.auth.refreshSession();
-      if (error) {
-        console.warn("[syncSessionToEngine] Failed to refresh session:", error.message);
-        // Clear the stale session so user is forced to re-authenticate
-        await supabase.auth.signOut();
-        console.log("[syncSessionToEngine] Cleared stale session, user must re-authenticate");
-        return false;
-      }
-      session = refreshed;
+    // Always refresh to ensure token isn't expired (expired JWT is still a non-empty string)
+    console.log("[syncSessionToEngine] Refreshing session to ensure fresh token...");
+    const { data: { session: refreshed }, error } = await supabase.auth.refreshSession();
+    if (error) {
+      console.warn("[syncSessionToEngine] Failed to refresh session:", error.message);
+      // Clear the stale session so user is forced to re-authenticate
+      await supabase.auth.signOut();
+      console.log("[syncSessionToEngine] Cleared stale session, user must re-authenticate");
+      return false;
     }
+    session = refreshed;
 
     if (!session?.access_token || !session?.user?.id) {
       console.warn("[syncSessionToEngine] No active session after refresh");
