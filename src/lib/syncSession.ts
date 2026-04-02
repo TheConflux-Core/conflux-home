@@ -28,6 +28,9 @@ export async function syncSessionToEngine(): Promise<boolean> {
       const { data: { session: refreshed }, error } = await supabase.auth.refreshSession();
       if (error) {
         console.warn("[syncSessionToEngine] Failed to refresh session:", error.message);
+        // Clear the stale session so user is forced to re-authenticate
+        await supabase.auth.signOut();
+        console.log("[syncSessionToEngine] Cleared stale session, user must re-authenticate");
         return false;
       }
       session = refreshed;
