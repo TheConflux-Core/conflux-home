@@ -480,7 +480,9 @@ pub async fn cloud_chat(
     tools: Option<Vec<serde_json::Value>>,
 ) -> Result<ModelResponse> {
     let token = get_auth_token()?;
-    
+    // Log token status for debugging (first 10 chars only)
+    let token_preview = if token.len() > 10 { &token[..10] } else { &token };
+    log::info!("[cloud_chat] Using token (preview): {}...", token_preview);    
     let mut request_body = serde_json::json!({
         "messages": messages,
         "stream": false,

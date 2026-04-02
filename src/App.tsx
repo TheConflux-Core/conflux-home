@@ -322,6 +322,10 @@ const [activeSnake, setActiveSnake] = useState(false);
       setVoiceSessionId(sessionId);
     }
 
+    // Import and call syncSessionToEngine before making the request
+    const { syncSessionToEngine } = await import('@/lib/syncSession');
+    await syncSessionToEngine();
+
     const result = await invoke<any>('engine_chat', {
       req: {
         session_id: sessionId,

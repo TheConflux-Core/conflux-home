@@ -5008,6 +5008,11 @@ pub async fn set_supabase_session(
 ) -> Result<(), String> {
     let engine = engine::get_engine();
     let db = engine.db();
+    
+    // Log token update for debugging (first 10 chars only)
+    let token_preview = if access_token.len() > 10 { &access_token[..10] } else { &access_token };
+    log::info!("[set_supabase_session] Storing token (preview): {}...", token_preview);
+    
     db.set_config("supabase_url", &supabase_url).map_err(|e| e.to_string())?;
     db.set_config("supabase_anon_key", &supabase_anon_key).map_err(|e| e.to_string())?;
     db.set_config("supabase_auth_token", &access_token).map_err(|e| e.to_string())?;
