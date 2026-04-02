@@ -271,7 +271,7 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
                 ) : stats?.by_model && stats.by_model.length > 0 ? (
                     stats.by_model.slice(0, 4).map((modelStats) => (
                         <div key={modelStats.model} className="intel-activity-item">
-                            <span>{modelStats.model}: {modelStats.calls} calls, {modelStats.credits.toLocaleString()} cr</span>
+                            <span>{modelStats.model}: {modelStats.call_count} calls, {modelStats.total_credits.toLocaleString()} cr</span>
                         </div>
                     ))
                 ) : (

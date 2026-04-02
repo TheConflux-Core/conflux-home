@@ -35,8 +35,8 @@ export interface UsageStats {
   total_tokens: number;
   total_credits: number;
   success_rate: number;
-  by_provider: Array<{ provider: string; calls: number; credits: number }>;
-  by_model: Array<{ model: string; calls: number; credits: number }>;
+  by_provider: Array<{ provider_id: string; call_count: number; total_tokens: number; total_credits: number }>;
+  by_model: Array<{ model: string; call_count: number; total_tokens: number; total_credits: number }>;
 }
 
 // ── Credit Balance Hook ──

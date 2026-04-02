@@ -86,11 +86,11 @@ function StatsCards({ stats }: { stats: ReturnType<typeof useUsageStats>['stats'
   if (!stats) return null;
 
   const topProvider = stats.by_provider.length > 0
-    ? stats.by_provider.reduce((a, b) => a.calls > b.calls ? a : b)
+    ? stats.by_provider.reduce((a, b) => a.call_count > b.call_count ? a : b)
     : null;
 
   const topModel = stats.by_model.length > 0
-    ? stats.by_model.reduce((a, b) => a.calls > b.calls ? a : b)
+    ? stats.by_model.reduce((a, b) => a.call_count > b.call_count ? a : b)
     : null;
 
   return (
