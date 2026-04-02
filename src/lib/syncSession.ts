@@ -10,7 +10,36 @@ import { supabase } from "./supabase";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? "";
 
+// Cache: avoid refreshing multiple times within this window
+const SYNC_COOLDOWN_MS = 10_000; // 10 seconds
+let lastSyncAt = 0;
+let lastSyncResult = false;
+let syncInProgress: Promise<boolean> | null = null;
+
 export async function syncSessionToEngine(): Promise<boolean> {
+  const now = Date.now();
+
+  // If a sync is already in-flight, wait for it instead of starting another
+  if (syncInProgress) {
+    console.log("[syncSessionToEngine] Sync already in progress, waiting...");
+    return syncInProgress;
+  }
+
+  // If we synced recently and it succeeded, skip
+  if (now - lastSyncAt < SYNC_COOLDOWN_MS && lastSyncResult) {
+    console.log("[syncSessionToEngine] Skipping — synced recently");
+    return true;
+  }
+
+  syncInProgress = doSync();
+  const result = await syncInProgress;
+  syncInProgress = null;
+  lastSyncAt = Date.now();
+  lastSyncResult = result;
+  return result;
+}
+
+async function doSync(): Promise<boolean> {
   try {
     // Get the current session
     let { data: { session } } = await supabase.auth.getSession();
@@ -22,12 +51,30 @@ export async function syncSessionToEngine(): Promise<boolean> {
       session = restored;
     }
 
-    // Always refresh to ensure token isn't expired (expired JWT is still a non-empty string)
-    console.log("[syncSessionToEngine] Refreshing session to ensure fresh token...");
+    // Check if the token is still valid (not expired)
+    // If the token has more than 60s left, just re-sync it without refreshing
+    if (session?.access_token && session.expires_at) {
+      const expiresAtMs = session.expires_at * 1000;
+      const remainingMs = expiresAtMs - Date.now();
+
+      if (remainingMs > 60_000) {
+        // Token still valid — just sync to engine without refresh
+        console.log(`[syncSessionToEngine] Token still valid (${Math.round(remainingMs / 1000)}s remaining), syncing without refresh`);
+        await invoke("set_supabase_session", {
+          supabaseUrl: SUPABASE_URL,
+          supabaseAnonKey: SUPABASE_ANON_KEY,
+          accessToken: session.access_token,
+          userId: session.user.id,
+        });
+        return true;
+      }
+    }
+
+    // Token missing or expiring soon — refresh
+    console.log("[syncSessionToEngine] Refreshing session...");
     const { data: { session: refreshed }, error } = await supabase.auth.refreshSession();
     if (error) {
       console.warn("[syncSessionToEngine] Failed to refresh session:", error.message);
-      // Clear the stale session so user is forced to re-authenticate
       await supabase.auth.signOut();
       console.log("[syncSessionToEngine] Cleared stale session, user must re-authenticate");
       return false;
