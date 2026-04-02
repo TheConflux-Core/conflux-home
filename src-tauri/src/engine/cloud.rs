@@ -763,11 +763,13 @@ pub struct CloudModel {
 /// Fetch usage stats for a user over the last N days.
 pub async fn get_usage_stats(user_id: &str, days: i32) -> Result<UsageStats> {
     let since = (chrono::Utc::now() - chrono::Duration::days(days as i64)).to_rfc3339();
+    // URL-encode the '+' in timezone offset (e.g. +00:00 -> %2B00:00) to prevent it being parsed as a space
+    let since_encoded = since.replace('+', "%2B");
 
     // Total stats
     let query = format!(
         "user_id=eq.{}&created_at=gte.{}&select=*",
-        user_id, since
+        user_id, since_encoded
     );
 
     let resp = supabase_get("usage_log", &query)?
