@@ -5,6 +5,8 @@ use tauri::{Manager, Emitter};
 use serde::{Deserialize, Serialize};
 use chrono::{Datelike, Timelike};
 use super::engine;
+use super::engine::cloud;
+use super::engine::router::{self, OpenAIMessage};
 
 // ── Request/Response Types ──
 
@@ -347,9 +349,8 @@ pub fn engine_delete_memory(memory_id: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn engine_get_providers() -> Result<serde_json::Value, String> {
-    let engine = engine::get_engine();
-    let providers = engine.get_providers().map_err(|e| e.to_string())?;
-    Ok(serde_json::to_value(providers).map_err(|e| e.to_string())?)
+    // Return empty list — providers are now handled server-side by cloud router
+    Ok(serde_json::json!({ "providers": [] }))
 }
 
 #[tauri::command]
@@ -374,9 +375,9 @@ pub fn engine_delete_provider(id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn engine_test_provider(id: String) -> Result<serde_json::Value, String> {
+pub async fn engine_test_provider() -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
-    let result = engine.test_provider(&id);
+    let result = engine.test_provider().await;
     match result {
         Ok(info) => Ok(serde_json::json!({
             "success": true,
@@ -476,10 +477,12 @@ pub fn engine_get_xiaomi_key_masked() -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn engine_get_router_providers() -> Result<serde_json::Value, String> {
+pub async fn engine_get_router_providers() -> Result<serde_json::Value, String> {
+    // Provider configuration is now handled server-side by the cloud router.
+    // Return available models from the cloud router instead.
     let engine = engine::get_engine();
-    let providers = engine.get_router_providers();
-    Ok(serde_json::to_value(providers).map_err(|e| e.to_string())?)
+    let models = engine.get_available_models().await.map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(models).map_err(|e| e.to_string())?)
 }
 
 // ── Agent Registry & Capabilities ──
@@ -1160,14 +1163,14 @@ pub async fn story_generate_next_chapter(game_id: String, choice_id: String) -> 
     );
 
     // Call the AI
-    let messages = vec![engine::router::OpenAIMessage {
+    let messages = vec![OpenAIMessage {
         role: "user".to_string(),
         content: Some(full_prompt),
         tool_call_id: None,
         tool_calls: None,
     }];
 
-    let response = engine::router::chat("core", messages, Some(2000), None, None)
+    let response = cloud::cloud_chat(None, messages, Some(2000), None, None)
         .await
         .map_err(|e| format!("AI generation failed: {}", e))?;
 
@@ -1392,7 +1395,7 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
 Be accurate with costs. Use 2026 US grocery prices. List every ingredient.";
 
     // For now, use text-based recognition (photo support via vision API can be added later)
-    let _messages = vec![engine::router::OpenAIMessage {
+    let _messages = vec![OpenAIMessage {
         role: "user".to_string(),
         content: Some(format!("I'm describing a meal I want to add to my kitchen. Help me set it up with full details including ingredients and costs.\n\nDescribe what you see or tell me: what meal should we add?")),
         tool_call_id: None,
@@ -1440,14 +1443,14 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
         description = description
     );
 
-    let messages = vec![engine::router::OpenAIMessage {
+    let messages = vec![OpenAIMessage {
         role: "user".to_string(),
         content: Some(prompt),
         tool_call_id: None,
         tool_calls: None,
     }];
 
-    let response = engine::router::chat("core", messages, Some(2000), None, None)
+    let response = cloud::cloud_chat(None, messages, Some(2000), None, None)
         .await
         .map_err(|e| format!("AI failed: {}", e))?;
 
@@ -2087,14 +2090,14 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
 Make the content genuinely useful and interesting. Not generic filler."
     );
 
-    let messages = vec![engine::router::OpenAIMessage {
+    let messages = vec![OpenAIMessage {
         role: "user".to_string(),
         content: Some(prompt),
         tool_call_id: None,
         tool_calls: None,
     }];
 
-    let response = engine::router::chat("core", messages, Some(1500), None, None)
+    let response = cloud::cloud_chat(None, messages, Some(1500), None, None)
         .await
         .map_err(|e| format!("AI failed: {}", e))?;
 
@@ -2169,14 +2172,14 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
 Be specific with ingredient names. Use standard grocery terms."
     );
 
-    let messages = vec![engine::router::OpenAIMessage {
+    let messages = vec![OpenAIMessage {
         role: "user".to_string(),
         content: Some(prompt),
         tool_call_id: None,
         tool_calls: None,
     }];
 
-    let response = engine::router::chat("core", messages, Some(1500), None, None)
+    let response = cloud::cloud_chat(None, messages, Some(1500), None, None)
         .await
         .map_err(|e| format!("AI failed: {}", e))?;
 
@@ -2394,14 +2397,14 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
 Be thorough but concise. Extract EVERY date and action item mentioned."
     );
 
-    let messages = vec![engine::router::OpenAIMessage {
+    let messages = vec![OpenAIMessage {
         role: "user".to_string(),
         content: Some(prompt),
         tool_call_id: None,
         tool_calls: None,
     }];
 
-    let response = engine::router::chat("core", messages, Some(2000), None, None)
+    let response = cloud::cloud_chat(None, messages, Some(2000), None, None)
         .await
         .map_err(|e| format!("AI failed: {}", e))?;
 
@@ -2537,14 +2540,14 @@ USER QUESTION: {question}
 Provide a helpful, specific answer based on the information above. If you don't have the information, say so honestly and suggest how to find out."
     );
 
-    let messages = vec![engine::router::OpenAIMessage {
+    let messages = vec![OpenAIMessage {
         role: "user".to_string(),
         content: Some(prompt),
         tool_call_id: None,
         tool_calls: None,
     }];
 
-    let response = engine::router::chat("core", messages, Some(1000), None, None)
+    let response = cloud::cloud_chat(None, messages, Some(1000), None, None)
         .await
         .map_err(|e| format!("AI failed: {}", e))?;
 
@@ -2777,8 +2780,8 @@ pub async fn home_get_insights() -> Result<Vec<engine::types::HomeInsight>, Stri
         parts.push(format!("Maintenance: {} (due {:?})", m.task, m.next_due));
     }
     let prompt = format!("You are a home health AI. Based on this data, provide 3-5 specific actionable insights.\n\n{}\n\nRespond as JSON array (no markdown):\n[{{\"title\":\"...\",\"description\":\"...\",\"estimated_impact\":\"$X/month\",\"priority\":\"normal\",\"category\":\"efficiency|maintenance|financial|safety\"}}]", parts.join("\n"));
-    let messages = vec![engine::router::OpenAIMessage { role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None }];
-    let response = engine::router::chat("core", messages, Some(2000), None, None).await.map_err(|e| format!("AI failed: {}", e))?;
+    let messages = vec![OpenAIMessage { role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None }];
+    let response = cloud::cloud_chat(None, messages, Some(2000), None, None).await.map_err(|e| format!("AI failed: {}", e))?;
     let content = response.content.trim();
     let json_str = content.strip_prefix("```json").unwrap_or(content).strip_prefix("```").unwrap_or(content).strip_suffix("```").unwrap_or(content).trim();
     serde_json::from_str(json_str).map_err(|e| format!("Parse error: {}", e))
@@ -3258,8 +3261,8 @@ pub async fn dream_ai_plan(dream_id: String, title: String, description: Option<
         "You are a goal achievement AI. A family wants to achieve:\n\nTitle: {title}\nCategory: {category}\nDescription: {}\nTarget: {}\n\nReverse-engineer into concrete plan. Respond as JSON (no markdown):\n{{\"analysis\":\"...\",\"milestones\":[{{\"title\":\"...\",\"description\":\"...\",\"target_date\":\"2026-06-01\",\"sort_order\":0}}],\"immediate_tasks\":[{{\"title\":\"...\",\"description\":\"...\",\"due_date\":\"2026-03-25\",\"frequency\":\"one-time\"}}],\"habit\":{{\"title\":\"...\",\"description\":\"...\"}},\"metrics\":[\"...\"]}}",
         description.as_deref().unwrap_or("No description"), target_date.as_deref().unwrap_or("No deadline")
     );
-    let messages = vec![engine::router::OpenAIMessage { role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None }];
-    let response = engine::router::chat("core", messages, Some(2000), None, None).await.map_err(|e| format!("AI failed: {}", e))?;
+    let messages = vec![OpenAIMessage { role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None }];
+    let response = cloud::cloud_chat(None, messages, Some(2000), None, None).await.map_err(|e| format!("AI failed: {}", e))?;
     let content = response.content.trim();
     let json_str = content.strip_prefix("```json").unwrap_or(content).strip_prefix("```").unwrap_or(content).strip_suffix("```").unwrap_or(content).trim();
     let plan: serde_json::Value = serde_json::from_str(json_str).map_err(|e| format!("Parse error: {}", e))?;
@@ -3377,14 +3380,14 @@ Respond in this EXACT JSON format (no markdown, no code fences):
         day_name = day_name
     );
 
-    let messages = vec![engine::router::OpenAIMessage {
+    let messages = vec![OpenAIMessage {
         role: "user".to_string(),
         content: Some(prompt),
         tool_call_id: None,
         tool_calls: None,
     }];
 
-    let response = engine::router::chat("core", messages, Some(2000), None, None)
+    let response = cloud::cloud_chat(None, messages, Some(2000), None, None)
         .await
         .map_err(|e| format!("AI failed: {}", e))?;
 
@@ -3547,10 +3550,10 @@ Respond as JSON (no markdown, no code fences):
 Make items genuinely insightful, not generic filler."
     );
 
-    let messages = vec![engine::router::OpenAIMessage {
+    let messages = vec![OpenAIMessage {
         role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None,
     }];
-    let response = engine::router::chat("core", messages, Some(2000), None, None)
+    let response = cloud::cloud_chat(None, messages, Some(2000), None, None)
         .await.map_err(|e| format!("AI failed: {}", e))?;
 
     let content = response.content.trim();
@@ -3592,10 +3595,10 @@ Respond as JSON (no markdown, no code fences):
 
 Confidence should be honest — most weak signals are 0.3-0.7. Be specific, not vague.";
 
-    let messages = vec![engine::router::OpenAIMessage {
+    let messages = vec![OpenAIMessage {
         role: "user".to_string(), content: Some(prompt.to_string()), tool_call_id: None, tool_calls: None,
     }];
-    let response = engine::router::chat("core", messages, Some(2000), None, None)
+    let response = cloud::cloud_chat(None, messages, Some(2000), None, None)
         .await.map_err(|e| format!("AI failed: {}", e))?;
 
     let content = response.content.trim();
@@ -3677,10 +3680,10 @@ Respond as JSON (no markdown):
 {{\"summary\":\"...\",\"key_developments\":[\"...\"],\"prediction\":\"...\",\"prediction_confidence\":0.6}}"
     );
 
-    let messages = vec![engine::router::OpenAIMessage {
+    let messages = vec![OpenAIMessage {
         role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None,
     }];
-    let response = engine::router::chat("core", messages, Some(1000), None, None)
+    let response = cloud::cloud_chat(None, messages, Some(1000), None, None)
         .await.map_err(|e| format!("AI failed: {}", e))?;
 
     let content = response.content.trim();
@@ -3746,10 +3749,10 @@ Respond as JSON (no markdown):
 Use confidence_level: high, medium, or low. Be honest."
     );
 
-    let messages = vec![engine::router::OpenAIMessage {
+    let messages = vec![OpenAIMessage {
         role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None,
     }];
-    let response = engine::router::chat("core", messages, Some(1500), None, None)
+    let response = cloud::cloud_chat(None, messages, Some(1500), None, None)
         .await.map_err(|e| format!("AI failed: {}", e))?;
 
     let content = response.content.trim();
@@ -3848,10 +3851,10 @@ Respond as JSON (no markdown):
 Be specific and actionable. Don't just describe — interpret."
     );
 
-    let messages = vec![engine::router::OpenAIMessage {
+    let messages = vec![OpenAIMessage {
         role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None,
     }];
-    let response = engine::router::chat("core", messages, Some(1500), None, None)
+    let response = cloud::cloud_chat(None, messages, Some(1500), None, None)
         .await.map_err(|e| format!("AI failed: {}", e))?;
 
     let content = response.content.trim();
@@ -3921,10 +3924,10 @@ Create a comprehensive synthesis. Respond as JSON (no markdown):
 {{\"topic\":\"{topic}\",\"executive_summary\":\"Concise overview\",\"key_developments\":[{{\"title\":\"Development\",\"description\":\"What happened\",\"date_or_period\":\"When\"}}],\"different_perspectives\":[{{\"viewpoint\":\"Perspective\",\"argument\":\"How they see it\",\"evidence\":\"Supporting evidence\"}}],\"what_to_watch\":[{{\"signal\":\"What to monitor\",\"why\":\"Why it matters\",\"timeline\":\"When\"}}]}}"
     );
 
-    let messages = vec![engine::router::OpenAIMessage {
+    let messages = vec![OpenAIMessage {
         role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None,
     }];
-    let response = engine::router::chat("core", messages, Some(2000), None, None)
+    let response = cloud::cloud_chat(None, messages, Some(2000), None, None)
         .await.map_err(|e| format!("AI failed: {}", e))?;
 
     let content = response.content.trim();
@@ -4036,7 +4039,8 @@ pub fn google_get_tasks() -> Result<serde_json::Value, String> {
 /// Create a calendar event from natural language
 #[tauri::command]
 pub async fn google_create_event_nl(nl_text: String) -> Result<serde_json::Value, String> {
-    use crate::engine::router::{OpenAIMessage, chat};
+    use crate::engine::cloud;
+    use crate::engine::router::OpenAIMessage;
 
     let prompt = format!(
         r#"Parse this natural language event request into a JSON object with these fields:
@@ -4063,7 +4067,7 @@ Return ONLY the JSON object, no explanation."#,
         tool_calls: None,
     }];
 
-    let response = chat("core", messages, Some(500), None, None)
+    let response = cloud::cloud_chat(None, messages, Some(500), None, None)
         .await.map_err(|e| format!("AI parse failed: {}", e))?;
 
     let content = response.content.trim();
