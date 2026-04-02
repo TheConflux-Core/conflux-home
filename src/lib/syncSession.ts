@@ -12,10 +12,29 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? "";
 
 export async function syncSessionToEngine(): Promise<boolean> {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    // Get the current session
+    let { data: { session } } = await supabase.auth.getSession();
+
+    // If no session, try to restore from storage
+    if (!session) {
+      console.log("[syncSessionToEngine] No session in memory, checking storage...");
+      const { data: { session: restored } } = await supabase.auth.getSession();
+      session = restored;
+    }
+
+    // If still no session, try to refresh (handles expired tokens)
+    if (!session?.access_token) {
+      console.log("[syncSessionToEngine] Attempting to refresh session...");
+      const { data: { session: refreshed }, error } = await supabase.auth.refreshSession();
+      if (error) {
+        console.warn("[syncSessionToEngine] Failed to refresh session:", error.message);
+        return false;
+      }
+      session = refreshed;
+    }
 
     if (!session?.access_token || !session?.user?.id) {
-      console.warn("[syncSessionToEngine] No active session");
+      console.warn("[syncSessionToEngine] No active session after refresh");
       return false;
     }
 
