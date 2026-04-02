@@ -334,7 +334,7 @@ function AboutSection() {
 // ── Section: Account Info ──
 
 function AccountSection() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
 
   if (!user) return null;
 
@@ -352,6 +352,24 @@ function AccountSection() {
         <span className="settings-value" style={{ fontFamily: 'monospace', fontSize: 11, opacity: 0.7, userSelect: 'all', cursor: 'text' }} title="Click to select">
           {user.id}
         </span>
+      </div>
+
+      <div className="settings-row">
+        <button
+          onClick={signOut}
+          style={{
+            background: '#e74c3c',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 6,
+            padding: '8px 20px',
+            cursor: 'pointer',
+            fontSize: 14,
+            fontWeight: 600,
+          }}
+        >
+          Sign Out
+        </button>
       </div>
     </div>
   );
