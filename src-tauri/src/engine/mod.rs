@@ -31,35 +31,12 @@ pub fn get_engine() -> &'static ConfluxEngine {
 pub fn init_engine(db_path: &Path) -> Result<()> {
     let engine = ConfluxEngine::new(db_path)?;
 
-    // Load provider API keys from config
-    // Free providers ship with built-in keys (already active)
-    // Paid providers require user configuration
-    match engine.db.get_config("openai_api_key") {
-        Ok(Some(key)) if !key.is_empty() => {
-            router::configure_provider("openai-gpt4o", &key).ok();
-            router::configure_provider("openai-gpt4o-mini", &key).ok();
-            log::info!("[Engine] OpenAI API key loaded");
-        }
-        _ => {}
-    }
-    match engine.db.get_config("anthropic_api_key") {
-        Ok(Some(key)) if !key.is_empty() => {
-            router::configure_provider("anthropic-claude-sonnet", &key).ok();
-            router::configure_provider("anthropic-claude-opus", &key).ok();
-            log::info!("[Engine] Anthropic API key loaded");
-        }
-        _ => {}
-    }
-    match engine.db.get_config("xiaomi_api_key") {
-        Ok(Some(key)) if !key.is_empty() => {
-            router::configure_provider("xiaomi-mimo-flash", &key).ok();
-            router::configure_provider("xiaomi-mimo-flash", &key).ok();
-            log::info!("[Engine] Xiaomi API key loaded");
-        }
-        _ => {}
-    }
+    // NOTE: All provider API keys have been removed. Inference now routes through
+    // the cloud router (https://theconflux.com/v1/chat/completions) using Supabase JWT.
+    // Client-side provider keys are no longer supported.
 
     // Load Studio API keys from environment variables (if not already in DB)
+    // These are for Studio features (Replicate, ElevenLabs), not inference
     if engine.db.get_config("studio_replicate_key").ok().flatten().is_none() {
         if let Ok(key) = std::env::var("REPLICATE_API_KEY") {
             if !key.is_empty() {
@@ -323,9 +300,9 @@ impl ConfluxEngine {
         self.get_key_masked("xiaomi_api_key")
     }
 
-    /// Get the list of all router providers (for display in settings).
-    pub fn get_router_providers(&self) -> Vec<router::ModelProvider> {
-        router::get_all_providers()
+    /// Get the list of available models from cloud router (for display in settings).
+    pub async fn get_available_models(&self) -> Result<Vec<cloud::CloudModel>> {
+        cloud::cloud_get_models().await
     }
 
     // ── Agent Capabilities & Permissions ──
@@ -743,20 +720,16 @@ impl ConfluxEngine {
         self.db.uninstall_skill(id)
     }
 
-    pub fn test_provider(&self, _id: &str) -> Result<router::ModelResponse> {
-        // Run a test call using the tier-based router
-        let rt = tokio::runtime::Runtime::new()?;
-        rt.block_on(async {
-            let messages = vec![router::OpenAIMessage {
-                role: "user".to_string(),
-                content: Some("Say 'hello' in one word.".to_string()),
-                tool_call_id: None,
-                tool_calls: None,
-            }];
+    pub async fn test_provider(&self) -> Result<router::ModelResponse> {
+        // Run a test call using the cloud router
+        let messages = vec![router::OpenAIMessage {
+            role: "user".to_string(),
+            content: Some("Say 'hello' in one word.".to_string()),
+            tool_call_id: None,
+            tool_calls: None,
+        }];
 
-            // Test by calling through the core tier
-            router::chat("core", messages, Some(50), None, None).await
-        })
+        cloud::cloud_chat(None, messages, Some(50), None, None).await
     }
 
     // ── Quota ──
