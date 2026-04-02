@@ -303,11 +303,17 @@ async function loadCaches() {
     .select("*")
     .eq("enabled", true);
 
-  if (routes) {
-    modelRoutesCache = new Map(routes.map((r: ModelRoute) => [r.model_alias, r]));
-  }
   if (providers) {
     providerCache = new Map(providers.map((p: ProviderConfig) => [p.provider, p]));
+  }
+  if (routes) {
+    // Only cache models whose provider is enabled
+    const enabledRoutes = routes.filter((r: ModelRoute) => {
+      const providerEnabled = providerCache.has(r.provider);
+      return providerEnabled;
+    });
+    modelRoutesCache = new Map(enabledRoutes.map((r: ModelRoute) => [r.model_alias, r]));
+    console.log(`[loadCaches] Loaded ${enabledRoutes.length}/${routes.length} enabled model routes`);
   }
   cacheTime = Date.now();
 }
