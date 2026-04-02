@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { syncSessionToEngine } from '@/lib/syncSession';
 import type { AgentMessage } from '../types';
 
 export interface UseEngineChatResult {
@@ -272,6 +273,11 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
       });
 
       unlistenFnsRef.current = [unlistenChunk, unlistenThinking, unlistenDone, unlistenError];
+
+      // Ensure we have a fresh JWT before making the request
+      console.log('[useEngineChat] Syncing session before chat...');
+      const syncResult = await syncSessionToEngine();
+      console.log('[useEngineChat] Sync result:', syncResult);
 
       // Fire the streaming chat command
       await invoke('engine_chat_stream', {
