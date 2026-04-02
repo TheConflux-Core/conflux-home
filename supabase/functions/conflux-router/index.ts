@@ -409,9 +409,13 @@ function findFallbackModel(
 
 async function authenticate(req: Request): Promise<{ userId: string; isApiKey: boolean } | null> {
   const authHeader = req.headers.get("Authorization");
-  if (!authHeader) return null;
+  if (!authHeader) {
+    console.log('[Auth] No Authorization header');
+    return null;
+  }
 
   const token = authHeader.replace("Bearer ", "");
+  console.log('[Auth] Token received, length:', token.length, 'preview:', token.substring(0, 20));
 
   // Check if it's an API key (cf_live_ or cf_test_ prefix)
   if (token.startsWith("cf_live_") || token.startsWith("cf_test_")) {
