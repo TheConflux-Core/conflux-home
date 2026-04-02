@@ -1,6 +1,6 @@
 {
   "name": "conflux-home",
-  "version": "0.1.31",
+  "version": "0.1.32",
   "description": "Conflux Home — A home for your AI family",
   "type": "module",
   "scripts": {

@@ -1,6 +1,6 @@
 [package]
 name = "conflux-home"
-version = "0.1.31"
+version = "0.1.32"
 description = "Conflux Home — Your AI Family Lives Here"
 authors = ["The Conflux AI"]
 license = "MIT"
@@ -48,6 +48,7 @@ tauri-plugin-notification = "2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"                              # Auto-update from GitHub Releases
+tauri-plugin-process = "2"                             # Process control (graceful exit)
 lettre = { version = "0.11", features = ["smtp-transport", "builder", "hostname", "rustls-tls"], default-features = false }  # Email sending (SMTP, rustls)
 
 # Voice Engine — desktop only (whisper-rs + cpal bloat Android by ~260MB)
