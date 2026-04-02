@@ -158,7 +158,7 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
   const onlinePct = agents.length > 0 ? Math.round((activeAgents.length / agents.length) * 100) : 0;
 
   return (
-    <div className="intel-dashboard">
+    <div className="intel-dashboard" data-tour-id="intel">
       <div className="intel-header">
         <span className="intel-title">🧠 INTEL</span>
         <span className="intel-live-indicator">
@@ -487,7 +487,7 @@ export default function DesktopQuadrants({ onNavigate, agents }: DesktopQuadrant
 
   // Main view
   return (
-    <div className="desktop-quadrants">
+    <div className="desktop-quadrants" data-tour-id="apps">
       {/* Left: Intel Dashboard */}
       <IntelDashboard agents={agents} />
 

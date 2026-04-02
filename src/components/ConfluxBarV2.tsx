@@ -153,7 +153,7 @@ export default function ConfluxBarV2({ currentView, agents, onNavigate }: Conflu
   }, [isChatOpen, onNavigate]);
 
   return (
-    <div className="conflux-bar-v2-wrapper">
+    <div className="conflux-bar-v2-wrapper" data-tour-id="dock">
       {/* Menu panel that rises from the bar — triggered by logo button */}
       {menuOpen && (
         <div className="conflux-menu" ref={menuRef}>
@@ -237,6 +237,7 @@ export default function ConfluxBarV2({ currentView, agents, onNavigate }: Conflu
           onClick={handleHeroClick}
           title="Talk to Conflux"
           aria-label="Talk to Conflux"
+          data-tour-id="chat"
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2Z" fill="white" fillOpacity="0.9"/>
@@ -253,6 +254,7 @@ export default function ConfluxBarV2({ currentView, agents, onNavigate }: Conflu
           className={`conflux-home-btn ${currentView === 'dashboard' && !menuOpen ? 'active' : ''}`}
           onClick={() => onNavigate('dashboard')}
           title="Home"
+          data-tour-id="home-btn"
         >
           🏠
         </button>

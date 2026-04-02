@@ -16,6 +16,7 @@ import UsageSection from './settings/UsageSection';
 import SoundSection from './settings/SoundSection';
 import { useAuth } from '../hooks/useAuth';
 import { playToggleOn, playToggleOff } from '../lib/sound';
+import { useTourState } from '../hooks/useTourState';
 
 // ── Constants ──
 
@@ -151,6 +152,12 @@ function AppearanceSection() {
 
 function DataSection() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const { resetTour } = useTourState();
+
+  const handleReplayTour = () => {
+    resetTour();
+    window.location.reload();
+  };
 
   const exportData = () => {
     const data: Record<string, string> = {};
@@ -192,6 +199,9 @@ function DataSection() {
       <div className="settings-actions" style={{ marginBottom: 12 }}>
         <button className="settings-button" onClick={exportData}>
           📦 Export Data
+        </button>
+        <button className="settings-button" onClick={handleReplayTour}>
+          🔄 Replay Tour
         </button>
         <button className="settings-button danger" onClick={clearAll}>
           🗑️ Clear All Data
