@@ -468,7 +468,7 @@ pub async fn get_usage_history(user_id: &str, limit: i32) -> Result<Vec<UsageEnt
 // ── Cloud Router Proxy ──
 
 /// Cloud router endpoint (conflux-cloud)
-const CLOUD_ROUTER_URL: &str = "https://theconflux.com/v1/chat/completions";
+const CLOUD_ROUTER_URL: &str = "https://www.theconflux.com/v1/chat/completions";
 
 /// Send a chat completion request to the cloud router.
 /// This is the main entry point for all inference in cloud-only mode.
