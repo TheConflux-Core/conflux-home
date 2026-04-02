@@ -277,6 +277,23 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
       // Ensure we have a fresh JWT before making the request
       console.log('[useEngineChat] Syncing session before chat...');
       const syncResult = await syncSessionToEngine();
+      
+      if (!syncResult) {
+        const errorMsg = 'Failed to sync session — please sign in again';
+        console.error('[useEngineChat]', errorMsg);
+        setError(errorMsg);
+        setStreaming(false);
+        setThinking(false);
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === assistantIdRef.current && m.content === ''
+              ? { ...m, content: `[${errorMsg}]` }
+              : m
+          )
+        );
+        return;
+      }
+      
       console.log('[useEngineChat] Sync result:', syncResult);
 
       // Fire the streaming chat command
