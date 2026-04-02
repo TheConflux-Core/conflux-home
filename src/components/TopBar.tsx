@@ -81,7 +81,7 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom, cu
     setShowThemes(false);
   };
 
-  const currentThemeDef = COLOR_THEMES.find(t => t.id === colorTheme);
+  const currentThemeDef = BASE_THEMES.find(t => t.id === colorTheme) ?? COLOR_THEMES.find(t => t.id === colorTheme);
 
   return (
     <div className="topbar">
