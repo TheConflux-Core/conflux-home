@@ -43,6 +43,9 @@ export async function syncSessionToEngine(): Promise<boolean> {
     }
 
     console.log(`[syncSessionToEngine] Syncing token: ${session.access_token.substring(0, 10)}...`);
+    console.log(`[syncSessionToEngine] User ID: ${session.user.id}`);
+    console.log(`[syncSessionToEngine] Supabase URL: ${SUPABASE_URL}`);
+    console.log(`[syncSessionToEngine] Token expires in: ${session.expires_at ? Math.round((session.expires_at * 1000 - Date.now()) / 1000) + 's' : 'unknown'}`);
 
     await invoke("set_supabase_session", {
       supabaseUrl: SUPABASE_URL,
@@ -51,6 +54,7 @@ export async function syncSessionToEngine(): Promise<boolean> {
       userId: session.user.id,
     });
 
+    console.log(`[syncSessionToEngine] ✅ Session synced to Rust engine`);
     return true;
   } catch (err) {
     console.error("[syncSessionToEngine] Failed:", err);
