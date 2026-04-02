@@ -3,6 +3,13 @@
 // All Supabase REST API communication lives here.
 // Fire-and-forget usage logging, atomic credit charges, quota checks.
 
+/// Valid task types accepted by the cloud router.
+const VALID_TASK_TYPES: &[&str] = &[
+    "simple_chat", "summarize", "extract", "translate",
+    "code_gen", "tool_orchestrate", "image_gen", "file_ops",
+    "web_browse", "creative", "deep_reasoning", "agentic_complex",
+];
+
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -489,9 +496,14 @@ pub async fn cloud_chat(
         "stream": false,
     });
     
-    // Add optional fields
+    // Add optional fields — map model aliases to valid task types
     if let Some(task) = task_type {
-        request_body["task_type"] = serde_json::json!(task);
+        let effective_task = if VALID_TASK_TYPES.contains(&task) {
+            task.to_string()
+        } else {
+            "simple_chat".to_string()
+        };
+        request_body["task_type"] = serde_json::json!(effective_task);
     }
     if let Some(max) = max_tokens {
         request_body["max_tokens"] = serde_json::json!(max);
@@ -632,7 +644,12 @@ pub async fn cloud_chat_stream(
     });
     
     if let Some(task) = task_type {
-        request_body["task_type"] = serde_json::json!(task);
+        let effective_task = if VALID_TASK_TYPES.contains(&task) {
+            task.to_string()
+        } else {
+            "simple_chat".to_string()
+        };
+        request_body["task_type"] = serde_json::json!(effective_task);
     }
     if let Some(max) = max_tokens {
         request_body["max_tokens"] = serde_json::json!(max);
