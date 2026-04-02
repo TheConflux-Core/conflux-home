@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useAuth } from './useAuth';
-import { syncSessionToEngine } from '@/lib/syncSession';
 
 // ── Types ──
 
@@ -45,7 +44,7 @@ export interface UsageStats {
 const POLL_INTERVAL = 30_000;
 
 export function useCredits() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [balance, setBalance] = useState<CreditBalance | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,8 +57,6 @@ export function useCredits() {
     }
 
     try {
-      // Sync session first so the engine has a fresh JWT
-      await syncSessionToEngine();
       const result = await invoke<CreditBalance>('get_credit_balance', { userId: user.id });
       setBalance(result);
       setError(null);
@@ -71,14 +68,15 @@ export function useCredits() {
     }
   }, [user]);
 
+  // Wait for auth to finish loading before fetching credits
   useEffect(() => {
+    if (authLoading) return;
     refresh();
-
     intervalRef.current = setInterval(refresh, POLL_INTERVAL);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [refresh]);
+  }, [refresh, authLoading]);
 
   return { balance, loading, refresh, error };
 }
@@ -86,7 +84,7 @@ export function useCredits() {
 // ── Usage History Hook ──
 
 export function useUsageHistory(limit: number = 20) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [entries, setEntries] = useState<UsageEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -97,7 +95,6 @@ export function useUsageHistory(limit: number = 20) {
     }
 
     try {
-      await syncSessionToEngine();
       const result = await invoke<UsageEntry[]>('get_usage_history', { userId: user.id, limit });
       setEntries(result);
     } catch (err) {
@@ -108,8 +105,9 @@ export function useUsageHistory(limit: number = 20) {
   }, [user, limit]);
 
   useEffect(() => {
+    if (authLoading) return;
     refresh();
-  }, [refresh]);
+  }, [refresh, authLoading]);
 
   return { entries, loading, refresh };
 }
@@ -117,7 +115,7 @@ export function useUsageHistory(limit: number = 20) {
 // ── Usage Stats Hook ──
 
 export function useUsageStats(days: number = 7) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [stats, setStats] = useState<UsageStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -128,7 +126,6 @@ export function useUsageStats(days: number = 7) {
     }
 
     try {
-      await syncSessionToEngine();
       const result = await invoke<UsageStats>('get_usage_stats', { userId: user.id, days });
       setStats(result);
     } catch (err) {
@@ -139,8 +136,9 @@ export function useUsageStats(days: number = 7) {
   }, [user, days]);
 
   useEffect(() => {
+    if (authLoading) return;
     refresh();
-  }, [refresh]);
+  }, [refresh, authLoading]);
 
   return { stats, loading, refresh };
 }
