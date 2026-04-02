@@ -31,8 +31,8 @@ export function useSupabaseSession() {
             lastTokenRef.current = token;
 
             await invoke("set_supabase_session", {
-              supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-              supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+              supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+              supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
               accessToken: token,
               userId: session.user.id,
             });
@@ -50,7 +50,7 @@ export function useSupabaseSession() {
 
     // Listen for auth changes (including token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (event: string, session: any) => {
         console.log("[useSupabaseSession] Auth event:", event);
         // Re-sync on every auth state change (login, logout, token refresh)
         syncToEngine();
