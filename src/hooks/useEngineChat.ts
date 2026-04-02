@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { syncSessionToEngine } from '@/lib/syncSession';
+import { supabase } from '@/lib/supabase';
 import type { AgentMessage } from '../types';
 
 export interface UseEngineChatResult {
