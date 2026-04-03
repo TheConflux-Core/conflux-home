@@ -46,6 +46,8 @@ import ControlRoom from './components/ControlRoom';
 import VaultView from './components/VaultView';
 import StudioView from './components/StudioView';
 import GuidedTour from './components/GuidedTour';
+import MorningBrief from './components/MorningBrief';
+import './styles/morning-brief.css';
 import { shouldAutoStartTour } from './hooks/useTourState';
 import { useEngine } from './hooks/useEngine';
 import { useToast } from './hooks/useToast';
@@ -247,6 +249,16 @@ export default function App() {
     return localStorage.getItem('conflux-onboarded') === 'true';
   });
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showBrief, setShowBrief] = useState(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const lastBrief = localStorage.getItem('conflux-last-brief-date');
+    return lastBrief !== today;
+  });
+  const handleBriefDismiss = useCallback(() => {
+    const today = new Date().toISOString().split('T')[0];
+    localStorage.setItem('conflux-last-brief-date', today);
+    setShowBrief(false);
+  }, []);
   const [userName, setUserName] = useState(() => localStorage.getItem('conflux-name') || 'there');
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>(() => {
     try {
@@ -526,7 +538,8 @@ const [activeSnake, setActiveSnake] = useState(false);
         const pick = byLast || byConflux || byActive || agents[0];
         if (pick) setSelectedAgent(pick);
       }
-      setImmersiveView(null);
+      // Chat opens as overlay on top of whatever view is active
+      // We do NOT set immersiveView to null here
       setChatOpen(true);
     } else {
       // Open immersive view for all other navigation
@@ -594,6 +607,7 @@ const [activeSnake, setActiveSnake] = useState(false);
   return (
     <AuthProvider>
     <div className="desktop-shell">
+      {showBrief && <MorningBrief onDismiss={handleBriefDismiss} />}
       {showTour && <GuidedTour onComplete={() => setShowTour(false)} />}
       <TopBar
         selectedAgent={selectedAgent}
