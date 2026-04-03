@@ -56,6 +56,12 @@ pub fn init_engine(db_path: &Path) -> Result<()> {
 
     ENGINE.set(engine)
         .map_err(|_| anyhow::anyhow!("Engine already initialized"))?;
+
+    // Auto-create system cron jobs (idempotent — skips if they already exist)
+    if let Err(e) = get_engine().ensure_system_cron_jobs() {
+        log::warn!("[Engine] Failed to ensure system cron jobs: {}", e);
+    }
+
     Ok(())
 }
 
@@ -485,6 +491,81 @@ impl ConfluxEngine {
         }
 
         Ok(executed)
+    }
+
+    /// Create default system cron jobs if they don't exist yet.
+    /// Called once at startup — idempotent (skips jobs that already exist by name).
+    pub fn ensure_system_cron_jobs(&self) -> Result<()> {
+        let existing = self.db.get_cron_jobs(false)?;
+        let existing_names: std::collections::HashSet<String> = existing.iter().map(|j| j.name.clone()).collect();
+
+        let system_jobs: Vec<(&str, &str, &str, &str, &str)> = vec![
+            ("morning-brief", "conflux", "0 7 * * *", "local",
+             "Generate the daily morning briefing. \
+              Use budget_get_summary for this month's spending. \
+              Use kitchen_get_inventory to check items expiring within 3 days. \
+              Use life_list_tasks with status 'pending' for today's tasks. \
+              Use home_get_bills to check bills due within 7 days. \
+              Use dream_list to check active dreams and their progress. \
+              Compile a warm, concise morning briefing (5-8 sentences). \
+              Start with 'Good morning! Here is your day:' \
+              Include specific dollar amounts, item names, and task titles. \
+              End with one actionable recommendation."),
+
+            ("agent-diary", "conflux", "0 23 * * *", "local",
+             "Write tonight's diary entry. \
+              Reflect on the day — what patterns do you notice in the user's behavior? \
+              Check budget entries from today for spending patterns. \
+              Check kitchen meals logged this week for cooking frequency. \
+              Check life tasks for completion rate. \
+              Write a warm, reflective 3-5 sentence diary entry. \
+              Be observational, not judgmental. Note trends and growth. \
+              Store this reflection using memory_write with category 'diary' and a descriptive title."),
+
+            ("weekly-insights", "conflux", "0 10 * * 0", "local",
+             "Generate a weekly cross-app insights report. \
+              1. Budget: Use budget_get_summary for this month. Note total spent, top categories, any unusual spending. \
+              2. Kitchen: Use kitchen_list_meals to see what was cooked. Use kitchen_get_inventory for expiring items. \
+              3. Life: Use life_list_tasks for completion stats. Use life_list_habits for streaks. \
+              4. Home: Use home_get_bills for upcoming due dates. \
+              5. Dreams: Use dream_list for progress percentages. \
+              Write a structured report with specific numbers and 2-3 actionable recommendations. \
+              Store the report using memory_write with category 'weekly-insights'."),
+
+            ("pantry-check", "conflux", "0 8 * * *", "local",
+             "Check kitchen inventory for items expiring in the next 3 days using kitchen_get_inventory. \
+              If any items are expiring soon, use kitchen_list_meals to suggest a recipe that uses them. \
+              If nothing is expiring, just say 'Pantry looks good!' with a 1-sentence inventory summary. \
+              Keep it brief — 2-3 sentences max."),
+
+            ("budget-nudge", "conflux", "0 18 * * *", "local",
+             "Check today's budget entries using budget_get_entries for this month. \
+              If the user spent money today, give a brief 1-sentence spending summary. \
+              If a savings goal is close to deadline, mention progress using budget_get_goals. \
+              If no budget activity today, stay completely silent — do not generate any output. \
+              Be encouraging, never judgmental. 1-2 sentences max."),
+
+            ("dream-motivation", "conflux", "0 9 * * 1-5", "local",
+             "Check active dreams using dream_list. \
+              Look for any dream tasks due today or this week. \
+              If there are upcoming tasks, send a brief motivational 1-2 sentence reminder. \
+              Reference the dream title and the specific task name. \
+              If no upcoming tasks, check if any milestones were recently completed and celebrate briefly. \
+              If nothing notable, stay silent — do not generate output."),
+        ];
+
+        for (name, agent_id, schedule, tz, message) in system_jobs {
+            if !existing_names.contains(name) {
+                let id = self.db.create_cron_job(name, agent_id, schedule, tz, message)?;
+                log::info!("[SystemCron] Created job '{}' (id={})", name, id);
+                if let Some(next) = cron::next_run(schedule, chrono::Utc::now()) {
+                    let next_str = next.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+                    self.db.update_cron_next_run_by_name(name, &next_str)?;
+                }
+            }
+        }
+
+        Ok(())
     }
 
     // ── Webhooks ──

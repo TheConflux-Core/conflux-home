@@ -1458,6 +1458,16 @@ impl EngineDb {
         Ok(())
     }
 
+    /// Update next_run_at for a cron job by name (for system jobs where we don't know the UUID).
+    pub fn update_cron_next_run_by_name(&self, name: &str, next_run: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute(
+            "UPDATE cron_jobs SET next_run_at = ?1 WHERE name = ?2",
+            params![next_run, name],
+        )?;
+        Ok(())
+    }
+
     pub fn toggle_cron_job(&self, id: &str, enabled: bool) -> Result<()> {
         let conn = self.conn();
         let e: i64 = if enabled { 1 } else { 0 };

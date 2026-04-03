@@ -60,13 +60,35 @@ pub async fn process_turn(
         tool_calls: None,
     });
 
-    // Conversation history (including any prior tool calls/results)
+    // Conversation history — filter orphaned tool messages and reconstruct tool_calls
+    let mut prev_had_tool_calls = false;
     for msg in &history {
+        // Skip orphaned tool messages (tool result without preceding assistant+tool_calls)
+        if msg.role == "tool" && !prev_had_tool_calls {
+            continue;
+        }
+
+        // Track whether this message has tool_calls (so next tool message is valid)
+        prev_had_tool_calls = msg.role == "assistant" && msg.tool_name.is_some();
+
+        // Reconstruct tool_calls for assistant messages that initiated tool calls
+        let tool_calls = if msg.role == "assistant" && msg.tool_name.is_some() {
+            let args = msg.tool_args.as_deref().unwrap_or("{}");
+            let call_id = msg.tool_call_id.as_deref().unwrap_or("call_reconstructed");
+            Some(vec![serde_json::json!({
+                "id": call_id,
+                "type": "function",
+                "function": { "name": msg.tool_name.as_ref().unwrap(), "arguments": args }
+            })])
+        } else {
+            None
+        };
+
         messages.push(OpenAIMessage {
             role: msg.role.clone(),
             content: if msg.content.is_empty() { None } else { Some(msg.content.clone()) },
             tool_call_id: msg.tool_call_id.clone(),
-            tool_calls: None, // Historical tool calls are in the content
+            tool_calls,
         });
     }
 
@@ -84,6 +106,7 @@ pub async fn process_turn(
     // 6. Get tool definitions
     let mut tool_defs = tools::get_tool_definitions();
     tool_defs.extend(tools::get_integration_tool_definitions());
+    tool_defs.extend(tools::get_app_tool_definitions());
 
     // 7. Tool calling loop
     let mut total_tokens: i64 = 0;
@@ -146,7 +169,22 @@ pub async fn process_turn(
                 tool_calls: None,
             });
 
-            // Store tool call and result in DB
+            // Store assistant message with tool_calls (so history replays correctly)
+            db.add_message_with_tools(
+                session_id,
+                "assistant",
+                &response.content,
+                0,
+                Some(&response.model),
+                Some(&response.provider_id),
+                Some(response.latency_ms),
+                Some(&tool_call.id),
+                Some(&tool_call.name),
+                Some(&tool_call.arguments),
+                None,
+            )?;
+
+            // Store tool result in DB
             db.add_message_with_tools(
                 session_id,
                 "tool",
@@ -263,12 +301,26 @@ pub async fn process_turn_stream(
         tool_calls: None,
     });
 
+    let mut prev_had_tool_calls_stream = false;
     for msg in &history {
+        if msg.role == "tool" && !prev_had_tool_calls_stream { continue; }
+        prev_had_tool_calls_stream = msg.role == "assistant" && msg.tool_name.is_some();
+        let tool_calls = if msg.role == "assistant" && msg.tool_name.is_some() {
+            let args = msg.tool_args.as_deref().unwrap_or("{}");
+            let call_id = msg.tool_call_id.as_deref().unwrap_or("call_reconstructed");
+            Some(vec![serde_json::json!({
+                "id": call_id,
+                "type": "function",
+                "function": { "name": msg.tool_name.as_ref().unwrap(), "arguments": args }
+            })])
+        } else {
+            None
+        };
         messages.push(OpenAIMessage {
             role: msg.role.clone(),
             content: if msg.content.is_empty() { None } else { Some(msg.content.clone()) },
             tool_call_id: msg.tool_call_id.clone(),
-            tool_calls: None,
+            tool_calls,
         });
     }
 
@@ -285,6 +337,7 @@ pub async fn process_turn_stream(
     // 6. Get tool definitions
     let mut tool_defs = tools::get_tool_definitions();
     tool_defs.extend(tools::get_integration_tool_definitions());
+    tool_defs.extend(tools::get_app_tool_definitions());
 
     // 7. Tool calling loop (non-streaming for tool detection, streaming for final text)
     let mut final_response: Option<ModelResponse> = None;
@@ -351,20 +404,10 @@ pub async fn process_turn_stream(
                 tool_calls: None,
             });
 
-            // Store in DB
-            db.add_message_with_tools(
-                session_id,
-                "tool",
-                &result_content,
-                0,
-                None,
-                None,
-                None,
-                Some(&tool_call.id),
-                Some(&tool_call.name),
-                Some(&tool_call.arguments),
-                Some(&result_content),
-            )?;
+            // Store assistant message with tool_calls
+            db.add_message_with_tools(session_id, "assistant", &response.content, 0, Some(&response.model), Some(&response.provider_id), Some(response.latency_ms), Some(&tool_call.id), Some(&tool_call.name), Some(&tool_call.arguments), None)?;
+            // Store tool result
+            db.add_message_with_tools(session_id, "tool", &result_content, 0, None, None, None, Some(&tool_call.id), Some(&tool_call.name), Some(&tool_call.arguments), Some(&result_content))?;
         }
 
         // Last iteration — force no tools, get final text

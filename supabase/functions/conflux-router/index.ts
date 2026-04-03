@@ -52,6 +52,8 @@ interface ChatRequest {
   max_tokens?: number;
   temperature?: number;
   stream?: boolean;
+  tools?: unknown[];
+  tool_choice?: string;
 }
 
 interface ModelRoute {
@@ -631,6 +633,104 @@ async function checkApiCredits(
   };
 }
 
+// --- Tool Schema Adapters ---
+
+/**
+ * Convert OpenAI-format tools to provider-specific format.
+ * OpenAI tools come in as:
+ *   [{ type: "function", function: { name, description, parameters } }]
+ */
+function adaptToolsForProvider(
+  tools: unknown[],
+  provider: string,
+  tool_choice?: string
+): { adaptedTools: unknown; adaptedToolChoice?: unknown } {
+  if (provider === "anthropic") {
+    // Anthropic expects: [{ name, description, input_schema }]
+    const anthropicTools = (tools as Record<string, unknown>[]).map((t) => {
+      const fn = (t.function ?? t) as Record<string, unknown>;
+      return {
+        name: fn.name,
+        description: fn.description ?? "",
+        input_schema: fn.parameters ?? { type: "object", properties: {} },
+      };
+    });
+    // Anthropic tool_choice: "auto" | "any" | { type: "tool", name: "..." }
+    const anthropicChoice = tool_choice === "required" ? "any" : tool_choice ?? "auto";
+    return { adaptedTools: anthropicTools, adaptedToolChoice: anthropicChoice };
+  }
+
+  if (provider === "google") {
+    // Gemini expects: [{ functionDeclarations: [{ name, description, parameters }], ... }]
+    const functionDeclarations = (tools as Record<string, unknown>[]).map((t) => {
+      const fn = (t.function ?? t) as Record<string, unknown>;
+      return {
+        name: fn.name,
+        description: fn.description ?? "",
+        parameters: fn.parameters,
+      };
+    });
+    const geminiTools = [{ functionDeclarations }];
+    // Gemini tool_config
+    const geminiChoice = tool_choice === "required"
+      ? { functionCallingConfig: { mode: "ANY" } }
+      : undefined;
+    return { adaptedTools: geminiTools, adaptedToolChoice: geminiChoice };
+  }
+
+  // OpenAI-compatible (OpenAI, Cerebras, Groq, xAI, DeepSeek, Mistral, etc.)
+  // Tools are already in the right format — pass through
+  return { adaptedTools: tools, adaptedToolChoice: tool_choice };
+}
+
+/**
+ * Normalize tool results from provider-specific format back to OpenAI format.
+ * Returns an array of { id, name, arguments } tool calls.
+ */
+function extractToolCalls(provider: string, response: Record<string, unknown>): Array<{ id: string; name: string; arguments: string }> {
+  if (provider === "anthropic") {
+    const content = response.content as Array<Record<string, unknown>> | undefined;
+    if (!content) return [];
+    return content
+      .filter((block) => block.type === "tool_use")
+      .map((block) => ({
+        id: (block.id as string) ?? `call_${Date.now()}`,
+        name: block.name as string,
+        arguments: JSON.stringify(block.input ?? {}),
+      }));
+  }
+
+  if (provider === "google") {
+    // Gemini returns function calls in candidates[0].content.parts[].functionCall
+    const candidates = response.candidates as Array<Record<string, unknown>> | undefined;
+    if (!candidates?.[0]) return [];
+    const parts = (candidates[0].content as Record<string, unknown>)?.parts as Array<Record<string, unknown>> | undefined;
+    if (!parts) return [];
+    return parts
+      .filter((part) => part.functionCall)
+      .map((part, i) => {
+        const fc = part.functionCall as Record<string, unknown>;
+        return {
+          id: `call_${Date.now()}_${i}`,
+          name: fc.name as string,
+          arguments: JSON.stringify(fc.args ?? {}),
+        };
+      });
+  }
+
+  // OpenAI-compatible: response.choices[0].message.tool_calls[].function
+  const choices = response.choices as Array<Record<string, unknown>> | undefined;
+  if (!choices?.[0]) return [];
+  const message = choices[0].message as Record<string, unknown> | undefined;
+  const toolCalls = message?.tool_calls as Array<Record<string, unknown>> | undefined;
+  if (!toolCalls) return [];
+  return toolCalls.map((tc) => ({
+    id: (tc.id as string) ?? `call_${Date.now()}`,
+    name: ((tc.function as Record<string, unknown>)?.name as string) ?? "",
+    arguments: ((tc.function as Record<string, unknown>)?.arguments as string) ?? "{}",
+  }));
+}
+
 // --- Provider Call ---
 
 async function callProvider(
@@ -639,7 +739,9 @@ async function callProvider(
   messages: ChatMessage[],
   maxTokens: number,
   temperature: number,
-  stream: boolean
+  stream: boolean,
+  tools?: unknown[],
+  tool_choice?: string
 ): Promise<Response> {
   const apiKey = providerConfig.api_key_encrypted;
 
@@ -647,7 +749,19 @@ async function callProvider(
     // Anthropic API format
     const systemMsg = messages.find((m) => m.role === "system");
     const chatMsgs = messages.filter((m) => m.role !== "system");
-
+    const anthropicBody: Record<string, unknown> = {
+      model: modelId,
+      max_tokens: maxTokens,
+      temperature,
+      system: systemMsg?.content,
+      messages: chatMsgs,
+      stream,
+    };
+    if (tools && tools.length > 0) {
+      const adapted = adaptToolsForProvider(tools, "anthropic", tool_choice);
+      anthropicBody.tools = adapted.adaptedTools;
+      if (adapted.adaptedToolChoice) anthropicBody.tool_choice = adapted.adaptedToolChoice;
+    }
     return fetch(`${providerConfig.base_url}/messages`, {
       method: "POST",
       headers: {
@@ -655,14 +769,7 @@ async function callProvider(
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
       },
-      body: JSON.stringify({
-        model: modelId,
-        max_tokens: maxTokens,
-        temperature,
-        system: systemMsg?.content,
-        messages: chatMsgs,
-        stream,
-      }),
+      body: JSON.stringify(anthropicBody),
     });
   }
 
@@ -677,46 +784,59 @@ async function callProvider(
 
     const systemInstruction = messages.find((m) => m.role === "system");
 
+    const geminiBody: Record<string, unknown> = {
+      contents,
+      systemInstruction: systemInstruction
+        ? { parts: [{ text: systemInstruction.content }] }
+        : undefined,
+      generationConfig: {
+        maxOutputTokens: maxTokens,
+        temperature,
+      },
+    };
+    if (tools && tools.length > 0) {
+      const adapted = adaptToolsForProvider(tools, "google", tool_choice);
+      geminiBody.tools = adapted.adaptedTools;
+      if (adapted.adaptedToolChoice) geminiBody.tool_config = adapted.adaptedToolChoice;
+    }
+
     return fetch(
       `${providerConfig.base_url}/models/${modelId}:${stream ? "streamGenerateContent" : "generateContent"}?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents,
-          systemInstruction: systemInstruction
-            ? { parts: [{ text: systemInstruction.content }] }
-            : undefined,
-          generationConfig: {
-            maxOutputTokens: maxTokens,
-            temperature,
-          },
-        }),
+        body: JSON.stringify(geminiBody),
       }
     );
   }
 
   // OpenAI-compatible (OpenAI, Cerebras, Groq, etc.)
+  const openaiBody: Record<string, unknown> = {
+    model: modelId,
+    messages,
+    max_tokens: maxTokens,
+    temperature,
+    stream,
+  };
+  if (tools && tools.length > 0) {
+    openaiBody.tools = tools;
+    if (tool_choice) openaiBody.tool_choice = tool_choice;
+  }
   return fetch(`${providerConfig.base_url}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      model: modelId,
-      messages,
-      max_tokens: maxTokens,
-      temperature,
-      stream,
-    }),
+    body: JSON.stringify(openaiBody),
   });
 }
 
 // --- Token Counting (rough estimate) ---
 
-function estimateTokens(text: string): number {
+function estimateTokens(text: string | null | undefined): number {
   // Rough: ~4 chars per token for English
+  if (!text) return 0;
   return Math.ceil(text.length / 4);
 }
 
@@ -887,7 +1007,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
       // 2. Parse request
       const body: ChatRequest = await req.json();
-      const { model, task_type, messages, max_tokens, temperature, stream = false } = body;
+      const { model, task_type, messages, max_tokens, temperature, stream = false, tools, tool_choice } = body;
 
       if (!messages || messages.length === 0) {
         return new Response(JSON.stringify({ error: "Bad request", message: "messages are required" }), {
@@ -1026,9 +1146,54 @@ Deno.serve(async (req: Request): Promise<Response> => {
             // If no core models at all, proceed with the original (edge case)
           }
         }
+
+        // Tool reliability override: if tools are present, upgrade to a model that supports them
+        if (tools && tools.length > 0) {
+          const currentModel = resolvedModel;
+          const isReliable = TOOL_RELIABILITY.reliable.includes(currentModel);
+          if (!isReliable) {
+            // Free providers that reliably support tool calling
+            const FREE_RELIABLE = [
+              "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o-mini",
+              "gemini-2.5-flash", "gemini-flash",
+              "deepseek-r1", "deepseek-chat",
+              "grok-3-mini", "grok-4.1-fast", "grok-code-fast",
+              "mimo-v2-pro",
+              "mistral-medium", "mistral-small",
+            ];
+            const reliableOverride = FREE_RELIABLE.find(
+              (alias) => modelRoutesCache.has(alias)
+            );
+            if (reliableOverride) {
+              console.log(`[Router] Tool override: ${currentModel} → ${reliableOverride} (tools require reliable model)`);
+              resolvedModel = reliableOverride;
+              routedTier = modelRoutesCache.get(reliableOverride)?.tier as ModelTier ?? "pro";
+            }
+          }
+        }
       } else {
         // Explicit model — backward compatible
         resolvedModel = model!;
+
+        // Tool reliability override for explicit models too
+        if (tools && tools.length > 0 && !TOOL_RELIABILITY.reliable.includes(resolvedModel)) {
+          const FREE_RELIABLE = [
+            "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o-mini",
+            "gemini-2.5-flash", "gemini-flash",
+            "deepseek-r1", "deepseek-chat",
+            "grok-3-mini", "grok-4.1-fast", "grok-code-fast",
+            "mimo-v2-pro",
+            "mistral-medium", "mistral-small",
+          ];
+          const reliableOverride = FREE_RELIABLE.find(
+            (alias) => modelRoutesCache.has(alias)
+          );
+          if (reliableOverride) {
+            console.log(`[Router] Tool override (explicit): ${resolvedModel} → ${reliableOverride}`);
+            resolvedModel = reliableOverride;
+            routedTier = modelRoutesCache.get(reliableOverride)?.tier as ModelTier ?? "pro";
+          }
+        }
       }
 
       // 6. Look up route
@@ -1049,7 +1214,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
 
       // 7. Credit check (split by auth type)
-      const estimatedTokensIn = messages.reduce((sum, m) => sum + estimateTokens(m.content), 0);
+      const estimatedTokensIn = messages.reduce((sum, m) => sum + estimateTokens(m.content ?? ""), 0);
       const estimatedTokensOut = max_tokens ?? 4096;
       const creditCheck = auth.isApiKey
         ? await checkApiCredits(auth.userId, resolvedModel, estimatedTokensIn, estimatedTokensOut)
@@ -1100,7 +1265,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
         messages,
         Math.min(effectiveMaxTokens, route.max_tokens),
         effectiveTemperature,
-        stream
+        stream,
+        tools,
+        tool_choice
       );
 
       const latencyMs = Date.now() - startTime;
@@ -1140,7 +1307,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
                 messages,
                 Math.min(effectiveMaxTokens, fallbackRoute.max_tokens),
                 effectiveTemperature,
-                stream
+                stream,
+                tools,
+                tool_choice
               );
 
               if (fallbackResponse.ok) {

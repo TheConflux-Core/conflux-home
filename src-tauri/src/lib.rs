@@ -60,6 +60,22 @@ pub fn run() {
 
             log::info!("Conflux Engine initialized at {:?}", db_path);
 
+            // Background cron scheduler — ticks every 60s
+            tauri::async_runtime::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+                loop {
+                    interval.tick().await;
+                    let engine_ref = engine::get_engine();
+                    match engine_ref.tick_cron().await {
+                        Ok(count) if count > 0 => {
+                            log::info!("[CronScheduler] Executed {} jobs", count);
+                        }
+                        Err(e) => log::error!("[CronScheduler] tick error: {}", e),
+                        _ => {}
+                    }
+                }
+            });
+
             // Register conflux:// protocol on Linux
             #[cfg(target_os = "linux")]
             {
