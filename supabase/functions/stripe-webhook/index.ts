@@ -89,6 +89,7 @@ async function handleCheckoutCompleted(
   if (session.mode === 'payment' && session.metadata?.type === 'credit_pack') {
     const userId = session.metadata.user_id;
     const credits = parseInt(session.metadata.credits);
+    const amountCents = parseInt(session.metadata.amount_cents);
     const packName = session.metadata.pack_name;
 
     if (!userId || isNaN(credits)) {
@@ -99,50 +100,22 @@ async function handleCheckoutCompleted(
       return;
     }
 
-    // Upsert api_credit_accounts: add credits to balance
-    const { data: existing } = await supabase
-      .from('api_credit_accounts')
-      .select('balance, total_purchased')
-      .eq('user_id', userId)
-      .single();
+    // Use purchase_api_credits RPC which handles the 5% fee and credit calculation
+    const { error } = await supabase.rpc('purchase_api_credits', {
+      p_user_id: userId,
+      p_amount_usd_cents: amountCents,
+      p_stripe_payment_id: session.payment_intent,
+    });
 
-    if (existing) {
-      await supabase
-        .from('api_credit_accounts')
-        .update({
-          balance: existing.balance + credits,
-          total_purchased: existing.total_purchased + credits,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('user_id', userId);
-    } else {
-      await supabase
-        .from('api_credit_accounts')
-        .insert({
-          user_id: userId,
-          balance: credits,
-          total_purchased: credits,
-        });
+    if (error) {
+      console.error("checkout.session.completed: purchase_api_credits RPC failed", {
+        userId,
+        error: error.message,
+      });
+      return;
     }
 
-    // Log the transaction
-    const { data: account } = await supabase
-      .from('api_credit_accounts')
-      .select('balance')
-      .eq('user_id', userId)
-      .single();
-
-    await supabase
-      .from('api_credit_transactions')
-      .insert({
-        user_id: userId,
-        type: 'purchase',
-        amount: credits,
-        balance_after: account?.balance ?? credits,
-        stripe_payment_id: session.payment_intent,
-      });
-
-    console.log(`[Credit Pack] ${credits} credits granted to user ${userId}`);
+    console.log(`[Credit Pack] ${credits} credits granted to user ${userId} (paid $${(amountCents / 100).toFixed(2)})`);
     return;
   }
 

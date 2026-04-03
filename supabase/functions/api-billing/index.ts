@@ -22,16 +22,30 @@ const CORS_HEADERS = {
 };
 
 // ============================================================
-// Credit Pack Definitions
+// Credit Pack Definitions — Passthrough Pricing + 5% Fee
+// 
+// Users pay exact provider cost. The 5% fee is deducted from the purchase amount.
+// Example: User pays $10.00 → $0.50 fee → $9.50 worth of credits issued
+// 1 credit = $0.00001, so $9.50 = 950,000 credits
 // ============================================================
 
-const PACKS: Record<string, { credits: number; amount: number; name: string; priceId: string }> = {
-  starter:    { credits: 500,    amount: 499,   name: "API Starter",    priceId: "price_1TGkWvHV6B3tDjUwjiugyJfE" },
-  growth:     { credits: 2000,   amount: 1499,  name: "API Growth",     priceId: "price_1TGkWwHV6B3tDjUwNYc2dF4B" },
-  scale:      { credits: 5000,   amount: 3999,  name: "API Scale",      priceId: "price_1TGkWwHV6B3tDjUw7DmFLukT" },
-  business:   { credits: 15000,  amount: 9999,  name: "API Business",   priceId: "price_1TGDUbHV6B3tDjUwDxdIz914" },
-  enterprise: { credits: 50000,  amount: 29999, name: "API Enterprise", priceId: "price_1TGkWwHV6B3tDjUwmonDQoPF" },
+const PACKS: Record<string, { amount: number; name: string; priceId: string }> = {
+  starter:    { amount: 999,   name: "API Starter",    priceId: "price_1TGkWvHV6B3tDjUwjiugyJfE" },
+  growth:     { amount: 2499,  name: "API Growth",     priceId: "price_1TGkWwHV6B3tDjUwNYc2dF4B" },
+  scale:      { amount: 4999,  name: "API Scale",      priceId: "price_1TGkWwHV6B3tDjUw7DmFLukT" },
+  business:   { amount: 9999,  name: "API Business",   priceId: "price_1TGDUbHV6B3tDjUwDxdIz914" },
+  enterprise: { amount: 19999, name: "API Enterprise", priceId: "price_1TGkWwHV6B3tDjUwmonDQoPF" },
 };
+
+// Calculate credits from amount (in cents), after 5% fee
+// 1 credit = $0.00001, so credits = (amount_cents - 5% fee) / 0.001
+function calculateCredits(amountCents: number): number {
+  const feeCents = Math.floor(amountCents * 0.05);
+  const afterFeeCents = amountCents - feeCents;
+  // Convert cents to dollars, then to credits (1 credit = $0.00001)
+  const afterFeeDollars = afterFeeCents / 100.0;
+  return Math.floor(afterFeeDollars / 0.00001);
+}
 
 // ============================================================
 // Auth Helper
@@ -64,10 +78,12 @@ async function stripeCreateCheckoutSession(params: {
     "metadata[type]": "credit_pack",
     "metadata[user_id]": params.userId,
     "metadata[credits]": String(params.pack.credits),
+    "metadata[amount_cents]": String(params.pack.amount),
     "metadata[pack]": params.packKey,
     "metadata[pack_name]": params.pack.name,
     "payment_intent_data[metadata][user_id]": params.userId,
     "payment_intent_data[metadata][credits]": String(params.pack.credits),
+    "payment_intent_data[metadata][amount_cents]": String(params.pack.amount),
     "payment_intent_data[metadata][pack]": params.packKey,
     "payment_intent_data[metadata][pack_name]": params.pack.name,
   });
@@ -109,9 +125,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const packs = Object.entries(PACKS).map(([key, pack]) => ({
         key,
         name: pack.name,
-        credits: pack.credits,
-        price: pack.amount,
+        price: `$${(pack.amount / 100).toFixed(2)}`,
         price_id: pack.priceId,
+        credits_after_fee: calculateCredits(pack.amount).toLocaleString(),
+        effective_rate: `$${((pack.amount / 100) / (calculateCredits(pack.amount) / 1000000)).toFixed(6)} per 1M credits`,
+        note: "Credits priced at exact provider cost. 5% processing fee applied.",
       }));
 
       return new Response(JSON.stringify({ data: packs }), {
@@ -143,11 +161,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
 
       const pack = PACKS[packKey];
+      const credits = calculateCredits(pack.amount);
 
       const { url: checkoutUrl } = await stripeCreateCheckoutSession({
         userId,
         packKey,
-        pack,
+        pack: { ...pack, credits },
       });
 
       return new Response(JSON.stringify({ url: checkoutUrl }), {
