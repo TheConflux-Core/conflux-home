@@ -15,6 +15,9 @@ import KitchenDigestCard from './KitchenDigest';
 import SmartGrocery from './SmartGrocery';
 import PantryHeatmap from './PantryHeatmap';
 import CookingMode from './CookingMode';
+import CookingModeEnhanced from './CookingModeEnhanced';
+import RestaurantMenu from './RestaurantMenu';
+import BrowseCards from './BrowseCards';
 import { MicButton } from './voice';
 
 function getWeekStart(): string {
@@ -41,6 +44,9 @@ export default function KitchenView() {
   const [aiLoading, setAiLoading] = useState(false);
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
   const [cookingMealId, setCookingMealId] = useState<string | null>(null);
+  // Cooking mode step tracking (placeholder — wire to real steps when available)
+  const [cookingSteps, setCookingSteps] = useState([]);
+  const [cookingCurrentStep, setCookingCurrentStep] = useState(0);
 
   const weekStart = useMemo(getWeekStart, []);
 
@@ -120,11 +126,13 @@ export default function KitchenView() {
             onPantryHeatmap={() => setTab('pantry')}
           />
 
-          {menuLoading ? (
-            <div className="kitchen-loading">Loading your kitchen...</div>
-          ) : (
-            <HomeMenu items={homeMenu} onSelect={(id) => setCookingMealId(id)} />
-          )}
+          {/* Restaurant Menu — replaces HomeMenu */}
+          <RestaurantMenu
+            chefsSpecials={homeMenu}
+            yourRegulars={meals.filter(m => m.is_favorite).slice(0, 6)}
+            onSelect={(id) => setCookingMealId(id)}
+            loading={menuLoading}
+          />
 
           <KitchenNudges nudges={nudges} onAction={handleNudgeAction} />
 
@@ -137,7 +145,7 @@ export default function KitchenView() {
       {/* ── LIBRARY TAB ── */}
       {tab === 'library' && (
         <div className="kitchen-library">
-          {/* AI Add */}
+          {/* AI Add Bar */}
           <div className="kitchen-ai-add">
             <div className="ai-add-header">
               <span className="ai-add-icon">✨</span>
@@ -166,68 +174,29 @@ export default function KitchenView() {
             </div>
           </div>
 
-          {/* Filters */}
-          <div className="kitchen-filters">
-            <button className={`genre-btn ${!showFavorites ? 'active' : ''}`} onClick={() => setShowFavorites(false)}>
-              All
-            </button>
-            <button className={`genre-btn ${showFavorites ? 'active' : ''}`} onClick={() => setShowFavorites(true)}>
-              ⭐ Favorites
-            </button>
-            <select value={filterCat} onChange={e => setFilterCat(e.target.value)} className="kitchen-select">
-              <option value="all">All Categories</option>
-              {MEAL_CATEGORIES.map(c => (
-                <option key={c} value={c}>{MEAL_CATEGORY_EMOJI[c]} {c}</option>
-              ))}
-            </select>
-            <select value={filterCuisine} onChange={e => setFilterCuisine(e.target.value)} className="kitchen-select">
-              <option value="all">All Cuisines</option>
-              {MEAL_CUISINES.map(c => (
-                <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
-              ))}
-            </select>
-          </div>
+          {/* Browse Cards — replaces old filter + grid */}
+          <BrowseCards
+            meals={meals}
+            loading={loading}
+            selectedCategory={filterCat}
+            selectedCuisine={filterCuisine}
+            showFavorites={showFavorites}
+            onCategoryChange={setFilterCat}
+            onCuisineChange={setFilterCuisine}
+            onFavoritesToggle={() => setShowFavorites(!showFavorites)}
+            onSelect={setSelectedMeal}
+            onQuickAdd={(mealId) => {
+              // Quick add to week plan — default to today dinner
+              const today = new Date().getDay();
+              const dayIndex = today === 0 ? 6 : today - 1;
+              if (plan) {
+                setEntry(dayIndex, 'dinner', mealId);
+              }
+            }}
+            pantryItems={[]}
+          />
 
-          {/* Meal Grid */}
-          {loading ? (
-            <div className="kitchen-loading">Loading meals...</div>
-          ) : meals.length === 0 ? (
-            <div className="kitchen-empty">
-              <p>No meals yet! Describe one above and I'll create it for you.</p>
-              <p className="kitchen-empty-hint">Try: "spaghetti bolognese", "chicken tikka masala", "avocado toast"</p>
-            </div>
-          ) : (
-            <div className="meal-grid">
-              {meals.map(meal => (
-                <div key={meal.id} className={`meal-card ${selectedMeal?.id === meal.id ? 'selected' : ''}`} onClick={() => setSelectedMeal(meal)}>
-                  <div className="meal-card-header">
-                    <span className="meal-card-emoji">
-                      {meal.category ? MEAL_CATEGORY_EMOJI[meal.category] ?? '🍽️' : '🍽️'}
-                    </span>
-                    <button
-                      className="meal-fav-btn"
-                      onClick={e => { e.stopPropagation(); toggleFavorite(meal.id); }}
-                    >
-                      {meal.is_favorite ? '⭐' : '☆'}
-                    </button>
-                  </div>
-                  <h3 className="meal-card-name">{meal.name}</h3>
-                  {meal.description && <p className="meal-card-desc">{meal.description}</p>}
-                  <div className="meal-card-meta">
-                    {meal.prep_time_min && meal.cook_time_min && (
-                      <span>⏱️ {meal.prep_time_min + meal.cook_time_min}min</span>
-                    )}
-                    {meal.cost_per_serving != null && (
-                      <span>💰 {formatCost(meal.cost_per_serving)}/serving</span>
-                    )}
-                    <span>👥 {meal.servings}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Meal Detail Sidebar */}
+          {/* Meal Detail Sidebar (kept from old impl) */}
           {selectedMeal && (
             <div className="meal-detail">
               <div className="meal-detail-header">
@@ -347,14 +316,15 @@ export default function KitchenView() {
         </div>
       )}
 
-      {/* ── COOKING MODE OVERLAY ── */}
+      {/* ── COOKING MODE OVERLAY — Enhanced ── */}
       {cookingMealId && (
-        <CookingMode
-          steps={[]}
-          currentStep={0}
-          onNext={() => {}}
-          onPrev={() => {}}
+        <CookingModeEnhanced
+          steps={cookingSteps}
+          currentStep={cookingCurrentStep}
+          onNext={() => setCookingCurrentStep(prev => Math.min(prev + 1, cookingSteps.length - 1))}
+          onPrev={() => setCookingCurrentStep(prev => Math.max(prev - 1, 0))}
           onClose={() => setCookingMealId(null)}
+          autoAdvance={true}
         />
       )}
     </div>

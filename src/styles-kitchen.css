@@ -2,6 +2,18 @@
    KITCHEN VIEW — Smart Meal Management
    ============================================================ */
 
+/* Amber / Warm Color Palette Variables */
+:root {
+  --warm-amber: #f59e0b;
+  --warm-copper: #b45309;
+  --warm-cream: #fff7ed;
+  --warm-orange: #ea580c;
+  --warm-brown: #78350f;
+  --warm-parchment: #fef3c7;
+  --warm-gold: #d97706;
+  --warm-rose: #e11d48;
+}
+
 .kitchen-view {
   padding: 20px;
   height: 100%;
@@ -662,5 +674,694 @@
 .expiring-date {
   font-size: 13px;
   color: #f59e0b;
+  font-weight: 600;
+}
+
+/* ============================================================
+   RESTAURANT MENU — Home Tab (Warm, Paper Texture)
+   ============================================================ */
+
+.restaurant-menu {
+  position: relative;
+  margin-top: 16px;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.menu-paper-texture {
+  position: absolute;
+  inset: 0;
+  background: var(--warm-cream);
+  background-image: 
+    repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(120, 53, 15, 0.03) 2px, rgba(120, 53, 15, 0.03) 4px),
+    radial-gradient(ellipse at 20% 50%, rgba(245, 158, 11, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(217, 119, 6, 0.06) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.menu-section {
+  position: relative;
+  z-index: 1;
+  padding: 24px;
+  background: linear-gradient(to bottom, rgba(255, 247, 237, 0.95), rgba(254, 243, 199, 0.9));
+  border-radius: 16px;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(120, 53, 15, 0.08);
+}
+
+.menu-section-regulars {
+  background: linear-gradient(to bottom, rgba(254, 243, 199, 0.85), rgba(255, 247, 237, 0.85));
+}
+
+.menu-section-title {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--warm-brown);
+  margin: 0 0 4px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  letter-spacing: 0.5px;
+}
+
+.menu-title-decoration {
+  color: var(--warm-gold);
+  font-weight: 400;
+}
+
+.menu-section-subtitle {
+  text-align: center;
+  font-size: 13px;
+  color: var(--warm-copper);
+  margin: 0 0 16px 0;
+  font-style: italic;
+}
+
+.menu-loading, .menu-empty {
+  text-align: center;
+  padding: 32px 20px;
+  color: var(--warm-copper);
+  font-size: 14px;
+}
+
+/* Menu Items List */
+.menu-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(245, 158, 11, 0.15);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.menu-item:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: var(--warm-amber);
+  transform: translateX(2px);
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.15);
+}
+
+.menu-item-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 32px;
+}
+
+.menu-item-number {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--warm-copper);
+  opacity: 0.5;
+}
+
+.menu-item-emoji {
+  font-size: 24px;
+}
+
+.menu-item-content {
+  flex: 1;
+}
+
+.menu-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+
+.menu-item-name {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--warm-brown);
+}
+
+.menu-item-price {
+  font-size: 13px;
+  color: var(--warm-copper);
+  font-weight: 500;
+}
+
+.menu-item-description {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0 0 6px 0;
+  line-height: 1.4;
+}
+
+.menu-item-missing {
+  font-size: 11px;
+  color: var(--warm-rose);
+}
+
+.missing-label {
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.menu-item-action {
+  flex-shrink: 0;
+}
+
+.menu-select-btn {
+  padding: 6px 14px;
+  background: var(--warm-amber);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.menu-select-btn:hover {
+  background: var(--warm-copper);
+  transform: scale(1.05);
+}
+
+/* Regulars Grid */
+.regulars-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.regular-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(245, 158, 11, 0.15);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.regular-card:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: var(--warm-amber);
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.12);
+}
+
+.regular-emoji {
+  font-size: 24px;
+}
+
+.regular-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.regular-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--warm-brown);
+}
+
+.regular-time {
+  font-size: 11px;
+  color: var(--warm-copper);
+}
+
+.regular-star {
+  font-size: 16px;
+}
+
+/* ============================================================
+   BROWSE CARDS — Library Tab (DoorDash Metaphor)
+   ============================================================ */
+
+.browse-cards {
+  margin-top: 16px;
+}
+
+.browse-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.filter-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  padding: 8px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.filter-chip:hover {
+  border-color: var(--accent-primary);
+  background: var(--bg-hover);
+}
+
+.filter-chip.active {
+  background: var(--accent-primary);
+  color: white;
+  border-color: var(--accent-primary);
+}
+
+.fav-chip.active {
+  background: var(--warm-amber);
+  border-color: var(--warm-amber);
+}
+
+/* Browse Grid */
+.browse-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.browse-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.browse-card:hover {
+  border-color: var(--accent-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.browse-card-photo {
+  position: relative;
+  height: 160px;
+  background: linear-gradient(135deg, #fbbf2420, #f59e0b15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.photo-placeholder-emoji {
+  font-size: 64px;
+  opacity: 0.8;
+}
+
+.pantry-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: rgba(16, 185, 129, 0.9);
+  color: white;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  backdrop-filter: blur(4px);
+}
+
+.pantry-badge-icon {
+  font-size: 10px;
+}
+
+.fav-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  backdrop-filter: blur(4px);
+}
+
+.browse-card-content {
+  padding: 14px;
+}
+
+.browse-card-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 4px 0;
+}
+
+.browse-card-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0 0 10px 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.browse-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.meta-item {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.quick-add-btn {
+  width: 100%;
+  padding: 8px;
+  background: var(--warm-amber);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.quick-add-btn:hover {
+  background: var(--warm-copper);
+  transform: scale(1.02);
+}
+
+/* Browse Loading / Empty */
+.browse-loading {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--warm-amber);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 12px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.browse-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+}
+
+.empty-emoji {
+  font-size: 48px;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.empty-hint {
+  font-size: 13px;
+  margin-top: 8px;
+  opacity: 0.7;
+}
+
+/* ============================================================
+   COOKING MODE ENHANCED — Voice-first Full-screen
+   ============================================================ */
+
+.cooking-enhanced-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(8px);
+}
+
+.cooking-enhanced {
+  width: 90%;
+  max-width: 800px;
+  max-height: 90vh;
+  background: #1a1a2e;
+  border-radius: 20px;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+
+.cooking-progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 20px 20px 0 0;
+  overflow: hidden;
+}
+
+.cooking-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--warm-amber), #10b981);
+  transition: width 0.4s ease;
+}
+
+.cooking-enhanced-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cooking-step-indicator {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.cooking-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.cooking-control-btn {
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 10px;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cooking-control-btn.active {
+  background: var(--warm-amber);
+}
+
+.cooking-control-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
+}
+
+.cooking-close-btn {
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 10px;
+  font-size: 20px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cooking-close-btn:hover {
+  background: rgba(239, 68, 68, 0.8);
+  transform: scale(1.05);
+}
+
+/* Progress Dots */
+.cooking-progress-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.cooking-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  transition: all 0.3s;
+}
+
+.cooking-dot.completed {
+  background: #10b981;
+}
+
+.cooking-dot.current {
+  background: var(--warm-amber);
+  width: 24px;
+  border-radius: 5px;
+}
+
+.cooking-dot.upcoming {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Step Content */
+.cooking-step-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 20px;
+}
+
+.cooking-step-number-large {
+  font-size: 72px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.15);
+  line-height: 1;
+}
+
+.cooking-step-instruction-large {
+  font-size: 28px;
+  font-weight: 600;
+  color: white;
+  line-height: 1.5;
+  max-width: 600px;
+}
+
+/* Timer Section */
+.cooking-timer-section {
+  margin-top: 24px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cooking-timer-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.cooking-timer-icon {
+  font-size: 32px;
+}
+
+.cooking-timer-value {
+  font-size: 36px;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+  color: var(--warm-amber);
+}
+
+.cooking-timer-controls {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.cooking-timer-btn {
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cooking-timer-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
+}
+
+/* Enhanced Navigation */
+.cooking-enhanced-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cooking-nav-btn-large {
+  padding: 12px 24px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cooking-nav-btn-large:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
+}
+
+.cooking-nav-btn-large:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.cooking-nav-btn-large.primary {
+  background: var(--warm-amber);
+  border-color: var(--warm-amber);
+}
+
+.cooking-nav-btn-large.primary:hover:not(:disabled) {
+  background: var(--warm-copper);
+}
+
+.cooking-step-counter {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.6);
   font-weight: 600;
 }
