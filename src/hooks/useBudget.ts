@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { BudgetEntry, BudgetSummary, BudgetGoal, BudgetPattern, MonthlyReport } from '../types';
+import { useAuth } from './useAuth';
 
 function getCurrentMonth(): string {
   const now = new Date();
@@ -8,6 +9,7 @@ function getCurrentMonth(): string {
 }
 
 export function useBudget(memberId?: string) {
+  const { user } = useAuth();
   const [month, setMonth] = useState(getCurrentMonth);
   const [entries, setEntries] = useState<BudgetEntry[]>([]);
   const [summary, setSummary] = useState<BudgetSummary | null>(null);
@@ -16,14 +18,20 @@ export function useBudget(memberId?: string) {
   const [report, setReport] = useState<MonthlyReport | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Resolve auth-wired user ID, falling back to explicit memberId or null
+  const resolvedMemberId = useMemo(
+    () => memberId || (user ? user.id : null),
+    [memberId, user]
+  );
+
   const load = useCallback(async () => {
     try {
       setLoading(true);
       const [e, s, g, p] = await Promise.all([
-        invoke<BudgetEntry[]>('budget_get_entries', { memberId: memberId ?? null, month }),
+        invoke<BudgetEntry[]>('budget_get_entries', { memberId: resolvedMemberId, month }),
         invoke<BudgetSummary>('budget_get_summary', { month }),
-        invoke<BudgetGoal[]>('budget_get_goals', { memberId: memberId ?? null }),
-        invoke<BudgetPattern[]>('budget_detect_patterns', { memberId: memberId ?? null }),
+        invoke<BudgetGoal[]>('budget_get_goals', { memberId: resolvedMemberId }),
+        invoke<BudgetPattern[]>('budget_detect_patterns', { memberId: resolvedMemberId }),
       ]);
       setEntries(e);
       setSummary(s);
@@ -34,7 +42,7 @@ export function useBudget(memberId?: string) {
     } finally {
       setLoading(false);
     }
-  }, [memberId, month]);
+  }, [resolvedMemberId, month]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -66,9 +74,9 @@ export function useBudget(memberId?: string) {
 
   // Goals CRUD
   const createGoal = useCallback(async (name: string, targetAmount: number, deadline?: string, monthlyAllocation?: number) => {
-    await invoke('budget_create_goal', { name, target_amount: targetAmount, deadline: deadline ?? null, monthly_allocation: monthlyAllocation ?? null, memberId: memberId ?? null });
+    await invoke('budget_create_goal', { name, target_amount: targetAmount, deadline: deadline ?? null, monthly_allocation: monthlyAllocation ?? null, memberId: resolvedMemberId });
     await load();
-  }, [memberId, load]);
+  }, [resolvedMemberId, load]);
 
   const updateGoal = useCallback(async (id: string, currentAmount: number) => {
     await invoke('budget_update_goal', { id, current_amount: currentAmount });
