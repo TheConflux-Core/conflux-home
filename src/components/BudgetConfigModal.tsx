@@ -10,6 +10,13 @@ interface Bucket {
   color: string;
 }
 
+interface NewBucketState {
+  name?: string;
+  goal?: number;
+  icon?: string;
+  color?: string;
+}
+
 interface BudgetConfig {
   payFrequency: 'weekly' | 'bi-weekly' | 'semi-monthly' | 'monthly';
   payDates: { p1: number; p2: number };
@@ -39,7 +46,7 @@ export default function BudgetConfigModal({ isOpen, onClose, onSave, saveStatus 
     buckets: DEFAULT_BUCKETS,
   });
 
-  const [newBucket, setNewBucket] = useState<Partial<Bucket>>({ icon: '💳', color: '#8b5cf6' });
+  const [newBucket, setNewBucket] = useState<NewBucketState>({ icon: '💳', color: '#8b5cf6' });
 
   if (!isOpen) return null;
 
@@ -52,9 +59,8 @@ export default function BudgetConfigModal({ isOpen, onClose, onSave, saveStatus 
       monthly_goal: parseFloat(newBucket.goal.toString()),
       color: newBucket.color || '#8b5cf6',
     };
-    // Use the type that the backend expects
-    setConfig({ ...config, buckets: [...config.buckets, bucket as any] });
-    setNewBucket({ icon: '💳', color: '#8b5cf6', name: '', goal: 0 });
+    setConfig({ ...config, buckets: [...config.buckets, bucket] });
+    setNewBucket({ icon: '💳', color: '#8b5cf6', name: '', goal: undefined });
   };
 
   const removeBucket = (id: string) => {

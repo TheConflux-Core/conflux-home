@@ -47,7 +47,7 @@ export default function BudgetView() {
     const goal = bucket.monthly_goal || 0;
     const freq = settings?.pay_frequency;
 
-    if (freq === 'bi-weekly') {
+    if (freq === 'biweekly') {
       // 26 pays a year. Each pay is (Monthly * 12) / 26
       return (goal * 12) / 26;
     }
@@ -66,12 +66,17 @@ export default function BudgetView() {
   // Helper to get actual paid amount
   const getPaid = (bucketId: string) => {
     return transactions
-      .filter(t => t.bucket_id === bucketId && t.status === 'settled')
+      .filter(t => t.bucket_id === bucketId && t.status === 'reconciled')
       .reduce((sum, t) => sum + t.amount, 0);
   };
 
   const [editingCell, setEditingCell] = useState<{ id: string; period: 'p1' | 'p2' } | null>(null);
   const [editValue, setEditValue] = useState('');
+
+  const handleCellClick = (bucketId: string, period: 'p1' | 'p2', val: number) => {
+    setEditingCell({ id: bucketId, period });
+    setEditValue(val.toString());
+  };
 
   const handleCellEdit = async (bucketId: string, period: 'p1' | 'p2', val: number) => {
     // Placeholder for updateAllocation call
@@ -145,7 +150,7 @@ export default function BudgetView() {
                 onMouseLeave={() => setActiveBucket(null)}
               >
                 <div className="grid-cell col-bucket">
-                  <span className="bucket-icon" style={{ color: bucket.color }}>{bucket.icon}</span>
+                  <span className="bucket-icon" style={{ color: bucket.color || undefined }}>{bucket.icon || '💳'}</span>
                   <span className="bucket-label">{bucket.name}</span>
                 </div>
                 
@@ -201,7 +206,7 @@ export default function BudgetView() {
                   <div className="meter-track">
                     <div 
                       className="meter-fill" 
-                      style={{ width: `${pct}%`, backgroundColor: isFull ? '#10b981' : bucket.color }}
+                      style={{ width: `${pct}%`, backgroundColor: isFull ? '#10b981' : (bucket.color || '#10b981') }}
                     />
                   </div>
                 </div>
@@ -214,8 +219,6 @@ export default function BudgetView() {
       <BudgetConfigModal 
         isOpen={isConfigOpen}
         onClose={() => setIsConfigOpen(false)}
-        currentBuckets={buckets}
-        currentSettings={settings}
         saveStatus={saveStatus}
         onSave={async (config) => {
           console.log('💾 Config Save Triggered:', config);
@@ -265,7 +268,12 @@ export default function BudgetView() {
       <QuickLogModal
         isOpen={isLogOpen}
         onClose={() => setIsLogOpen(false)}
-        buckets={buckets}
+        buckets={buckets.map(b => ({ 
+          id: b.id, 
+          name: b.name, 
+          icon: b.icon || '💳', 
+          color: b.color || '#10b981' 
+        }))}
         onSave={async (data) => {
           await logTransaction({
             bucket_id: data.bucketId,
