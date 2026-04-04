@@ -6,12 +6,10 @@
 .kitchen-matrix {
   position: relative;
   height: 100%;
-  min-height: 100vh;
   padding: 40px 64px;
   color: #fef3c7;
   overflow-y: auto;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: linear-gradient(135deg, #0c0a09 0%, #1c1917 50%, #0c0a09 100%);
 }
 
 .kitchen-matrix::before {
