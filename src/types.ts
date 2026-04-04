@@ -1005,6 +1005,123 @@ export interface MonthlyReport {
   comparison_to_last_month: number | null;
 }
 
+// ── Budget Matrix (Zero-Based Budgeting) ──
+
+export interface BudgetSettings {
+  id: string;
+  user_id: string;
+  pay_frequency: 'weekly' | 'biweekly' | 'semimonthly' | 'monthly';
+  pay_dates: number[] | string[];  // e.g., [1, 15] or ["2026-04-04", "2026-04-18"]
+  income_amount: number;
+  currency: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpdateSettingsRequest {
+  pay_frequency: string;
+  pay_dates: number[] | string[];
+  income_amount: number;
+  currency?: string;
+}
+
+export interface BudgetBucket {
+  id: string;
+  user_id: string;
+  name: string;
+  icon: string | null;
+  monthly_goal: number;
+  color: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpdateBucketRequest {
+  name: string;
+  icon?: string | null;
+  monthly_goal: number;
+  color?: string | null;
+  is_active?: boolean;
+}
+
+export interface BudgetAllocation {
+  id: string;
+  user_id: string;
+  bucket_id: string;
+  pay_period_id: string;
+  amount: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpdateAllocationRequest {
+  bucket_id: string;
+  pay_period_id: string;
+  amount: number;
+}
+
+export interface BudgetTransaction {
+  id: string;
+  user_id: string;
+  bucket_id: string;
+  amount: number;  // Negative for expenses, positive for income
+  date: string;
+  status: 'pending' | 'confirmed' | 'reconciled' | 'disputed';
+  description: string | null;
+  merchant: string | null;
+  category: string | null;
+  receipt_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LogTransactionRequest {
+  bucket_id: string;
+  amount: number;
+  date: string;
+  status?: string;
+  description?: string | null;
+  merchant?: string | null;
+  category?: string | null;
+  receipt_url?: string | null;
+}
+
+export interface BudgetBucketBalance {
+  bucket_id: string;
+  name: string;
+  icon: string | null;
+  monthly_goal: number;
+  color: string | null;
+  total_allocated: number;
+  total_spent: number;
+  remaining: number;
+}
+
+export interface BudgetPayPeriod {
+  id: string;
+  user_id: string;
+  start_date: string;
+  end_date: string;
+  pay_date: string;
+  income_amount: number;
+  status: 'upcoming' | 'current' | 'completed';
+  created_at: string;
+  updated_at: string;
+}
+
+// Budget Matrix dashboard summary
+export interface BudgetMatrixDashboard {
+  settings: BudgetSettings | null;
+  buckets: BudgetBucket[];
+  bucket_balances: BudgetBucketBalance[];
+  current_pay_period: BudgetPayPeriod | null;
+  recent_transactions: BudgetTransaction[];
+  total_allocated: number;
+  total_remaining: number;
+}
+
+
 // ── Life Autopilot: Orbit ──
 
 export interface LifeTask {

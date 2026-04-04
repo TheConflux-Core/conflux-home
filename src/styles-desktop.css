@@ -170,19 +170,21 @@
 }
 
 .immersive-content {
-  position: relative;
+  position: fixed;
+  top: 48px; /* Match overlay top */
+  left: 0;
+  right: 0;
+  bottom: 56px; /* Match ConfluxBar height */
   z-index: 2;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 72px 24px 48px;
-  min-height: 100vh;
-  /* Subtle content background for readability over photo */
-  background: rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-radius: 24px 24px 0 0;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-bottom: none;
+  margin: 0;
+  padding: 0;
+  /* Seamless app fill */
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: none;
+  border-radius: 0;
+  overflow-y: auto;
 }
 
 /* ── Agents Bottom Bar ── */
