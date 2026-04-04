@@ -66,7 +66,7 @@ import './styles/tour.css';
 
 // Background images for immersive views
 const VIEW_BACKGROUNDS: Record<string, string> = {
-  kitchen: '/backgrounds/kitchen-bg.png',
+  kitchen: '', // Transparent — Kitchen renders its own component backgrounds
   budget: '/backgrounds/budget-bg.png',
   life: '/backgrounds/life-bg.png',
   home: '/backgrounds/home-bg.png',
