@@ -92,7 +92,9 @@ export default function KitchenView() {
   const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   return (
-    <div className="kitchen-view">
+    <div className="kitchen-matrix">
+      {/* Background effects */}
+      <div className="matrix-bg-effects" />
       {/* Header */}
       <div className="kitchen-header">
         <h2 className="kitchen-title">🔥 Hearth</h2>

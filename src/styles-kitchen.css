@@ -14,6 +14,126 @@
   --warm-rose: #e11d48;
 }
 
+/* ============================================================
+   KITCHEN MATRIX — Full-screen Cockpit Layout
+   ============================================================ */
+
+.kitchen-matrix {
+  position: relative;
+  padding: 40px 64px;
+  height: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.kitchen-matrix .matrix-bg-effects {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: 
+    radial-gradient(circle at 20% 50%, rgba(245, 158, 11, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 30%, rgba(234, 88, 12, 0.05) 0%, transparent 40%),
+    radial-gradient(circle at 10% 80%, rgba(217, 119, 6, 0.06) 0%, transparent 45%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+.kitchen-matrix .kitchen-header {
+  margin-bottom: 32px;
+}
+
+.kitchen-matrix .kitchen-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 16px 0;
+  color: var(--text-primary);
+}
+
+.kitchen-matrix .kitchen-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.kitchen-matrix .kitchen-tab {
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-secondary);
+}
+
+.kitchen-matrix .kitchen-tab.active {
+  background: var(--accent-primary);
+  color: white;
+  border-color: var(--accent-primary);
+}
+
+.kitchen-matrix .kitchen-home,
+.kitchen-matrix .kitchen-library,
+.kitchen-matrix .kitchen-plan,
+.kitchen-matrix .kitchen-grocery,
+.kitchen-matrix .kitchen-pantry {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ── Responsive Adjustments ── */
+
+@media (max-width: 1280px) {
+  .kitchen-matrix {
+    padding: 32px 48px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .kitchen-matrix {
+    padding: 32px;
+  }
+  
+  .kitchen-matrix .kitchen-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 768px) {
+  .kitchen-matrix {
+    padding: 20px 24px;
+  }
+  
+  .kitchen-matrix .kitchen-header {
+    margin-bottom: 20px;
+  }
+  
+  .kitchen-matrix .kitchen-title {
+    font-size: 20px;
+  }
+  
+  .kitchen-matrix .kitchen-tab {
+    padding: 8px 14px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+}
+
+@media (min-width: 1440px) {
+  .kitchen-matrix {
+    padding: 48px 80px;
+  }
+}
+
+/* ============================================================
+   LEGACY .kitchen-view (deprecated, kept for fallback)
+   ============================================================ */
+
 .kitchen-view {
   padding: 20px;
   height: 100%;
