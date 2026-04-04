@@ -8,8 +8,6 @@ import { useFridgeScanner } from '../hooks/useFridgeScanner';
 import type { Meal } from '../types';
 import { MEAL_CATEGORIES, MEAL_CUISINES, MEAL_CATEGORY_EMOJI } from '../types';
 
-import HearthHero from './HearthHero';
-import HomeMenu from './HomeMenu';
 import KitchenNudges from './KitchenNudges';
 import KitchenDigestCard from './KitchenDigest';
 import SmartGrocery from './SmartGrocery';
@@ -120,13 +118,7 @@ export default function KitchenView() {
       {/* ── HOME TAB ── */}
       {tab === 'home' && (
         <div className="kitchen-home">
-          <HearthHero
-            nudges={nudges}
-            onHomeMenu={() => setTab('library')}
-            onPantryHeatmap={() => setTab('pantry')}
-          />
-
-          {/* Restaurant Menu — replaces HomeMenu */}
+          {/* Restaurant Menu — Main Home View */}
           <RestaurantMenu
             chefsSpecials={homeMenu}
             yourRegulars={meals.filter(m => m.is_favorite).slice(0, 6)}
