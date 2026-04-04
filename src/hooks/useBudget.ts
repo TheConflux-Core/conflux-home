@@ -10,7 +10,7 @@ function getCurrentMonth(): string {
 
 export function useBudget(memberId?: string) {
   const { user } = useAuth();
-  const [month, setMonth] = useState(getCurrentMonth);
+  const [period, setPeriod] = useState(getCurrentMonth);
   const [entries, setEntries] = useState<BudgetEntry[]>([]);
   const [summary, setSummary] = useState<BudgetSummary | null>(null);
   const [goals, setGoals] = useState<BudgetGoal[]>([]);
@@ -28,8 +28,8 @@ export function useBudget(memberId?: string) {
     try {
       setLoading(true);
       const [e, s, g, p] = await Promise.all([
-        invoke<BudgetEntry[]>('budget_get_entries', { memberId: resolvedMemberId, month }),
-        invoke<BudgetSummary>('budget_get_summary', { month }),
+        invoke<BudgetEntry[]>('budget_get_entries', { memberId: resolvedMemberId, month: period }),
+        invoke<BudgetSummary>('budget_get_summary', { month: period }),
         invoke<BudgetGoal[]>('budget_get_goals', { memberId: resolvedMemberId }),
         invoke<BudgetPattern[]>('budget_detect_patterns', { memberId: resolvedMemberId }),
       ]);
@@ -42,7 +42,7 @@ export function useBudget(memberId?: string) {
     } finally {
       setLoading(false);
     }
-  }, [resolvedMemberId, month]);
+  }, [resolvedMemberId, period]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -90,26 +90,26 @@ export function useBudget(memberId?: string) {
 
   // Monthly report
   const generateReport = useCallback(async () => {
-    const r = await invoke<MonthlyReport>('budget_generate_report', { month });
+    const r = await invoke<MonthlyReport>('budget_generate_report', { month: period });
     setReport(r);
     return r;
-  }, [month]);
+  }, [period]);
 
   // Affordability check
   const canAfford = useCallback(async (amount: number) => {
-    return await invoke<boolean>('budget_can_afford', { amount, month });
-  }, [month]);
+    return await invoke<boolean>('budget_can_afford', { amount, month: period });
+  }, [period]);
 
-  const prevMonth = useCallback(() => {
-    setMonth(m => {
+  const prevPeriod = useCallback(() => {
+    setPeriod(m => {
       const [y, mo] = m.split('-').map(Number);
       const d = new Date(y, mo - 2, 1);
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     });
   }, []);
 
-  const nextMonth = useCallback(() => {
-    setMonth(m => {
+  const nextPeriod = useCallback(() => {
+    setPeriod(m => {
       const [y, mo] = m.split('-').map(Number);
       const d = new Date(y, mo, 1);
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -117,8 +117,8 @@ export function useBudget(memberId?: string) {
   }, []);
 
   return {
-    entries, summary, month, loading, goals, patterns, report,
-    addEntry, deleteEntry, prevMonth, nextMonth, reload: load,
+    entries, summary, period, loading, goals, patterns, report,
+    addEntry, deleteEntry, prevPeriod, nextPeriod, reload: load,
     parseNatural, createGoal, updateGoal, deleteGoal, generateReport, canAfford,
   };
 }
