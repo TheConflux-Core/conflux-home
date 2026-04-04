@@ -129,8 +129,12 @@ impl ConfluxEngine {
         Ok(session)
     }
 
-    pub fn get_sessions(&self, limit: i64) -> Result<Vec<types::Session>> {
-        self.db.get_recent_sessions(limit)
+    pub fn get_sessions(&self, user_id: &str, limit: i64) -> Result<Vec<types::Session>> {
+        self.db.get_recent_sessions(user_id, limit)
+    }
+
+    pub fn get_session(&self, session_id: &str) -> Result<Option<types::Session>> {
+        self.db.get_session(session_id)
     }
 
     pub fn get_messages(&self, session_id: &str, limit: i64) -> Result<Vec<types::Message>> {

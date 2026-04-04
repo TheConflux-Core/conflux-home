@@ -273,14 +273,14 @@ impl EngineDb {
         }
     }
 
-    pub fn get_recent_sessions(&self, limit: i64) -> Result<Vec<super::types::Session>> {
+    pub fn get_recent_sessions(&self, user_id: &str, limit: i64) -> Result<Vec<super::types::Session>> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
             "SELECT id, agent_id, user_id, title, status, message_count, total_tokens, created_at, updated_at
-             FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT ?1"
+             FROM sessions WHERE user_id = ?1 AND status = 'active' ORDER BY updated_at DESC LIMIT ?2"
         )?;
 
-        let sessions = stmt.query_map(params![limit], |row| {
+        let sessions = stmt.query_map(params![user_id, limit], |row| {
             Ok(super::types::Session {
                 id: row.get(0)?,
                 agent_id: row.get(1)?,
@@ -1747,16 +1747,16 @@ impl EngineDb {
     // FAMILY MEMBERS
     // ============================================================
 
-    pub fn create_family_member(&self, id: &str, name: &str, age: Option<i64>, age_group: &str,
+    pub fn create_family_member(&self, id: &str, user_id: &str, name: &str, age: Option<i64>, age_group: &str,
                                  avatar: Option<&str>, color: Option<&str>,
                                  default_agent_id: Option<&str>, parent_id: Option<&str>) -> Result<super::types::FamilyMember> {
         let conn = self.conn();
         let now = Self::now();
         let color = color.unwrap_or("#6366f1");
         conn.execute(
-            "INSERT INTO family_members (id, name, age, age_group, avatar, color, default_agent_id, parent_id, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)",
-            params![id, name, age, age_group, avatar, color, default_agent_id, parent_id, now],
+            "INSERT INTO family_members (id, user_id, name, age, age_group, avatar, color, default_agent_id, parent_id, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)",
+            params![id, user_id, name, age, age_group, avatar, color, default_agent_id, parent_id, now],
         )?;
         Ok(super::types::FamilyMember {
             id: id.to_string(), name: name.to_string(), age, age_group: age_group.to_string(),
@@ -1766,13 +1766,13 @@ impl EngineDb {
         })
     }
 
-    pub fn get_family_members(&self) -> Result<Vec<super::types::FamilyMember>> {
+    pub fn get_family_members(&self, user_id: &str) -> Result<Vec<super::types::FamilyMember>> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
             "SELECT id, name, age, age_group, avatar, color, default_agent_id, parent_id, is_active, created_at, updated_at
-             FROM family_members WHERE is_active = 1 ORDER BY created_at"
+             FROM family_members WHERE user_id = ?1 AND is_active = 1 ORDER BY created_at"
         )?;
-        let rows = stmt.query_map([], |row| {
+        let rows = stmt.query_map(params![user_id], |row| {
             Ok(super::types::FamilyMember {
                 id: row.get(0)?, name: row.get(1)?, age: row.get(2)?, age_group: row.get(3)?,
                 avatar: row.get(4)?, color: row.get(5)?, default_agent_id: row.get(6)?,
@@ -1785,13 +1785,13 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn get_family_member(&self, id: &str) -> Result<Option<super::types::FamilyMember>> {
+    pub fn get_family_member(&self, id: &str, user_id: &str) -> Result<Option<super::types::FamilyMember>> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
             "SELECT id, name, age, age_group, avatar, color, default_agent_id, parent_id, is_active, created_at, updated_at
-             FROM family_members WHERE id = ?1"
+             FROM family_members WHERE id = ?1 AND user_id = ?2"
         )?;
-        let mut rows = stmt.query_map(params![id], |row| {
+        let mut rows = stmt.query_map(params![id, user_id], |row| {
             Ok(super::types::FamilyMember {
                 id: row.get(0)?, name: row.get(1)?, age: row.get(2)?, age_group: row.get(3)?,
                 avatar: row.get(4)?, color: row.get(5)?, default_agent_id: row.get(6)?,
@@ -1802,10 +1802,10 @@ impl EngineDb {
         Ok(rows.next().transpose()?)
     }
 
-    pub fn delete_family_member(&self, id: &str) -> Result<()> {
+    pub fn delete_family_member(&self, id: &str, user_id: &str) -> Result<()> {
         let conn = self.conn();
-        conn.execute("UPDATE family_members SET is_active = 0, updated_at = ?2 WHERE id = ?1",
-            params![id, Self::now()])?;
+        conn.execute("UPDATE family_members SET is_active = 0, updated_at = ?2 WHERE id = ?1 AND user_id = ?3",
+            params![id, Self::now(), user_id])?;
         Ok(())
     }
 
