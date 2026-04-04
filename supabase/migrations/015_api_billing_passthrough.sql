@@ -14,11 +14,11 @@
 
 CREATE TABLE IF NOT EXISTS provider_pricing (
   provider TEXT NOT NULL,
-  provider_model_id TEXT NOT NULL,
+  model_id TEXT NOT NULL,
   cost_per_1k_input NUMERIC(10,6) NOT NULL,
   cost_per_1k_output NUMERIC(10,6) NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  PRIMARY KEY (provider, provider_model_id)
+  PRIMARY KEY (provider, model_id)
 );
 
 ALTER TABLE provider_pricing ENABLE ROW LEVEL SECURITY;
@@ -26,7 +26,7 @@ CREATE POLICY "Service role full access" ON provider_pricing FOR ALL USING (auth
 
 -- Seed with current provider pricing (March/April 2026)
 -- These are EXACT provider costs — no markup
-INSERT INTO provider_pricing (provider, provider_model_id, cost_per_1k_input, cost_per_1k_output) VALUES
+INSERT INTO provider_pricing (provider, model_id, cost_per_1k_input, cost_per_1k_output) VALUES
   -- OpenAI
   ('openai', 'gpt-4o-mini', 0.000150, 0.000600),
   ('openai', 'gpt-4.1-mini', 0.000400, 0.001600),
@@ -66,7 +66,7 @@ INSERT INTO provider_pricing (provider, provider_model_id, cost_per_1k_input, co
   ('groq', 'llama-4-scout-groq', 0.000059, 0.000059),
   ('groq', 'gpt-oss-120b-groq', 0.000059, 0.000059),
   ('groq', 'kimi-k2-groq', 0.000059, 0.000059)
-ON CONFLICT (provider, provider_model_id) DO UPDATE SET
+ON CONFLICT (provider, model_id) DO UPDATE SET
   cost_per_1k_input = EXCLUDED.cost_per_1k_input,
   cost_per_1k_output = EXCLUDED.cost_per_1k_output,
   updated_at = now();
@@ -111,7 +111,7 @@ BEGIN
     SELECT pp.cost_per_1k_input, pp.cost_per_1k_output
     INTO v_cost_in, v_cost_out
     FROM provider_pricing pp
-    WHERE pp.provider = v_provider AND pp.provider_model_id = v_provider_model_id;
+    WHERE pp.provider = v_provider AND pp.model_id = v_provider_model_id;
 
     -- If pricing not found, use defaults based on tier
     IF v_cost_in IS NULL THEN
@@ -132,10 +132,10 @@ BEGIN
   v_raw_cost := (CEIL(p_tokens_in::NUMERIC / 1000.0) * v_cost_in)
               + (CEIL(p_tokens_out::NUMERIC / 1000.0) * v_cost_out);
 
-  -- Convert to credits: 1 credit = $0.00001 (0.001 cents)
-  -- This gives us enough precision to represent exact provider costs
+  -- Convert to credits: 1 credit = $0.001 (1/10th of a cent)
+  -- This makes credit numbers more readable (e.g., $9.50 = 9,500 credits)
   -- ROUND UP to ensure we never undercharge
-  credits_charged := CEIL(v_raw_cost / 0.00001);
+  credits_charged := GREATEST(1, CEIL(v_raw_cost / 0.001));
   provider_cost_usd := v_raw_cost;
   model_tier := v_tier;
 
@@ -232,8 +232,8 @@ BEGIN
   v_fee_cents := FLOOR(p_amount_usd_cents * 0.05);
 
   -- Credits remaining after fee, converted to credit units
-  -- 1 credit = $0.00001, so $9.50 = 950,000 credits
-  v_credit_amount := FLOOR((p_amount_usd_cents - v_fee_cents)::NUMERIC / 0.00001 / 100.0);
+  -- 1 credit = $0.001, so $9.50 = 9,500 credits
+  v_credit_amount := FLOOR((p_amount_usd_cents - v_fee_cents)::NUMERIC / 0.1);
 
   -- Add credits to user's account
   INSERT INTO api_credit_accounts (user_id, balance, total_purchased)

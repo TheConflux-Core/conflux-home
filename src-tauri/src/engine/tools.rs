@@ -130,13 +130,14 @@ fn check_tool_permission(db: &EngineDb, agent_id: &str, tool_name: &str) -> Resu
     }
 }
 
-/// Execute a tool by name with the given arguments.
-pub async fn execute_tool(tool_name: &str, args: &Value) -> Result<ToolResult> {
-    execute_tool_for_agent(tool_name, args, "default").await
+/// Execute a tool by name with the given arguments and user context.
+pub async fn execute_tool(tool_name: &str, args: &Value, user_id: &str) -> Result<ToolResult> {
+    execute_tool_for_user(tool_name, args, user_id).await
 }
 
-/// Execute a tool with agent-specific permission checking.
-pub async fn execute_tool_for_agent(tool_name: &str, args: &Value, _agent_id: &str) -> Result<ToolResult> {
+/// Execute a tool with user-specific context and permission checking.
+/// Note: The agent_id parameter is currently unused for non-Google tools.
+pub async fn execute_tool_for_user(tool_name: &str, args: &Value, _user_id: &str) -> Result<ToolResult> {
     // Google tools are checked separately (they require auth, not permissions)
     if matches!(tool_name, "google_auth" | "gmail_send" | "gmail_search" | "google_drive_list" |
         "google_doc_read" | "google_doc_write" | "google_sheet_read" | "google_sheet_write")

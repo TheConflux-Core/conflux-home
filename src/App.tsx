@@ -435,16 +435,31 @@ const [activeSnake, setActiveSnake] = useState(false);
 
   // Handle onboarding completion
   const handleOnboardingComplete = useCallback((goals: string[], agentIds: string[]) => {
-    localStorage.setItem('conflux-onboarded', 'true');
-    localStorage.setItem('conflux-goals', JSON.stringify(goals));
-    localStorage.setItem('conflux-selected-agents', JSON.stringify(agentIds));
-
     const name = localStorage.getItem('conflux-name') || 'there';
     setUserName(name);
     setSelectedAgentIds(agentIds);
 
-    // Save onboarding state to Supabase
+    // 1. Persist locally
+    localStorage.setItem('conflux-onboarded', 'true');
+    localStorage.setItem('conflux-goals', JSON.stringify(goals));
+    localStorage.setItem('conflux-selected-agents', JSON.stringify(agentIds));
+
+    // 2. Create the Family Member record in the local DB (isolated by user_id in Rust)
+    // We wait for this to ensure the user has a profile in the system
     if (user) {
+      invoke('family_create', { 
+        req: { 
+          name, 
+          age: null as unknown as number, 
+          age_group: 'adult', 
+          avatar: '👤', 
+          color: '#6366f1', 
+          default_agent_id: 'conflux', 
+          parent_id: null 
+        } 
+      }).catch(e => console.error('[Onboarding] Failed to create family member:', e));
+
+      // 3. Save onboarding state to Supabase
       import('./lib/supabase').then(({ supabase }) => {
         supabase.from('ch_profiles').upsert({
           id: user.id,
@@ -456,6 +471,7 @@ const [activeSnake, setActiveSnake] = useState(false);
       })
       trackEvent(user.id, null, 'onboarding_completed', { goals, agentIds })
     }
+    setIsOnboarded(true);
 
     // Show welcome if not already welcomed
     const alreadyWelcomed = localStorage.getItem('conflux-welcomed') === 'true';
