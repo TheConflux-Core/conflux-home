@@ -57,10 +57,10 @@ export function useBudget(memberId?: string) {
     date: string;
   }) => {
     await invoke('budget_add_entry', {
-      req: { ...req, member_id: req.member_id ?? null, description: req.description ?? null, recurring: req.recurring ?? false, frequency: req.frequency ?? null },
+      req: { ...req, member_id: req.member_id ?? resolvedMemberId, description: req.description ?? null, recurring: req.recurring ?? false, frequency: req.frequency ?? null },
     });
     await load();
-  }, [load]);
+  }, [load, resolvedMemberId]);
 
   const deleteEntry = useCallback(async (id: string) => {
     await invoke('budget_delete_entry', { id });

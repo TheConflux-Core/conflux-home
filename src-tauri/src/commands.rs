@@ -1346,7 +1346,8 @@ pub struct CreateMealRequest {
 }
 
 #[tauri::command]
-pub fn kitchen_create_meal(req: CreateMealRequest) -> Result<engine::types::Meal, String> {
+pub fn kitchen_create_meal(req: CreateMealRequest, member_id: Option<String>) -> Result<engine::types::Meal, String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
     engine.db().create_meal(
@@ -1359,19 +1360,22 @@ pub fn kitchen_create_meal(req: CreateMealRequest) -> Result<engine::types::Meal
 }
 
 #[tauri::command]
-pub fn kitchen_get_meals(category: Option<String>, cuisine: Option<String>, favorites_only: bool) -> Result<Vec<engine::types::Meal>, String> {
+pub fn kitchen_get_meals(category: Option<String>, cuisine: Option<String>, favorites_only: bool, member_id: Option<String>) -> Result<Vec<engine::types::Meal>, String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     engine.db().get_meals(category.as_deref(), cuisine.as_deref(), favorites_only).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn kitchen_get_meal(id: String) -> Result<Option<engine::types::MealWithIngredients>, String> {
+pub fn kitchen_get_meal(id: String, member_id: Option<String>) -> Result<Option<engine::types::MealWithIngredients>, String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     engine.db().get_meal_with_ingredients(&id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn kitchen_toggle_favorite(id: String) -> Result<(), String> {
+pub fn kitchen_toggle_favorite(id: String, member_id: Option<String>) -> Result<(), String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     engine.db().toggle_favorite(&id).map_err(|e| e.to_string())
 }
@@ -1389,7 +1393,8 @@ pub struct AddIngredientRequest {
 }
 
 #[tauri::command]
-pub fn kitchen_add_ingredient(req: AddIngredientRequest) -> Result<(), String> {
+pub fn kitchen_add_ingredient(req: AddIngredientRequest, member_id: Option<String>) -> Result<(), String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
     engine.db().add_meal_ingredient(
@@ -1453,7 +1458,8 @@ Be accurate with costs. Use 2026 US grocery prices. List every ingredient.";
 }
 
 #[tauri::command]
-pub async fn kitchen_ai_add_meal(description: String) -> Result<engine::types::MealWithIngredients, String> {
+pub async fn kitchen_ai_add_meal(description: String, member_id: Option<String>) -> Result<engine::types::MealWithIngredients, String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
 
     let prompt = format!(
@@ -1569,7 +1575,8 @@ pub struct SetPlanEntryRequest {
 }
 
 #[tauri::command]
-pub fn kitchen_set_plan_entry(req: SetPlanEntryRequest) -> Result<(), String> {
+pub fn kitchen_set_plan_entry(req: SetPlanEntryRequest, member_id: Option<String>) -> Result<(), String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
     engine.db().set_plan_entry(
@@ -1578,13 +1585,15 @@ pub fn kitchen_set_plan_entry(req: SetPlanEntryRequest) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn kitchen_get_weekly_plan(week_start: String) -> Result<engine::types::WeeklyPlan, String> {
+pub fn kitchen_get_weekly_plan(week_start: String, member_id: Option<String>) -> Result<engine::types::WeeklyPlan, String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     engine.db().get_weekly_plan(&week_start).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn kitchen_clear_week_plan(week_start: String) -> Result<(), String> {
+pub fn kitchen_clear_week_plan(week_start: String, member_id: Option<String>) -> Result<(), String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     engine.db().clear_week_plan(&week_start).map_err(|e| e.to_string())
 }
@@ -1592,19 +1601,22 @@ pub fn kitchen_clear_week_plan(week_start: String) -> Result<(), String> {
 // ── Smart Kitchen — Grocery List ──
 
 #[tauri::command]
-pub fn kitchen_generate_grocery(week_start: String) -> Result<Vec<engine::types::GroceryItem>, String> {
+pub fn kitchen_generate_grocery(week_start: String, member_id: Option<String>) -> Result<Vec<engine::types::GroceryItem>, String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     engine.db().generate_grocery_list(&week_start).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn kitchen_get_grocery(week_start: String) -> Result<Vec<engine::types::GroceryItem>, String> {
+pub fn kitchen_get_grocery(week_start: String, member_id: Option<String>) -> Result<Vec<engine::types::GroceryItem>, String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     engine.db().get_grocery_list(&week_start).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn kitchen_toggle_grocery_item(id: String) -> Result<(), String> {
+pub fn kitchen_toggle_grocery_item(id: String, member_id: Option<String>) -> Result<(), String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     engine.db().toggle_grocery_item(&id).map_err(|e| e.to_string())
 }
@@ -1622,7 +1634,8 @@ pub struct AddInventoryRequest {
 }
 
 #[tauri::command]
-pub fn kitchen_add_inventory(req: AddInventoryRequest) -> Result<(), String> {
+pub fn kitchen_add_inventory(req: AddInventoryRequest, member_id: Option<String>) -> Result<(), String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
     engine.db().add_inventory_item(
@@ -1632,7 +1645,8 @@ pub fn kitchen_add_inventory(req: AddInventoryRequest) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn kitchen_get_inventory(location: Option<String>) -> Result<Vec<engine::types::KitchenInventoryItem>, String> {
+pub fn kitchen_get_inventory(location: Option<String>, member_id: Option<String>) -> Result<Vec<engine::types::KitchenInventoryItem>, String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     engine.db().get_inventory(location.as_deref()).map_err(|e| e.to_string())
 }
@@ -1640,7 +1654,8 @@ pub fn kitchen_get_inventory(location: Option<String>) -> Result<Vec<engine::typ
 // ── Kitchen Hearth Commands ──
 
 #[tauri::command]
-pub fn kitchen_home_menu() -> Result<Vec<engine::types::HomeMenuItem>, String> {
+pub fn kitchen_home_menu(member_id: Option<String>) -> Result<Vec<engine::types::HomeMenuItem>, String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     let _inventory = engine.db().get_inventory(None).unwrap_or_default();
     let meals = engine.db().get_meals(None, None, false).unwrap_or_default();
@@ -1659,7 +1674,8 @@ pub fn kitchen_home_menu() -> Result<Vec<engine::types::HomeMenuItem>, String> {
 }
 
 #[tauri::command]
-pub fn kitchen_upload_meal_photo(meal_id: String, photo_url: String, caption: Option<String>) -> Result<(), String> {
+pub fn kitchen_upload_meal_photo(meal_id: String, photo_url: String, caption: Option<String>, member_id: Option<String>) -> Result<(), String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
     engine.db().add_meal_photo(&id, &meal_id, &photo_url, caption.as_deref()).map_err(|e| e.to_string())
@@ -1685,7 +1701,8 @@ pub fn kitchen_plan_week_natural(input: String) -> Result<serde_json::Value, Str
 }
 
 #[tauri::command]
-pub fn kitchen_suggest_meal_natural(constraints: String) -> Result<serde_json::Value, String> {
+pub fn kitchen_suggest_meal_natural(constraints: String, member_id: Option<String>) -> Result<serde_json::Value, String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     let meals = engine.db().get_meals(None, None, false).unwrap_or_default();
     let suggestion = meals.first().map(|m| serde_json::json!({
@@ -1697,13 +1714,15 @@ pub fn kitchen_suggest_meal_natural(constraints: String) -> Result<serde_json::V
 }
 
 #[tauri::command]
-pub fn kitchen_pantry_heatmap() -> Result<Vec<engine::types::PantryHeatItem>, String> {
+pub fn kitchen_pantry_heatmap(member_id: Option<String>) -> Result<Vec<engine::types::PantryHeatItem>, String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     engine.db().get_pantry_heatmap().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn kitchen_use_expiring() -> Result<serde_json::Value, String> {
+pub fn kitchen_use_expiring(member_id: Option<String>) -> Result<serde_json::Value, String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     let expiring = engine.db().get_expiring_items(3).unwrap_or_default();
     Ok(serde_json::json!({
@@ -1716,7 +1735,8 @@ pub fn kitchen_use_expiring() -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-pub fn kitchen_get_cooking_steps(meal_id: String) -> Result<Vec<engine::types::CookingStep>, String> {
+pub fn kitchen_get_cooking_steps(meal_id: String, member_id: Option<String>) -> Result<Vec<engine::types::CookingStep>, String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     let meal = engine.db().get_meal_with_ingredients(&meal_id).map_err(|e| e.to_string())?;
     if let Some(m) = meal {
@@ -1740,7 +1760,8 @@ pub fn kitchen_get_cooking_steps(meal_id: String) -> Result<Vec<engine::types::C
 }
 
 #[tauri::command]
-pub fn kitchen_weekly_digest(week_start: String) -> Result<engine::types::KitchenDigest, String> {
+pub fn kitchen_weekly_digest(week_start: String, member_id: Option<String>) -> Result<engine::types::KitchenDigest, String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     let meals_cooked = engine.db().get_weekly_plan(&week_start)
         .map(|p| p.meal_count)
@@ -1757,7 +1778,8 @@ pub fn kitchen_weekly_digest(week_start: String) -> Result<engine::types::Kitche
 }
 
 #[tauri::command]
-pub fn kitchen_get_nudges() -> Result<Vec<engine::types::KitchenNudge>, String> {
+pub fn kitchen_get_nudges(member_id: Option<String>) -> Result<Vec<engine::types::KitchenNudge>, String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     let mut nudges = Vec::new();
     let expiring = engine.db().get_expiring_items(2).unwrap_or_default();
@@ -1773,13 +1795,15 @@ pub fn kitchen_get_nudges() -> Result<Vec<engine::types::KitchenNudge>, String> 
 }
 
 #[tauri::command]
-pub fn kitchen_smart_grocery(week_start: String) -> Result<Vec<engine::types::GroceryItem>, String> {
+pub fn kitchen_smart_grocery(week_start: String, member_id: Option<String>) -> Result<Vec<engine::types::GroceryItem>, String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     engine.db().generate_grocery_list(&week_start).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn kitchen_get_meal_photos(meal_id: String) -> Result<Vec<engine::types::MealPhoto>, String> {
+pub fn kitchen_get_meal_photos(meal_id: String, member_id: Option<String>) -> Result<Vec<engine::types::MealPhoto>, String> {
+    let _member_id = member_id;
     let engine = engine::get_engine();
     engine.db().get_meal_photos(&meal_id).map_err(|e| e.to_string())
 }
