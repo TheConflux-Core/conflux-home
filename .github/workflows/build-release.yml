@@ -21,12 +21,16 @@ jobs:
 
       - name: Patch version from tag
         run: |
-          VER="${{ github.ref_name }}"
-          VER="${VER#v}"
-          echo "Patching version to $VER"
-          sed -i "s/^version = .*/version = \"$VER\"/" src-tauri/Cargo.toml
-          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/" src-tauri/tauri.conf.json
-          sed -i "0,/\"version\": \"[^\"]*\"/{s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/}" package.json
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_type }}" == "tag" ]]; then
+            VER="${{ github.ref_name }}"
+            VER="${VER#v}"
+            echo "Patching version to $VER"
+            sed -i "s/^version = .*/version = \"$VER\"/" src-tauri/Cargo.toml
+            sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/" src-tauri/tauri.conf.json
+            sed -i "0,/\"version\": \"[^\"]*\"/{s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/}" package.json
+          else
+            echo "Not a tag push — keeping existing version from config files"
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -122,12 +126,16 @@ jobs:
       - name: Patch version from tag
         shell: bash
         run: |
-          VER="${{ github.ref_name }}"
-          VER="${VER#v}"
-          echo "Patching version to $VER"
-          sed -i "s/^version = .*/version = \"$VER\"/" src-tauri/Cargo.toml
-          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/" src-tauri/tauri.conf.json
-          sed -i "0,/\"version\": \"[^\"]*\"/{s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/}" package.json
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_type }}" == "tag" ]]; then
+            VER="${{ github.ref_name }}"
+            VER="${VER#v}"
+            echo "Patching version to $VER"
+            sed -i "s/^version = .*/version = \"$VER\"/" src-tauri/Cargo.toml
+            sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/" src-tauri/tauri.conf.json
+            sed -i "0,/\"version\": \"[^\"]*\"/{s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/}" package.json
+          else
+            echo "Not a tag push — keeping existing version from config files"
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -225,12 +233,16 @@ jobs:
 
       - name: Patch version from tag
         run: |
-          VER="${{ github.ref_name }}"
-          VER="${VER#v}"
-          echo "Patching version to $VER"
-          sed -i '' "s/^version = .*/version = \"$VER\"/" src-tauri/Cargo.toml
-          sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/" src-tauri/tauri.conf.json
-          perl -i -pe 's/"version": "\K[^"]*/$ENV{VER}/ if !$done++' package.json
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_type }}" == "tag" ]]; then
+            VER="${{ github.ref_name }}"
+            VER="${VER#v}"
+            echo "Patching version to $VER"
+            sed -i '' "s/^version = .*/version = \"$VER\"/" src-tauri/Cargo.toml
+            sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/" src-tauri/tauri.conf.json
+            perl -i -pe 's/"version": "\K[^"]*/$ENV{VER}/ if !$done++' package.json
+          else
+            echo "Not a tag push — keeping existing version from config files"
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -396,12 +408,16 @@ jobs:
 
       - name: Patch version from tag
         run: |
-          VER="${{ github.ref_name }}"
-          VER="${VER#v}"
-          echo "Patching version to $VER"
-          sed -i "s/^version = .*/version = \"$VER\"/" src-tauri/Cargo.toml
-          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/" src-tauri/tauri.conf.json
-          sed -i "0,/\"version\": \"[^\"]*\"/{s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/}" package.json
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_type }}" == "tag" ]]; then
+            VER="${{ github.ref_name }}"
+            VER="${VER#v}"
+            echo "Patching version to $VER"
+            sed -i "s/^version = .*/version = \"$VER\"/" src-tauri/Cargo.toml
+            sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/" src-tauri/tauri.conf.json
+            sed -i "0,/\"version\": \"[^\"]*\"/{s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/}" package.json
+          else
+            echo "Not a tag push — keeping existing version from config files"
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
