@@ -922,15 +922,19 @@
    ========================================================================== */
 
 /* ---- KitchenView container ---- */
-.kitchen-view {
+.kitchen-view,
+.kitchen-matrix {
   min-height: 100vh;
   min-height: 100dvh;
   background-color: var(--hearth-bg);
   color: var(--hearth-text);
   font-family: var(--hearth-font);
-  padding: var(--hearth-space-lg);
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+.kitchen-matrix {
+  padding: var(--hearth-space-xl) var(--hearth-space-2xl);
 }
 
 .kitchen-header {
@@ -2044,6 +2048,44 @@
 
 .grocery-total strong {
   color: var(--hearth-300);
+}
+
+/* --------------------------------------------------------------------------
+   Kitchen Matrix — Responsive Adjustments
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 1280px) {
+  .kitchen-matrix {
+    padding: var(--hearth-space-xl) 48px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .kitchen-matrix {
+    padding: var(--hearth-space-xl);
+  }
+}
+
+@media (max-width: 768px) {
+  .kitchen-matrix {
+    padding: var(--hearth-space-lg) var(--hearth-space-md);
+  }
+  
+  .kitchen-matrix .kitchen-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  
+  .kitchen-matrix .kitchen-tabs::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (min-width: 1440px) {
+  .kitchen-matrix {
+    padding: 48px 80px;
+  }
 }
 
 /* --------------------------------------------------------------------------
