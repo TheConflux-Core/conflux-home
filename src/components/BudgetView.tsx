@@ -89,6 +89,60 @@ export default function BudgetView() {
 
   const categories = entryType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
+  // ── Handlers ──
+  const handleAdd = useCallback(async () => {
+    const amt = parseFloat(amount);
+    if (isNaN(amt) || amt <= 0) return;
+    setSubmitting(true);
+    try {
+      await addEntry({
+        entry_type: entryType,
+        category: entryType === 'savings' ? 'savings' : category,
+        amount: amt,
+        description: description.trim() || undefined,
+        recurring,
+        date: getToday(),
+      });
+      setAmount('');
+      setDescription('');
+      setShowAddForm(false);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [amount, category, description, entryType, recurring, addEntry]);
+
+  const handleNLParse = useCallback(async () => {
+    const input = nlInput.trim();
+    if (!input) return;
+    setNlLoading(true);
+    try {
+      const result = await parseNatural(input);
+      setNlParsed(result);
+    } catch (e) {
+      console.error('Failed to parse:', e);
+    } finally {
+      setNlLoading(false);
+    }
+  }, [nlInput, parseNatural]);
+
+  const handleNLConfirm = useCallback(async () => {
+    if (!nlParsed) return;
+    setSubmitting(true);
+    try {
+      await addEntry({
+        entry_type: nlParsed.entry_type,
+        category: nlParsed.category,
+        amount: nlParsed.amount,
+        description: nlParsed.description || undefined,
+        date: getToday(),
+      });
+      setNlInput('');
+      setNlParsed(null);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [nlParsed, addEntry]);
+
   // ── Computed ──
   const income = summary?.total_income ?? 0;
   const expenses = summary?.total_expenses ?? 0;
