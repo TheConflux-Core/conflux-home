@@ -1,5 +1,5 @@
-// Conflux Home — Budget View (Pulse Overhaul)
-// Monthly budget tracker with natural language entry, goals, patterns, and reports.
+// Conflux Home — Budget View (Zero-Based Evolution)
+// Envelope-based budgeting with "Per Pay" logic and AI insights.
 
 import { useState, useCallback, useEffect } from 'react';
 import { useBudget } from '../hooks/useBudget';
@@ -14,7 +14,7 @@ function formatMoney(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
-function formatMonth(month: string): string {
+function formatPeriod(month: string): string {
   const [y, m] = month.split('-').map(Number);
   return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
@@ -23,74 +23,37 @@ function getToday(): string {
   return new Date().toISOString().split('T')[0];
 }
 
-// ── SVG Circular Progress Ring ──
+// ── Envelope Card Component ──
 
-function SavingsRing({ pct, healthStatus = 'good' }: { pct: number; healthStatus?: string }) {
-  const circumference = 2 * Math.PI * 40; // r=40
-  const offset = circumference - (Math.min(pct, 100) / 100) * circumference;
-  return (
-    <div className={`pulse-savings-ring-container`}>
-      <div className={`pulse-savings-ring health-${healthStatus}`}>
-        <svg viewBox="0 0 100 100">
-          <circle className="pulse-savings-ring-track" cx="50" cy="50" r="40" />
-          <circle
-            className="pulse-savings-ring-fill"
-            cx="50" cy="50" r="40"
-            style={{ strokeDashoffset: offset }}
-          />
-        </svg>
-        <div className="pulse-savings-ring-label">
-          <span className="pulse-savings-ring-pct">{pct.toFixed(0)}%</span>
-          <span className="pulse-savings-ring-text">saved</span>
-        </div>
-      </div>
-      <div className="pulse-savings-ring-info">
-        <div className="pulse-savings-ring-title">Savings Rate</div>
-        <div className="pulse-savings-ring-sub">Target: 20%+ for healthy finances</div>
-      </div>
-    </div>
-  );
-}
-
-// ── Goal Card with Progress Ring ──
-
-function GoalCard({ goal, onDelete, onUpdate }: {
-  goal: BudgetGoal;
-  onDelete: (id: string) => void;
-  onUpdate: (id: string, amount: number) => void;
+function EnvelopeCard({ name, icon, color, target, current, prevBal }: {
+  name: string; icon: string; color: string;
+  target: number; current: number; prevBal: number;
 }) {
-  const pct = goal.target_amount > 0 ? Math.min((goal.current_amount / goal.target_amount) * 100, 100) : 0;
-  const circumference = 2 * Math.PI * 25; // r=25
-  const offset = circumference - (pct / 100) * circumference;
-
+  const pct = target > 0 ? Math.min((current / target) * 100, 100) : 0;
   return (
-    <div className="pulse-goal-card">
-      <div className="pulse-goal-progress">
-        <svg viewBox="0 0 60 60">
-          <circle className="pulse-goal-progress-track" cx="30" cy="30" r="25" />
-          <circle
-            className="pulse-goal-progress-fill"
-            cx="30" cy="30" r="25"
-            style={{ strokeDashoffset: offset }}
-          />
-        </svg>
-        <span className="pulse-goal-progress-pct">{pct.toFixed(0)}%</span>
+    <div className="envelope-card" style={{ borderLeftColor: color }}>
+      <div className="envelope-header">
+        <span className="envelope-icon">{icon}</span>
+        <span className="envelope-name">{name}</span>
       </div>
-      <div className="pulse-goal-info">
-        <div className="pulse-goal-name">{goal.name}</div>
-        <div className="pulse-goal-amount">
-          {formatMoney(goal.current_amount)} / {formatMoney(goal.target_amount)}
+      <div className="envelope-stats">
+        <div className="envelope-stat">
+          <span className="stat-label">Goal</span>
+          <span className="stat-value">{formatMoney(target)}</span>
         </div>
-        {goal.deadline && (
-          <div className="pulse-goal-deadline">Due: {goal.deadline}</div>
+        <div className="envelope-stat">
+          <span className="stat-label">Allocated</span>
+          <span className="stat-value">{formatMoney(current)}</span>
+        </div>
+        {prevBal > 0 && (
+          <div className="envelope-stat debt">
+            <span className="stat-label">Prev Bal</span>
+            <span className="stat-value">{formatMoney(prevBal)}</span>
+          </div>
         )}
       </div>
-      <div className="pulse-goal-actions">
-        <button className="btn-secondary" onClick={() => {
-          const amt = prompt('Update current amount:', String(goal.current_amount));
-          if (amt !== null) onUpdate(goal.id, parseFloat(amt));
-        }} title="Update amount">✏️</button>
-        <button className="btn-danger" onClick={() => onDelete(goal.id)} title="Delete goal">🗑️</button>
+      <div className="envelope-progress">
+        <div className="envelope-progress-fill" style={{ width: `${pct}%`, backgroundColor: color }} />
       </div>
     </div>
   );
@@ -100,8 +63,8 @@ function GoalCard({ goal, onDelete, onUpdate }: {
 
 export default function BudgetView() {
   const {
-    entries, summary, month, loading, goals, patterns, report,
-    addEntry, deleteEntry, prevMonth, nextMonth,
+    entries, summary, period, loading, goals, patterns, report,
+    addEntry, deleteEntry, prevPeriod, nextPeriod,
     parseNatural, createGoal, updateGoal, deleteGoal, generateReport,
   } = useBudget();
 
@@ -124,153 +87,15 @@ export default function BudgetView() {
   } | null>(null);
   const [nlLoading, setNlLoading] = useState(false);
 
-  // Goals state
-  const [showGoalForm, setShowGoalForm] = useState(false);
-  const [goalName, setGoalName] = useState('');
-  const [goalTarget, setGoalTarget] = useState('');
-  const [goalDeadline, setGoalDeadline] = useState('');
-  const [goalAlloc, setGoalAlloc] = useState('');
-  const [creatingGoal, setCreatingGoal] = useState(false);
-
-  // Report state
-  const [reportLoading, setReportLoading] = useState(false);
-
-  // Insights state
-  const [insights, setInsights] = useState<Array<{
-    pattern_type: string;
-    message: string;
-    severity: string;
-    category: string | null;
-    amount: number | null;
-  }>>([]);
-
   const categories = entryType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
-  // ── Handlers ──
-
-  const handleAdd = useCallback(async () => {
-    const amt = parseFloat(amount);
-    if (isNaN(amt) || amt <= 0) return;
-    setSubmitting(true);
-    try {
-      await addEntry({
-        entry_type: entryType,
-        category: entryType === 'savings' ? 'savings' : category,
-        amount: amt,
-        description: description.trim() || undefined,
-        recurring,
-        date: getToday(),
-      });
-      setAmount('');
-      setDescription('');
-      setShowAddForm(false);
-    } finally {
-      setSubmitting(false);
-    }
-  }, [amount, category, description, entryType, recurring, addEntry]);
-
-  const handleNLParse = useCallback(async () => {
-    const input = nlInput.trim();
-    if (!input) return;
-    setNlLoading(true);
-    try {
-      const result = await parseNatural(input);
-      setNlParsed(result);
-    } catch (e) {
-      console.error('Failed to parse:', e);
-    } finally {
-      setNlLoading(false);
-    }
-  }, [nlInput, parseNatural]);
-
-  const handleNLConfirm = useCallback(async () => {
-    if (!nlParsed) return;
-    setSubmitting(true);
-    try {
-      await addEntry({
-        entry_type: nlParsed.entry_type,
-        category: nlParsed.category,
-        amount: nlParsed.amount,
-        description: nlParsed.description || undefined,
-        date: getToday(),
-      });
-      setNlInput('');
-      setNlParsed(null);
-    } finally {
-      setSubmitting(false);
-    }
-  }, [nlParsed, addEntry]);
-
-  const handleCreateGoal = useCallback(async () => {
-    if (!goalName.trim() || !goalTarget) return;
-    setCreatingGoal(true);
-    try {
-      await createGoal(
-        goalName.trim(),
-        parseFloat(goalTarget),
-        goalDeadline || undefined,
-        goalAlloc ? parseFloat(goalAlloc) : undefined,
-      );
-      setGoalName('');
-      setGoalTarget('');
-      setGoalDeadline('');
-      setGoalAlloc('');
-      setShowGoalForm(false);
-    } finally {
-      setCreatingGoal(false);
-    }
-  }, [goalName, goalTarget, goalDeadline, goalAlloc, createGoal]);
-
-  const handleGenerateReport = useCallback(async () => {
-    setReportLoading(true);
-    try {
-      await generateReport();
-    } finally {
-      setReportLoading(false);
-    }
-  }, [generateReport]);
-
   // ── Computed ──
-
   const income = summary?.total_income ?? 0;
   const expenses = summary?.total_expenses ?? 0;
   const savings = summary?.total_savings ?? 0;
   const net = income - expenses - savings;
-  const spentPct = income > 0 ? Math.min((expenses / income) * 100, 100) : 0;
-  const savingsRate = income > 0 ? (savings / income) * 100 : 0;
 
-  const healthStatus = spentPct > 90 ? 'danger' : spentPct > 70 ? 'caution' : 'good';
-
-  // Generate proactive insights from patterns
-  useEffect(() => {
-    if (patterns.length > 0 && insights.length === 0) {
-      // Convert patterns to insight cards
-      const generated = patterns.slice(0, 3).map((p, i) => ({
-        pattern_type: p.pattern_type,
-        message: `${p.description} — averaging $${p.avg_amount.toFixed(2)} per ${p.frequency}.`,
-        severity: i === 0 ? 'info' as const : (p.avg_amount > 200 ? 'warning' as const : 'info' as const),
-        category: p.category,
-        amount: p.avg_amount,
-      }));
-      setInsights(generated);
-    }
-  }, [patterns]);
-
-  if (loading) {
-    return (
-      <div className="budget-view">
-        <div className="pulse-loading">
-          <div className="pulse-skeleton" style={{ height: '48px' }} />
-          <div className="budget-summary">
-            {[1, 2, 3, 4].map(i => <div key={i} className="pulse-skeleton" />)}
-          </div>
-          <div className="pulse-skeleton" />
-          <div className="pulse-skeleton pulse-skeleton-sm" />
-          <div className="pulse-skeleton" />
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <div className="budget-view"><div className="pulse-loading"><div className="pulse-skeleton" style={{ height: 200 }} /></div></div>;
 
   return (
     <div className="budget-view">
@@ -279,12 +104,12 @@ export default function BudgetView() {
       {/* ── Header ── */}
       <div className="budget-header">
         <div className="budget-nav">
-          <button className="budget-nav-btn" onClick={prevMonth}>←</button>
-          <h2 className="budget-month">{formatMonth(month)}</h2>
-          <button className="budget-nav-btn" onClick={nextMonth}>→</button>
+          <button className="budget-nav-btn" onClick={prevPeriod}>←</button>
+          <h2 className="budget-month">{formatPeriod(period)}</h2>
+          <button className="budget-nav-btn" onClick={nextPeriod}>→</button>
         </div>
         <button className="btn-primary" onClick={() => setShowAddForm(!showAddForm)}>
-          {showAddForm ? 'Cancel' : '+ Add Entry'}
+          {showAddForm ? 'Cancel' : '+ Allocate'}
         </button>
       </div>
 
