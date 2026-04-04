@@ -89,6 +89,136 @@
   overflow-y: auto;
 }
 
+/* ── Zero-Based Status ── */
+
+.pulse-zero-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px;
+  background: var(--pulse-bg-card);
+  border-radius: var(--pulse-radius);
+  border: 1px solid rgba(16, 185, 129, 0.1);
+  backdrop-filter: blur(16px);
+  margin-bottom: 8px;
+  animation: slideUp 0.4s ease both;
+}
+
+.pulse-zero-indicator {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pulse-zero-indicator small {
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.7;
+  margin-top: 4px;
+}
+
+.pulse-zero-indicator.positive { color: var(--pulse-emerald-400); }
+.pulse-zero-indicator.negative { color: var(--pulse-red); }
+.pulse-zero-indicator.zeroed { color: var(--pulse-gold); text-shadow: 0 0 20px rgba(251, 191, 36, 0.4); }
+
+.pulse-zero-text {
+  font-size: 0.95rem;
+  color: var(--pulse-text-secondary);
+  text-align: center;
+  margin: 0;
+}
+
+/* ── Envelope Grid ── */
+
+.pulse-envelope-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--pulse-gap);
+  margin-bottom: 20px;
+}
+
+.envelope-card {
+  background: var(--pulse-bg-card);
+  border: 1px solid rgba(16, 185, 129, 0.1);
+  border-left-width: 4px;
+  border-radius: var(--pulse-radius);
+  padding: 16px;
+  backdrop-filter: blur(16px);
+  transition: all 0.25s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: slideUp 0.4s ease both;
+}
+
+.envelope-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(16, 185, 129, 0.2);
+  box-shadow: var(--pulse-shadow-glow);
+}
+
+.envelope-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.envelope-icon {
+  font-size: 1.4rem;
+}
+
+.envelope-name {
+  font-weight: 600;
+  color: var(--pulse-text-bright);
+  font-size: 1rem;
+}
+
+.envelope-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.envelope-stat {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+}
+
+.stat-label {
+  color: var(--pulse-text-muted);
+}
+
+.stat-value {
+  font-weight: 600;
+  color: var(--pulse-text-primary);
+}
+
+.envelope-stat.debt .stat-value {
+  color: var(--pulse-orange);
+}
+
+.envelope-progress {
+  height: 6px;
+  background: var(--pulse-bg-raised);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: auto;
+}
+
+.envelope-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 /* ── Header ── */
 
 .budget-header {
