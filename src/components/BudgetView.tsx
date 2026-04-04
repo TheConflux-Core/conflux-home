@@ -95,6 +95,9 @@ export default function BudgetView() {
   const savings = summary?.total_savings ?? 0;
   const net = income - expenses - savings;
 
+  // Zero-Based "Unallocated" - The goal is to get this to 0
+  const unallocated = income - expenses - savings;
+
   if (loading) return <div className="budget-view"><div className="pulse-loading"><div className="pulse-skeleton" style={{ height: 200 }} /></div></div>;
 
   return (
@@ -113,13 +116,45 @@ export default function BudgetView() {
         </button>
       </div>
 
+      {/* ── Zero-Based Status ── */}
+      <div className="pulse-zero-status">
+        <div className={`pulse-zero-indicator ${unallocated < 0 ? 'negative' : unallocated > 0 ? 'positive' : 'zeroed'}`}>
+          <span>{unallocated >= 0 ? '+' : ''}{formatMoney(unallocated)}</span>
+          <small>Unallocated</small>
+        </div>
+        <p className="pulse-zero-text">
+          {unallocated > 0 ? "You have money left to give a job." : unallocated < 0 ? "You've allocated more than you have!" : "Every dollar has a job! 🎉"}
+        </p>
+      </div>
+
+      {/* ── Envelope Grid ── */}
+      <div className="pulse-envelope-grid">
+        {EXPENSE_CATEGORIES.map(cat => {
+          // Calculate totals for this category
+          const catEntries = entries.filter(e => e.category === cat.id);
+          const current = catEntries.filter(e => e.entry_type === 'expense').reduce((sum, e) => sum + e.amount, 0);
+          const prevBal = 0; // Placeholder - will come from a future "rollover" feature
+          return (
+            <EnvelopeCard 
+              key={cat.id}
+              name={cat.label}
+              icon={cat.id === 'groceries' ? '🛒' : cat.id === 'rent' ? '🏠' : '💳'}
+              color={cat.color}
+              target={0} // Placeholder for "Per Pay" goal
+              current={current}
+              prevBal={prevBal}
+            />
+          );
+        })}
+      </div>
+
       {/* ── Natural Language Input ── */}
       <div className="pulse-nl-bar">
         <div className="input-with-mic">
           <input
             className="pulse-nl-input"
             type="text"
-            placeholder='Spent $45 on groceries...'
+            placeholder='e.g. "Put $100 in Savings" or "Rent is $820"'
             value={nlInput}
             onChange={e => { setNlInput(e.target.value); setNlParsed(null); }}
             onKeyDown={e => { if (e.key === 'Enter') handleNLParse(); }}
@@ -150,63 +185,13 @@ export default function BudgetView() {
             <span className="pulse-nl-result-amount">{formatMoney(nlParsed.amount)}</span>
             <div className="pulse-nl-result-actions">
               <button className="btn-primary" onClick={handleNLConfirm} disabled={submitting}>
-                {submitting ? '...' : '✓ Add'}
+                {submitting ? '...' : '✓ Allocate'}
               </button>
               <button className="btn-secondary" onClick={() => setNlParsed(null)}>✕</button>
             </div>
           </div>
         )}
       </div>
-
-      {/* ── Bento Hero Grid ── */}
-      <div className="pulse-bento-hero">
-        <div className="pulse-bento-ring">
-          <SavingsRing pct={savingsRate} healthStatus={healthStatus} />
-        </div>
-        <div className="pulse-bento-card income">
-          <div className="budget-card-label">Income</div>
-          <div className="budget-card-value">{formatMoney(income)}</div>
-        </div>
-        <div className="pulse-bento-card expenses">
-          <div className="budget-card-label">Expenses</div>
-          <div className="budget-card-value">{formatMoney(expenses)}</div>
-          {income > 0 && <div className="budget-card-pct">{spentPct.toFixed(0)}% of income</div>}
-        </div>
-        <div className="pulse-bento-card savings">
-          <div className="budget-card-label">Savings</div>
-          <div className="budget-card-value">{formatMoney(savings)}</div>
-        </div>
-        <div className={`pulse-bento-card net ${net >= 0 ? 'positive' : 'negative'}`}>
-          <div className="budget-card-label">Net</div>
-          <div className="budget-card-value">{net >= 0 ? '+' : ''}{formatMoney(net)}</div>
-        </div>
-      </div>
-
-      {/* ── Proactive AI Insights ── */}
-      {insights.length > 0 && (
-        <div className="pulse-insights-section">
-          {insights.map((insight, i) => (
-            <InsightCard key={i} insight={insight} index={i} />
-          ))}
-        </div>
-      )}
-
-      {/* ── Progress Bar ── */}
-      {income > 0 && (
-        <div className="budget-progress">
-          <div className="budget-progress-bar">
-            <div className="budget-progress-expenses" style={{ width: `${spentPct}%` }} />
-            <div
-              className="budget-progress-savings"
-              style={{ width: `${Math.min((savings / income) * 100, 100 - spentPct)}%`, left: `${spentPct}%` }}
-            />
-          </div>
-          <div className="budget-progress-labels">
-            <span>{spentPct.toFixed(0)}% spent</span>
-            <span>{income > 0 ? ((income - expenses - savings) / income * 100).toFixed(0) : 0}% remaining</span>
-          </div>
-        </div>
-      )}
 
       {/* ── Add Entry Form ── */}
       {showAddForm && (
@@ -256,188 +241,17 @@ export default function BudgetView() {
               Monthly recurring
             </label>
             <button className="btn-primary" onClick={handleAdd} disabled={submitting || !amount}>
-              {submitting ? 'Adding...' : 'Add Entry'}
+              {submitting ? 'Allocating...' : 'Confirm'}
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Goals Section ── */}
-      <div className="pulse-goals-section">
-        <div className="pulse-goals-header">
-          <h3 className="section-title">🎯 Budget Goals</h3>
-          <button className="btn-secondary" onClick={() => setShowGoalForm(!showGoalForm)}>
-            {showGoalForm ? 'Cancel' : '+ Add Goal'}
-          </button>
-        </div>
-
-        {showGoalForm && (
-          <div className="pulse-goal-add-form">
-            <div className="pulse-goal-add-row">
-              <input
-                type="text"
-                placeholder="Goal name (e.g. Emergency Fund)"
-                value={goalName}
-                onChange={e => setGoalName(e.target.value)}
-              />
-              <input
-                type="number"
-                placeholder="Target amount"
-                value={goalTarget}
-                onChange={e => setGoalTarget(e.target.value)}
-                min="0"
-                step="0.01"
-              />
-            </div>
-            <div className="pulse-goal-add-row">
-              <input
-                type="date"
-                value={goalDeadline}
-                onChange={e => setGoalDeadline(e.target.value)}
-                placeholder="Deadline"
-              />
-              <input
-                type="number"
-                placeholder="Monthly allocation (optional)"
-                value={goalAlloc}
-                onChange={e => setGoalAlloc(e.target.value)}
-                min="0"
-                step="0.01"
-              />
-            </div>
-            <button className="btn-primary" onClick={handleCreateGoal} disabled={creatingGoal || !goalName.trim() || !goalTarget}>
-              {creatingGoal ? 'Creating...' : 'Create Goal'}
-            </button>
-          </div>
-        )}
-
-        {goals.length === 0 && !showGoalForm ? (
-          <div className="pulse-goals-empty">No goals yet. Create one to start tracking your savings targets!</div>
-        ) : (
-          <div className="pulse-goals-grid">
-            {goals.map(goal => (
-              <GoalCard
-                key={goal.id}
-                goal={goal}
-                onDelete={deleteGoal}
-                onUpdate={updateGoal}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ── Patterns Section ── */}
-      <div className="pulse-patterns-section">
-        <h3 className="section-title">🔍 Spending Patterns</h3>
-        {patterns.length === 0 ? (
-          <div className="pulse-patterns-empty">No patterns detected yet. More data needed.</div>
-        ) : (
-          <div className="pulse-patterns-grid">
-            {patterns.map((p, i) => (
-              <div key={i} className="pulse-pattern-card">
-                <div className="pulse-pattern-header">
-                  <span className="pulse-pattern-type">{p.pattern_type}</span>
-                  <span className="pulse-pattern-category">{p.category}</span>
-                </div>
-                <div className="pulse-pattern-desc">{p.description}</div>
-                <div className="pulse-pattern-meta">
-                  <span>Avg: {formatMoney(p.avg_amount)}</span>
-                  <span>{p.frequency}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ── Monthly Report ── */}
-      <div className="pulse-report-section">
-        <div className="pulse-report-trigger">
-          <h3 className="section-title">📈 Monthly Report</h3>
-          <button className="btn-secondary" onClick={handleGenerateReport} disabled={reportLoading}>
-            {reportLoading ? <><span className="pulse-spinner" /> Generating...</> : '📊 Generate Report'}
-          </button>
-        </div>
-
-        {report && (
-          <div className="pulse-report-card">
-            <div className="pulse-report-header">
-              <span className="pulse-report-title">Monthly Report</span>
-              <span className="pulse-report-month">{formatMonth(report.month)}</span>
-            </div>
-
-            <div className="pulse-report-grid">
-              <div className="pulse-report-stat">
-                <div className="pulse-report-stat-label">Income</div>
-                <div className="pulse-report-stat-value">{formatMoney(report.total_income)}</div>
-              </div>
-              <div className="pulse-report-stat">
-                <div className="pulse-report-stat-label">Expenses</div>
-                <div className="pulse-report-stat-value">{formatMoney(report.total_expenses)}</div>
-              </div>
-              <div className="pulse-report-stat">
-                <div className="pulse-report-stat-label">Net</div>
-                <div className="pulse-report-stat-value">{formatMoney(report.net)}</div>
-              </div>
-            </div>
-
-            <div className={`pulse-savings-ring-container`}>
-              <SavingsRing pct={report.savings_rate * 100} />
-            </div>
-
-            {report.comparison_to_last_month !== null && (
-              <div className={`pulse-report-comparison ${report.comparison_to_last_month >= 0 ? 'positive' : 'negative'}`}>
-                {report.comparison_to_last_month >= 0 ? '↑' : '↓'}{' '}
-                {Math.abs(report.comparison_to_last_month).toFixed(1)}% vs last month
-              </div>
-            )}
-
-            {report.top_categories.length > 0 && (
-              <div>
-                <div className="section-title" style={{ marginBottom: '8px' }}>Top Spending</div>
-                <div className="pulse-report-top-cats">
-                  {report.top_categories.map((cat, i) => (
-                    <div key={i} className="pulse-report-cat-row">
-                      <span className="pulse-report-cat-name">{cat.category}</span>
-                      <span className="pulse-report-cat-amount">{formatMoney(cat.total)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── Category Breakdown ── */}
-      {summary && summary.categories.length > 0 && (
-        <div className="budget-categories">
-          <h3 className="section-title">📊 Spending by Category</h3>
-          <div className="cat-bars">
-            {summary.categories.map(cat => {
-              const catConfig = EXPENSE_CATEGORIES.find(c => c.id === cat.category);
-              const pct = expenses > 0 ? (cat.total / expenses) * 100 : 0;
-              return (
-                <div key={cat.category} className="cat-bar-row">
-                  <span className="cat-bar-label">{catConfig?.label ?? cat.category}</span>
-                  <div className="cat-bar-track">
-                    <div className="cat-bar-fill" style={{ width: `${Math.max(pct, 3)}%`, background: catConfig?.color ?? '#6b7280' }} />
-                  </div>
-                  <span className="cat-bar-amount">{formatMoney(cat.total)}</span>
-                  <span className="cat-bar-pct">{pct.toFixed(0)}%</span>
-                </div>
-              );
-            })}
           </div>
         </div>
       )}
 
       {/* ── Recent Entries ── */}
       <div className="budget-entries">
-        <h3 className="section-title">📋 Recent Entries</h3>
+        <h3 className="section-title">📋 Activity</h3>
         {entries.length === 0 ? (
-          <div className="budget-empty">No entries this month. Add your first one above!</div>
+          <div className="budget-empty">No entries yet. Start by adding your income!</div>
         ) : (
           <div className="entry-list">
             {entries.slice(0, 20).map(entry => {
