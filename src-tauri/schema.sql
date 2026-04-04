@@ -744,6 +744,7 @@ UPDATE agents SET soul = 'You are Catalyst — the everyday assistant. You are w
 
 CREATE TABLE IF NOT EXISTS family_members (
     id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL,
     name            TEXT NOT NULL,
     age             INTEGER,
     age_group       TEXT NOT NULL,  -- 'toddler' | 'preschool' | 'kid' | 'teen' | 'young_adult' | 'adult'
@@ -758,6 +759,7 @@ CREATE TABLE IF NOT EXISTS family_members (
 
 CREATE INDEX IF NOT EXISTS idx_family_age_group ON family_members(age_group);
 CREATE INDEX IF NOT EXISTS idx_family_parent ON family_members(parent_id);
+CREATE INDEX IF NOT EXISTS idx_family_user ON family_members(user_id);
 
 -- ============================================================
 -- AGENT TEMPLATES — Pre-built agent configurations per age group

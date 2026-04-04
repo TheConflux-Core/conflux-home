@@ -13,6 +13,21 @@ use super::tools;
 
 const MAX_TOOL_ITERATIONS: usize = 3;
 
+/// Helper: Extract user_id from session record, or fall back to get_supabase_user_id.
+fn get_session_user_id(db: &EngineDb, session_id: &str) -> String {
+    match db.get_session(session_id) {
+        Ok(Some(session)) if !session.user_id.is_empty() => session.user_id,
+        _ => {
+            // Fallback: try to get from Supabase config
+            db.get_config("supabase_user_id")
+                .ok()
+                .flatten()
+                .filter(|id| !id.is_empty())
+                .unwrap_or_else(|| "default".to_string())
+        }
+    }
+}
+
 /// Process a chat turn for an agent: take user input, think, potentially call tools, respond.
 pub async fn process_turn(
     db: &EngineDb,
@@ -137,8 +152,9 @@ pub async fn process_turn(
             let args: Value = serde_json::from_str(&tool_call.arguments)
                 .unwrap_or_else(|_| serde_json::json!({}));
 
-            // Execute the tool
-            let tool_result = tools::execute_tool(&tool_call.name, &args).await?;
+            // Execute the tool with user context
+            let user_id = get_session_user_id(db, session_id);
+            let tool_result = tools::execute_tool(&tool_call.name, &args, &user_id).await?;
 
             let result_content = if tool_result.success {
                 tool_result.output.clone()
@@ -370,7 +386,9 @@ pub async fn process_turn_stream(
             let args: Value = serde_json::from_str(&tool_call.arguments)
                 .unwrap_or_else(|_| serde_json::json!({}));
 
-            let tool_result = tools::execute_tool(&tool_call.name, &args).await?;
+            // Execute the tool with user context
+            let user_id = get_session_user_id(db, session_id);
+            let tool_result = tools::execute_tool(&tool_call.name, &args, &user_id).await?;
 
             let result_content = if tool_result.success {
                 tool_result.output.clone()

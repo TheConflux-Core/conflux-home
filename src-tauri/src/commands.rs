@@ -289,13 +289,27 @@ pub fn engine_create_session(agent_id: String) -> Result<serde_json::Value, Stri
 #[tauri::command]
 pub fn engine_get_sessions(limit: Option<i64>) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
-    let sessions = engine.get_sessions(limit.unwrap_or(20)).map_err(|e| e.to_string())?;
+    let user_id = get_supabase_user_id();
+    let sessions = engine.get_sessions(&user_id, limit.unwrap_or(20)).map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(sessions).map_err(|e| e.to_string())?)
 }
 
 #[tauri::command]
 pub fn engine_get_messages(session_id: String, limit: Option<i64>) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
+    let user_id = get_supabase_user_id();
+    
+    // Verify the session belongs to the current user
+    let session = engine.get_session(&session_id).map_err(|e| e.to_string())?;
+    match session {
+        Some(s) => {
+            if s.user_id != user_id {
+                return Err("Access denied: session does not belong to user".to_string());
+            }
+        }
+        None => return Err("Session not found".to_string()),
+    }
+    
     let messages = engine.get_messages(&session_id, limit.unwrap_or(50)).map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(messages).map_err(|e| e.to_string())?)
 }
@@ -1014,15 +1028,17 @@ pub struct CreateFamilyMemberRequest {
 #[tauri::command]
 pub fn family_list() -> Result<Vec<engine::types::FamilyMember>, String> {
     let engine = engine::get_engine();
-    engine.db().get_family_members().map_err(|e| e.to_string())
+    let user_id = get_supabase_user_id();
+    engine.db().get_family_members(&user_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn family_create(req: CreateFamilyMemberRequest) -> Result<engine::types::FamilyMember, String> {
     let engine = engine::get_engine();
+    let user_id = get_supabase_user_id();
     let id = uuid::Uuid::new_v4().to_string();
     engine.db().create_family_member(
-        &id, &req.name, req.age, &req.age_group,
+        &id, &user_id, &req.name, req.age, &req.age_group,
         req.avatar.as_deref(), req.color.as_deref(),
         req.default_agent_id.as_deref(), req.parent_id.as_deref(),
     ).map_err(|e| e.to_string())
@@ -1031,7 +1047,8 @@ pub fn family_create(req: CreateFamilyMemberRequest) -> Result<engine::types::Fa
 #[tauri::command]
 pub fn family_delete(id: String) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.db().delete_family_member(&id).map_err(|e| e.to_string())
+    let user_id = get_supabase_user_id();
+    engine.db().delete_family_member(&id, &user_id).map_err(|e| e.to_string())
 }
 
 // ── Agent Templates ──
@@ -4644,7 +4661,8 @@ pub async fn studio_generate_image(generation_id: String, prompt: String, aspect
 
                 // Update usage tracking
                 let month = chrono::Utc::now().format("%Y-%m").to_string();
-                let _ = engine::db::studio_update_usage("default", &month, "image", 3);
+                let user_id = get_supabase_user_id();
+                let _ = engine::db::studio_update_usage(&user_id, &month, "image", 3);
 
                 return Ok(serde_json::json!({
                     "status": "complete",
@@ -4746,7 +4764,8 @@ pub async fn studio_generate_voice(generation_id: String, text: String, voice_id
 
     // Update usage tracking
     let month = chrono::Utc::now().format("%Y-%m").to_string();
-    let _ = engine::db::studio_update_usage("default", &month, "voice", 2);
+    let user_id = get_supabase_user_id();
+    let _ = engine::db::studio_update_usage(&user_id, &month, "voice", 2);
 
     Ok(serde_json::json!({
         "status": "complete",
