@@ -1,338 +1,281 @@
-// Conflux Home — Budget View (Zero-Based Evolution)
-// Envelope-based budgeting with "Per Pay" logic and AI insights.
+// Conflux Home — Budget View (The Matrix v2 - Clean)
+// Zero-based budgeting with a "Spreadsheet-on-Steroids" UI.
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useBudget } from '../hooks/useBudget';
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../types';
-import type { BudgetGoal } from '../types';
-import InsightCard from './InsightCard';
+import { useBudgetEngine } from '../hooks/useBudgetEngine';
 import PulseParticles from './PulseParticles';
+import BudgetConfigModal from './BudgetConfigModal';
+import QuickLogModal from './QuickLogModal';
+import { parseBudgetCommand } from '../hooks/useBudgetAI';
 import '../styles/budget-pulse.css';
-import { MicButton } from './voice';
 
 function formatMoney(n: number): string {
-  return `$${n.toFixed(2)}`;
+  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
-
-function formatPeriod(month: string): string {
-  const [y, m] = month.split('-').map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-}
-
-function getToday(): string {
-  return new Date().toISOString().split('T')[0];
-}
-
-// ── Envelope Card Component ──
-
-function EnvelopeCard({ name, icon, color, target, current, prevBal }: {
-  name: string; icon: string; color: string;
-  target: number; current: number; prevBal: number;
-}) {
-  const pct = target > 0 ? Math.min((current / target) * 100, 100) : 0;
-  return (
-    <div className="envelope-card" style={{ borderLeftColor: color }}>
-      <div className="envelope-header">
-        <span className="envelope-icon">{icon}</span>
-        <span className="envelope-name">{name}</span>
-      </div>
-      <div className="envelope-stats">
-        <div className="envelope-stat">
-          <span className="stat-label">Goal</span>
-          <span className="stat-value">{formatMoney(target)}</span>
-        </div>
-        <div className="envelope-stat">
-          <span className="stat-label">Allocated</span>
-          <span className="stat-value">{formatMoney(current)}</span>
-        </div>
-        {prevBal > 0 && (
-          <div className="envelope-stat debt">
-            <span className="stat-label">Prev Bal</span>
-            <span className="stat-value">{formatMoney(prevBal)}</span>
-          </div>
-        )}
-      </div>
-      <div className="envelope-progress">
-        <div className="envelope-progress-fill" style={{ width: `${pct}%`, backgroundColor: color }} />
-      </div>
-    </div>
-  );
-}
-
-// ── Main Component ──
 
 export default function BudgetView() {
-  const {
-    entries, summary, period, loading, goals, patterns, report,
-    addEntry, deleteEntry, prevPeriod, nextPeriod,
-    parseNatural, createGoal, updateGoal, deleteGoal, generateReport,
-  } = useBudget();
+  const { period, prevPeriod, nextPeriod } = useBudget();
+  const { 
+    settings, 
+    buckets, 
+    allocations, 
+    transactions,
+    updateSettings, 
+    logTransaction,
+    createBucket,
+    refreshData,
+    loading 
+  } = useBudgetEngine();
+  
+  const [activeBucket, setActiveBucket] = useState<string | null>(null);
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [isLogOpen, setIsLogOpen] = useState(false);
+  const [nlpInput, setNlpInput] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success'>('idle');
 
-  // Form state
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [entryType, setEntryType] = useState<'income' | 'expense' | 'savings'>('expense');
-  const [category, setCategory] = useState('groceries');
-  const [amount, setAmount] = useState('');
-  const [description, setDescription] = useState('');
-  const [recurring, setRecurring] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  // Derived State for the Matrix
+  const totalIncome = settings?.income_amount || 0;
+  const totalObligations = buckets.reduce((sum, b) => sum + (b.monthly_goal || 0), 0);
+  const surplus = totalIncome - totalObligations;
 
-  // Natural language state
-  const [nlInput, setNlInput] = useState('');
-  const [nlParsed, setNlParsed] = useState<{
-    entry_type: string;
-    category: string;
-    amount: number;
-    description: string;
-  } | null>(null);
-  const [nlLoading, setNlLoading] = useState(false);
+  // Helper to get allocation for a specific bucket and "period"
+  const getAllocation = (bucketId: string, p: number) => {
+    const bucket = buckets.find(b => b.id === bucketId);
+    if (!bucket) return 0;
+    
+    const goal = bucket.monthly_goal || 0;
+    const freq = settings?.pay_frequency;
 
-  const categories = entryType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-
-  // ── Handlers ──
-  const handleAdd = useCallback(async () => {
-    const amt = parseFloat(amount);
-    if (isNaN(amt) || amt <= 0) return;
-    setSubmitting(true);
-    try {
-      await addEntry({
-        entry_type: entryType,
-        category: entryType === 'savings' ? 'savings' : category,
-        amount: amt,
-        description: description.trim() || undefined,
-        recurring,
-        date: getToday(),
-      });
-      setAmount('');
-      setDescription('');
-      setShowAddForm(false);
-    } finally {
-      setSubmitting(false);
+    if (freq === 'bi-weekly') {
+      // 26 pays a year. Each pay is (Monthly * 12) / 26
+      return (goal * 12) / 26;
     }
-  }, [amount, category, description, entryType, recurring, addEntry]);
-
-  const handleNLParse = useCallback(async () => {
-    const input = nlInput.trim();
-    if (!input) return;
-    setNlLoading(true);
-    try {
-      const result = await parseNatural(input);
-      setNlParsed(result);
-    } catch (e) {
-      console.error('Failed to parse:', e);
-    } finally {
-      setNlLoading(false);
+    if (freq === 'weekly') {
+      // 52 pays a year.
+      return (goal * 12) / 52;
     }
-  }, [nlInput, parseNatural]);
-
-  const handleNLConfirm = useCallback(async () => {
-    if (!nlParsed) return;
-    setSubmitting(true);
-    try {
-      await addEntry({
-        entry_type: nlParsed.entry_type,
-        category: nlParsed.category,
-        amount: nlParsed.amount,
-        description: nlParsed.description || undefined,
-        date: getToday(),
-      });
-      setNlInput('');
-      setNlParsed(null);
-    } finally {
-      setSubmitting(false);
+    if (freq === 'monthly') {
+      return p === 1 ? goal : 0;
     }
-  }, [nlParsed, addEntry]);
+    
+    // Default: Semi-monthly (24 pays)
+    return goal / 2;
+  };
 
-  // ── Computed ──
-  const income = summary?.total_income ?? 0;
-  const expenses = summary?.total_expenses ?? 0;
-  const savings = summary?.total_savings ?? 0;
-  const net = income - expenses - savings;
+  // Helper to get actual paid amount
+  const getPaid = (bucketId: string) => {
+    return transactions
+      .filter(t => t.bucket_id === bucketId && t.status === 'settled')
+      .reduce((sum, t) => sum + t.amount, 0);
+  };
 
-  // Zero-Based "Unallocated" - The goal is to get this to 0
-  const unallocated = income - expenses - savings;
+  const [editingCell, setEditingCell] = useState<{ id: string; period: 'p1' | 'p2' } | null>(null);
+  const [editValue, setEditValue] = useState('');
 
-  if (loading) return <div className="budget-view"><div className="pulse-loading"><div className="pulse-skeleton" style={{ height: 200 }} /></div></div>;
+  const handleCellEdit = async (bucketId: string, period: 'p1' | 'p2', val: number) => {
+    // Placeholder for updateAllocation call
+    setEditingCell(null);
+  };
 
   return (
-    <div className="budget-view">
+    <div className="budget-matrix-v2">
+      <div className="matrix-bg-effects" />
       <PulseParticles />
 
-      {/* ── Header ── */}
-      <div className="budget-header">
-        <div className="budget-nav">
-          <button className="budget-nav-btn" onClick={prevPeriod}>←</button>
-          <h2 className="budget-month">{formatPeriod(period)}</h2>
-          <button className="budget-nav-btn" onClick={nextPeriod}>→</button>
+      {/* ── The Pulse: Financial Cockpit ── */}
+      <div className="budget-cockpit">
+        <div className="cockpit-gauge">
+          <div className="gauge-label">Monthly Income</div>
+          <div className="gauge-value income">{formatMoney(totalIncome)}</div>
+          <div className="gauge-pulse"></div>
         </div>
-        <button className="btn-primary" onClick={() => setShowAddForm(!showAddForm)}>
-          {showAddForm ? 'Cancel' : '+ Allocate'}
-        </button>
+        <div className="cockpit-gauge">
+          <div className="gauge-label">Total Obligations</div>
+          <div className="gauge-value">{formatMoney(totalObligations)}</div>
+        </div>
+        <div className="cockpit-gauge">
+          <div className="gauge-label">Projected Surplus</div>
+          <div className="gauge-value surplus">{formatMoney(surplus)}</div>
+          <div className="gauge-indicator">● ONLINE</div>
+        </div>
       </div>
 
-      {/* ── Zero-Based Status ── */}
-      <div className="pulse-zero-status">
-        <div className={`pulse-zero-indicator ${unallocated < 0 ? 'negative' : unallocated > 0 ? 'positive' : 'zeroed'}`}>
-          <span>{unallocated >= 0 ? '+' : ''}{formatMoney(unallocated)}</span>
-          <small>Unallocated</small>
+      {/* ── Matrix Header ── */}
+      <div className="matrix-header">
+        <div className="matrix-nav">
+          <button className="matrix-btn" onClick={prevPeriod}>←</button>
+          <h2 className="matrix-title">{period} // ALLOCATION GRID</h2>
+          <button className="matrix-btn" onClick={nextPeriod}>→</button>
         </div>
-        <p className="pulse-zero-text">
-          {unallocated > 0 ? "You have money left to give a job." : unallocated < 0 ? "You've allocated more than you have!" : "Every dollar has a job! 🎉"}
-        </p>
+        <div className="matrix-controls">
+          <button className="btn-primary" onClick={() => setIsLogOpen(true)}>⚡ LOG PAYMENT</button>
+          <button className="btn-secondary" onClick={() => setIsConfigOpen(true)}>⚙️ CONFIG</button>
+        </div>
       </div>
 
-      {/* ── Envelope Grid ── */}
-      <div className="pulse-envelope-grid">
-        {EXPENSE_CATEGORIES.map(cat => {
-          // Calculate totals for this category
-          const catEntries = entries.filter(e => e.category === cat.id);
-          const current = catEntries.filter(e => e.entry_type === 'expense').reduce((sum, e) => sum + e.amount, 0);
-          const prevBal = 0; // Placeholder - will come from a future "rollover" feature
-          return (
-            <EnvelopeCard 
-              key={cat.id}
-              name={cat.label}
-              icon={cat.id === 'groceries' ? '🛒' : cat.id === 'rent' ? '🏠' : '💳'}
-              color={cat.color}
-              target={0} // Placeholder for "Per Pay" goal
-              current={current}
-              prevBal={prevBal}
-            />
-          );
-        })}
-      </div>
-
-      {/* ── Natural Language Input ── */}
-      <div className="pulse-nl-bar">
-        <div className="input-with-mic">
-          <input
-            className="pulse-nl-input"
-            type="text"
-            placeholder='e.g. "Put $100 in Savings" or "Rent is $820"'
-            value={nlInput}
-            onChange={e => { setNlInput(e.target.value); setNlParsed(null); }}
-            onKeyDown={e => { if (e.key === 'Enter') handleNLParse(); }}
-            disabled={nlLoading}
-          />
-          <MicButton
-            onTranscription={(text) => { setNlInput(text); setNlParsed(null); }}
-            variant="inline"
-            size="sm"
-            className="mic-button-inline"
-          />
-        </div>
-        {nlLoading && (
-          <div className="pulse-nl-result">
-            <span className="pulse-spinner" />
-            <span style={{ fontSize: '0.85rem', color: 'var(--pulse-text-muted)' }}>Parsing...</span>
-          </div>
-        )}
-        {nlParsed && !nlLoading && (
-          <div className="pulse-nl-result">
-            <span className="pulse-nl-result-icon">
-              {nlParsed.entry_type === 'income' ? '💰' : nlParsed.entry_type === 'savings' ? '🏦' : '💸'}
-            </span>
-            <div className="pulse-nl-result-info">
-              <div className="pulse-nl-result-type">{nlParsed.entry_type} · {nlParsed.category}</div>
-              <div className="pulse-nl-result-detail">{nlParsed.description}</div>
-            </div>
-            <span className="pulse-nl-result-amount">{formatMoney(nlParsed.amount)}</span>
-            <div className="pulse-nl-result-actions">
-              <button className="btn-primary" onClick={handleNLConfirm} disabled={submitting}>
-                {submitting ? '...' : '✓ Allocate'}
-              </button>
-              <button className="btn-secondary" onClick={() => setNlParsed(null)}>✕</button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Add Entry Form ── */}
-      {showAddForm && (
-        <div className="budget-form">
-          <div className="budget-form-type">
-            <button className={`type-btn ${entryType === 'income' ? 'active' : ''}`} onClick={() => { setEntryType('income'); setCategory('salary'); }}>
-              💰 Income
-            </button>
-            <button className={`type-btn ${entryType === 'expense' ? 'active' : ''}`} onClick={() => { setEntryType('expense'); setCategory('groceries'); }}>
-              💸 Expense
-            </button>
-            <button className={`type-btn ${entryType === 'savings' ? 'active' : ''}`} onClick={() => { setEntryType('savings'); setCategory('savings'); }}>
-              🏦 Savings
-            </button>
+      {/* ── The Grid ── */}
+      <div className="matrix-container">
+        <div className="grid-wrapper">
+          {/* Column Headers */}
+          <div className="grid-row header-row">
+            <div className="grid-cell col-bucket">BUCKET ID</div>
+            <div className="grid-cell col-pay">ALLOCATED P1</div>
+            <div className="grid-cell col-paid">ACTUAL PAID P1</div>
+            <div className="grid-cell col-pay">ALLOCATED P2</div>
+            <div className="grid-cell col-paid">ACTUAL PAID P2</div>
+            <div className="grid-cell col-meter">STATUS & TOTAL</div>
           </div>
 
-          <div className="budget-form-row">
-            <input
-              type="number"
-              value={amount}
-              onChange={e => setAmount(e.target.value)}
-              placeholder="Amount"
-              className="budget-form-input amount"
-              min="0"
-              step="0.01"
-            />
-            {entryType !== 'savings' && (
-              <select value={category} onChange={e => setCategory(e.target.value)} className="budget-form-input">
-                {categories.map(c => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          <input
-            type="text"
-            value={description}
-            onChange={e => setDescription(e.target.value)}
-            placeholder="Description (optional)"
-            className="budget-form-input full"
-          />
-
-          <div className="budget-form-actions">
-            <label className="budget-recurring">
-              <input type="checkbox" checked={recurring} onChange={e => setRecurring(e.target.checked)} />
-              Monthly recurring
-            </label>
-            <button className="btn-primary" onClick={handleAdd} disabled={submitting || !amount}>
-              {submitting ? 'Allocating...' : 'Confirm'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Recent Entries ── */}
-      <div className="budget-entries">
-        <h3 className="section-title">📋 Activity</h3>
-        {entries.length === 0 ? (
-          <div className="budget-empty">No entries yet. Start by adding your income!</div>
-        ) : (
-          <div className="entry-list">
-            {entries.slice(0, 20).map(entry => {
-              const allCats = [...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES];
-              const catConfig = allCats.find(c => c.id === entry.category);
-              return (
-                <div key={entry.id} className={`entry-row ${entry.entry_type}`}>
-                  <span className="entry-type-icon">
-                    {entry.entry_type === 'income' ? '💰' : entry.entry_type === 'savings' ? '🏦' : '💸'}
-                  </span>
-                  <div className="entry-info">
-                    <div className="entry-desc">{entry.description ?? catConfig?.label ?? entry.category}</div>
-                    <div className="entry-meta">
-                      {catConfig?.label ?? entry.category} · {entry.date}
-                      {entry.recurring && ' 🔁'}
-                    </div>
-                  </div>
-                  <span className={`entry-amount ${entry.entry_type}`}>
-                    {entry.entry_type === 'income' ? '+' : '-'}{formatMoney(entry.amount)}
-                  </span>
-                  <button className="entry-delete" onClick={() => deleteEntry(entry.id)}>✕</button>
+          {/* Data Rows */}
+          {buckets.map((bucket) => {
+            const p1Alloc = getAllocation(bucket.id, 1);
+            const p2Alloc = getAllocation(bucket.id, 2);
+            const totalAlloc = p1Alloc + p2Alloc;
+            const totalPaid = getPaid(bucket.id);
+            const goal = bucket.monthly_goal || 0;
+            const pct = goal > 0 ? Math.min((totalPaid / goal) * 100, 100) : 0;
+            const isFull = totalPaid >= goal;
+            
+            return (
+              <div 
+                key={bucket.id} 
+                className={`grid-row data-row ${activeBucket === bucket.id ? 'active' : ''}`}
+                onMouseEnter={() => setActiveBucket(bucket.id)}
+                onMouseLeave={() => setActiveBucket(null)}
+              >
+                <div className="grid-cell col-bucket">
+                  <span className="bucket-icon" style={{ color: bucket.color }}>{bucket.icon}</span>
+                  <span className="bucket-label">{bucket.name}</span>
                 </div>
-              );
-            })}
-          </div>
-        )}
+                
+                <div className="grid-cell col-pay interactive" onClick={() => handleCellClick(bucket.id, 'p1', p1Alloc)}>
+                  {editingCell?.id === bucket.id && editingCell?.period === 'p1' ? (
+                    <input 
+                      autoFocus
+                      className="cell-edit-input"
+                      value={editValue}
+                      onChange={e => setEditValue(e.target.value)}
+                      onBlur={() => handleCellEdit(bucket.id, 'p1', parseFloat(editValue))}
+                      onKeyDown={e => e.key === 'Enter' && handleCellEdit(bucket.id, 'p1', parseFloat(editValue))}
+                    />
+                  ) : (
+                    <span className="pay-amount">{formatMoney(p1Alloc)}</span>
+                  )}
+                </div>
+
+                <div className="grid-cell col-paid">
+                  <span className={`paid-val ${totalPaid >= p1Alloc ? 'settled' : 'pending'}`}>
+                    {formatMoney(totalPaid >= p1Alloc ? p1Alloc : totalPaid)}
+                  </span>
+                </div>
+                
+                <div className="grid-cell col-pay interactive" onClick={() => handleCellClick(bucket.id, 'p2', p2Alloc)}>
+                  {editingCell?.id === bucket.id && editingCell?.period === 'p2' ? (
+                    <input 
+                      autoFocus
+                      className="cell-edit-input"
+                      value={editValue}
+                      onChange={e => setEditValue(e.target.value)}
+                      onBlur={() => handleCellEdit(bucket.id, 'p2', parseFloat(editValue))}
+                      onKeyDown={e => e.key === 'Enter' && handleCellEdit(bucket.id, 'p2', parseFloat(editValue))}
+                    />
+                  ) : (
+                    <span className="pay-amount">{formatMoney(p2Alloc)}</span>
+                  )}
+                </div>
+
+                <div className="grid-cell col-paid">
+                  <span className={`paid-val ${totalPaid >= goal ? 'settled' : 'pending'}`}>
+                    {formatMoney(totalPaid > p1Alloc ? totalPaid - p1Alloc : 0)}
+                  </span>
+                </div>
+
+                <div className="grid-cell col-meter">
+                  <div className="meter-info">
+                    <span className="meter-total">Goal: {formatMoney(goal)}</span>
+                    <span className={`meter-label ${isFull ? 'complete' : 'due'}`}>
+                      {isFull ? 'SECURED' : `${formatMoney(goal - totalPaid)} DUE`}
+                    </span>
+                  </div>
+                  <div className="meter-track">
+                    <div 
+                      className="meter-fill" 
+                      style={{ width: `${pct}%`, backgroundColor: isFull ? '#10b981' : bucket.color }}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
+
+      <BudgetConfigModal 
+        isOpen={isConfigOpen}
+        onClose={() => setIsConfigOpen(false)}
+        currentBuckets={buckets}
+        currentSettings={settings}
+        saveStatus={saveStatus}
+        onSave={async (config) => {
+          console.log('💾 Config Save Triggered:', config);
+          setSaveStatus('saving');
+          try {
+            // 1. Update Global Settings
+            console.log('📡 Sending settings to backend...');
+            await updateSettings({
+              pay_frequency: config.payFrequency,
+              pay_dates: [config.payDates.p1, config.payDates.p2],
+              income_amount: config.monthlyIncome,
+            });
+            console.log('✅ Settings saved.');
+
+            // 2. Sync Buckets
+            const existingIds = new Set(buckets.map(b => b.id));
+            console.log('🪣 Existing DB buckets:', existingIds);
+            
+            for (const bucket of config.buckets) {
+              if (!existingIds.has(bucket.id)) {
+                console.log('➕ Creating new bucket:', bucket.name);
+                await createBucket({
+                  name: bucket.name,
+                  icon: bucket.icon,
+                  monthly_goal: bucket.monthly_goal,
+                  color: bucket.color
+                });
+              }
+            }
+
+            setSaveStatus('success');
+            console.log('🔄 Refreshing data from DB...');
+            await refreshData();
+            console.log('💾 Data refreshed. New bucket count:', buckets.length);
+            
+            setTimeout(() => {
+              setSaveStatus('idle');
+              setIsConfigOpen(false);
+            }, 1500);
+          } catch (err) {
+            console.error('❌ Failed to save config:', err);
+            setSaveStatus('idle');
+          }
+        }}
+      />
+
+      <QuickLogModal
+        isOpen={isLogOpen}
+        onClose={() => setIsLogOpen(false)}
+        buckets={buckets}
+        onSave={async (data) => {
+          await logTransaction({
+            bucket_id: data.bucketId,
+            amount: data.amount,
+            date: data.date,
+            status: 'settled',
+          });
+          setIsLogOpen(false);
+        }}
+      />
     </div>
   );
 }

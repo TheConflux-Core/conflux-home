@@ -2,6 +2,7 @@
 // Initializes the Conflux Engine and exposes commands to the frontend.
 
 pub mod engine;
+pub mod budget;
 #[cfg(not(target_os = "android"))]
 pub mod voice;
 mod commands;
@@ -269,6 +270,16 @@ pub fn run() {
             commands::budget_delete_goal,
             commands::budget_goal_status,
             commands::budget_generate_report,
+            // Budget Matrix (Cloud)
+            budget::budget_get_settings,
+            budget::budget_update_settings,
+            budget::budget_get_buckets,
+            budget::budget_create_bucket,
+            budget::budget_update_bucket,
+            budget::budget_get_allocations,
+            budget::budget_update_allocation,
+            budget::budget_log_transaction,
+            budget::budget_get_transactions,
             // Content Feed
             commands::feed_get_items,
             commands::feed_mark_read,
