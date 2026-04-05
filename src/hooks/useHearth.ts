@@ -27,7 +27,7 @@ export function useCookingMode(mealId: string | null) {
     if (!mealId) return;
     try {
       setLoading(true);
-      const s = await invoke<CookingStep[]>('kitchen_get_cooking_steps', { mealId });
+      const s = await invoke<CookingStep[]>('kitchen_get_cooking_steps', { meal_id: mealId, member_id: null });
       setSteps(s);
       setCurrentStep(0);
     } catch (e) { console.error('Failed:', e); }
@@ -47,7 +47,7 @@ export function useKitchenDigest(weekStart: string) {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const d = await invoke<KitchenDigest>('kitchen_weekly_digest', { weekStart });
+      const d = await invoke<KitchenDigest>('kitchen_weekly_digest', { week_start: weekStart, member_id: null });
       setDigest(d);
     } catch (e) { console.error('Failed:', e); }
     finally { setLoading(false); }
@@ -75,7 +75,7 @@ export function useMealPhotos(mealId: string | null) {
   const load = useCallback(async () => {
     if (!mealId) return;
     try {
-      const p = await invoke<MealPhoto[]>('kitchen_get_meal_photos', { mealId });
+      const p = await invoke<MealPhoto[]>('kitchen_get_meal_photos', { meal_id: mealId, member_id: null });
       setPhotos(p);
     } catch (e) { console.error('Failed:', e); }
   }, [mealId]);
@@ -83,7 +83,7 @@ export function useMealPhotos(mealId: string | null) {
   const upload = useCallback(async (photoUrl: string, caption?: string) => {
     if (!mealId) return;
     try {
-      await invoke('kitchen_upload_meal_photo', { mealId, photoUrl, caption: caption ?? null });
+      await invoke('kitchen_upload_meal_photo', { meal_id: mealId, photo_url: photoUrl, caption: caption ?? null, member_id: null });
       await load();
     } catch (e) { console.error('Failed:', e); }
   }, [mealId, load]);

@@ -11,7 +11,7 @@ export function useQuestionEngine(memberId?: string) {
     try {
       setLoading(true);
       const data = await invoke<QuestionResult[]>('current_get_questions', {
-        memberId: memberId ?? null,
+        member_id: memberId ?? null,
       });
       setHistory(data);
       if (data.length > 0) {
@@ -29,7 +29,7 @@ export function useQuestionEngine(memberId?: string) {
   const ask = useCallback(async (question: string) => {
     try {
       const data = await invoke<QuestionResult>('current_ask', {
-        memberId: memberId ?? null,
+        member_id: memberId ?? null,
         question,
       });
       setResult(data);

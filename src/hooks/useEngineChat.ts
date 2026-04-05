@@ -97,6 +97,7 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
     }
 
     let cancelled = false;
+    // Use AuthContext user.id if no explicit userId provided
     const authUserId = userId ?? user?.id;
 
     async function initSession() {

@@ -13,7 +13,7 @@ export function useBriefing(memberId?: string) {
     setLoading(true);
     try {
       const data = await invoke<DailyBriefing>('current_daily_briefing', {
-        memberId: memberId ?? null,
+        member_id: memberId ?? null,
       });
       setBriefing(data);
       return data;

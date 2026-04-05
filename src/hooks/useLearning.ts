@@ -14,7 +14,7 @@ export function useLearningProgress(memberId: string | null) {
     if (!memberId) { setProgress(null); return; }
     try {
       setLoading(true);
-      const data = await invoke<LearningProgress>('learning_get_progress', { memberId });
+      const data = await invoke<LearningProgress>('learning_get_progress', { member_id: memberId });
       setProgress(data);
       setError(null);
     } catch (e) {
@@ -37,7 +37,7 @@ export function useLearningActivities(memberId: string | null, limit: number = 5
     if (!memberId) { setActivities([]); return; }
     try {
       setLoading(true);
-      const data = await invoke<LearningActivity[]>('learning_get_activities', { memberId, limit });
+      const data = await invoke<LearningActivity[]>('learning_get_activities', { member_id: memberId, limit });
       setActivities(data);
     } catch (e) {
       console.error('Failed to load activities:', e);
@@ -64,7 +64,7 @@ export function useLearningGoals(memberId: string | null) {
     if (!memberId) { setGoals([]); return; }
     try {
       setLoading(true);
-      const data = await invoke<LearningGoal[]>('learning_get_goals', { memberId });
+      const data = await invoke<LearningGoal[]>('learning_get_goals', { member_id: memberId });
       setGoals(data);
     } catch (e) {
       console.error('Failed to load goals:', e);

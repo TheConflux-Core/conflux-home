@@ -38,10 +38,10 @@ export function useLifeAutopilot() {
 
   const addReminder = useCallback(async (title: string, dueDate: string, description?: string, priority?: string) => {
     await invoke('life_add_reminder', {
-      memberId: null,
+      member_id: null,
       title,
       description: description ?? null,
-      dueDate,
+      due_date: dueDate,
       priority: priority ?? 'normal',
     });
     await load();

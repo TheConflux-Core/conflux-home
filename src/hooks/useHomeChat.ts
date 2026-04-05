@@ -18,7 +18,7 @@ export function useHomeChat() {
     setMessages(prev => [...prev, userMessage]);
     setLoading(true);
     try {
-      const response = await invoke<HomeChatMessage>('home_chat', { id: user.id, message });
+      const response = await invoke<HomeChatMessage>('home_chat', { user_id: user.id, message });
       setMessages(prev => [...prev, response]);
     } catch (e) {
       console.error('Failed to send chat message:', e);

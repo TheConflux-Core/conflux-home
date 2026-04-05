@@ -14,7 +14,7 @@ export function useHomeHealth() {
     if (!user?.id) return;
     try {
       setLoading(true);
-      const d = await invoke<HomeDashboard>('home_get_dashboard', { userId: user.id });
+      const d = await invoke<HomeDashboard>('home_get_dashboard');
       setDashboard(d);
     } catch (e) { console.error('Failed:', e); }
     finally { setLoading(false); }
@@ -23,7 +23,7 @@ export function useHomeHealth() {
   const loadInsights = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const i = await invoke<HomeInsight[]>('home_get_insights', { userId: user.id });
+      const i = await invoke<HomeInsight[]>('home_get_insights');
       setInsights(i);
     } catch (e) { console.error('Failed:', e); }
   }, [user?.id]);

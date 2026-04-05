@@ -10,7 +10,7 @@ export function useSignalThreads(memberId?: string) {
     try {
       setLoading(true);
       const data = await invoke<SignalThread[]>('current_signal_threads', {
-        memberId: memberId ?? null,
+        member_id: memberId ?? null,
       });
       setThreads(data);
     } catch (e) {
@@ -25,7 +25,7 @@ export function useSignalThreads(memberId?: string) {
   const create = useCallback(async (topic: string, content: string) => {
     try {
       const data = await invoke<SignalThread>('current_create_signal_thread', {
-        memberId: memberId ?? null,
+        member_id: memberId ?? null,
         topic,
         content,
       });
