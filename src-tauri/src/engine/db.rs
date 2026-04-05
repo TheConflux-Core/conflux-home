@@ -3014,21 +3014,21 @@ impl EngineDb {
 
     // ── Life Autopilot: Orbit ──
 
-    pub fn add_life_task(&self, id: &str, title: &str, category: Option<&str>, priority: &str, due_date: Option<&str>, energy_type: Option<&str>) -> Result<()> {
+    pub fn add_life_task(&self, id: &str, member_id: &str, title: &str, category: Option<&str>, priority: &str, due_date: Option<&str>, energy_type: Option<&str>) -> Result<()> {
         let conn = self.conn();
         conn.execute(
-            "INSERT INTO life_tasks (id, title, category, priority, due_date, energy_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![id, title, category, priority, due_date, energy_type]
+            "INSERT INTO life_tasks (id, member_id, title, category, priority, due_date, energy_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![id, member_id, title, category, priority, due_date, energy_type]
         )?;
         Ok(())
     }
 
-    pub fn get_life_tasks(&self, status: Option<&str>) -> Result<Vec<super::types::LifeTask>> {
+    pub fn get_life_tasks(&self, member_id: &str, status: Option<&str>) -> Result<Vec<super::types::LifeTask>> {
         let conn = self.conn();
         let mut result = Vec::new();
         if let Some(s) = status {
-            let mut stmt = conn.prepare("SELECT id, title, category, priority, status, due_date, energy_type, completed_at, created_at FROM life_tasks WHERE status = ?1 ORDER BY priority DESC, due_date ASC")?;
-            let rows = stmt.query_map([s], |row| {
+            let mut stmt = conn.prepare("SELECT id, title, category, priority, status, due_date, energy_type, completed_at, created_at FROM life_tasks WHERE member_id = ?1 AND status = ?2 ORDER BY priority DESC, due_date ASC")?;
+            let rows = stmt.query_map(params![member_id, s], |row| {
                 Ok(super::types::LifeTask {
                     id: row.get(0)?, title: row.get(1)?, category: row.get(2)?,
                     priority: row.get(3)?, status: row.get(4)?, due_date: row.get(5)?,
@@ -3037,8 +3037,8 @@ impl EngineDb {
             })?;
             for r in rows { result.push(r?); }
         } else {
-            let mut stmt = conn.prepare("SELECT id, title, category, priority, status, due_date, energy_type, completed_at, created_at FROM life_tasks ORDER BY status, priority DESC, due_date ASC")?;
-            let rows = stmt.query_map([], |row| {
+            let mut stmt = conn.prepare("SELECT id, title, category, priority, status, due_date, energy_type, completed_at, created_at FROM life_tasks WHERE member_id = ?1 ORDER BY status, priority DESC, due_date ASC")?;
+            let rows = stmt.query_map(params![member_id], |row| {
                 Ok(super::types::LifeTask {
                     id: row.get(0)?, title: row.get(1)?, category: row.get(2)?,
                     priority: row.get(3)?, status: row.get(4)?, due_date: row.get(5)?,
@@ -3050,34 +3050,34 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn update_life_task_status(&self, id: &str, status: &str) -> Result<()> {
+    pub fn update_life_task_status(&self, member_id: &str, id: &str, status: &str) -> Result<()> {
         let conn = self.conn();
         let completed = if status == "completed" { Some(chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()) } else { None };
-        conn.execute("UPDATE life_tasks SET status = ?1, completed_at = ?2 WHERE id = ?3", params![status, completed, id])?;
+        conn.execute("UPDATE life_tasks SET status = ?1, completed_at = ?2 WHERE id = ?3 AND member_id = ?4", params![status, completed, id, member_id])?;
         Ok(())
     }
 
-    pub fn delete_life_task(&self, id: &str) -> Result<()> {
+    pub fn delete_life_task(&self, member_id: &str, id: &str) -> Result<()> {
         let conn = self.conn();
-        conn.execute("DELETE FROM life_tasks WHERE id = ?1", params![id])?;
+        conn.execute("DELETE FROM life_tasks WHERE id = ?1 AND member_id = ?2", params![id, member_id])?;
         Ok(())
     }
 
-    pub fn add_life_habit(&self, id: &str, name: &str, category: Option<&str>, frequency: &str, target_count: i64) -> Result<()> {
+    pub fn add_life_habit(&self, id: &str, member_id: &str, name: &str, category: Option<&str>, frequency: &str, target_count: i64) -> Result<()> {
         let conn = self.conn();
-        conn.execute("INSERT INTO life_habits (id, name, category, frequency, target_count) VALUES (?1, ?2, ?3, ?4, ?5)", params![id, name, category, frequency, target_count])?;
+        conn.execute("INSERT INTO life_habits (id, member_id, name, category, frequency, target_count) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", params![id, member_id, name, category, frequency, target_count])?;
         Ok(())
     }
 
-    pub fn get_life_habits(&self, active_only: bool) -> Result<Vec<super::types::LifeHabit>> {
+    pub fn get_life_habits(&self, member_id: &str, active_only: bool) -> Result<Vec<super::types::LifeHabit>> {
         let conn = self.conn();
         let query = if active_only {
-            "SELECT id, name, category, frequency, target_count, streak, best_streak, active, created_at FROM life_habits WHERE active = 1 ORDER BY name"
+            "SELECT id, name, category, frequency, target_count, streak, best_streak, active, created_at FROM life_habits WHERE member_id = ?1 AND active = 1 ORDER BY name"
         } else {
-            "SELECT id, name, category, frequency, target_count, streak, best_streak, active, created_at FROM life_habits ORDER BY name"
+            "SELECT id, name, category, frequency, target_count, streak, best_streak, active, created_at FROM life_habits WHERE member_id = ?1 ORDER BY name"
         };
         let mut stmt = conn.prepare(query)?;
-        let rows = stmt.query_map([], |row| {
+        let rows = stmt.query_map(params![member_id], |row| {
             Ok(super::types::LifeHabit {
                 id: row.get(0)?, name: row.get(1)?, category: row.get(2)?,
                 frequency: row.get(3)?, target_count: row.get(4)?, streak: row.get(5)?,
@@ -3089,23 +3089,23 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn log_life_habit(&self, id: &str, habit_id: &str, logged_date: &str, count: i64) -> Result<()> {
+    pub fn log_life_habit(&self, id: &str, habit_id: &str, member_id: &str, logged_date: &str, count: i64) -> Result<()> {
         let conn = self.conn();
         conn.execute("INSERT INTO life_habit_logs (id, habit_id, logged_date, count) VALUES (?1, ?2, ?3, ?4)", params![id, habit_id, logged_date, count])?;
         // Update streak
-        conn.execute("UPDATE life_habits SET streak = streak + 1 WHERE id = ?1", params![habit_id])?;
+        conn.execute("UPDATE life_habits SET streak = streak + 1 WHERE id = ?1 AND member_id = ?2", params![habit_id, member_id])?;
         Ok(())
     }
 
-    pub fn get_orbit_dashboard(&self) -> Result<super::types::OrbitDashboard> {
+    pub fn get_orbit_dashboard(&self, member_id: &str) -> Result<super::types::OrbitDashboard> {
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
         // Today's focus — collect rows first, then batch-fetch tasks to avoid nested conn borrows
         let conn = self.conn();
         let mut focus_data: Vec<(String, String, Option<String>, i64, String)> = Vec::new();
         let mut task_ids: Vec<String> = Vec::new();
         {
-            let mut stmt = conn.prepare("SELECT id, focus_date, task_id, position, created_at FROM life_daily_focus WHERE focus_date = ?1 ORDER BY position")?;
-            let focus_rows = stmt.query_map(params![today], |row| {
+            let mut stmt = conn.prepare("SELECT id, focus_date, task_id, position, created_at FROM life_daily_focus WHERE member_id = ?1 AND focus_date = ?2 ORDER BY position")?;
+            let focus_rows = stmt.query_map(params![member_id, today], |row| {
                 let id: String = row.get(0)?;
                 let focus_date: String = row.get(1)?;
                 let task_id: Option<String> = row.get(2)?;
@@ -3126,9 +3126,11 @@ impl EngineDb {
             std::collections::HashMap::new()
         } else {
             let placeholders = task_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-            let sql = format!("SELECT id, title, category, priority, status, due_date, energy_type, completed_at, created_at FROM life_tasks WHERE id IN ({})", placeholders);
+            let sql = format!("SELECT id, title, category, priority, status, due_date, energy_type, completed_at, created_at FROM life_tasks WHERE id IN ({}) AND member_id = ?{}", placeholders, task_ids.len() + 1);
             let mut task_stmt = conn.prepare(&sql)?;
-            let task_rows = task_stmt.query_map(rusqlite::params_from_iter(task_ids.iter()), |r| {
+            let mut params: Vec<&dyn rusqlite::ToSql> = task_ids.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
+            params.push(&member_id as &dyn rusqlite::ToSql);
+            let task_rows = task_stmt.query_map(params.as_slice(), |r| {
                 Ok((
                     r.get::<_, String>(0)?,
                     super::types::LifeTask {
@@ -3151,8 +3153,8 @@ impl EngineDb {
         }).collect();
         // Drop conn guard before calling methods that also lock the mutex
         drop(conn);
-        let tasks = self.get_life_tasks(Some("pending")).unwrap_or_default();
-        let habits = self.get_life_habits(true).unwrap_or_default();
+        let tasks = self.get_life_tasks(member_id, Some("pending")).unwrap_or_default();
+        let habits = self.get_life_habits(member_id, true).unwrap_or_default();
         let streak_total: i64 = habits.iter().map(|h| h.streak).sum();
         Ok(super::types::OrbitDashboard {
             today_focus: focus,
@@ -3164,16 +3166,16 @@ impl EngineDb {
         })
     }
 
-    pub fn add_daily_focus(&self, id: &str, task_id: &str, position: i64) -> Result<()> {
+    pub fn add_daily_focus(&self, id: &str, member_id: &str, task_id: &str, position: i64) -> Result<()> {
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
         let conn = self.conn();
-        conn.execute("INSERT INTO life_daily_focus (id, focus_date, task_id, position) VALUES (?1, ?2, ?3, ?4)", params![id, today, task_id, position])?;
+        conn.execute("INSERT INTO life_daily_focus (id, member_id, focus_date, task_id, position) VALUES (?1, ?2, ?3, ?4, ?5)", params![id, member_id, today, task_id, position])?;
         Ok(())
     }
 
-    pub fn add_nudge(&self, id: &str, nudge_type: &str, message: &str, action_label: Option<&str>) -> Result<()> {
+    pub fn add_nudge(&self, id: &str, member_id: &str, nudge_type: &str, message: &str, action_label: Option<&str>) -> Result<()> {
         let conn = self.conn();
-        conn.execute("INSERT INTO life_nudges (id, nudge_type, message, action_label) VALUES (?1, ?2, ?3, ?4)", params![id, nudge_type, message, action_label])?;
+        conn.execute("INSERT INTO life_nudges (id, member_id, nudge_type, message, action_label) VALUES (?1, ?2, ?3, ?4, ?5)", params![id, member_id, nudge_type, message, action_label])?;
         Ok(())
     }
 
@@ -3599,7 +3601,7 @@ impl EngineDb {
             params![id, mid, title, desc, category, td, now])?;
         Ok(())
     }
-    pub fn get_dreams(&self, status: Option<&str>) -> Result<Vec<super::types::Dream>> {
+    pub fn get_dreams(&self, member_id: &str, status: Option<&str>) -> Result<Vec<super::types::Dream>> {
         let conn = self.conn();
         let mapper = |row: &rusqlite::Row| -> rusqlite::Result<super::types::Dream> {
             Ok(super::types::Dream {
@@ -3610,28 +3612,28 @@ impl EngineDb {
         };
         let mut result = Vec::new();
         if let Some(s) = status {
-            let mut stmt = conn.prepare("SELECT id, member_id, title, description, category, target_date, status, progress, ai_plan, ai_next_actions, created_at, updated_at FROM dreams WHERE status = ?1 ORDER BY created_at DESC")?;
-            let rows = stmt.query_map(params![s], mapper)?;
+            let mut stmt = conn.prepare("SELECT id, member_id, title, description, category, target_date, status, progress, ai_plan, ai_next_actions, created_at, updated_at FROM dreams WHERE member_id = ?1 AND status = ?2 ORDER BY created_at DESC")?;
+            let rows = stmt.query_map(params![member_id, s], mapper)?;
             for r in rows { result.push(r?); }
         } else {
-            let mut stmt = conn.prepare("SELECT id, member_id, title, description, category, target_date, status, progress, ai_plan, ai_next_actions, created_at, updated_at FROM dreams ORDER BY created_at DESC")?;
-            let rows = stmt.query_map([], mapper)?;
+            let mut stmt = conn.prepare("SELECT id, member_id, title, description, category, target_date, status, progress, ai_plan, ai_next_actions, created_at, updated_at FROM dreams WHERE member_id = ?1 ORDER BY created_at DESC")?;
+            let rows = stmt.query_map(params![member_id], mapper)?;
             for r in rows { result.push(r?); }
         }
         Ok(result)
     }
-    pub fn add_milestone(&self, id: &str, dream_id: &str, title: &str, description: Option<&str>, target_date: Option<&str>, sort_order: i64) -> Result<()> {
+    pub fn add_milestone(&self, id: &str, dream_id: &str, member_id: &str, title: &str, description: Option<&str>, target_date: Option<&str>, sort_order: i64) -> Result<()> {
         let conn = self.conn();
         let desc = description.map(String::from);
         let td = target_date.map(String::from);
-        conn.execute("INSERT INTO dream_milestones (id, dream_id, title, description, target_date, sort_order) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![id, dream_id, title, desc, td, sort_order])?;
+        conn.execute("INSERT INTO dream_milestones (id, dream_id, member_id, title, description, target_date, sort_order) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![id, dream_id, member_id, title, desc, td, sort_order])?;
         Ok(())
     }
-    pub fn get_milestones(&self, dream_id: &str) -> Result<Vec<super::types::DreamMilestone>> {
+    pub fn get_milestones(&self, dream_id: &str, member_id: &str) -> Result<Vec<super::types::DreamMilestone>> {
         let conn = self.conn();
-        let mut stmt = conn.prepare("SELECT id, dream_id, title, description, target_date, completed_at, is_completed, sort_order, created_at FROM dream_milestones WHERE dream_id = ?1 ORDER BY sort_order")?;
-        let rows = stmt.query_map(params![dream_id], |row: &rusqlite::Row| -> rusqlite::Result<super::types::DreamMilestone> {
+        let mut stmt = conn.prepare("SELECT id, dream_id, title, description, target_date, completed_at, is_completed, sort_order, created_at FROM dream_milestones WHERE dream_id = ?1 AND member_id = ?2 ORDER BY sort_order")?;
+        let rows = stmt.query_map(params![dream_id, member_id], |row: &rusqlite::Row| -> rusqlite::Result<super::types::DreamMilestone> {
             Ok(super::types::DreamMilestone {
                 id: row.get(0)?, dream_id: row.get(1)?, title: row.get(2)?, description: row.get(3)?,
                 target_date: row.get(4)?, completed_at: row.get(5)?, is_completed: row.get::<_, i64>(6)? != 0,
@@ -3642,26 +3644,26 @@ impl EngineDb {
         for r in rows { result.push(r?); }
         Ok(result)
     }
-    pub fn complete_milestone(&self, id: &str) -> Result<()> {
+    pub fn complete_milestone(&self, member_id: &str, id: &str) -> Result<()> {
         let conn = self.conn();
         let now = Self::now();
-        conn.execute("UPDATE dream_milestones SET is_completed = 1, completed_at = ?1 WHERE id = ?2", params![now, id])?;
+        conn.execute("UPDATE dream_milestones SET is_completed = 1, completed_at = ?1 WHERE id = ?2 AND member_id = ?3", params![now, id, member_id])?;
         Ok(())
     }
-    pub fn add_dream_task(&self, id: &str, dream_id: &str, milestone_id: Option<&str>, title: &str, description: Option<&str>, due_date: Option<&str>, frequency: Option<&str>) -> Result<()> {
+    pub fn add_dream_task(&self, id: &str, dream_id: &str, milestone_id: Option<&str>, member_id: &str, title: &str, description: Option<&str>, due_date: Option<&str>, frequency: Option<&str>) -> Result<()> {
         let conn = self.conn();
         let mid = milestone_id.map(String::from);
         let desc = description.map(String::from);
         let dd = due_date.map(String::from);
         let freq = frequency.map(String::from);
-        conn.execute("INSERT INTO dream_tasks (id, dream_id, milestone_id, title, description, due_date, frequency) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![id, dream_id, mid, title, desc, dd, freq])?;
+        conn.execute("INSERT INTO dream_tasks (id, dream_id, milestone_id, member_id, title, description, due_date, frequency) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![id, dream_id, mid, member_id, title, desc, dd, freq])?;
         Ok(())
     }
-    pub fn get_dream_tasks(&self, dream_id: &str) -> Result<Vec<super::types::DreamTask>> {
+    pub fn get_dream_tasks(&self, dream_id: &str, member_id: &str) -> Result<Vec<super::types::DreamTask>> {
         let conn = self.conn();
-        let mut stmt = conn.prepare("SELECT id, dream_id, milestone_id, title, description, due_date, completed_at, is_completed, frequency, created_at FROM dream_tasks WHERE dream_id = ?1 ORDER BY is_completed, due_date")?;
-        let rows = stmt.query_map(params![dream_id], |row: &rusqlite::Row| -> rusqlite::Result<super::types::DreamTask> {
+        let mut stmt = conn.prepare("SELECT id, dream_id, milestone_id, title, description, due_date, completed_at, is_completed, frequency, created_at FROM dream_tasks WHERE dream_id = ?1 AND member_id = ?2 ORDER BY is_completed, due_date")?;
+        let rows = stmt.query_map(params![dream_id, member_id], |row: &rusqlite::Row| -> rusqlite::Result<super::types::DreamTask> {
             Ok(super::types::DreamTask {
                 id: row.get(0)?, dream_id: row.get(1)?, milestone_id: row.get(2)?, title: row.get(3)?,
                 description: row.get(4)?, due_date: row.get(5)?, completed_at: row.get(6)?,
@@ -3672,11 +3674,11 @@ impl EngineDb {
         for r in rows { result.push(r?); }
         Ok(result)
     }
-    pub fn get_upcoming_dream_tasks(&self, days: i64) -> Result<Vec<super::types::DreamTask>> {
+    pub fn get_upcoming_dream_tasks(&self, dream_id: &str, member_id: &str, days: i64) -> Result<Vec<super::types::DreamTask>> {
         let conn = self.conn();
         let future = (chrono::Utc::now() + chrono::Duration::days(days)).format("%Y-%m-%d").to_string();
-        let mut stmt = conn.prepare("SELECT id, dream_id, milestone_id, title, description, due_date, completed_at, is_completed, frequency, created_at FROM dream_tasks WHERE is_completed = 0 AND due_date IS NOT NULL AND due_date <= ?1 ORDER BY due_date")?;
-        let rows = stmt.query_map(params![future], |row: &rusqlite::Row| -> rusqlite::Result<super::types::DreamTask> {
+        let mut stmt = conn.prepare("SELECT id, dream_id, milestone_id, title, description, due_date, completed_at, is_completed, frequency, created_at FROM dream_tasks WHERE dream_id = ?1 AND member_id = ?2 AND is_completed = 0 AND due_date IS NOT NULL AND due_date <= ?3 ORDER BY due_date")?;
+        let rows = stmt.query_map(params![dream_id, member_id, future], |row: &rusqlite::Row| -> rusqlite::Result<super::types::DreamTask> {
             Ok(super::types::DreamTask {
                 id: row.get(0)?, dream_id: row.get(1)?, milestone_id: row.get(2)?, title: row.get(3)?,
                 description: row.get(4)?, due_date: row.get(5)?, completed_at: row.get(6)?,
@@ -3687,29 +3689,29 @@ impl EngineDb {
         for r in rows { result.push(r?); }
         Ok(result)
     }
-    pub fn complete_dream_task(&self, id: &str) -> Result<()> {
+    pub fn complete_dream_task(&self, member_id: &str, id: &str) -> Result<()> {
         let conn = self.conn();
         let now = Self::now();
-        conn.execute("UPDATE dream_tasks SET is_completed = 1, completed_at = ?1 WHERE id = ?2", params![now, id])?;
+        conn.execute("UPDATE dream_tasks SET is_completed = 1, completed_at = ?1 WHERE id = ?2 AND member_id = ?3", params![now, id, member_id])?;
         Ok(())
     }
-    pub fn add_dream_progress(&self, id: &str, dream_id: &str, note: Option<&str>, progress_change: Option<f64>, ai_insight: Option<&str>) -> Result<()> {
+    pub fn add_dream_progress(&self, id: &str, dream_id: &str, member_id: &str, note: Option<&str>, progress_change: Option<f64>, ai_insight: Option<&str>) -> Result<()> {
         let conn = self.conn();
         let n = note.map(String::from);
         let ai = ai_insight.map(String::from);
-        conn.execute("INSERT INTO dream_progress (id, dream_id, note, progress_change, ai_insight) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![id, dream_id, n, progress_change, ai])?;
+        conn.execute("INSERT INTO dream_progress (id, dream_id, member_id, note, progress_change, ai_insight) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, dream_id, member_id, n, progress_change, ai])?;
         // Update dream progress
         if let Some(pc) = progress_change {
-            conn.execute("UPDATE dreams SET progress = MIN(100, MAX(0, progress + ?1)), updated_at = ?2 WHERE id = ?3",
-                params![pc, Self::now(), dream_id])?;
+            conn.execute("UPDATE dreams SET progress = MIN(100, MAX(0, progress + ?1)), updated_at = ?2 WHERE id = ?3 AND member_id = ?4",
+                params![pc, Self::now(), dream_id, member_id])?;
         }
         Ok(())
     }
-    pub fn get_dream_progress(&self, dream_id: &str) -> Result<Vec<super::types::DreamProgress>> {
+    pub fn get_dream_progress(&self, dream_id: &str, member_id: &str) -> Result<Vec<super::types::DreamProgress>> {
         let conn = self.conn();
-        let mut stmt = conn.prepare("SELECT id, dream_id, note, progress_change, ai_insight, created_at FROM dream_progress WHERE dream_id = ?1 ORDER BY created_at DESC LIMIT 20")?;
-        let rows = stmt.query_map(params![dream_id], |row: &rusqlite::Row| -> rusqlite::Result<super::types::DreamProgress> {
+        let mut stmt = conn.prepare("SELECT id, dream_id, note, progress_change, ai_insight, created_at FROM dream_progress WHERE dream_id = ?1 AND member_id = ?2 ORDER BY created_at DESC LIMIT 20")?;
+        let rows = stmt.query_map(params![dream_id, member_id], |row: &rusqlite::Row| -> rusqlite::Result<super::types::DreamProgress> {
             Ok(super::types::DreamProgress {
                 id: row.get(0)?, dream_id: row.get(1)?, note: row.get(2)?, progress_change: row.get(3)?,
                 ai_insight: row.get(4)?, created_at: row.get(5)?,
@@ -3719,20 +3721,20 @@ impl EngineDb {
         for r in rows { result.push(r?); }
         Ok(result)
     }
-    pub fn get_dream_dashboard(&self) -> Result<super::types::DreamDashboard> {
-        let all_dreams = self.get_dreams(None).unwrap_or_default();
+    pub fn get_dream_dashboard(&self, member_id: &str) -> Result<super::types::DreamDashboard> {
+        let all_dreams = self.get_dreams(member_id, None).unwrap_or_default();
         let active: Vec<_> = all_dreams.iter().filter(|d| d.status == "active").cloned().collect();
         let mut total_ms = 0i64;
         let mut completed_ms = 0i64;
         let mut all_tasks = Vec::new();
         let mut all_progress = Vec::new();
         for d in &all_dreams {
-            let ms = self.get_milestones(&d.id).unwrap_or_default();
+            let ms = self.get_milestones(&d.id, member_id).unwrap_or_default();
             total_ms += ms.len() as i64;
             completed_ms += ms.iter().filter(|m| m.is_completed).count() as i64;
-            let tasks = self.get_upcoming_dream_tasks(30).unwrap_or_default();
+            let tasks = self.get_upcoming_dream_tasks(&d.id, member_id, 30).unwrap_or_default();
             all_tasks.extend(tasks);
-            let prog = self.get_dream_progress(&d.id).unwrap_or_default();
+            let prog = self.get_dream_progress(&d.id, member_id).unwrap_or_default();
             all_progress.extend(prog);
         }
         all_tasks.sort_by(|a, b| a.due_date.as_deref().unwrap_or("9999").cmp(&b.due_date.as_deref().unwrap_or("9999")));
@@ -3749,30 +3751,30 @@ impl EngineDb {
             params![ai_plan, ai_next_actions, Self::now(), id])?;
         Ok(())
     }
-    pub fn delete_dream(&self, id: &str) -> Result<()> {
+    pub fn delete_dream(&self, member_id: &str, id: &str) -> Result<()> {
         let conn = self.conn();
-        conn.execute("DELETE FROM dream_tasks WHERE dream_id = ?", [id])?;
-        conn.execute("DELETE FROM dream_milestones WHERE dream_id = ?", [id])?;
-        conn.execute("DELETE FROM dream_progress WHERE dream_id = ?", [id])?;
-        conn.execute("DELETE FROM dreams WHERE id = ?", [id])?;
+        conn.execute("DELETE FROM dream_tasks WHERE dream_id = ?1 AND member_id = ?2", params![id, member_id])?;
+        conn.execute("DELETE FROM dream_milestones WHERE dream_id = ?1 AND member_id = ?2", params![id, member_id])?;
+        conn.execute("DELETE FROM dream_progress WHERE dream_id IN (SELECT id FROM dreams WHERE id = ?1 AND member_id = ?2)", params![id, member_id])?;
+        conn.execute("DELETE FROM dreams WHERE id = ?1 AND member_id = ?2", params![id, member_id])?;
         Ok(())
     }
 
     // ── Dreams: Horizon Extensions ──
 
-    pub fn get_dream_velocity(&self, dream_id: &str) -> Result<super::types::DreamVelocity> {
+    pub fn get_dream_velocity(&self, dream_id: &str, member_id: &str) -> Result<super::types::DreamVelocity> {
         let conn = self.conn();
         let milestones_total: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM dream_milestones WHERE dream_id = ?1", params![dream_id], |r| r.get(0)
+            "SELECT COUNT(*) FROM dream_milestones WHERE dream_id = ?1 AND member_id = ?2", params![dream_id, member_id], |r| r.get(0)
         ).unwrap_or(0);
         let milestones_completed: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM dream_milestones WHERE dream_id = ?1 AND is_completed = 1", params![dream_id], |r| r.get(0)
+            "SELECT COUNT(*) FROM dream_milestones WHERE dream_id = ?1 AND member_id = ?2 AND is_completed = 1", params![dream_id, member_id], |r| r.get(0)
         ).unwrap_or(0);
         let tasks_total: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM dream_tasks WHERE dream_id = ?1", params![dream_id], |r| r.get(0)
+            "SELECT COUNT(*) FROM dream_tasks WHERE dream_id = ?1 AND member_id = ?2", params![dream_id, member_id], |r| r.get(0)
         ).unwrap_or(0);
         let tasks_completed: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM dream_tasks WHERE dream_id = ?1 AND is_completed = 1", params![dream_id], |r| r.get(0)
+            "SELECT COUNT(*) FROM dream_tasks WHERE dream_id = ?1 AND member_id = ?2 AND is_completed = 1", params![dream_id, member_id], |r| r.get(0)
         ).unwrap_or(0);
         let progress_pct = if milestones_total > 0 {
             (milestones_completed as f64 / milestones_total as f64) * 100.0
@@ -3780,7 +3782,7 @@ impl EngineDb {
         let pace = if progress_pct >= 70.0 { "ahead" } else if progress_pct >= 40.0 { "on_track" } else { "behind" };
         // Get target date for days remaining
         let target: Option<String> = conn.query_row(
-            "SELECT target_date FROM dreams WHERE id = ?1", params![dream_id], |r| r.get(0)
+            "SELECT target_date FROM dreams WHERE id = ?1 AND member_id = ?2", params![dream_id, member_id], |r| r.get(0)
         ).ok().flatten();
         let days_remaining = target.and_then(|t| {
             chrono::NaiveDate::parse_from_str(&t, "%Y-%m-%d").ok().map(|td| {
@@ -3798,12 +3800,12 @@ impl EngineDb {
         })
     }
 
-    pub fn get_dream_timeline(&self, dream_id: &str) -> Result<super::types::DreamTimeline> {
+    pub fn get_dream_timeline(&self, dream_id: &str, member_id: &str) -> Result<super::types::DreamTimeline> {
         let conn = self.conn();
         // Combine milestones into timeline
         let mut entries = Vec::new();
-        let mut stmt = conn.prepare("SELECT title, is_completed, target_date, completed_at FROM dream_milestones WHERE dream_id = ?1 ORDER BY sort_order")?;
-        let rows = stmt.query_map(params![dream_id], |row| {
+        let mut stmt = conn.prepare("SELECT title, is_completed, target_date, completed_at FROM dream_milestones WHERE dream_id = ?1 AND member_id = ?2 ORDER BY sort_order")?;
+        let rows = stmt.query_map(params![dream_id, member_id], |row| {
             let title: String = row.get(0)?;
             let completed: bool = row.get::<_, i64>(1)? != 0;
             let date: Option<String> = if completed { row.get(3)? } else { row.get(2)? };
@@ -3823,17 +3825,17 @@ impl EngineDb {
         })
     }
 
-    pub fn set_dream_progress(&self, dream_id: &str, progress_pct: f64) -> Result<()> {
+    pub fn set_dream_progress(&self, member_id: &str, dream_id: &str, progress_pct: f64) -> Result<()> {
         let conn = self.conn();
-        conn.execute("UPDATE dreams SET progress = ?1 WHERE id = ?2", params![progress_pct, dream_id])?;
+        conn.execute("UPDATE dreams SET progress = ?1 WHERE id = ?2 AND member_id = ?3", params![progress_pct, dream_id, member_id])?;
         Ok(())
     }
 
-    pub fn get_active_dreams_with_velocity(&self) -> Result<Vec<(super::types::Dream, super::types::DreamVelocity)>> {
-        let dreams = self.get_dreams(Some("active"))?;
+    pub fn get_active_dreams_with_velocity(&self, member_id: &str) -> Result<Vec<(super::types::Dream, super::types::DreamVelocity)>> {
+        let dreams = self.get_dreams(member_id, Some("active"))?;
         let mut result = Vec::new();
         for dream in dreams {
-            let velocity = self.get_dream_velocity(&dream.id).unwrap_or(super::types::DreamVelocity {
+            let velocity = self.get_dream_velocity(&dream.id, member_id).unwrap_or(super::types::DreamVelocity {
                 dream_id: dream.id.clone(), milestones_completed: 0, milestones_total: 0,
                 tasks_completed: 0, tasks_total: 0, progress_pct: 0.0,
                 pace: "behind".to_string(), days_remaining: None, estimated_completion: None,
