@@ -97,6 +97,7 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
     }
 
     let cancelled = false;
+    const authUserId = userId ?? user?.id;
 
     async function initSession() {
       try {
@@ -122,9 +123,9 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
         }
 
         // Load cloud credits if authenticated
-        if (userId) {
+        if (authUserId) {
           try {
-            const balance = await invoke<{ total_available: number }>('get_credit_balance', { userId });
+            const balance = await invoke<{ total_available: number }>('get_credit_balance', { userId: authUserId });
             if (!cancelled) setCredits(balance.total_available ?? 0);
           } catch {
             // Cloud credits not available — engine falls back to local quota
@@ -142,7 +143,7 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
     setError(null);
 
     return () => { cancelled = true; };
-  }, [agentId]);
+  }, [agentId, userId, user?.id]);
 
   async function loadMessages(sid: string) {
     try {
