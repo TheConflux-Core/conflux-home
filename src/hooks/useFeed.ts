@@ -4,10 +4,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { ContentFeedItem } from '../types';
-import { useAuth } from '../context/AuthContext';
+import { useAuthContext } from '../contexts/AuthContext';
 
 export function useContentFeed(memberId?: string) {
-  const { user } = useAuth();
+  const { user } = useAuthContext();
   const userId = user?.id || '';
   const [items, setItems] = useState<ContentFeedItem[]>([]);
   const [loading, setLoading] = useState(true);
