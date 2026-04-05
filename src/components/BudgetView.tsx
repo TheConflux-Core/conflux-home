@@ -6,7 +6,7 @@ import { useBudget } from '../hooks/useBudget';
 import { useBudgetEngine } from '../hooks/useBudgetEngine';
 import PulseParticles from './PulseParticles';
 import BudgetConfigModal from './BudgetConfigModal';
-import QuickLogModal from './QuickLogModal';
+import { TransactionLogModal } from './TransactionLogModal';
 import { parseBudgetCommand } from '../hooks/useBudgetAI';
 import '../styles/budget-pulse.css';
 
@@ -265,7 +265,7 @@ export default function BudgetView() {
         }}
       />
 
-      <QuickLogModal
+      <TransactionLogModal
         isOpen={isLogOpen}
         onClose={() => setIsLogOpen(false)}
         buckets={buckets.map(b => ({ 
@@ -274,7 +274,7 @@ export default function BudgetView() {
           icon: b.icon || '💳', 
           color: b.color || '#10b981' 
         }))}
-        onSave={async (data) => {
+        onSave={async (data: { bucketId: string; amount: number; date: string }) => {
           await logTransaction({
             bucket_id: data.bucketId,
             amount: data.amount,

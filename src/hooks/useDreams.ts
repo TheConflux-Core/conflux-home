@@ -2,10 +2,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { Dream, DreamMilestone, DreamTask, DreamProgress, DreamDashboard, DreamVelocity, DreamTimeline } from '../types';
-import { useAuth } from '../context/AuthContext';
+import { useAuthContext } from '../contexts/AuthContext';
 
 export function useDreams() {
-  const { user } = useAuth();
+  const { user } = useAuthContext();
   const userId = user?.id || '';
   const [dashboard, setDashboard] = useState<DreamDashboard | null>(null);
   const [loading, setLoading] = useState(true);

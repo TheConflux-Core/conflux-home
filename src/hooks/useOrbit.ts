@@ -1,10 +1,10 @@
 import { useState, useCallback, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { OrbitDashboard, LifeSchedule } from '../types';
-import { useAuth } from '../context/AuthContext';
+import { useAuthContext } from '../contexts/AuthContext';
 
 export function useOrbit() {
-  const { user } = useAuth();
+  const { user } = useAuthContext();
   const userId = user?.id || '';
   const [dashboard, setDashboard] = useState<OrbitDashboard | null>(null);
   const [loading, setLoading] = useState(true);

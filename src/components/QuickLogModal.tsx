@@ -1,100 +1,76 @@
-// Conflux Home — Quick Log Modal (Transaction Reconciliation)
-import { useState } from 'react';
-import '../styles/budget-pulse.css';
+import React, { useState, useEffect, useRef } from 'react';
 
-interface QuickLogProps {
+interface QuickLogModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: { bucketId: string; period: 'p1' | 'p2'; amount: number; date: string }) => void;
-  buckets: { id: string; name: string; icon: string; color: string }[];
+  onParseInput: (input: string) => Promise<void>;
 }
 
-export default function QuickLogModal({ isOpen, onClose, onSave, buckets }: QuickLogProps) {
-  const [bucketId, setBucketId] = useState(buckets[0]?.id || '');
-  const [period, setPeriod] = useState<'p1' | 'p2'>('p1');
-  const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+export function QuickLogModal({ isOpen, onClose, onParseInput }: QuickLogModalProps) {
+  const [input, setInput] = useState('');
+  const [isParsing, setIsParsing] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  const handleSubmit = async () => {
+    if (!input.trim() || isParsing) return;
+    
+    setIsParsing(true);
+    try {
+      await onParseInput(input.trim());
+      setInput('');
+      onClose();
+    } catch (error) {
+      console.error('Parse error:', error);
+    } finally {
+      setIsParsing(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    } else if (e.key === 'Escape') {
+      onClose();
+    }
+  };
 
   if (!isOpen) return null;
 
-  const handleSubmit = () => {
-    if (!bucketId || !amount) return;
-    onSave({ bucketId, period, amount: parseFloat(amount), date });
-    setAmount('');
-    onClose();
-  };
-
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content quick-log-modal" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>⚡ LOG PAYMENT</h2>
-          <button className="close-btn" onClick={onClose}>✕</button>
+    <div className="mc-modal-overlay" onClick={onClose}>
+      <div className="mc-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="mc-modal-header">
+          <h3 className="mc-modal-title">⚡ Quick Log</h3>
+          <button className="mc-modal-close" onClick={onClose}>✕</button>
         </div>
-
-        <div className="modal-body">
-          <div className="config-section">
-            <label className="section-label">Target Bucket</label>
-            <div className="bucket-selector">
-              {buckets.map(b => (
-                <button
-                  key={b.id}
-                  className={`bucket-select-btn ${bucketId === b.id ? 'active' : ''}`}
-                  onClick={() => setBucketId(b.id)}
-                >
-                  <span className="selector-icon">{b.icon}</span>
-                  <span className="selector-name">{b.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="config-section">
-            <label className="section-label">Pay Period</label>
-            <div className="period-toggle">
-              <button 
-                className={`toggle-btn ${period === 'p1' ? 'active' : ''}`}
-                onClick={() => setPeriod('p1')}
-              >
-                PERIOD 01
-              </button>
-              <button 
-                className={`toggle-btn ${period === 'p2' ? 'active' : ''}`}
-                onClick={() => setPeriod('p2')}
-              >
-                PERIOD 02
-              </button>
-            </div>
-          </div>
-
-          <div className="config-section">
-            <label className="section-label">Amount Paid</label>
-            <div className="log-amount-input">
-              <span className="currency-symbol">$</span>
-              <input 
-                type="text" 
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                placeholder="0.00"
-                autoFocus
-              />
-            </div>
-          </div>
-
-          <div className="config-section">
-            <label className="section-label">Transaction Date</label>
-            <input 
-              type="date" 
-              value={date}
-              onChange={e => setDate(e.target.value)}
-              className="log-date-input"
-            />
-          </div>
-        </div>
-
-        <div className="modal-footer">
-          <button className="cancel-btn" onClick={onClose}>Cancel</button>
-          <button className="save-btn" onClick={handleSubmit}>Record Transaction</button>
+        
+        <input
+          ref={inputRef}
+          type="text"
+          className="mc-modal-input"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder='e.g., "Call dentist tomorrow at 3pm" or "Gym workout high energy"'
+          autoFocus
+        />
+        
+        <div style={{ 
+          marginTop: '16px', 
+          fontSize: '12px', 
+          color: 'var(--mc-text-muted)',
+          display: 'flex',
+          justifyContent: 'space-between'
+        }}>
+          <span>Press Enter to log, Esc to close</span>
+          <span>{isParsing ? 'Parsing...' : ''}</span>
         </div>
       </div>
     </div>

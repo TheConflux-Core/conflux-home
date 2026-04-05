@@ -1,0 +1,797 @@
+/* ============================================================
+   LIFE AUTOPILOT — Mission Control Aesthetic
+   ============================================================ */
+
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Mission Control Color Variables */
+:root {
+  --mc-bg-deep: #0b0f14;
+  --mc-bg-mid: #121724;
+  --mc-primary: #3b82f6;
+  --mc-secondary: #10b981;
+  --mc-tertiary: #f59e0b;
+  --mc-alert: #ef4444;
+  --mc-text: #e2e8f0;
+  --mc-text-muted: #94a3b8;
+  --mc-glass: rgba(18, 23, 36, 0.7);
+  --mc-panel: rgba(30, 41, 59, 0.5);
+}
+
+/* Base View */
+.mission-control-view {
+  background: linear-gradient(180deg, var(--mc-bg-deep) 0%, var(--mc-bg-mid) 100%);
+  min-height: 100vh;
+  padding: 20px;
+  font-family: 'Inter', sans-serif;
+  color: var(--mc-text);
+}
+
+/* Header Bar */
+.mc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: var(--mc-glass);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  margin-bottom: 20px;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.1);
+}
+
+.mc-header-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.mc-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--mc-primary);
+  text-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  margin: 0;
+}
+
+.mc-header-stats {
+  display: flex;
+  gap: 16px;
+}
+
+.mc-stat {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  padding: 6px 12px;
+  background: var(--mc-panel);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mc-stat.completed { color: var(--mc-secondary); }
+.mc-stat.streak { color: var(--mc-tertiary); }
+.mc-stat.tasks { color: var(--mc-primary); }
+
+/* Altitude Gauge */
+.mc-altitude-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--mc-glass);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.1);
+}
+
+.mc-altitude-gauge {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--mc-bg-deep) 0%, var(--mc-bg-mid) 100%);
+  border: 3px solid var(--mc-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3), inset 0 0 20px rgba(59, 130, 246, 0.1);
+  position: relative;
+}
+
+.mc-altitude-gauge::before {
+  content: '';
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 2px solid var(--mc-primary);
+  opacity: 0.5;
+}
+
+.mc-altitude-value {
+  font-family: 'Orbitron', monospace;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--mc-primary);
+  text-shadow: 0 0 10px rgba(59, 130, 246, 0.8);
+}
+
+.mc-altitude-label {
+  font-size: 10px;
+  color: var(--mc-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.mc-altitude-details {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--mc-text-muted);
+}
+
+.mc-altitude-details span {
+  color: var(--mc-secondary);
+}
+
+/* Horizon Line (Focus Cards) */
+.mc-horizon-container {
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+  background: var(--mc-glass);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  margin-bottom: 20px;
+}
+
+.mc-focus-card {
+  flex: 1;
+  padding: 16px;
+  background: var(--mc-panel);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.mc-focus-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--mc-primary);
+  box-shadow: 0 5px 20px rgba(59, 130, 246, 0.2);
+}
+
+.mc-focus-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--mc-primary);
+}
+
+.mc-focus-priority {
+  font-family: 'Orbitron', monospace;
+  font-size: 11px;
+  color: var(--mc-text-muted);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mc-focus-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--mc-text);
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.mc-focus-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mc-focus-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.mc-focus-badge.energy-high { color: var(--mc-primary); border: 1px solid var(--mc-primary); }
+.mc-focus-badge.energy-medium { color: var(--mc-tertiary); border: 1px solid var(--mc-tertiary); }
+.mc-focus-badge.energy-low { color: var(--mc-secondary); border: 1px solid var(--mc-secondary); }
+
+.mc-focus-badge.priority-urgent { color: var(--mc-alert); border: 1px solid var(--mc-alert); }
+.mc-focus-badge.priority-high { color: var(--mc-tertiary); border: 1px solid var(--mc-tertiary); }
+.mc-focus-badge.priority-normal { color: var(--mc-secondary); border: 1px solid var(--mc-secondary); }
+
+/* Telemetry Grid */
+.mc-telemetry-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.mc-panel {
+  background: var(--mc-glass);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 16px;
+}
+
+.mc-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mc-panel-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--mc-primary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.mc-panel-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--mc-text-muted);
+  background: var(--mc-panel);
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.mc-task-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.mc-task-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.mc-task-check {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--mc-text-muted);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mc-task-check:hover {
+  border-color: var(--mc-secondary);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+}
+
+.mc-task-check.completed {
+  background: var(--mc-secondary);
+  border-color: var(--mc-secondary);
+}
+
+.mc-task-title {
+  flex: 1;
+  font-size: 13px;
+  color: var(--mc-text);
+}
+
+.mc-task-priority {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.mc-task-priority.urgent { background: var(--mc-alert); }
+.mc-task-priority.high { background: var(--mc-tertiary); }
+.mc-task-priority.normal { background: var(--mc-secondary); }
+.mc-task-priority.low { background: var(--mc-primary); }
+
+.mc-task-due {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--mc-text-muted);
+}
+
+.mc-task-due.overdue { color: var(--mc-alert); }
+.mc-task-due.today { color: var(--mc-tertiary); }
+
+/* Habit Cards */
+.mc-habit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.mc-habit-card {
+  padding: 12px;
+  background: var(--mc-panel);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mc-habit-card:hover {
+  border-color: var(--mc-secondary);
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.15);
+}
+
+.mc-habit-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.mc-habit-emoji {
+  font-size: 18px;
+}
+
+.mc-habit-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--mc-text);
+}
+
+.mc-habit-streak {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--mc-tertiary);
+}
+
+.mc-habit-log {
+  width: 100%;
+  padding: 6px;
+  margin-top: 8px;
+  background: transparent;
+  border: 1px solid var(--mc-secondary);
+  border-radius: 4px;
+  color: var(--mc-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mc-habit-log:hover {
+  background: var(--mc-secondary);
+  color: var(--mc-bg-deep);
+}
+
+/* Alert Console */
+.mc-alert-console {
+  background: var(--mc-glass);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.mc-alert-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.mc-alert-icon {
+  font-size: 18px;
+}
+
+.mc-alert-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--mc-alert);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.mc-alert-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.mc-alert-item.urgent {
+  border-left: 3px solid var(--mc-alert);
+}
+
+.mc-alert-item.streak {
+  border-left: 3px solid var(--mc-tertiary);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.mc-alert-item.suggestion {
+  border-left: 3px solid var(--mc-primary);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.mc-alert-emoji {
+  font-size: 16px;
+}
+
+.mc-alert-text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--mc-text);
+}
+
+.mc-alert-dismiss {
+  background: transparent;
+  border: none;
+  color: var(--mc-text-muted);
+  cursor: pointer;
+  padding: 4px;
+  font-size: 14px;
+  transition: color 0.2s ease;
+}
+
+.mc-alert-dismiss:hover {
+  color: var(--mc-alert);
+}
+
+/* Morning Brief */
+.mc-brief-section {
+  margin-bottom: 20px;
+}
+
+.mc-brief-btn {
+  width: 100%;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.1));
+  border: 1px solid var(--mc-primary);
+  border-radius: 12px;
+  color: var(--mc-primary);
+  font-family: 'Orbitron', monospace;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 12px;
+}
+
+.mc-brief-btn:hover {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(59, 130, 246, 0.2));
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+.mc-brief-card {
+  padding: 16px;
+  background: var(--mc-glass);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.mc-brief-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--mc-text);
+}
+
+/* Natural Language Input */
+.mc-nl-section {
+  margin-bottom: 20px;
+}
+
+.mc-nl-row {
+  display: flex;
+  gap: 12px;
+}
+
+.mc-nl-input {
+  flex: 1;
+  padding: 14px 18px;
+  background: var(--mc-panel);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: var(--mc-text);
+  font-size: 14px;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.mc-nl-input:focus {
+  border-color: var(--mc-primary);
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
+}
+
+.mc-nl-input::placeholder {
+  color: var(--mc-text-muted);
+}
+
+.mc-nl-btn {
+  padding: 14px 24px;
+  background: var(--mc-primary);
+  border: none;
+  border-radius: 12px;
+  color: var(--mc-bg-deep);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mc-nl-btn:hover {
+  background: #5b9ef7;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+}
+
+/* Activity Heatmap */
+.mc-heatmap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mc-heatmap-label {
+  font-family: 'Orbitron', monospace;
+  font-size: 12px;
+  color: var(--mc-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.mc-heatmap-cells {
+  display: flex;
+  gap: 6px;
+}
+
+.mc-heatmap-cell {
+  width: 32px;
+  height: 32px;
+  background: var(--mc-panel);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--mc-text-muted);
+  transition: all 0.2s ease;
+}
+
+.mc-heatmap-cell.today {
+  border: 2px solid var(--mc-primary);
+}
+
+.mc-heatmap-cell.active {
+  background: var(--mc-secondary);
+  color: var(--mc-bg-deep);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+}
+
+/* Quick Log Modal */
+.mc-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(11, 15, 20, 0.8);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.mc-modal {
+  width: 90%;
+  max-width: 500px;
+  background: var(--mc-bg-mid);
+  border-radius: 16px;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 30px rgba(59, 130, 246, 0.2);
+  padding: 24px;
+}
+
+.mc-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.mc-modal-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 18px;
+  color: var(--mc-primary);
+}
+
+.mc-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--mc-text-muted);
+  font-size: 20px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.mc-modal-close:hover {
+  color: var(--mc-alert);
+}
+
+.mc-modal-input {
+  width: 100%;
+  padding: 16px;
+  background: var(--mc-panel);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: var(--mc-text);
+  font-size: 16px;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.mc-modal-input:focus {
+  border-color: var(--mc-primary);
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
+}
+
+/* Loading State */
+.mc-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  font-family: 'Orbitron', monospace;
+  color: var(--mc-primary);
+  text-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+}
+
+/* Empty State */
+.mc-empty {
+  text-align: center;
+  padding: 24px;
+  font-size: 14px;
+  color: var(--mc-text-muted);
+}
+
+/* Buttons */
+.mc-btn-primary {
+  padding: 10px 16px;
+  background: var(--mc-primary);
+  border: none;
+  border-radius: 8px;
+  color: var(--mc-bg-deep);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mc-btn-primary:hover {
+  background: #5b9ef7;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+}
+
+.mc-btn-secondary {
+  padding: 10px 16px;
+  background: transparent;
+  border: 1px solid var(--mc-text-muted);
+  border-radius: 8px;
+  color: var(--mc-text-muted);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mc-btn-secondary:hover {
+  border-color: var(--mc-primary);
+  color: var(--mc-primary);
+}
+
+/* Utility Classes */
+.mc-flex { display: flex; }
+.mc-flex-col { display: flex; flex-direction: column; }
+.mc-items-center { align-items: center; }
+.mc-justify-between { justify-content: space-between; }
+.mc-gap-4 { gap: 4px; }
+.mc-gap-8 { gap: 8px; }
+.mc-gap-12 { gap: 12px; }
+.mc-gap-16 { gap: 16px; }
+.mc-gap-20 { gap: 20px; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .mission-control-view {
+    padding: 12px;
+  }
+  
+  .mc-header {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  
+  .mc-telemetry-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .mc-horizon-container {
+    flex-direction: column;
+  }
+  
+  .mc-habit-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .mc-altitude-gauge {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .mc-altitude-value {
+    font-size: 14px;
+  }
+}
+
+/* Scrollbar Styling */
+.mission-control-view::-webkit-scrollbar {
+  width: 8px;
+}
+
+.mission-control-view::-webkit-scrollbar-track {
+  background: var(--mc-bg-deep);
+}
+
+.mission-control-view::-webkit-scrollbar-thumb {
+  background: var(--mc-primary);
+  border-radius: 4px;
+}
+
+.mission-control-view::-webkit-scrollbar-thumb:hover {
+  background: #5b9ef7;
+}
+
+/* Quick Log Button */
+.mc-quick-log-hint {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  background: rgba(18, 23, 36, 0.8);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--mc-text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.1);
+}

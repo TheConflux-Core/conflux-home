@@ -1,10 +1,15 @@
 // Conflux Home — Life Autopilot View (Orbit)
 // Focus engine, morning brief, habits, smart reschedule, nudges, heatmap.
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useOrbit } from '../hooks/useOrbit';
 import type { LifeTask, LifeHabit, LifeNudge, LifeDailyFocus } from '../types';
 import { MicButton } from './voice';
+import { MissionControlHeader } from './MissionControlHeader';
+import { HorizonLine } from './HorizonLine';
+import { TelemetryGrid } from './TelemetryGrid';
+import { AlertConsole } from './AlertConsole';
+import { QuickLogModal } from './QuickLogModal';
 
 /* ── Config ──────────────────────────────────── */
 
@@ -60,115 +65,16 @@ function HeatmapRow({ completedToday }: { completedToday: number }) {
     return { label: d.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0), isToday: i === 6 };
   });
   return (
-    <div className="orbit-heatmap">
-      <div className="orbit-heatmap-label">Activity</div>
-      <div className="orbit-heatmap-cells">
+    <div className="mc-heatmap">
+      <div className="mc-heatmap-label">Activity Telemetry</div>
+      <div className="mc-heatmap-cells">
         {days.map((d, i) => (
-          <div key={i} className={`orbit-heatmap-cell ${d.isToday ? 'today' : ''} ${d.isToday && completedToday > 0 ? 'active' : ''}`}
+          <div key={i} className={`mc-heatmap-cell ${d.isToday ? 'today' : ''} ${d.isToday && completedToday > 0 ? 'active' : ''}`}
             title={d.isToday ? `${completedToday} completed today` : ''}>
-            <span className="orbit-heatmap-day">{d.label}</span>
+            <span>{d.label}</span>
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-/* ── Nudge Card ──────────────────────────────── */
-
-function NudgeCard({ nudge, onDismiss }: { nudge: LifeNudge; onDismiss: (id: string) => void }) {
-  const icon: Record<string, string> = { overdue: '🚨', streak: '🔥', energy: '⚡', suggestion: '💡', celebrate: '🎉' };
-  return (
-    <div className="orbit-nudge-card">
-      <span className="orbit-nudge-emoji">{icon[nudge.nudge_type] ?? '💬'}</span>
-      <div className="orbit-nudge-body">
-        <p className="orbit-nudge-message">{nudge.message}</p>
-        {nudge.action_label && <span className="orbit-nudge-action">{nudge.action_label}</span>}
-      </div>
-      <button className="orbit-nudge-dismiss" onClick={() => onDismiss(nudge.id)}>✕</button>
-    </div>
-  );
-}
-
-/* ── Habit Card ──────────────────────────────── */
-
-function HabitCard({ habit, onLog }: { habit: LifeHabit; onLog: (id: string) => void }) {
-  const emoji = habit.category ? (CATEGORY_EMOJI[habit.category] ?? '📌') : '📌';
-  return (
-    <div className="orbit-habit-card">
-      <div className="orbit-habit-header">
-        <span className="orbit-habit-emoji">{emoji}</span>
-        <div className="orbit-habit-info">
-          <div className="orbit-habit-name">{habit.name}</div>
-          <div className="orbit-habit-meta">
-            <span>{FREQUENCY_LABEL[habit.frequency] ?? habit.frequency}</span>
-            {habit.best_streak > 0 && <span className="orbit-habit-best">Best: {habit.best_streak}🔥</span>}
-          </div>
-        </div>
-      </div>
-      <div className="orbit-habit-streak">
-        <span className="orbit-streak-count">{habit.streak}</span>
-        <span className="orbit-streak-label">🔥 streak</span>
-      </div>
-      <button className="orbit-habit-log-btn" onClick={() => onLog(habit.id)}>✓ Log</button>
-    </div>
-  );
-}
-
-/* ── Focus Card ──────────────────────────────── */
-
-function FocusCard({ focus, onComplete, onReschedule }: {
-  focus: LifeDailyFocus; onComplete: (id: string) => void; onReschedule: (id: string) => void;
-}) {
-  const task = focus.task;
-  if (!task) return null;
-  const pri = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.normal;
-  const energy = task.energy_type ? ENERGY_EMOJI[task.energy_type] : null;
-  return (
-    <div className="orbit-focus-card">
-      <div className="orbit-focus-position">{focus.position + 1}</div>
-      <div className="orbit-focus-body">
-        <div className="orbit-focus-title">{task.title}</div>
-        <div className="orbit-focus-meta">
-          <span className="orbit-priority-badge" style={{ background: pri.color + '22', color: pri.color }}>
-            {pri.emoji} {pri.label}
-          </span>
-          {energy && <span className="orbit-energy-badge">{energy} {task.energy_type}</span>}
-          {task.category && <span className="orbit-category-badge">{CATEGORY_EMOJI[task.category] ?? '📌'} {task.category}</span>}
-          {task.due_date && <span className="orbit-due-badge" style={{ color: dueColor(task.due_date) }}>📅 {dueLabel(task.due_date)}</span>}
-        </div>
-      </div>
-      <div className="orbit-focus-actions">
-        <button className="orbit-focus-complete" onClick={() => onComplete(task.id)}>✓</button>
-        <button className="orbit-focus-reschedule" onClick={() => onReschedule(task.id)}>↻</button>
-      </div>
-    </div>
-  );
-}
-
-/* ── Task Row ────────────────────────────────── */
-
-function TaskRow({ task, onComplete, onDelete }: {
-  task: LifeTask; onComplete: (id: string) => void; onDelete: (id: string) => void;
-}) {
-  const pri = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.normal;
-  const energy = task.energy_type ? ENERGY_EMOJI[task.energy_type] : null;
-  return (
-    <div className="orbit-task-row">
-      <button className="orbit-task-check" onClick={() => onComplete(task.id)}>
-        <span className="orbit-task-check-circle" style={{ borderColor: pri.color }} />
-      </button>
-      <div className="orbit-task-body">
-        <div className="orbit-task-title">{task.title}</div>
-        <div className="orbit-task-meta">
-          <span className="orbit-priority-dot" style={{ background: pri.color }} />
-          <span>{pri.label}</span>
-          {energy && <span>{energy}</span>}
-          {task.category && <span>{CATEGORY_EMOJI[task.category] ?? '📌'} {task.category}</span>}
-          {task.due_date && <span style={{ color: dueColor(task.due_date) }}>📅 {dueLabel(task.due_date)}</span>}
-        </div>
-      </div>
-      <button className="orbit-task-delete" onClick={() => onDelete(task.id)}>✕</button>
     </div>
   );
 }
@@ -182,6 +88,21 @@ export default function LifeAutopilotView() {
     parseInput, dismissNudge,
   } = useOrbit();
 
+  /* Quick Log Modal State */
+  const [isQuickLogOpen, setIsQuickLogOpen] = useState(false);
+
+  /* Keyboard shortcut for Quick Log (Cmd/Ctrl + L) */
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
+        e.preventDefault();
+        setIsQuickLogOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   /* Morning brief */
   const [briefText, setBriefText] = useState('');
   const [briefLoading, setBriefLoading] = useState(false);
@@ -189,21 +110,6 @@ export default function LifeAutopilotView() {
   /* Natural language input */
   const [nlInput, setNlInput] = useState('');
   const [nlParsing, setNlParsing] = useState(false);
-
-  /* Add task form */
-  const [showTaskForm, setShowTaskForm] = useState(false);
-  const [taskTitle, setTaskTitle] = useState('');
-  const [taskCategory, setTaskCategory] = useState('');
-  const [taskPriority, setTaskPriority] = useState('normal');
-  const [taskDueDate, setTaskDueDate] = useState('');
-  const [taskEnergy, setTaskEnergy] = useState('');
-
-  /* Add habit form */
-  const [showHabitForm, setShowHabitForm] = useState(false);
-  const [habitName, setHabitName] = useState('');
-  const [habitCategory, setHabitCategory] = useState('');
-  const [habitFrequency, setHabitFrequency] = useState('daily');
-  const [habitTarget, setHabitTarget] = useState(1);
 
   /* Reschedule toast */
   const [rescheduleResult, setRescheduleResult] = useState<string | null>(null);
@@ -216,27 +122,26 @@ export default function LifeAutopilotView() {
     finally { setBriefLoading(false); }
   }, [briefLoading, morningBrief]);
 
-  const handleParseInput = useCallback(async () => {
-    if (!nlInput.trim() || nlParsing) return;
+  const handleParseInput = useCallback(async (input: string) => {
+    if (!input.trim() || nlParsing) return;
     setNlParsing(true);
     try {
-      const result = await parseInput(nlInput.trim());
-      if (result.parsed && result.action === 'add_task') { await addTask(result.title); setNlInput(''); }
-    } catch { await addTask(nlInput.trim()); setNlInput(''); }
-    finally { setNlParsing(false); }
-  }, [nlInput, nlParsing, parseInput, addTask]);
+      const result = await parseInput(input);
+      if (result.parsed && result.action === 'add_task') {
+        await addTask(result.title);
+      } else {
+        await addTask(input);
+      }
+    } catch {
+      await addTask(input);
+    } finally {
+      setNlParsing(false);
+    }
+  }, [nlParsing, parseInput, addTask]);
 
-  const handleAddTask = useCallback(async () => {
-    if (!taskTitle.trim()) return;
-    await addTask(taskTitle.trim(), taskCategory || undefined, taskPriority, taskDueDate || undefined, taskEnergy || undefined);
-    setTaskTitle(''); setTaskCategory(''); setTaskPriority('normal'); setTaskDueDate(''); setTaskEnergy(''); setShowTaskForm(false);
-  }, [taskTitle, taskCategory, taskPriority, taskDueDate, taskEnergy, addTask]);
-
-  const handleAddHabit = useCallback(async () => {
-    if (!habitName.trim()) return;
-    await addHabit(habitName.trim(), habitCategory || undefined, habitFrequency, habitTarget);
-    setHabitName(''); setHabitCategory(''); setHabitFrequency('daily'); setHabitTarget(1); setShowHabitForm(false);
-  }, [habitName, habitCategory, habitFrequency, habitTarget, addHabit]);
+  const handleAddTask = useCallback(async (title: string, category?: string, priority?: string, dueDate?: string, energyType?: string) => {
+    await addTask(title, category, priority, dueDate, energyType);
+  }, [addTask]);
 
   const handleReschedule = useCallback(async (taskId: string) => {
     try {
@@ -254,38 +159,41 @@ export default function LifeAutopilotView() {
   const streakTotal = dashboard?.streak_total ?? 0;
   const completedToday = dashboard?.completed_today ?? 0;
 
-  if (loading && !dashboard) return <div className="orbit-view"><div className="orbit-loading">Loading your orbit...</div></div>;
+  if (loading && !dashboard) return <div className="mission-control-view"><div className="mc-loading">Loading your orbit...</div></div>;
 
   return (
-    <div className="orbit-view">
-
-      {/* Header */}
-      <div className="orbit-header">
-        <div className="orbit-header-left">
-          <h2 className="orbit-title">🌀 Life Orbit</h2>
-          <div className="orbit-header-stats">
-            <span className="orbit-stat">✅ {completedToday} today</span>
-            <span className="orbit-stat">🔥 {streakTotal} streak</span>
-            <span className="orbit-stat">📋 {tasks.length} tasks</span>
-          </div>
-        </div>
-      </div>
+    <div className="mission-control-view">
+      {/* Header with Altitude Gauge */}
+      <MissionControlHeader
+        completedToday={completedToday}
+        streakTotal={streakTotal}
+        taskCount={tasks.length}
+      />
 
       {/* Morning Brief */}
-      <div className="orbit-brief-section">
-        <button className="orbit-brief-btn" onClick={handleMorningBrief} disabled={briefLoading}>
+      <div className="mc-brief-section">
+        <button className="mc-brief-btn" onClick={handleMorningBrief} disabled={briefLoading}>
           {briefLoading ? '✨ Generating...' : '☀️ Morning Brief'}
         </button>
-        {briefText && <div className="orbit-brief-card"><p className="orbit-brief-text">{briefText}</p></div>}
+        {briefText && (
+          <div className="mc-brief-card">
+            <p className="mc-brief-text">{briefText}</p>
+          </div>
+        )}
       </div>
 
       {/* Natural Language Input */}
-      <div className="orbit-nl-section">
-        <div className="orbit-nl-row">
+      <div className="mc-nl-section">
+        <div className="mc-nl-row">
           <div className="input-with-mic">
-            <input type="text" className="orbit-nl-input" value={nlInput}
-              onChange={e => setNlInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleParseInput()}
-              placeholder='Quick add — e.g. "finish report by Friday" or "buy groceries"' />
+            <input
+              type="text"
+              className="mc-nl-input"
+              value={nlInput}
+              onChange={e => setNlInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleParseInput(nlInput.trim())}
+              placeholder='Quick add — e.g. "finish report by Friday" or "buy groceries"'
+            />
             <MicButton
               onTranscription={(text) => setNlInput(text)}
               variant="inline"
@@ -293,7 +201,11 @@ export default function LifeAutopilotView() {
               className="mic-button-inline"
             />
           </div>
-          <button className="orbit-nl-btn" onClick={handleParseInput} disabled={nlParsing || !nlInput.trim()}>
+          <button
+            className="mc-nl-btn"
+            onClick={() => handleParseInput(nlInput.trim())}
+            disabled={nlParsing || !nlInput.trim()}
+          >
             {nlParsing ? '...' : '→'}
           </button>
         </div>
@@ -302,94 +214,56 @@ export default function LifeAutopilotView() {
       {/* Reschedule Toast */}
       {rescheduleResult && <div className="orbit-toast">{rescheduleResult}</div>}
 
-      {/* Nudges */}
-      {nudges.filter(n => !n.dismissed).length > 0 && (
-        <div className="orbit-nudges-section">
-          {nudges.filter(n => !n.dismissed).map(n => <NudgeCard key={n.id} nudge={n} onDismiss={dismissNudge} />)}
-        </div>
-      )}
+      {/* Alert Console */}
+      <AlertConsole nudges={nudges} onDismiss={dismissNudge} />
 
-      {/* Today's Focus */}
-      <div className="orbit-section">
-        <h3 className="orbit-section-title">🎯 Today's Focus</h3>
-        {focus.length === 0
-          ? <p className="orbit-empty">No focus items yet. Add tasks and set your daily focus.</p>
-          : <div className="orbit-focus-list">{focus.map(f => <FocusCard key={f.id} focus={f} onComplete={completeTask} onReschedule={handleReschedule} />)}</div>
-        }
-      </div>
+      {/* Horizon Line (Today's Focus) */}
+      <h3 className="orbit-section-title" style={{ marginBottom: '12px' }}>🎯 Today's Focus</h3>
+      <HorizonLine
+        focus={focus}
+        onComplete={completeTask}
+        onReschedule={handleReschedule}
+      />
 
-      {/* Pending Tasks */}
-      <div className="orbit-section">
-        <div className="orbit-section-header">
-          <h3 className="orbit-section-title">📋 Pending Tasks</h3>
-          <button className="orbit-add-btn" onClick={() => setShowTaskForm(!showTaskForm)}>{showTaskForm ? '✕' : '+ Add'}</button>
-        </div>
-        {showTaskForm && (
-          <div className="orbit-form">
-            <input type="text" className="orbit-form-input" value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="Task title" autoFocus />
-            <div className="orbit-form-row">
-              <select className="orbit-form-select" value={taskCategory} onChange={e => setTaskCategory(e.target.value)}>
-                <option value="">Category</option>
-                <option value="health">💪 Health</option><option value="work">💼 Work</option>
-                <option value="personal">🧑 Personal</option><option value="family">👨‍👩‍👧‍👦 Family</option>
-                <option value="finance">💰 Finance</option><option value="learning">📚 Learning</option>
-                <option value="creative">🎨 Creative</option><option value="home">🏠 Home</option>
-              </select>
-              <select className="orbit-form-select" value={taskPriority} onChange={e => setTaskPriority(e.target.value)}>
-                <option value="urgent">🔴 Urgent</option><option value="high">🟠 High</option>
-                <option value="normal">🟡 Normal</option><option value="low">🟢 Low</option>
-              </select>
-              <input type="date" className="orbit-form-input orbit-form-date" value={taskDueDate} onChange={e => setTaskDueDate(e.target.value)} />
-              <select className="orbit-form-select" value={taskEnergy} onChange={e => setTaskEnergy(e.target.value)}>
-                <option value="">Energy</option><option value="high">⚡ High</option>
-                <option value="medium">🔋 Medium</option><option value="low">🌙 Low</option>
-              </select>
-              <button className="orbit-form-submit" onClick={handleAddTask} disabled={!taskTitle.trim()}>Add</button>
-            </div>
-          </div>
-        )}
-        {tasks.length === 0
-          ? <p className="orbit-empty">All caught up! No pending tasks.</p>
-          : <div className="orbit-task-list">{tasks.map(t => <TaskRow key={t.id} task={t} onComplete={completeTask} onDelete={deleteTask} />)}</div>
-        }
-      </div>
-
-      {/* Habits */}
-      <div className="orbit-section">
-        <div className="orbit-section-header">
-          <h3 className="orbit-section-title">🔄 Habits</h3>
-          <button className="orbit-add-btn" onClick={() => setShowHabitForm(!showHabitForm)}>{showHabitForm ? '✕' : '+ Add'}</button>
-        </div>
-        {showHabitForm && (
-          <div className="orbit-form">
-            <input type="text" className="orbit-form-input" value={habitName} onChange={e => setHabitName(e.target.value)} placeholder="Habit name" autoFocus />
-            <div className="orbit-form-row">
-              <select className="orbit-form-select" value={habitCategory} onChange={e => setHabitCategory(e.target.value)}>
-                <option value="">Category</option><option value="health">💪 Health</option>
-                <option value="work">💼 Work</option><option value="personal">🧑 Personal</option>
-                <option value="learning">📚 Learning</option><option value="creative">🎨 Creative</option>
-              </select>
-              <select className="orbit-form-select" value={habitFrequency} onChange={e => setHabitFrequency(e.target.value)}>
-                <option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option>
-              </select>
-              <input type="number" className="orbit-form-input orbit-form-num" value={habitTarget}
-                onChange={e => setHabitTarget(Number(e.target.value) || 1)} min={1} max={100} placeholder="Target" />
-              <button className="orbit-form-submit" onClick={handleAddHabit} disabled={!habitName.trim()}>Add</button>
-            </div>
-          </div>
-        )}
-        {habits.length === 0
-          ? <p className="orbit-empty">No habits tracked yet. Start building streaks!</p>
-          : <div className="orbit-habit-grid">{habits.map(h => <HabitCard key={h.id} habit={h} onLog={logHabit} />)}</div>
-        }
-      </div>
+      {/* Telemetry Grid (Tasks & Habits) */}
+      <h3 className="orbit-section-title" style={{ marginBottom: '12px' }}>📊 Telemetry Grid</h3>
+      <TelemetryGrid
+        tasks={tasks}
+        habits={habits}
+        onComplete={completeTask}
+        onDelete={deleteTask}
+        onLogHabit={logHabit}
+        onAddTask={handleAddTask}
+      />
 
       {/* Activity Heatmap */}
-      <div className="orbit-section">
-        <h3 className="orbit-section-title">📊 Activity</h3>
+      <div className="orbit-section" style={{ marginTop: '20px' }}>
         <HeatmapRow completedToday={completedToday} />
       </div>
 
+      {/* Quick Log Modal */}
+      <QuickLogModal
+        isOpen={isQuickLogOpen}
+        onClose={() => setIsQuickLogOpen(false)}
+        onParseInput={handleParseInput}
+      />
+
+      {/* Keyboard Shortcut Hint */}
+      <div style={{
+        position: 'fixed',
+        bottom: '16px',
+        right: '16px',
+        background: 'rgba(18, 23, 36, 0.8)',
+        padding: '8px 12px',
+        borderRadius: '8px',
+        fontSize: '11px',
+        color: 'var(--mc-text-muted)',
+        fontFamily: 'JetBrains Mono, monospace',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(255,255,255,0.1)'
+      }}>
+        ⌘L Quick Log
+      </div>
     </div>
   );
 }
