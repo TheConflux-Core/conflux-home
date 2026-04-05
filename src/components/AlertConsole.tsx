@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { LifeNudge } from '../types';
+import { playOrbitMorningBrief } from '../lib/sound';
 
 interface AlertConsoleProps {
   nudges: LifeNudge[];
@@ -24,13 +25,21 @@ const NUDGE_CLASSES: Record<string, string> = {
 
 export function AlertConsole({ nudges, onDismiss }: AlertConsoleProps) {
   const activeNudges = nudges.filter(n => !n.dismissed);
+  const [isVisible, setIsVisible] = useState(false);
+  
+  // Slide in animation on mount
+  useEffect(() => {
+    if (activeNudges.length > 0) {
+      setTimeout(() => setIsVisible(true), 100);
+    }
+  }, [activeNudges.length]);
   
   if (activeNudges.length === 0) {
     return null;
   }
 
   return (
-    <div className="mc-alert-console">
+    <div className={`mc-alert-console${isVisible ? ' visible' : ''}`}>
       <div className="mc-alert-header">
         <span className="mc-alert-icon">📡</span>
         <span className="mc-alert-title">Alert Console</span>

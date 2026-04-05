@@ -919,6 +919,146 @@ class SoundManager {
     });
   }
 
+  // ── Orbit Mission Control Sounds ──
+
+  // Task completion — C major chord ping (200ms)
+  playOrbitTaskComplete(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('ui');
+    if (!gain) return;
+
+    // C major chord: C5 (523.25), E5 (659.25), G5 (783.99)
+    [523.25, 659.25, 783.99].forEach((freq, i) => {
+      const startAt = now + i * 0.02;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, startAt);
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0, startAt);
+      env.gain.linearRampToValueAtTime(0.15, startAt + 0.01);
+      env.gain.exponentialRampToValueAtTime(0.001, startAt + 0.2);
+      osc.connect(env);
+      env.connect(gain);
+      osc.start(startAt);
+      osc.stop(startAt + 0.22);
+    });
+  }
+
+  // Streak milestone — ascending chime (special for every 7 days)
+  playOrbitStreakMilestone(streakDays: number): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('ui');
+    if (!gain) return;
+
+    const isSpecial = streakDays % 7 === 0;
+    const baseFreq = isSpecial ? 440 : 523; // A4 or C5
+    const notes = isSpecial
+      ? [440, 523, 659, 784, 880] // A4, C5, E5, G5, A5 (5 notes for special)
+      : [523, 659, 784]; // C5, E5, G5 (3 notes for regular)
+
+    notes.forEach((freq, i) => {
+      const startAt = now + i * 0.08;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, startAt);
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0, startAt);
+      env.gain.linearRampToValueAtTime(isSpecial ? 0.25 : 0.2, startAt + 0.01);
+      env.gain.exponentialRampToValueAtTime(0.001, startAt + (isSpecial ? 0.4 : 0.3));
+      osc.connect(env);
+      env.connect(gain);
+      osc.start(startAt);
+      osc.stop(startAt + (isSpecial ? 0.42 : 0.32));
+    });
+  }
+
+  // Altitude threshold crossed — subtle whoosh
+  playOrbitAltitudeThreshold(percentage: number): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('ui');
+    if (!gain) return;
+
+    // Different whoosh for different thresholds
+    let duration = 0.3;
+    let volume = 0.1;
+    if (percentage >= 100) {
+      duration = 0.35;
+      volume = 0.15;
+    } else if (percentage >= 80) {
+      duration = 0.28;
+      volume = 0.12;
+    } else {
+      duration = 0.22;
+      volume = 0.08;
+    }
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(300, now);
+    osc.frequency.exponentialRampToValueAtTime(percentage >= 100 ? 1200 : 900, now + duration);
+
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0, now);
+    env.gain.linearRampToValueAtTime(volume, now + duration * 0.2);
+    env.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    osc.connect(env);
+    env.connect(gain);
+    osc.start(now);
+    osc.stop(now + duration + 0.02);
+  }
+
+  // Insight discovered — gentle notification chime
+  playOrbitInsightDiscovered(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('ui');
+    if (!gain) return;
+
+    // Gentle two-note chime
+    [880, 1100].forEach((freq, i) => {
+      const startAt = now + i * 0.1;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, startAt);
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0, startAt);
+      env.gain.linearRampToValueAtTime(0.2, startAt + 0.01);
+      env.gain.exponentialRampToValueAtTime(0.001, startAt + 0.3);
+      osc.connect(env);
+      env.connect(gain);
+      osc.start(startAt);
+      osc.stop(startAt + 0.32);
+    });
+  }
+
+  // Morning brief generated — warm startup sound
+  playOrbitMorningBrief(): void {
+    const ctx = this.getAudioContext();
+    const now = ctx.currentTime;
+    const gain = this.categoryGains.get('onboarding');
+    if (!gain) return;
+
+    // Warm ascending pattern: C4, E4, G4, C5
+    [261.63, 329.63, 392.00, 523.25].forEach((freq, i) => {
+      const startAt = now + i * 0.1;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, startAt);
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0, startAt);
+      env.gain.linearRampToValueAtTime(0.2, startAt + 0.02);
+      env.gain.exponentialRampToValueAtTime(0.001, startAt + 0.4);
+      osc.connect(env);
+      env.connect(gain);
+      osc.start(startAt);
+      osc.stop(startAt + 0.42);
+    });
+  }
+
   // ── Game Sounds: Solitaire ──
 
   playSolitaireFlip(): void {
@@ -1081,6 +1221,13 @@ export const playSolitaireFoundation = () => soundManager.playSolitaireFoundatio
 export const playSolitaireWin = () => soundManager.playSolitaireWin();
 export const playSolitaireShuffle = () => soundManager.playSolitaireShuffle();
 export const playSolitaireInvalid = () => soundManager.playSolitaireInvalid();
+
+// Orbit Mission Control sound exports
+export const playOrbitTaskComplete = () => soundManager.playOrbitTaskComplete();
+export const playOrbitStreakMilestone = (streakDays: number) => soundManager.playOrbitStreakMilestone(streakDays);
+export const playOrbitAltitudeThreshold = (percentage: number) => soundManager.playOrbitAltitudeThreshold(percentage);
+export const playOrbitInsightDiscovered = () => soundManager.playOrbitInsightDiscovered();
+export const playOrbitMorningBrief = () => soundManager.playOrbitMorningBrief();
 
 // Backwards compat with old sounds.ts
 export const playUIClick = playClick;
