@@ -11,7 +11,7 @@ export function useRipples(memberId?: string) {
     setLoading(true);
     try {
       const data = await invoke<RippleSignal[]>('current_detect_ripples', {
-        memberId: memberId ?? null,
+        member_id: memberId ?? null,
       });
       setRipples(data);
       return data;

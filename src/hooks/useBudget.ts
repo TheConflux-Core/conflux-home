@@ -28,10 +28,10 @@ export function useBudget(memberId?: string) {
     try {
       setLoading(true);
       const [e, s, g, p] = await Promise.all([
-        invoke<BudgetEntry[]>('budget_get_entries', { memberId: resolvedMemberId, month: period }),
+        invoke<BudgetEntry[]>('budget_get_entries', { member_id: resolvedMemberId, month: period }),
         invoke<BudgetSummary>('budget_get_summary', { month: period }),
-        invoke<BudgetGoal[]>('budget_get_goals', { memberId: resolvedMemberId }),
-        invoke<BudgetPattern[]>('budget_detect_patterns', { memberId: resolvedMemberId }),
+        invoke<BudgetGoal[]>('budget_get_goals', { member_id: resolvedMemberId }),
+        invoke<BudgetPattern[]>('budget_detect_patterns', { member_id: resolvedMemberId }),
       ]);
       setEntries(e);
       setSummary(s);
@@ -74,7 +74,7 @@ export function useBudget(memberId?: string) {
 
   // Goals CRUD
   const createGoal = useCallback(async (name: string, targetAmount: number, deadline?: string, monthlyAllocation?: number) => {
-    await invoke('budget_create_goal', { name, target_amount: targetAmount, deadline: deadline ?? null, monthly_allocation: monthlyAllocation ?? null, memberId: resolvedMemberId });
+    await invoke('budget_create_goal', { name, target_amount: targetAmount, deadline: deadline ?? null, monthly_allocation: monthlyAllocation ?? null, member_id: resolvedMemberId });
     await load();
   }, [resolvedMemberId, load]);
 
