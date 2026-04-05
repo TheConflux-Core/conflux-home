@@ -1910,6 +1910,52 @@ impl EngineDb {
         Ok(())
     }
 
+    // Cross-App Synthesis functions
+
+    /// Get budget entries for cross-app insights
+    pub fn get_budget_entries(&self, member_id: &str) -> Result<Vec<super::types::BudgetEntry>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, member_id, entry_type, category, amount, description, recurring, frequency, date, created_at 
+             FROM budget_entries WHERE member_id = ?1 ORDER BY date DESC"
+        )?;
+        let rows = stmt.query_map(params![member_id], |row| {
+            Ok(super::types::BudgetEntry {
+                id: row.get(0)?,
+                member_id: row.get(1)?,
+                entry_type: row.get(2)?,
+                category: row.get(3)?,
+                amount: row.get(4)?,
+                description: row.get(5)?,
+                recurring: row.get::<_, i64>(6)? != 0,
+                frequency: row.get(7)?,
+                date: row.get(8)?,
+                created_at: row.get(9)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+
+    /// Get kitchen inventory for cross-app insights
+    pub fn get_kitchen_inventory(&self, member_id: &str) -> Result<Vec<super::types::KitchenInventoryItem>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at 
+             FROM kitchen_inventory ORDER BY location, name"
+        )?;
+        let rows = stmt.query_map([], Self::map_inventory)?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+
+    /// Get orbit-specific dream dashboard (wrapper for cross-app insights)
+    pub fn get_orbit_dream_dashboard(&self, member_id: &str) -> Result<super::types::DreamDashboard> {
+        self.get_dream_dashboard(member_id)
+    }
+
     pub fn detect_budget_patterns(&self, member_id: Option<&str>) -> Result<Vec<super::types::BudgetPattern>> {
         let conn = self.conn();
         let mut result = Vec::new();
@@ -1992,10 +2038,6 @@ impl EngineDb {
             comparison_to_last_month: comparison,
         })
     }
-
-    // ============================================================
-    // AGENT TEMPLATES
-    // ============================================================
 
     pub fn get_agent_templates(&self, age_group: Option<&str>) -> Result<Vec<super::types::AgentTemplate>> {
         let conn = self.conn();
@@ -4574,3 +4616,4 @@ pub fn studio_get_usage(user_id: &str, month: &str) -> Result<Vec<super::types::
     })?;
     rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
 }
+

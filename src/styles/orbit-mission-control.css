@@ -795,3 +795,107 @@
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255,255,255,0.1);
 }
+
+/* Cross-App Insights */
+.mc-insights-section {
+  margin: 20px 0;
+  padding: 16px;
+  background: var(--mc-glass);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.mc-insights-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.mc-insight-card {
+  background: var(--mc-panel);
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mc-insight-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+
+.mc-insight-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.mc-insight-icon {
+  font-size: 20px;
+}
+
+.mc-insight-title {
+  font-weight: 600;
+  color: var(--mc-text);
+  flex: 1;
+}
+
+.mc-insight-confidence {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 4px 8px;
+  background: rgba(59, 130, 246, 0.2);
+  border-radius: 4px;
+}
+
+.mc-insight-message {
+  color: var(--mc-text-muted);
+  margin: 8px 0;
+  line-height: 1.5;
+}
+
+.mc-insight-sources {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.mc-source-badge {
+  font-size: 11px;
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  color: var(--mc-text-muted);
+}
+
+.mc-insight-action {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid var(--mc-primary);
+  border-radius: 6px;
+  color: var(--mc-primary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mc-insight-action:hover {
+  background: rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+}
+
+.mc-insights-loading,
+.mc-insights-empty {
+  text-align: center;
+  padding: 20px;
+  color: var(--mc-text-muted);
+}
+
+.mc-insights-hint {
+  font-size: 12px;
+  margin-top: 6px;
+}

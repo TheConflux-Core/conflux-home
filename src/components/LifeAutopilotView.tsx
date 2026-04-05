@@ -10,6 +10,7 @@ import { HorizonLine } from './HorizonLine';
 import { TelemetryGrid } from './TelemetryGrid';
 import { AlertConsole } from './AlertConsole';
 import { QuickLogModal } from './QuickLogModal';
+import { InsightCards } from './InsightCards';
 
 /* ── Config ──────────────────────────────────── */
 
@@ -216,6 +217,9 @@ export default function LifeAutopilotView() {
 
       {/* Alert Console */}
       <AlertConsole nudges={nudges} onDismiss={dismissNudge} />
+
+      {/* Cross-App Insights */}
+      <InsightCards />
 
       {/* Horizon Line (Today's Focus) */}
       <h3 className="orbit-section-title" style={{ marginBottom: '12px' }}>🎯 Today's Focus</h3>
