@@ -246,7 +246,7 @@ pub fn store_tokens(db: &EngineDb, tokens: &GoogleTokens) -> Result<()> {
     let conn = db.conn();
     conn.execute(
         "INSERT INTO google_tokens (id, access_token, refresh_token, expires_at, scope)
-         VALUES ('default', ?1, ?2, ?3, ?4)
+         VALUES (?, ?1, ?2, ?3, ?4)
          ON CONFLICT(id) DO UPDATE SET
             access_token = ?1, refresh_token = ?2, expires_at = ?3, scope = ?4,
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
@@ -258,7 +258,7 @@ pub fn store_tokens(db: &EngineDb, tokens: &GoogleTokens) -> Result<()> {
 pub fn get_tokens(db: &EngineDb) -> Result<Option<GoogleTokens>> {
     let conn = db.conn();
     let mut stmt = conn.prepare(
-        "SELECT access_token, refresh_token, expires_at, scope, email FROM google_tokens WHERE id = 'default'"
+        "SELECT access_token, refresh_token, expires_at, scope, email FROM google_tokens WHERE id = ?"
     )?;
 
     let result = stmt.query_row([], |row| {
@@ -284,7 +284,7 @@ pub fn is_connected(db: &EngineDb) -> Result<bool> {
 
 pub fn disconnect(db: &EngineDb) -> Result<()> {
     let conn = db.conn();
-    conn.execute("DELETE FROM google_tokens WHERE id = 'default'", [])?;
+    conn.execute("DELETE FROM google_tokens WHERE id = ?", [])?;
     let _ = db.set_config("google_email", "");
     Ok(())
 }

@@ -2865,7 +2865,7 @@ pub async fn home_get_insights() -> Result<Vec<engine::types::HomeInsight>, Stri
 
 /// Diagnose a home problem from a natural language symptom description.
 #[tauri::command]
-pub fn home_diagnose_problem(id: String, symptom: String) -> Result<serde_json::Value, String> {
+pub fn home_diagnose_problem(user_id: String, symptom: String) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
     let symptom_lower = symptom.to_lowercase();
 
@@ -2912,7 +2912,7 @@ pub fn home_diagnose_problem(id: String, symptom: String) -> Result<serde_json::
     });
 
     let diag_json = serde_json::to_string(&diagnosis).map_err(|e| e.to_string())?;
-    engine.db().store_home_problem(&id, &symptom, Some(&diag_json), Some(&system), Some(&severity))
+    engine.db().store_home_problem(&user_id, &symptom, Some(&diag_json), Some(&system), Some(&severity))
         .map_err(|e| e.to_string())?;
 
     Ok(diagnosis)
@@ -3097,7 +3097,7 @@ pub fn home_get_warranty_alerts() -> Result<Vec<serde_json::Value>, String> {
 
 /// Home AI chat — keyword-based smart replies (placeholder for LLM).
 #[tauri::command]
-pub fn home_chat(_id: String, message: String) -> Result<serde_json::Value, String> {
+pub fn home_chat(_user_id: String, message: String) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
     let msg_lower = message.to_lowercase();
 
@@ -3124,14 +3124,14 @@ pub fn home_chat(_id: String, message: String) -> Result<serde_json::Value, Stri
         "I'm here to help with your home! I can diagnose problems, track maintenance, monitor bills, predict appliance failures, and manage seasonal tasks. Try asking about maintenance, bills, appliances, or describe a problem you're having."
     };
 
-    let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    // Store assistant reply
     let asst_msg_id = uuid::Uuid::new_v4().to_string();
     engine.db().store_chat_message(&asst_msg_id, "assistant", reply, None).map_err(|e| e.to_string())?;
 
     Ok(serde_json::json!({
         "role": "assistant",
         "content": reply,
-        "timestamp": now,
+        "timestamp": chrono::Utc::now().to_rfc3339()
     }))
 }
 
@@ -3214,7 +3214,7 @@ pub fn home_get_maintenance_report() -> Result<serde_json::Value, String> {
 
 /// Log a problem using natural language — parses and extracts system/severity.
 #[tauri::command]
-pub fn home_log_problem_natural(id: String, description: String) -> Result<serde_json::Value, String> {
+pub fn home_log_problem_natural(user_id: String, description: String) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
     let desc_lower = description.to_lowercase();
 
@@ -3245,6 +3245,7 @@ pub fn home_log_problem_natural(id: String, description: String) -> Result<serde
     };
 
     let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    let id = format!("home_problem_{}", uuid::Uuid::new_v4());
     let result = serde_json::json!({
         "id": id,
         "description": description,
@@ -5070,7 +5071,7 @@ fn get_supabase_user_id() -> String {
     let engine = engine::get_engine();
     engine.db().get_config("supabase_user_id")
         .unwrap_or(None)
-        .unwrap_or_else(|| "default".to_string())
+        .unwrap_or_default()
 }
 
 /// Store Supabase session credentials in engine config for cloud API calls.

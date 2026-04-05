@@ -29,7 +29,7 @@ pub struct UpdateSettingsRequest {
 
 #[tauri::command]
 pub async fn budget_get_settings(member_id: Option<String>) -> Result<Option<BudgetSettings>, String> {
-    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| "default".to_string()));
+    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| panic!("No user ID available")));
     
     let resp = supabase_get("budget_settings", &format!("user_id=eq.{}", user_id))
         .map_err(|e| format!("Failed to build request: {}", e))?
@@ -51,7 +51,7 @@ pub async fn budget_get_settings(member_id: Option<String>) -> Result<Option<Bud
 
 #[tauri::command]
 pub async fn budget_update_settings(req: UpdateSettingsRequest, member_id: Option<String>) -> Result<BudgetSettings, String> {
-    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| "default".to_string()));
+    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| panic!("No user ID available")));
     let currency = req.currency.unwrap_or_else(|| "USD".to_string());
 
     let body = serde_json::json!({
@@ -127,7 +127,7 @@ pub struct UpdateBucketRequest {
 
 #[tauri::command]
 pub async fn budget_get_buckets(member_id: Option<String>) -> Result<Vec<BudgetBucket>, String> {
-    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| "default".to_string()));
+    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| panic!("No user ID available")));
     
     let resp = supabase_get("budget_buckets", &format!("user_id=eq.{}&order=created_at.desc", user_id))
         .map_err(|e| format!("Failed to build request: {}", e))?
@@ -145,7 +145,7 @@ pub async fn budget_get_buckets(member_id: Option<String>) -> Result<Vec<BudgetB
 
 #[tauri::command]
 pub async fn budget_create_bucket(req: UpdateBucketRequest, member_id: Option<String>) -> Result<BudgetBucket, String> {
-    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| "default".to_string()));
+    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| panic!("No user ID available")));
     
     let body = serde_json::json!({
         "user_id": user_id,
@@ -176,7 +176,7 @@ pub async fn budget_create_bucket(req: UpdateBucketRequest, member_id: Option<St
 
 #[tauri::command]
 pub async fn budget_update_bucket(id: String, req: UpdateBucketRequest, member_id: Option<String>) -> Result<BudgetBucket, String> {
-    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| "default".to_string()));
+    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| panic!("No user ID available")));
     
     let mut body = serde_json::Map::new();
     body.insert("name".to_string(), serde_json::Value::String(req.name));
@@ -254,7 +254,7 @@ pub struct LogTransactionRequest {
 
 #[tauri::command]
 pub async fn budget_log_transaction(req: LogTransactionRequest, member_id: Option<String>) -> Result<BudgetTransaction, String> {
-    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| "default".to_string()));
+    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| panic!("No user ID available")));
     
     let body = serde_json::json!({
         "user_id": user_id,
@@ -292,7 +292,7 @@ pub async fn budget_get_transactions(
     month: Option<String>,
     member_id: Option<String>,
 ) -> Result<Vec<BudgetTransaction>, String> {
-    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| "default".to_string()));
+    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| panic!("No user ID available")));
     let mut filters = vec![format!("user_id=eq.{}", user_id)];
     
     if let Some(bid) = bucket_id {
@@ -344,7 +344,7 @@ pub struct UpdateAllocationRequest {
 
 #[tauri::command]
 pub async fn budget_update_allocation(req: UpdateAllocationRequest, member_id: Option<String>) -> Result<BudgetAllocation, String> {
-    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| "default".to_string()));
+    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| panic!("No user ID available")));
     
     let body = serde_json::json!({
         "user_id": user_id,
@@ -398,7 +398,7 @@ pub async fn budget_get_allocations(
     pay_period_id: Option<String>,
     member_id: Option<String>,
 ) -> Result<Vec<BudgetAllocation>, String> {
-    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| "default".to_string()));
+    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| panic!("No user ID available")));
     let mut filters = vec![format!("user_id=eq.{}", user_id)];
     
     if let Some(ppid) = pay_period_id {
