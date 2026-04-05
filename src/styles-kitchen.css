@@ -13,9 +13,19 @@
   background: transparent !important;
 }
 
-/* ── HEADER ── */
+/* ── TAB CONTAINERS — Semi-transparent backgrounds so content doesn't get lost ── */
 
-.kitchen-header {
+.kitchen-home,
+.kitchen-library,
+.kitchen-plan,
+.kitchen-grocery,
+.kitchen-pantry {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 20px;
+  padding: 32px;
+  min-height: calc(100vh - 180px);
+}
   position: relative;
   z-index: 1;
   margin-bottom: 32px;
