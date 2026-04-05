@@ -159,16 +159,36 @@ export default function LifeAutopilotView() {
   const nudges = dashboard?.nudges ?? [];
   const streakTotal = dashboard?.streak_total ?? 0;
   const completedToday = dashboard?.completed_today ?? 0;
+  
+  // Calculate total tasks scheduled for today (completed + pending)
+  const pendingToday = tasks.filter(t => {
+    if (!t.due_date) return false;
+    const today = new Date().toISOString().split('T')[0];
+    return t.due_date === today;
+  }).length;
+  const totalTasksToday = completedToday + pendingToday;
+  
+  // Calculate weekly trend (placeholder - would need historical data for real trend)
+  // For now, using a simple heuristic: compare today's completion against a baseline
+  // TODO: Pull 7-day historical data from backend for accurate trend
+  const trendPct = totalTasksToday > 0 
+    ? ((completedToday / totalTasksToday) * 100) - 60 // Assume 60% baseline
+    : 0;
+  
+  // Ensure trend is never undefined
+  const safeTrendPct = trendPct ?? 0;
 
   if (loading && !dashboard) return <div className="mission-control-view"><div className="mc-loading">Loading your orbit...</div></div>;
 
   return (
     <div className="mission-control-view">
-      {/* Header with Altitude Gauge */}
+      {/* Header with Momentum Gauge */}
       <MissionControlHeader
         completedToday={completedToday}
+        totalTasksToday={totalTasksToday}
         streakTotal={streakTotal}
         taskCount={tasks.length}
+        trendPct={safeTrendPct}
       />
 
       {/* Morning Brief */}

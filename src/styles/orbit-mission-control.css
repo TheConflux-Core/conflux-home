@@ -75,56 +75,17 @@
 .mc-stat.streak { color: var(--mc-tertiary); }
 .mc-stat.tasks { color: var(--mc-primary); }
 
-/* Altitude Gauge */
+/* Altitude Gauge - Updated to Momentum Gauge */
 .mc-altitude-container {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px;
+  padding: 12px 16px;
   background: var(--mc-glass);
   backdrop-filter: blur(10px);
   border-radius: 12px;
   border: 1px solid rgba(59, 130, 246, 0.2);
   box-shadow: 0 0 15px rgba(59, 130, 246, 0.1);
-}
-
-.mc-altitude-gauge {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--mc-bg-deep) 0%, var(--mc-bg-mid) 100%);
-  border: 3px solid var(--mc-primary);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3), inset 0 0 20px rgba(59, 130, 246, 0.1);
-  position: relative;
-}
-
-.mc-altitude-gauge::before {
-  content: '';
-  position: absolute;
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  border: 2px solid var(--mc-primary);
-  opacity: 0.5;
-}
-
-.mc-altitude-value {
-  font-family: 'Orbitron', monospace;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--mc-primary);
-  text-shadow: 0 0 10px rgba(59, 130, 246, 0.8);
-}
-
-.mc-altitude-label {
-  font-size: 10px;
-  color: var(--mc-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 1px;
 }
 
 .mc-altitude-details {
@@ -779,6 +740,85 @@
 
 .mission-control-view::-webkit-scrollbar-thumb:hover {
   background: #5b9ef7;
+}
+
+/* Momentum Gauge Styles */
+.mc-momentum-gauge {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.mc-gauge-svg {
+  width: 100%;
+  height: 100%;
+  color: var(--gauge-color, #3b82f6);
+  transition: color 0.5s ease;
+}
+
+.mc-gauge-progress {
+  transition: stroke-dashoffset 0.6s ease-out;
+  filter: drop-shadow(0 0 8px currentColor);
+}
+
+.mc-gauge-bg {
+  opacity: 0.3;
+}
+
+.mc-gauge-value {
+  font-family: 'Orbitron', monospace;
+  font-size: 18px;
+  font-weight: 700;
+  fill: currentColor;
+}
+
+.mc-gauge-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  fill: var(--mc-text-muted);
+}
+
+.mc-gauge-sublabel {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--mc-text-muted);
+  margin-top: 8px;
+}
+
+/* Pulse animation on high momentum */
+@keyframes momentumPulse {
+  0%, 100% { filter: drop-shadow(0 0 8px currentColor); }
+  50% { filter: drop-shadow(0 0 16px currentColor); }
+}
+
+.mc-momentum-gauge.high-momentum .mc-gauge-progress {
+  animation: momentumPulse 2s ease-in-out infinite;
+}
+
+.mc-altitude-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--mc-glass);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.1);
+}
+
+.mc-altitude-details {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--mc-text-muted);
+}
+
+.mc-altitude-details span {
+  color: var(--mc-secondary);
 }
 
 /* Quick Log Button */
