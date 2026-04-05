@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { playOrbitAltitudeThreshold } from '../lib/sound';
 
 interface MomentumGaugeProps {
   percentage: number;  // 0-100
@@ -19,6 +20,20 @@ export function MomentumGauge({ percentage, label, sublabel }: MomentumGaugeProp
   const offset = circumference - (percentage / 100) * circumference;
   
   const isHighMomentum = percentage >= 80;
+  
+  // Track previous percentage for threshold detection
+  const [prevPercentage, setPrevPercentage] = useState(percentage);
+  
+  useEffect(() => {
+    // Check for threshold crossings
+    const thresholds = [50, 80, 100];
+    thresholds.forEach(threshold => {
+      if (prevPercentage < threshold && percentage >= threshold) {
+        playOrbitAltitudeThreshold(percentage);
+      }
+    });
+    setPrevPercentage(percentage);
+  }, [percentage, prevPercentage]);
   
   return (
     <div 

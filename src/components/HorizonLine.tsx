@@ -1,5 +1,6 @@
 import React from 'react';
 import type { LifeDailyFocus, LifeTask } from '../types';
+import { playOrbitTaskComplete } from '../lib/sound';
 
 interface HorizonLineProps {
   focus: LifeDailyFocus[];
@@ -53,8 +54,14 @@ function FocusCard({ focus, onComplete, onReschedule }: {
   const pri = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.normal;
   const energy = task.energy_type ? ENERGY_EMOJI[task.energy_type] : null;
   
+  const handleComplete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    playOrbitTaskComplete();
+    onComplete(task.id);
+  };
+  
   return (
-    <div className="mc-focus-card" onClick={() => onComplete(task.id)}>
+    <div className="mc-focus-card" onClick={handleComplete}>
       <div className="mc-focus-priority">
         <span>{pri.emoji}</span>
         <span>Priority {pri.label}</span>

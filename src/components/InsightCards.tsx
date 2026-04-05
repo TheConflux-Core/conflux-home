@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useCrossAppInsights, type OrbitInsight } from '../hooks/useCrossAppInsights';
+import { playOrbitInsightDiscovered } from '../lib/sound';
 
 interface InsightCardsProps {
   insights?: OrbitInsight[];
@@ -53,6 +54,16 @@ function InsightCard({ insight }: { insight: OrbitInsight }) {
 export function InsightCards({ insights: propInsights }: InsightCardsProps) {
   const { insights: hookInsights, loading } = useCrossAppInsights();
   const insights = propInsights ?? hookInsights;
+  const [isVisible, setIsVisible] = useState(false);
+  
+  // Trigger insight sound when insights load
+  useEffect(() => {
+    if (!loading && insights.length > 0 && !isVisible) {
+      playOrbitInsightDiscovered();
+      // Staggered entry animation
+      setTimeout(() => setIsVisible(true), 100);
+    }
+  }, [loading, insights.length, isVisible]);
   
   if (loading) {
     return <div className="mc-insights-loading">Synthesizing insights...</div>;
@@ -71,8 +82,14 @@ export function InsightCards({ insights: propInsights }: InsightCardsProps) {
     <div className="mc-insights-section">
       <h3 className="mc-section-title">🧠 Cross-App Intelligence</h3>
       <div className="mc-insights-grid">
-        {insights.map(insight => (
-          <InsightCard key={insight.id} insight={insight} />
+        {insights.map((insight, index) => (
+          <div
+            key={insight.id}
+            className={`mc-insight-card-wrapper${isVisible ? ' visible' : ''}`}
+            style={{ animationDelay: `${index * 0.08}s` }}
+          >
+            <InsightCard insight={insight} />
+          </div>
         ))}
       </div>
     </div>
