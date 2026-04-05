@@ -29,12 +29,14 @@ export default function ImmersiveView({ view, backgroundUrl, onClose, children }
   return (
     <div className={`immersive-overlay ${exiting ? 'immersive-exiting' : ''}`}>
       {backgroundUrl && (
-        <div
-          className="immersive-bg"
-          style={{ backgroundImage: `url('${backgroundUrl}')` }}
-        />
+        <>
+          <div
+            className="immersive-bg"
+            style={{ backgroundImage: `url('${backgroundUrl}')` }}
+          />
+          <div className="immersive-gradient" />
+        </>
       )}
-      <div className="immersive-gradient" />
       <button className="immersive-back-btn" onClick={handleClose}>
         ← Desktop
       </button>
