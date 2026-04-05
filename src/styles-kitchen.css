@@ -10,7 +10,7 @@
   color: #fef3c7;
   overflow-y: auto;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: transparent;
+  background: transparent !important;
 }
 
 /* ── HEADER ── */
