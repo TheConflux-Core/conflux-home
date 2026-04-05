@@ -3,6 +3,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useOrbit } from '../hooks/useOrbit';
+import { playOrbitMorningBrief } from '../lib/sound';
 import type { LifeTask, LifeHabit, LifeNudge, LifeDailyFocus } from '../types';
 import { MicButton } from './voice';
 import { MissionControlHeader } from './MissionControlHeader';
@@ -118,7 +119,12 @@ export default function LifeAutopilotView() {
   const handleMorningBrief = useCallback(async () => {
     if (briefLoading) return;
     setBriefLoading(true); setBriefText('');
-    try { setBriefText(await morningBrief()); }
+    try {
+      const brief = await morningBrief();
+      setBriefText(brief);
+      // Play startup sound when brief is generated
+      playOrbitMorningBrief();
+    }
     catch { setBriefText('Failed to generate brief. Try again.'); }
     finally { setBriefLoading(false); }
   }, [briefLoading, morningBrief]);

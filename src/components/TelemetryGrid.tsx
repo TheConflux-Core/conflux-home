@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { LifeTask, LifeHabit } from '../types';
+import { playOrbitTaskComplete, playOrbitStreakMilestone } from '../lib/sound';
 
 interface TelemetryGridProps {
   tasks: LifeTask[];
@@ -61,6 +62,9 @@ function TaskRow({ task, onComplete, onDelete }: {
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setCompleted(true);
+    // Play completion sound
+    playOrbitTaskComplete();
+    // Delay to show the checkmark animation
     setTimeout(() => onComplete(task.id), 200);
   };
   
@@ -82,20 +86,31 @@ function TaskRow({ task, onComplete, onDelete }: {
 
 function HabitCard({ habit, onLog }: { habit: LifeHabit; onLog: (id: string) => void }) {
   const emoji = habit.category ? (CATEGORY_EMOJI[habit.category] ?? '📌') : '📌';
+  const [justLogged, setJustLogged] = useState(false);
+  
+  const handleLog = () => {
+    setJustLogged(true);
+    // Play streak milestone sound if this reaches a significant number
+    const newStreak = habit.streak + 1;
+    playOrbitStreakMilestone(newStreak);
+    onLog(habit.id);
+    // Reset animation state
+    setTimeout(() => setJustLogged(false), 500);
+  };
   
   return (
-    <div className="mc-habit-card" onClick={() => onLog(habit.id)}>
+    <div className="mc-habit-card" onClick={handleLog}>
       <div className="mc-habit-header">
         <span className="mc-habit-emoji">{emoji}</span>
         <div>
           <div className="mc-habit-name">{habit.name}</div>
-          <div className="mc-habit-streak">
+          <div className={`mc-habit-streak${justLogged ? ' pulse' : ''}`}>
             <span>🔥 {habit.streak}</span>
             <span style={{ color: '#94a3b8' }}>• {FREQUENCY_LABEL[habit.frequency] ?? habit.frequency}</span>
           </div>
         </div>
       </div>
-      <button className="mc-habit-log" onClick={(e) => { e.stopPropagation(); onLog(habit.id); }}>
+      <button className="mc-habit-log" onClick={(e) => { e.stopPropagation(); handleLog(); }}>
         ✓ LOG TODAY
       </button>
     </div>
