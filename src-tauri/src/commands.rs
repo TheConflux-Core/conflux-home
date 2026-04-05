@@ -4,6 +4,7 @@
 use tauri::{Manager, Emitter};
 use serde::{Deserialize, Serialize};
 use chrono::{Datelike, Timelike};
+use uuid::Uuid;
 use super::engine;
 use super::engine::cloud;
 use super::engine::router::{self, OpenAIMessage};
@@ -5135,4 +5136,160 @@ pub async fn route_model_supports_tools(model_alias: String) -> Result<bool, Str
 #[tauri::command]
 pub async fn route_get_reliable_tool_models() -> Result<Vec<String>, String> {
     Ok(engine::deterministic::get_reliable_tool_models())
+}
+
+// ── Cross-App Synthesis for Orbit ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrbitInsights {
+    pub insights: Vec<OrbitInsight>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrbitInsight {
+    pub id: String,
+    pub title: String,
+    pub message: String,
+    pub icon: String,
+    pub source_apps: Vec<String>,
+    pub confidence: f64,
+    pub action_suggestion: Option<String>,
+    pub priority: String,
+    pub created_at: String,
+}
+
+#[tauri::command]
+pub async fn orbit_get_cross_app_insights(user_id: String) -> Result<OrbitInsights, String> {
+    let engine = engine::get_engine();
+    
+    // Pull data from each app
+    let budget_entries = engine.db().get_budget_entries(&user_id).unwrap_or_default();
+    let kitchen_inventory = engine.db().get_kitchen_inventory(&user_id).unwrap_or_default();
+    let dream_dashboard = engine.db().get_orbit_dream_dashboard(&user_id).unwrap_or_default();
+    
+    // Synthesize insights
+    let mut insights = Vec::new();
+    
+    // Budget + Kitchen synthesis
+    if let Some(insight) = synthesize_budget_kitchen(&budget_entries, &kitchen_inventory) {
+        insights.push(insight);
+    }
+    
+    // Dreams + Tasks synthesis
+    if let Some(insight) = synthesize_dreams_tasks(&dream_dashboard) {
+        insights.push(insight);
+    }
+    
+    // Combined patterns
+    if let Some(insight) = synthesize_combined_patterns(&budget_entries, &kitchen_inventory, &dream_dashboard) {
+        insights.push(insight);
+    }
+    
+    Ok(OrbitInsights { insights })
+}
+
+// Synthesis functions
+
+fn synthesize_budget_kitchen(
+    budget_entries: &[engine::types::BudgetEntry],
+    kitchen_inventory: &[engine::types::KitchenInventoryItem],
+) -> Option<OrbitInsight> {
+    // Look for dining out + low pantry pattern
+    let dining_out_spending: f64 = budget_entries
+        .iter()
+        .filter(|e| e.entry_type == "expense" && e.category.to_lowercase().contains("dining"))
+        .map(|e| e.amount)
+        .sum();
+    
+    let low_pantry_items: Vec<_> = kitchen_inventory
+        .iter()
+        .filter(|i| i.quantity.map_or(false, |q| q < 1.0))
+        .collect();
+    
+    if dining_out_spending > 50.0 && !low_pantry_items.is_empty() {
+        let item_names: Vec<_> = low_pantry_items.iter().map(|i| i.name.clone()).collect();
+        let saving_estimate = dining_out_spending * 0.3; // Estimated savings
+        
+        return Some(OrbitInsight {
+            id: uuid::Uuid::new_v4().to_string(),
+            title: "Meal Prep Opportunity".to_string(),
+            message: format!("You spent ${:.2} on dining out recently, and your pantry is low on {}. Meal prepping could save ~${:.2}/week!", 
+                dining_out_spending, item_names.join(", "), saving_estimate),
+            icon: "🍳".to_string(),
+            source_apps: vec!["budget".to_string(), "kitchen".to_string()],
+            confidence: 0.75,
+            action_suggestion: Some("Start Sunday meal prep".to_string()),
+            priority: "medium".to_string(),
+            created_at: chrono::Utc::now().to_rfc3339(),
+        });
+    }
+    None
+}
+
+fn synthesize_dreams_tasks(
+    dream_dashboard: &engine::types::DreamDashboard,
+) -> Option<OrbitInsight> {
+    // Count overdue milestones
+    let overdue_count: usize = dream_dashboard
+        .dreams
+        .iter()
+        .filter(|d| d.status == "active")
+        .count();
+    
+    // Simple check: if we have dreams without recent progress
+    let has_no_recent_progress = dream_dashboard.recent_progress.is_empty();
+    
+    if overdue_count > 2 || has_no_recent_progress {
+        let message = if overdue_count > 2 {
+            format!("You have {} active dreams. Let's review progress to stay on track!", overdue_count)
+        } else {
+            "No recent progress on dreams. Time for a weekly dream review?".to_string()
+        };
+        
+        return Some(OrbitInsight {
+            id: uuid::Uuid::new_v4().to_string(),
+            title: "Dream Review".to_string(),
+            message,
+            icon: "🎯".to_string(),
+            source_apps: vec!["dreams".to_string()],
+            confidence: 0.7,
+            action_suggestion: Some("Schedule dream review".to_string()),
+            priority: "low".to_string(),
+            created_at: chrono::Utc::now().to_rfc3339(),
+        });
+    }
+    None
+}
+
+fn synthesize_combined_patterns(
+    budget_entries: &[engine::types::BudgetEntry],
+    kitchen_inventory: &[engine::types::KitchenInventoryItem],
+    dream_dashboard: &engine::types::DreamDashboard,
+) -> Option<OrbitInsight> {
+    // Triple whammy: low pantry + high takeout + no meal plan
+    let takeout_spending: f64 = budget_entries
+        .iter()
+        .filter(|e| e.entry_type == "expense" && (e.category.to_lowercase().contains("dining") || e.category.to_lowercase().contains("takeout") || e.category.to_lowercase().contains("restaurant")))
+        .map(|e| e.amount)
+        .sum();
+    
+    let low_pantry_count = kitchen_inventory
+        .iter()
+        .filter(|i| i.quantity.map_or(false, |q| q < 1.0))
+        .count();
+    
+    if takeout_spending > 100.0 && low_pantry_count > 3 && !dream_dashboard.recent_progress.is_empty() {
+        return Some(OrbitInsight {
+            id: uuid::Uuid::new_v4().to_string(),
+            title: "Triple Whammy".to_string(),
+            message: format!("High takeout spending (${}), low pantry ({} items), but dreams are active. Optimize your week with Sunday meal prep to save money and fuel your goals!", takeout_spending as i64, low_pantry_count),
+            icon: "🚨".to_string(),
+            source_apps: vec!["budget".to_string(), "kitchen".to_string(), "dreams".to_string()],
+            confidence: 0.85,
+            action_suggestion: Some("Plan Sunday meal prep".to_string()),
+            priority: "high".to_string(),
+            created_at: chrono::Utc::now().to_rfc3339(),
+        });
+    }
+    None
 }

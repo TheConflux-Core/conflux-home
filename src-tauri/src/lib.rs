@@ -438,6 +438,8 @@ pub fn run() {
             commands::route_get_task_types,
             commands::route_model_supports_tools,
             commands::route_get_reliable_tool_models,
+            // Cross-App Synthesis for Orbit
+            commands::orbit_get_cross_app_insights,
             // Stripe — Subscription Management
             stripe::stripe_create_checkout_session,
             stripe::stripe_create_credit_pack_session,

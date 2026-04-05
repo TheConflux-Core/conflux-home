@@ -1196,7 +1196,7 @@ pub struct DreamProgress {
     pub created_at: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DreamDashboard {
     pub dreams: Vec<Dream>,
     pub active_dreams: i64,
@@ -1364,4 +1364,24 @@ pub struct StudioUsageStats {
     pub module: String,
     pub generation_count: i64,
     pub total_cost_cents: i64,
+}
+
+// ── Orbit Cross-App Insights ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrbitInsights {
+    pub insights: Vec<OrbitInsight>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrbitInsight {
+    pub id: String,
+    pub title: String,
+    pub message: String,
+    pub icon: String,
+    pub source_apps: Vec<String>,  // ["budget", "kitchen", "dreams"]
+    pub confidence: f64,            // 0.0 - 1.0
+    pub action_suggestion: Option<String>,
+    pub priority: String,           // "high", "medium", "low"
+    pub created_at: String,
 }
