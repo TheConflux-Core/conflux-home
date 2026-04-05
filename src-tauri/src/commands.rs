@@ -2047,12 +2047,14 @@ pub fn budget_generate_report(month: String) -> Result<engine::types::MonthlyRep
 // ── Content Feed ──
 
 #[tauri::command]
-pub fn feed_get_items(member_id: Option<String>, content_type: Option<String>, unread_only: bool) -> Result<Vec<engine::types::ContentFeedItem>, String> {
+pub fn feed_get_items(user_id: String, member_id: Option<String>, content_type: Option<String>, unread_only: bool) -> Result<Vec<engine::types::ContentFeedItem>, String> {
     let engine = engine::get_engine();
     let conn = engine.db().conn();
     let mut conditions = Vec::<String>::new();
     let mut params_vec: Vec<String> = Vec::new();
 
+    conditions.push("member_id = ?".to_string());
+    params_vec.push(user_id);
     if let Some(mid) = &member_id {
         conditions.push("(member_id = ? OR member_id IS NULL)".to_string());
         params_vec.push(mid.clone());
@@ -2087,19 +2089,19 @@ pub fn feed_get_items(member_id: Option<String>, content_type: Option<String>, u
 }
 
 #[tauri::command]
-pub fn feed_mark_read(id: String) -> Result<(), String> {
+pub fn feed_mark_read(user_id: String, id: String) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.db().conn().execute("UPDATE content_feed SET is_read = 1 WHERE id = ?1", rusqlite::params![id])
+    engine.db().conn().execute("UPDATE content_feed SET is_read = 1 WHERE id = ?1 AND member_id = ?2", rusqlite::params![id, user_id])
         .map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
-pub fn feed_toggle_bookmark(id: String) -> Result<(), String> {
+pub fn feed_toggle_bookmark(user_id: String, id: String) -> Result<(), String> {
     let engine = engine::get_engine();
     engine.db().conn().execute(
-        "UPDATE content_feed SET is_bookmarked = CASE WHEN is_bookmarked = 1 THEN 0 ELSE 1 END WHERE id = ?1",
-        rusqlite::params![id],
+        "UPDATE content_feed SET is_bookmarked = CASE WHEN is_bookmarked = 1 THEN 0 ELSE 1 END WHERE id = ?1 AND member_id = ?2",
+        rusqlite::params![id, user_id],
     ).map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -2123,7 +2125,9 @@ pub fn feed_add_item(member_id: Option<String>, content_type: String, title: Str
 }
 
 #[tauri::command]
-pub async fn feed_generate(member_id: Option<String>, interests: Option<String>) -> Result<Vec<engine::types::ContentFeedItem>, String> {
+pub async fn feed_generate(user_id: String, member_id: Option<String>, interests: Option<String>) -> Result<Vec<engine::types::ContentFeedItem>, String> {
+    #[allow(unused_variables)]
+    let _uid = user_id;
     let engine = engine::get_engine();
 
     let interest_text = interests.unwrap_or_else(|| "general knowledge, technology, health, finance, fun facts".to_string());
@@ -2626,68 +2630,68 @@ Provide a helpful, specific answer based on the information above. If you don't 
 // ── Life Autopilot: Orbit Commands ──
 
 #[tauri::command]
-pub fn life_add_task(title: String, category: Option<String>, priority: Option<String>, due_date: Option<String>, energy_type: Option<String>) -> Result<(), String> {
+pub fn life_add_task(user_id: String, title: String, category: Option<String>, priority: Option<String>, due_date: Option<String>, energy_type: Option<String>) -> Result<(), String> {
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
-    engine.db().add_life_task(&id, &title, category.as_deref(), priority.as_deref().unwrap_or("medium"), due_date.as_deref(), energy_type.as_deref()).map_err(|e| e.to_string())
+    engine.db().add_life_task(&id, &user_id, &title, category.as_deref(), priority.as_deref().unwrap_or("medium"), due_date.as_deref(), energy_type.as_deref()).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn life_get_tasks(status: Option<String>) -> Result<Vec<engine::types::LifeTask>, String> {
+pub fn life_get_tasks(user_id: String, status: Option<String>) -> Result<Vec<engine::types::LifeTask>, String> {
     let engine = engine::get_engine();
-    engine.db().get_life_tasks(status.as_deref()).map_err(|e| e.to_string())
+    engine.db().get_life_tasks(&user_id, status.as_deref()).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn life_complete_task(task_id: String) -> Result<(), String> {
+pub fn life_complete_task(user_id: String, task_id: String) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.db().update_life_task_status(&task_id, "completed").map_err(|e| e.to_string())
+    engine.db().update_life_task_status(&user_id, &task_id, "completed").map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn life_delete_task(task_id: String) -> Result<(), String> {
+pub fn life_delete_task(user_id: String, task_id: String) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.db().delete_life_task(&task_id).map_err(|e| e.to_string())
+    engine.db().delete_life_task(&user_id, &task_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn life_add_habit(name: String, category: Option<String>, frequency: Option<String>, target_count: Option<i64>) -> Result<(), String> {
+pub fn life_add_habit(user_id: String, name: String, category: Option<String>, frequency: Option<String>, target_count: Option<i64>) -> Result<(), String> {
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
-    engine.db().add_life_habit(&id, &name, category.as_deref(), frequency.as_deref().unwrap_or("daily"), target_count.unwrap_or(1)).map_err(|e| e.to_string())
+    engine.db().add_life_habit(&id, &user_id, &name, category.as_deref(), frequency.as_deref().unwrap_or("daily"), target_count.unwrap_or(1)).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn life_get_habits(active_only: Option<bool>) -> Result<Vec<engine::types::LifeHabit>, String> {
+pub fn life_get_habits(user_id: String, active_only: Option<bool>) -> Result<Vec<engine::types::LifeHabit>, String> {
     let engine = engine::get_engine();
-    engine.db().get_life_habits(active_only.unwrap_or(true)).map_err(|e| e.to_string())
+    engine.db().get_life_habits(&user_id, active_only.unwrap_or(true)).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn life_log_habit(habit_id: String) -> Result<(), String> {
+pub fn life_log_habit(user_id: String, habit_id: String) -> Result<(), String> {
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    engine.db().log_life_habit(&id, &habit_id, &today, 1).map_err(|e| e.to_string())
+    engine.db().log_life_habit(&id, &habit_id, &user_id, &today, 1).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn life_get_orbit_dashboard() -> Result<engine::types::OrbitDashboard, String> {
+pub fn life_get_orbit_dashboard(user_id: String) -> Result<engine::types::OrbitDashboard, String> {
     let engine = engine::get_engine();
-    engine.db().get_orbit_dashboard().map_err(|e| e.to_string())
+    engine.db().get_orbit_dashboard(&user_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn life_add_daily_focus(task_id: String, position: Option<i64>) -> Result<(), String> {
+pub fn life_add_daily_focus(user_id: String, task_id: String, position: Option<i64>) -> Result<(), String> {
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
-    engine.db().add_daily_focus(&id, &task_id, position.unwrap_or(0)).map_err(|e| e.to_string())
+    engine.db().add_daily_focus(&id, &user_id, &task_id, position.unwrap_or(0)).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn life_morning_brief() -> Result<String, String> {
+pub async fn life_morning_brief(user_id: String) -> Result<String, String> {
     let engine = engine::get_engine();
-    let dashboard = engine.db().get_orbit_dashboard().map_err(|e| e.to_string())?;
+    let dashboard = engine.db().get_orbit_dashboard(&user_id).map_err(|e| e.to_string())?;
     let mut brief = String::from("☀️ Good morning!\n\n");
     if !dashboard.today_focus.is_empty() {
         brief.push_str("🎯 Today's Focus:\n");
@@ -2741,9 +2745,9 @@ pub async fn life_decision_helper(options: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn life_get_heatmap() -> Result<serde_json::Value, String> {
+pub fn life_get_heatmap(user_id: String) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
-    let tasks = engine.db().get_life_tasks(None).unwrap_or_default();
+    let tasks = engine.db().get_life_tasks(&user_id, None).unwrap_or_default();
     let mut days: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
     for task in &tasks {
         if let Some(ref date) = task.due_date {
@@ -2754,10 +2758,10 @@ pub fn life_get_heatmap() -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-pub fn life_dismiss_nudge(nudge_id: String) -> Result<(), String> {
+pub fn life_dismiss_nudge(user_id: String, nudge_id: String) -> Result<(), String> {
     let engine = engine::get_engine();
     let conn = engine.db().conn();
-    conn.execute("UPDATE life_nudges SET dismissed = 1 WHERE id = ?1", rusqlite::params![nudge_id]).map_err(|e| e.to_string())?;
+    conn.execute("UPDATE life_nudges SET dismissed = 1 WHERE id = ?1 AND member_id = ?2", rusqlite::params![nudge_id, user_id]).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -3270,61 +3274,61 @@ pub fn dream_add(id: String, member_id: Option<String>, title: String, descripti
 }
 
 #[tauri::command]
-pub fn dream_get_all(status: Option<String>) -> Result<Vec<engine::types::Dream>, String> {
+pub fn dream_get_all(user_id: String, status: Option<String>) -> Result<Vec<engine::types::Dream>, String> {
     let engine = engine::get_engine();
-    engine.db().get_dreams(status.as_deref()).map_err(|e| e.to_string())
+    engine.db().get_dreams(&user_id, status.as_deref()).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn dream_get_dashboard() -> Result<engine::types::DreamDashboard, String> {
+pub fn dream_get_dashboard(user_id: String) -> Result<engine::types::DreamDashboard, String> {
     let engine = engine::get_engine();
-    engine.db().get_dream_dashboard().map_err(|e| e.to_string())
+    engine.db().get_dream_dashboard(&user_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn dream_add_milestone(id: String, dream_id: String, title: String, description: Option<String>, target_date: Option<String>, sort_order: i64) -> Result<(), String> {
+pub fn dream_add_milestone(user_id: String, id: String, dream_id: String, title: String, description: Option<String>, target_date: Option<String>, sort_order: i64) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.db().add_milestone(&id, &dream_id, &title, description.as_deref(), target_date.as_deref(), sort_order).map_err(|e| e.to_string())
+    engine.db().add_milestone(&id, &dream_id, &user_id, &title, description.as_deref(), target_date.as_deref(), sort_order).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn dream_complete_milestone(id: String) -> Result<(), String> {
+pub fn dream_complete_milestone(user_id: String, id: String) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.db().complete_milestone(&id).map_err(|e| e.to_string())
+    engine.db().complete_milestone(&user_id, &id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn dream_add_task(id: String, dream_id: String, milestone_id: Option<String>, title: String, description: Option<String>, due_date: Option<String>, frequency: Option<String>) -> Result<(), String> {
+pub fn dream_add_task(user_id: String, id: String, dream_id: String, milestone_id: Option<String>, title: String, description: Option<String>, due_date: Option<String>, frequency: Option<String>) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.db().add_dream_task(&id, &dream_id, milestone_id.as_deref(), &title, description.as_deref(), due_date.as_deref(), frequency.as_deref()).map_err(|e| e.to_string())
+    engine.db().add_dream_task(&id, &dream_id, milestone_id.as_deref(), &user_id, &title, description.as_deref(), due_date.as_deref(), frequency.as_deref()).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn dream_get_tasks(dream_id: String) -> Result<Vec<engine::types::DreamTask>, String> {
+pub fn dream_get_tasks(user_id: String, dream_id: String) -> Result<Vec<engine::types::DreamTask>, String> {
     let engine = engine::get_engine();
-    engine.db().get_dream_tasks(&dream_id).map_err(|e| e.to_string())
+    engine.db().get_dream_tasks(&dream_id, &user_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn dream_complete_task(id: String) -> Result<(), String> {
+pub fn dream_complete_task(user_id: String, id: String) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.db().complete_dream_task(&id).map_err(|e| e.to_string())
+    engine.db().complete_dream_task(&user_id, &id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn dream_add_progress(id: String, dream_id: String, note: Option<String>, progress_change: Option<f64>, ai_insight: Option<String>) -> Result<(), String> {
+pub fn dream_add_progress(user_id: String, id: String, dream_id: String, note: Option<String>, progress_change: Option<f64>, ai_insight: Option<String>) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.db().add_dream_progress(&id, &dream_id, note.as_deref(), progress_change, ai_insight.as_deref()).map_err(|e| e.to_string())
+    engine.db().add_dream_progress(&id, &dream_id, &user_id, note.as_deref(), progress_change, ai_insight.as_deref()).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn dream_delete(id: String) -> Result<(), String> {
+pub fn dream_delete(user_id: String, id: String) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.db().delete_dream(&id).map_err(|e| e.to_string())
+    engine.db().delete_dream(&user_id, &id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn dream_ai_plan(dream_id: String, title: String, description: Option<String>, category: String, target_date: Option<String>) -> Result<serde_json::Value, String> {
+pub async fn dream_ai_plan(user_id: String, dream_id: String, title: String, description: Option<String>, category: String, target_date: Option<String>) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
     let prompt = format!(
         "You are a goal achievement AI. A family wants to achieve:\n\nTitle: {title}\nCategory: {category}\nDescription: {}\nTarget: {}\n\nReverse-engineer into concrete plan. Respond as JSON (no markdown):\n{{\"analysis\":\"...\",\"milestones\":[{{\"title\":\"...\",\"description\":\"...\",\"target_date\":\"2026-06-01\",\"sort_order\":0}}],\"immediate_tasks\":[{{\"title\":\"...\",\"description\":\"...\",\"due_date\":\"2026-03-25\",\"frequency\":\"one-time\"}}],\"habit\":{{\"title\":\"...\",\"description\":\"...\"}},\"metrics\":[\"...\"]}}",
@@ -3339,13 +3343,13 @@ pub async fn dream_ai_plan(dream_id: String, title: String, description: Option<
     if let Some(ms) = plan["milestones"].as_array() {
         for (i, m) in ms.iter().enumerate() {
             let mid = uuid::Uuid::new_v4().to_string();
-            engine.db().add_milestone(&mid, &dream_id, m["title"].as_str().unwrap_or("Milestone"), m["description"].as_str(), m["target_date"].as_str(), i as i64).ok();
+            engine.db().add_milestone(&mid, &dream_id, &user_id, m["title"].as_str().unwrap_or("Milestone"), m["description"].as_str(), m["target_date"].as_str(), i as i64).ok();
         }
     }
     if let Some(tasks) = plan["immediate_tasks"].as_array() {
         for t in tasks {
             let tid = uuid::Uuid::new_v4().to_string();
-            engine.db().add_dream_task(&tid, &dream_id, None, t["title"].as_str().unwrap_or("Task"), t["description"].as_str(), t["due_date"].as_str(), t["frequency"].as_str()).ok();
+            engine.db().add_dream_task(&tid, &dream_id, None, &user_id, t["title"].as_str().unwrap_or("Task"), t["description"].as_str(), t["due_date"].as_str(), t["frequency"].as_str()).ok();
         }
     }
     Ok(plan)
@@ -3354,27 +3358,27 @@ pub async fn dream_ai_plan(dream_id: String, title: String, description: Option<
 // ── Dreams: Horizon Commands ──
 
 #[tauri::command]
-pub fn dream_get_velocity(dream_id: String) -> Result<engine::types::DreamVelocity, String> {
+pub fn dream_get_velocity(user_id: String, dream_id: String) -> Result<engine::types::DreamVelocity, String> {
     let engine = engine::get_engine();
-    engine.db().get_dream_velocity(&dream_id).map_err(|e| e.to_string())
+    engine.db().get_dream_velocity(&dream_id, &user_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn dream_get_timeline(dream_id: String) -> Result<engine::types::DreamTimeline, String> {
+pub fn dream_get_timeline(user_id: String, dream_id: String) -> Result<engine::types::DreamTimeline, String> {
     let engine = engine::get_engine();
-    engine.db().get_dream_timeline(&dream_id).map_err(|e| e.to_string())
+    engine.db().get_dream_timeline(&dream_id, &user_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn dream_update_progress_manual(dream_id: String, progress_pct: f64) -> Result<(), String> {
+pub fn dream_update_progress_manual(user_id: String, dream_id: String, progress_pct: f64) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.db().set_dream_progress(&dream_id, progress_pct).map_err(|e| e.to_string())
+    engine.db().set_dream_progress(&user_id, &dream_id, progress_pct).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn dream_get_all_active_with_velocity() -> Result<serde_json::Value, String> {
+pub fn dream_get_all_active_with_velocity(user_id: String) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
-    let dreams_vel = engine.db().get_active_dreams_with_velocity().map_err(|e| e.to_string())?;
+    let dreams_vel = engine.db().get_active_dreams_with_velocity(&user_id).map_err(|e| e.to_string())?;
     let result: Vec<serde_json::Value> = dreams_vel.into_iter().map(|(d, v)| {
         serde_json::json!({ "dream": d, "velocity": v })
     }).collect();
@@ -3382,10 +3386,10 @@ pub fn dream_get_all_active_with_velocity() -> Result<serde_json::Value, String>
 }
 
 #[tauri::command]
-pub async fn dream_ai_narrate(dream_id: String) -> Result<String, String> {
+pub async fn dream_ai_narrate(user_id: String, dream_id: String) -> Result<String, String> {
     let engine = engine::get_engine();
-    let velocity = engine.db().get_dream_velocity(&dream_id).map_err(|e| e.to_string())?;
-    let dreams = engine.db().get_dreams(None).map_err(|e| e.to_string())?;
+    let velocity = engine.db().get_dream_velocity(&dream_id, &user_id).map_err(|e| e.to_string())?;
+    let dreams = engine.db().get_dreams(&user_id, None).map_err(|e| e.to_string())?;
     let title = dreams.iter().find(|d| d.id == dream_id)
         .map(|d| d.title.clone())
         .unwrap_or_else(|| "Your Dream".to_string());
