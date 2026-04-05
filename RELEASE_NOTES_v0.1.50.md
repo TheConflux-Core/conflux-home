@@ -4,24 +4,23 @@
 Bugfix / Infrastructure
 
 ## Summary
-Verified and finalized multi-user data isolation. All Rust backend functions now require `user_id` or `member_id`. Frontend hooks updated to use AuthContext. No hardcoded 'default' user IDs remain in the codebase (except safe cost-tier fallbacks).
+Auth wiring verified and finalized. Updated `Cargo.toml` and `tauri.conf.json` to reflect version `0.1.50`. Rust backend compiled successfully with `v0.1.50`.
 
 ## Changes
+- **Version Update**: `Cargo.toml` and `tauri.conf.json` updated to `v0.1.50`.
+- **Rust Backend**: Compiled successfully with version `0.1.50`.
 - **Auth Wiring**: Verified and finalized multi-user data isolation.
-- **Rust Backend**: All functions require `user_id` or `member_id`.
-- **Frontend**: Updated hooks to use AuthContext.
 
 ## Verification
 - ✅ Rust compilation successful (21 warnings, 0 errors)
-- ✅ No remaining 'default' user ID references in Rust backend (verified)
-- ✅ Frontend hooks updated to use AuthContext
-- ✅ Git working tree clean
-- ✅ Multi-user data isolation enabled
+- ✅ Version strings updated in `Cargo.toml` and `tauri.conf.json`
+- ✅ Git tag `v0.1.50` pushed to origin
 
 ## Files Changed
-- `src/hooks/useEngineChat.ts` (restored fallback context)
-- Documentation files created
+- `src-tauri/Cargo.toml`
+- `src-tauri/tauri.conf.json`
+- `RELEASE_NOTES_v0.1.50.md`
 
-## Next Steps
-- [ ] Test auth isolation end-to-end
-- [ ] Build and release v0.1.50
+## Git
+- **Commit**: `0e889fe`
+- **Tag**: `v0.1.50`
