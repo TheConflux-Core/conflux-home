@@ -23,7 +23,7 @@ fn get_session_user_id(db: &EngineDb, session_id: &str) -> String {
                 .ok()
                 .flatten()
                 .filter(|id| !id.is_empty())
-                .unwrap_or_else(|| "default".to_string())
+                .unwrap_or_default()
         }
     }
 }
@@ -388,6 +388,18 @@ pub async fn process_turn_stream(
 
             // Execute the tool with user context
             let user_id = get_session_user_id(db, session_id);
+            if user_id.is_empty() {
+                log::error!("[process_turn] No user_id found for session {}", session_id);
+                return Ok(ModelResponse {
+                    content: "Error: No user session found. Please sign in.".to_string(),
+                    model: "error".to_string(),
+                    provider_id: "error".to_string(),
+                    provider_name: "error".to_string(),
+                    tokens_used: 0,
+                    latency_ms: 0,
+                    tool_calls: vec![],
+                });
+            }
             let tool_result = tools::execute_tool(&tool_call.name, &args, &user_id).await?;
 
             let result_content = if tool_result.success {

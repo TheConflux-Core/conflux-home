@@ -14,6 +14,14 @@ export default function EchoView() {
   const [tagsStr, setTagsStr] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [inkBleed, setInkBleed] = useState(false);
+  
+  // Trigger ink-bleed animation on mood selection
+  const handleMoodSelect = (m: EchoMood) => {
+    setInkBleed(true);
+    setMood(mood === m ? null : m);
+    setTimeout(() => setInkBleed(false), 300);
+  };
 
   const handleSubmit = async () => {
     if (!content.trim()) return;
@@ -83,7 +91,7 @@ export default function EchoView() {
   return (
     <div className="echo-hub">
       <div className="echo-header">
-        <h1>🪞 Echo</h1>
+        <h1 className={inkBleed ? 'ink-bleed' : ''}>🪞 Echo</h1>
         <div className="echo-subtitle">The notebook that listens</div>
       </div>
 
@@ -110,9 +118,9 @@ export default function EchoView() {
               {(Object.keys(ECHO_MOOD_CONFIG) as EchoMood[]).map(m => (
                 <button
                   key={m}
-                  className={`echo-mood-btn ${mood === m ? 'active' : ''}`}
+                  className={`echo-mood-btn ${mood === m ? 'active' : ''} ${inkBleed ? 'ink-bleed-active' : ''}`}
                   style={{ '--mood-color': ECHO_MOOD_CONFIG[m].color } as React.CSSProperties}
-                  onClick={() => setMood(mood === m ? null : m)}
+                  onClick={() => handleMoodSelect(m)}
                 >
                   <span className="echo-mood-emoji">{ECHO_MOOD_CONFIG[m].emoji}</span>
                   {ECHO_MOOD_CONFIG[m].label}

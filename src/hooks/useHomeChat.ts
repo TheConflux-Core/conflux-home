@@ -1,12 +1,15 @@
 import { useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { HomeChatMessage } from '../types';
+import { useAuthContext } from '../contexts/AuthContext';
 
 export function useHomeChat() {
   const [messages, setMessages] = useState<HomeChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const { user } = useAuthContext();
 
   const send = useCallback(async (message: string) => {
+    if (!user?.id) return;
     const userMessage: HomeChatMessage = {
       role: 'user',
       content: message,
@@ -15,7 +18,7 @@ export function useHomeChat() {
     setMessages(prev => [...prev, userMessage]);
     setLoading(true);
     try {
-      const response = await invoke<HomeChatMessage>('home_chat', { id: 'default', message });
+      const response = await invoke<HomeChatMessage>('home_chat', { id: user.id, message });
       setMessages(prev => [...prev, response]);
     } catch (e) {
       console.error('Failed to send chat message:', e);
@@ -24,7 +27,7 @@ export function useHomeChat() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?.id]);
 
   return { messages, loading, send };
 }
