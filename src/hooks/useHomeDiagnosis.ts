@@ -14,7 +14,7 @@ export function useHomeDiagnosis() {
     setLoading(true);
     setError(null);
     try {
-      const result = await invoke<HomeDiagnosis>('home_diagnose_problem', { id: user.id, symptom });
+      const result = await invoke<HomeDiagnosis>('home_diagnose_problem', { user_id: user.id, symptom });
       setDiagnosis(result);
     } catch (e) {
       setError(String(e));
@@ -28,7 +28,7 @@ export function useHomeDiagnosis() {
     setLoading(true);
     setError(null);
     try {
-      const result = await invoke<HomeDiagnosis>('home_log_problem_natural', { id: user.id, description });
+      const result = await invoke<HomeDiagnosis>('home_log_problem_natural', { user_id: user.id, description });
       setDiagnosis(result);
     } catch (e) {
       setError(String(e));
