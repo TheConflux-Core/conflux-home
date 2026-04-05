@@ -1,9 +1,17 @@
-// Conflux Home — Dream Builder View (Horizon)
-// Mountain-inspired design with velocity, AI narratives, milestone paths
+// Conflux Home — Dream Builder View (Horizon) — Stellar Navigation Redesign
+// Deep Space Constellation aesthetic with interactive stellar maps
 
 import { useState, useCallback, useEffect } from 'react';
 import { useDreams } from '../hooks/useDreams';
-import { HorizonHero, HorizonGoalCard, HorizonMilestonePath, HorizonInsightCard, HorizonVelocity } from './horizon';
+import {
+  StellarHeader,
+  ConstellationSelector,
+  StellarMap,
+  OrbitalVelocity,
+  MissionLog,
+  StarMilestone,
+  StarFieldBackground,
+} from './horizon';
 import { MicButton } from './voice';
 import type { Dream, DreamVelocity, DreamMilestone, DreamTask, DreamProgress } from '../types';
 
@@ -43,6 +51,7 @@ export default function DreamBuilderView() {
   const [narrative, setNarrative] = useState<string | null>(null);
   const [progressNote, setProgressNote] = useState('');
   const [progressPct, setProgressPct] = useState('5');
+  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
 
   // Load velocities for all dreams when dashboard changes
   useEffect(() => {
@@ -65,6 +74,7 @@ export default function DreamBuilderView() {
     setSelectedTasks(dashboard.upcoming_tasks.filter(t => t.dream_id === selectedDream.id));
     setSelectedProgress(dashboard.recent_progress.filter(p => p.dream_id === selectedDream.id));
     setNarrative(null);
+    setSelectedMilestoneId(null);
   }, [selectedDream, dashboard, velocities]);
 
   const handleCreate = useCallback(async () => {
@@ -101,49 +111,127 @@ export default function DreamBuilderView() {
     setProgressNote('');
   }, [selectedDream, progressNote, progressPct, addProgress]);
 
+  const handleSelectMilestone = useCallback((milestoneId: string | null) => {
+    setSelectedMilestoneId(milestoneId);
+  }, []);
+
+  // Calculate overall velocity for header
+  const overallVelocity = dashboard && dashboard.dreams.length > 0
+    ? dashboard.dreams.reduce((sum, d) => sum + d.progress, 0) / dashboard.dreams.length
+    : 0;
+
+  const activeDreams = dashboard?.dreams.filter(d => d.status === 'active') ?? [];
+
   if (loading) return (
-    <div className="horizon-view">
-      <div className="horizon-loading">
-        <div className="horizon-loading-icon">🏔️</div>
-        <p className="horizon-loading-text">Charting your horizons...</p>
+    <div className="stellar-view">
+      <StarFieldBackground />
+      <div className="stellar-loading">
+        <div className="stellar-loading-icon">🌌</div>
+        <p className="stellar-loading-text">Initializing stellar navigation...</p>
       </div>
     </div>
   );
 
-  const activeDreams = dashboard?.dreams.filter(d => d.status === 'active') ?? [];
-
   return (
-    <div className="horizon-view">
+    <div className="stellar-view">
+      <StarFieldBackground />
+
       {selectedDream ? (
-        /* ── Selected Dream Detail View ── */
-        <div className="horizon-detail">
-          <button className="horizon-back-btn" onClick={() => setSelectedDream(null)}>
-            ← Back to Dreams
+        /* ── Selected Dream Detail View (Stellar) ── */
+        <div className="stellar-detail">
+          <button className="stellar-back-btn" onClick={() => setSelectedDream(null)}>
+            ← Back to Constellations
           </button>
 
-          {/* Mountain Hero */}
-          <HorizonHero
-            title={selectedDream.title}
-            velocity={selectedVelocity}
+          {/* Stellar Header */}
+          <StellarHeader
+            dreamCount={1}
+            activeCount={1}
+            velocity={selectedVelocity?.progress_pct ?? 0}
           />
 
-          {/* Velocity Stats */}
-          {selectedVelocity && (
-            <HorizonVelocity velocity={selectedVelocity} />
-          )}
+          {/* Main Content: Stellar Map + Velocity/Mission panels */}
+          <div className="stellar-main">
+            {/* Stellar Map (Constellation View) */}
+            <StellarMap
+              milestones={selectedMilestones}
+              selectedMilestoneId={selectedMilestoneId}
+              onSelectMilestone={handleSelectMilestone}
+            />
 
-          {/* Milestones Path */}
-          {selectedMilestones.length > 0 && (
-            <div className="horizon-section">
-              <h3 className="horizon-section-title">🏔️ Milestones</h3>
-              <HorizonMilestonePath milestones={selectedMilestones} onComplete={handleCompleteMilestone} />
+            {/* Right panel: Orbital Velocity */}
+            {selectedVelocity && (
+              <OrbitalVelocity velocity={selectedVelocity} />
+            )}
+          </div>
+
+          {/* Mission Control Panel */}
+          <div className="stellar-panel">
+            {/* Mission Log (AI Narrative) */}
+            <MissionLog
+              narrative={narrative}
+              narrating={narrating}
+              onNarrate={handleNarrate}
+            />
+
+            {/* Progress & Tasks Section */}
+            <div className="stellar-section">
+              <h3 className="stellar-section-title">📈 Log Progress</h3>
+              <div className="stellar-progress-form">
+                <div className="input-with-mic">
+                  <input
+                    type="text"
+                    value={progressNote}
+                    onChange={e => setProgressNote(e.target.value)}
+                    placeholder="What did you do today?"
+                    className="stellar-input"
+                  />
+                  <MicButton
+                    onTranscription={(text) => setProgressNote(text)}
+                    variant="inline"
+                    size="sm"
+                    className="mic-button-inline"
+                  />
+                </div>
+                <div className="stellar-progress-row">
+                  <input
+                    type="number"
+                    value={progressPct}
+                    onChange={e => setProgressPct(e.target.value)}
+                    className="stellar-input stellar-input-sm"
+                    min="0"
+                    max="100"
+                  />
+                  <span className="stellar-pct-label">%</span>
+                  <button
+                    className="stellar-btn"
+                    onClick={handleAddProgress}
+                    disabled={!progressNote.trim()}
+                  >
+                    Log
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* AI Insights */}
+          {selectedProgress.filter(p => p.ai_insight).length > 0 && (
+            <div className="stellar-section" style={{ padding: '0 2rem 2rem', maxWidth: 1400, margin: '0 auto', position: 'relative', zIndex: 10 }}>
+              <h3 className="stellar-section-title">💡 Insights</h3>
+              {selectedProgress.filter(p => p.ai_insight).map(p => (
+                <div key={p.id} className="stellar-insight-card">
+                  <p className="stellar-insight-text">{p.ai_insight}</p>
+                  <span className="stellar-insight-date">{new Date(p.created_at).toLocaleDateString()}</span>
+                </div>
+              ))}
             </div>
           )}
 
-          {/* Tasks */}
+          {/* Tasks Section */}
           {selectedTasks.length > 0 && (
-            <div className="horizon-section">
-              <h3 className="horizon-section-title">📋 Tasks</h3>
+            <div className="stellar-section" style={{ padding: '0 2rem 2rem', maxWidth: 1400, margin: '0 auto', position: 'relative', zIndex: 10 }}>
+              <h3 className="stellar-section-title">📋 Tasks</h3>
               <div className="horizon-task-list">
                 {selectedTasks.map(t => (
                   <div key={t.id} className={`horizon-task ${t.is_completed ? 'completed' : ''}`}>
@@ -163,119 +251,49 @@ export default function DreamBuilderView() {
             </div>
           )}
 
-          {/* AI Narrate */}
-          <div className="horizon-section">
-            <button
-              className="horizon-narrate-btn"
-              onClick={handleNarrate}
-              disabled={narrating}
-            >
-              {narrating ? '✨ Crafting your story...' : '📖 AI Narrative'}
-            </button>
-            {narrative && (
-              <div className="horizon-narrative">
-                <p className="horizon-narrative-text">{narrative}</p>
-              </div>
-            )}
-          </div>
-
-          {/* AI Insights */}
-          {selectedProgress.filter(p => p.ai_insight).length > 0 && (
-            <div className="horizon-section">
-              <h3 className="horizon-section-title">💡 Insights</h3>
-              {selectedProgress.filter(p => p.ai_insight).map(p => (
-                <HorizonInsightCard
-                  key={p.id}
-                  text={p.ai_insight!}
-                  date={new Date(p.created_at).toLocaleDateString()}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Log Progress */}
-          <div className="horizon-section">
-            <h3 className="horizon-section-title">📈 Log Progress</h3>
-            <div className="horizon-progress-form">
-              <div className="input-with-mic">
-              <input
-                type="text"
-                value={progressNote}
-                onChange={e => setProgressNote(e.target.value)}
-                placeholder="What did you do today?"
-                className="horizon-input"
-              />
-              <MicButton
-                onTranscription={(text) => setProgressNote(text)}
-                variant="inline"
-                size="sm"
-                className="mic-button-inline"
-              />
-            </div>
-              <div className="horizon-progress-row">
-                <input
-                  type="number"
-                  value={progressPct}
-                  onChange={e => setProgressPct(e.target.value)}
-                  className="horizon-input horizon-input-sm"
-                  min="0"
-                  max="100"
-                />
-                <span className="horizon-pct-label">%</span>
-                <button
-                  className="horizon-btn"
-                  onClick={handleAddProgress}
-                  disabled={!progressNote.trim()}
-                >
-                  Log
-                </button>
-              </div>
-            </div>
-          </div>
-
           {/* Delete */}
           <button
-            className="horizon-delete-btn"
+            className="stellar-delete-btn"
             onClick={() => { deleteDream(selectedDream.id); setSelectedDream(null); }}
           >
             🗑️ Delete Dream
           </button>
         </div>
       ) : (
-        /* ── Dream List View ── */
-        <div className="horizon-list">
-          <div className="horizon-header">
-            <h2 className="horizon-title">🏔️ Dreams</h2>
-            <button className="horizon-btn" onClick={() => setShowNewForm(!showNewForm)}>
-              {showNewForm ? 'Cancel' : '+ New Dream'}
-            </button>
-          </div>
+        /* ── Dream List View (Stellar) ── */
+        <div className="stellar-list">
+          {/* Stellar Header */}
+          <StellarHeader
+            dreamCount={dashboard?.dreams.length ?? 0}
+            activeCount={dashboard?.active_dreams ?? 0}
+            velocity={overallVelocity}
+          />
 
           {/* Stats Bar */}
-          <div className="horizon-stats-bar">
-            <div className="horizon-stat-card">
-              <span className="horizon-stat-emoji">🎯</span>
-              <span className="horizon-stat-value">{dashboard?.active_dreams ?? 0}</span>
-              <span className="horizon-stat-label">Active Dreams</span>
+          <div className="stellar-stats-bar" style={{ padding: '1.5rem 2rem', maxWidth: 1400, margin: '0 auto', position: 'relative', zIndex: 10 }}>
+            <div className="stellar-stat-card">
+              <span className="stellar-stat-emoji">🎯</span>
+              <span className="stellar-stat-value">{dashboard?.active_dreams ?? 0}</span>
+              <span className="stellar-stat-label">Active Dreams</span>
             </div>
-            <div className="horizon-stat-card">
-              <span className="horizon-stat-emoji">🏆</span>
-              <span className="horizon-stat-value">{dashboard?.completed_milestones ?? 0}/{dashboard?.total_milestones ?? 0}</span>
-              <span className="horizon-stat-label">Milestones</span>
+            <div className="stellar-stat-card">
+              <span className="stellar-stat-emoji">🏆</span>
+              <span className="stellar-stat-value">{dashboard?.completed_milestones ?? 0}/{dashboard?.total_milestones ?? 0}</span>
+              <span className="stellar-stat-label">Milestones</span>
             </div>
-            <div className="horizon-stat-card">
-              <span className="horizon-stat-emoji">📋</span>
-              <span className="horizon-stat-value">{dashboard?.upcoming_tasks.length ?? 0}</span>
-              <span className="horizon-stat-label">Upcoming</span>
+            <div className="stellar-stat-card">
+              <span className="stellar-stat-emoji">📋</span>
+              <span className="stellar-stat-value">{dashboard?.upcoming_tasks.length ?? 0}</span>
+              <span className="stellar-stat-label">Upcoming</span>
             </div>
           </div>
 
           {/* New Dream Form */}
           {showNewForm && (
-            <div className="horizon-new-form">
-              <div className="horizon-form-header">
+            <div className="stellar-new-form" style={{ padding: '0 2rem', maxWidth: 1400, margin: '0 auto', position: 'relative', zIndex: 10 }}>
+              <div className="stellar-new-form-header">
                 <span>✨</span>
-                <span>New Dream</span>
+                <h3 className="stellar-new-form-title">New Dream</h3>
               </div>
               <div className="input-with-mic">
                 <input
@@ -283,7 +301,7 @@ export default function DreamBuilderView() {
                   value={newTitle}
                   onChange={e => setNewTitle(e.target.value)}
                   placeholder="What's your dream?"
-                  className="horizon-input"
+                  className="stellar-input"
                 />
                 <MicButton
                   onTranscription={(text) => setNewTitle(text)}
@@ -296,11 +314,11 @@ export default function DreamBuilderView() {
                 value={newDesc}
                 onChange={e => setNewDesc(e.target.value)}
                 placeholder="Describe it..."
-                className="horizon-textarea"
+                className="stellar-textarea"
                 rows={2}
               />
-              <div className="horizon-form-row">
-                <select value={newCategory} onChange={e => setNewCategory(e.target.value)} className="horizon-select">
+              <div className="stellar-form-row">
+                <select value={newCategory} onChange={e => setNewCategory(e.target.value)} className="stellar-select">
                   {Object.entries(CATEGORY_CONFIG).map(([k, v]) => (
                     <option key={k} value={k}>{v.emoji} {v.label}</option>
                   ))}
@@ -309,10 +327,10 @@ export default function DreamBuilderView() {
                   type="date"
                   value={newTarget}
                   onChange={e => setNewTarget(e.target.value)}
-                  className="horizon-input horizon-input-date"
+                  className="stellar-input"
                 />
                 <button
-                  className="horizon-btn"
+                  className="stellar-btn"
                   onClick={handleCreate}
                   disabled={!newTitle.trim()}
                 >
@@ -322,38 +340,70 @@ export default function DreamBuilderView() {
             </div>
           )}
 
-          {/* Dream Cards */}
-          <div className="horizon-dream-grid">
+          {/* Constellation Selector */}
+          {activeDreams.length > 0 && (
+            <ConstellationSelector
+              dreams={activeDreams}
+              selectedDreamId={null}
+              onSelect={(id) => setSelectedDream(activeDreams.find(d => d.id === id) ?? null)}
+            />
+          )}
+
+          {/* Dream Grid */}
+          <div className="stellar-dream-grid" style={{ padding: '0 2rem 2rem', maxWidth: 1400, margin: '0 auto', position: 'relative', zIndex: 10 }}>
             {activeDreams.length === 0 ? (
-              <div className="horizon-empty">
-                <div className="horizon-empty-icon">🏔️</div>
-                <p className="horizon-empty-text">No dreams yet. What mountain do you want to climb?</p>
+              <div className="stellar-empty">
+                <div className="stellar-empty-icon">🌌</div>
+                <p className="stellar-empty-text">No constellations yet. What star will you illuminate first?</p>
               </div>
             ) : (
-              activeDreams.map(dream => {
-                const vel = velocities[dream.id] ?? {
-                  dream_id: dream.id,
-                  milestones_completed: 0,
-                  milestones_total: 0,
-                  tasks_completed: 0,
-                  tasks_total: 0,
-                  progress_pct: dream.progress,
-                  pace: 'on_track',
-                  days_remaining: null,
-                  estimated_completion: null,
-                };
-                return (
-                  <HorizonGoalCard
-                    key={dream.id}
-                    dream={dream}
-                    velocity={vel}
-                    onSelect={(id) => setSelectedDream(activeDreams.find(d => d.id === id) ?? null)}
-                  />
-                );
-              })
+              <>
+                <button
+                  className="stellar-btn"
+                  onClick={() => setShowNewForm(!showNewForm)}
+                  style={{ marginBottom: '1.5rem' }}
+                >
+                  {showNewForm ? 'Cancel' : '+ New Constellation'}
+                </button>
+                <div className="stellar-dream-grid-inner">
+                  {activeDreams.map(dream => (
+                    <div
+                      key={dream.id}
+                      className="stellar-dream-card"
+                      onClick={() => setSelectedDream(dream)}
+                    >
+                      <div className="stellar-dream-card-emoji">
+                        {CATEGORY_CONFIG[dream.category]?.emoji || '✨'}
+                      </div>
+                      <h3 className="stellar-dream-card-title">{dream.title}</h3>
+                      <div className="stellar-dream-card-progress">
+                        <div
+                          className="stellar-dream-card-progress-fill"
+                          style={{ width: `${dream.progress}%` }}
+                        />
+                      </div>
+                      <span className="stellar-dream-card-pct">{dream.progress.toFixed(0)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         </div>
+      )}
+
+      {/* Star Milestone Modal */}
+      {selectedMilestoneId && selectedMilestones.find(m => m.id === selectedMilestoneId) && (
+        <>
+          <div className="stellar-overlay" onClick={() => setSelectedMilestoneId(null)} />
+          <StarMilestone
+            milestone={selectedMilestones.find(m => m.id === selectedMilestoneId)!}
+            tasks={selectedTasks.filter(t => t.milestone_id === selectedMilestoneId)}
+            onCompleteMilestone={handleCompleteMilestone}
+            onCompleteTask={handleCompleteTask}
+            onClose={() => setSelectedMilestoneId(null)}
+          />
+        </>
       )}
     </div>
   );
