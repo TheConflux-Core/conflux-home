@@ -1,208 +1,205 @@
-// Conflux Home — Current View
-// Intelligence briefing dashboard: daily briefings, ripple radar, signal threads, Q&A, cognitive patterns.
+// Conflux Home — Feed View (Ripple Radar Redesign)
+// Tactical Intelligence aesthetic: Radar view, Signal Cards, Cognitive Sidebar, Briefing Overlay.
 
 import { useState, useCallback } from 'react';
 import { useBriefing } from '../hooks/useBriefing';
 import { useRipples } from '../hooks/useRipples';
 import { useSignalThreads } from '../hooks/useSignalThreads';
-import { useQuestionEngine } from '../hooks/useQuestionEngine';
 import { useCognitivePatterns } from '../hooks/useCognitivePatterns';
 import { useContentFeed } from '../hooks/useFeed';
-import { CurrentHero, RippleCard, SignalThread, QuestionEngine, CognitiveDashboard } from './current';
-import { FEED_TYPE_CONFIG } from '../types';
-
-function timeAgo(date: string): string {
-  const diff = Date.now() - new Date(date).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
-
-type Section = 'briefing' | 'feed' | 'cognitive';
+import RadarView from './RadarView';
+import SignalCard from './SignalCard';
+import CognitiveSidebar from './CognitiveSidebar';
+import BriefingOverlay from './BriefingOverlay';
+import GridBackground from './GridBackground';
+import type { RippleSignal } from '../types';
 
 export default function FeedView() {
   // Hooks
   const { briefing, loading: briefingLoading, generating, generate } = useBriefing();
   const { ripples, loading: ripplesLoading, detect } = useRipples();
   const { threads, loading: threadsLoading, create } = useSignalThreads();
-  const { result: questionResult, history: questionHistory, loading: questionLoading, ask } = useQuestionEngine();
   const { pattern, loading: patternLoading, analyze } = useCognitivePatterns();
-  const { items, loading: feedLoading, unreadCount, markRead, toggleBookmark } = useContentFeed();
+  const { items, loading: feedLoading, unreadCount } = useContentFeed();
 
   // State
-  const [filter, setFilter] = useState<string>('all');
-  const [activeSection, setActiveSection] = useState<Section>('briefing');
+  const [selectedSignal, setSelectedSignal] = useState<RippleSignal | null>(null);
+  const [briefingOpen, setBriefingOpen] = useState(false);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
-  // Feed filtering
-  const filtered = items.filter(item => {
-    if (filter !== 'all' && item.content_type !== filter) return false;
-    return true;
-  });
+  // Filter out dismissed signals
+  const visibleRipples = ripples.filter(r => !dismissedIds.has(r.id));
 
-  // Signal thread creation handler
+  // Detect ripples handler
+  const handleDetect = useCallback(async () => {
+    await detect();
+  }, [detect]);
+
+  // Signal card handlers
+  const handleSave = useCallback((signal: RippleSignal) => {
+    console.log('Saved signal:', signal.id);
+    setDismissedIds(prev => new Set(prev).add(signal.id));
+  }, []);
+
+  const handleDismiss = useCallback((signal: RippleSignal) => {
+    console.log('Dismissed signal:', signal.id);
+    setDismissedIds(prev => new Set(prev).add(signal.id));
+  }, []);
+
+  const handleSignalExpand = useCallback((signal: RippleSignal) => {
+    console.log('Expanded signal:', signal.id);
+  }, []);
+
+  // Create signal thread from a ripple
   const handleCreateThread = useCallback(async (topic: string) => {
     await create(topic, '');
   }, [create]);
 
+  // Generate briefing
+  const handleGenerateBriefing = useCallback(async () => {
+    await generate();
+  }, [generate]);
+
   return (
-    <div className="current-view">
-      {/* ── Section Tabs ── */}
-      <div className="feed-filters" style={{ marginBottom: '1.5rem' }}>
-        <button
-          className={`current-feed-filter-btn${activeSection === 'briefing' ? ' active' : ''}`}
-          onClick={() => setActiveSection('briefing')}
-        >
-          🎯 Briefing
-        </button>
-        <button
-          className={`current-feed-filter-btn${activeSection === 'feed' ? ' active' : ''}`}
-          onClick={() => setActiveSection('feed')}
-        >
-          📰 Feed{unreadCount > 0 ? ` (${unreadCount})` : ''}
-        </button>
-        <button
-          className={`current-feed-filter-btn${activeSection === 'cognitive' ? ' active' : ''}`}
-          onClick={() => setActiveSection('cognitive')}
-        >
-          🧠 Intelligence
-        </button>
-      </div>
+    <>
+      {/* Grid Background */}
+      <GridBackground />
 
-      {/* ════════════════════════════════════════════════════
-          BRIEFING SECTION
-          ════════════════════════════════════════════════════ */}
-      {activeSection === 'briefing' && (
-        <div style={{ animation: 'currentCardSnap 0.35s ease-out' }}>
-          {/* Daily Briefing Hero */}
-          <CurrentHero briefing={briefing} loading={briefingLoading} />
-          <div style={{ textAlign: 'center', margin: '1rem 0' }}>
-            <button className="btn-primary" onClick={generate} disabled={generating}>
-              {generating
-                ? '✨ Generating Briefing...'
-                : briefing
-                  ? '🔄 Regenerate Briefing'
-                  : '✨ Generate Briefing'}
-            </button>
-          </div>
-
-          {/* Ripple Radar */}
-          <RippleCard ripples={ripples} />
-          <div style={{ textAlign: 'center', margin: '1rem 0' }}>
-            <button className="btn-primary" onClick={detect} disabled={ripplesLoading}>
-              {ripplesLoading ? '🔍 Scanning...' : '🌊 Detect Ripples'}
-            </button>
-          </div>
-
-          {/* Signal Threads */}
-          <SignalThread threads={threads} onCreateThread={handleCreateThread} />
-
-          {/* Question Engine */}
-          <QuestionEngine
-            result={questionResult}
-            history={questionHistory}
-            loading={questionLoading}
-            onSubmit={ask}
-          />
-        </div>
-      )}
-
-      {/* ════════════════════════════════════════════════════
-          FEED SECTION
-          ════════════════════════════════════════════════════ */}
-      {activeSection === 'feed' && (
-        <div style={{ animation: 'currentCardSnap 0.35s ease-out' }}>
-          {/* Feed Type Filters */}
-          <div className="feed-filters" style={{ marginBottom: '1rem' }}>
-            <button
-              className={`current-feed-filter-btn${filter === 'all' ? ' active' : ''}`}
-              onClick={() => setFilter('all')}
-            >
-              All
-            </button>
-            {Object.entries(FEED_TYPE_CONFIG).map(([key, config]) => (
-              <button
-                key={key}
-                className={`current-feed-filter-btn${filter === key ? ' active' : ''}`}
-                onClick={() => setFilter(key)}
-              >
-                {config.emoji} {key.replace('_', ' ')}
-              </button>
-            ))}
-          </div>
-
-          {/* Feed Items */}
-          {feedLoading ? (
-            <div className="feed-loading">Loading your feed...</div>
-          ) : filtered.length === 0 ? (
-            <div className="feed-empty">
-              <p>Your feed is empty!</p>
-              <p className="feed-empty-hint">Generate a briefing or refresh the feed to see content.</p>
+      <div className="feed-radar-view">
+        {/* ═══ Main Area ═══ */}
+        <div className="feed-radar-main">
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <div>
+              <h2 style={{
+                fontFamily: 'var(--radar-font-header)',
+                fontSize: '1.3rem',
+                fontWeight: 600,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                margin: 0,
+                color: 'var(--radar-text-primary)',
+              }}>
+                Ripple Radar
+              </h2>
+              <p style={{
+                fontFamily: 'var(--radar-font-mono)',
+                fontSize: '0.7rem',
+                color: 'var(--radar-text-muted)',
+                margin: '4px 0 0 0',
+              }}>
+                {visibleRipples.length} active signal{visibleRipples.length !== 1 ? 's' : ''} · {unreadCount} unread
+              </p>
             </div>
-          ) : (
-            <div className="feed-list">
-              {filtered.map(item => {
-                const typeConfig = FEED_TYPE_CONFIG[item.content_type] ?? { emoji: '📋', color: '#6b7280' };
-                return (
-                  <div
-                    key={item.id}
-                    className={`feed-item ${item.is_read ? 'read' : 'unread'}`}
-                    onClick={() => !item.is_read && markRead(item.id)}
-                  >
-                    <div className="feed-item-header">
-                      <span className="feed-item-type" style={{ background: `${typeConfig.color}15`, color: typeConfig.color }}>
-                        {typeConfig.emoji} {item.content_type.replace('_', ' ')}
-                      </span>
-                      <span className="feed-item-time">{timeAgo(item.created_at)}</span>
-                    </div>
 
-                    <h3 className="feed-item-title">{item.title}</h3>
-                    <p className="feed-item-body">{item.body}</p>
+            <button
+              className="briefing-trigger-btn"
+              onClick={() => setBriefingOpen(true)}
+            >
+              🎯 Briefing
+            </button>
+          </div>
 
-                    <div className="feed-item-footer">
-                      {item.category && (
-                        <span className="feed-item-category">{item.category}</span>
-                      )}
-                      <div className="feed-item-actions">
-                        {item.source_url && (
-                          <a href={item.source_url} target="_blank" rel="noopener noreferrer" className="feed-link" onClick={e => e.stopPropagation()}>
-                            🔗 Source
-                          </a>
-                        )}
-                        <button
-                          className="feed-bookmark-btn"
-                          onClick={e => { e.stopPropagation(); toggleBookmark(item.id); }}
-                          title={item.is_bookmarked ? 'Remove bookmark' : 'Bookmark'}
-                        >
-                          {item.is_bookmarked ? '⭐' : '☆'}
-                        </button>
-                      </div>
-                    </div>
+          {/* Radar View */}
+          <div className="radar-header">
+            <RadarView
+              ripples={visibleRipples}
+              loading={ripplesLoading}
+              onBlipClick={(ripple) => setSelectedSignal(ripple)}
+            />
+          </div>
 
-                    {!item.is_read && <div className="feed-unread-dot" />}
+          {/* Detect button */}
+          <div style={{ textAlign: 'center', margin: '16px 0' }}>
+            <button
+              className="briefing-trigger-btn"
+              onClick={handleDetect}
+              disabled={ripplesLoading}
+            >
+              {ripplesLoading ? '🔍 Scanning...' : '🌊 Scan for Signals'}
+            </button>
+          </div>
+
+          {/* Selected Signal Card */}
+          {selectedSignal && (
+            <SignalCard
+              signal={selectedSignal}
+              onSave={handleSave}
+              onDismiss={handleDismiss}
+              onExpand={handleSignalExpand}
+            />
+          )}
+
+          {/* Threads (below radar) */}
+          {threads && threads.length > 0 && (
+            <div style={{
+              marginTop: '20px',
+              padding: '16px',
+              background: 'var(--radar-glass-bg)',
+              border: '1px solid var(--radar-glass-border)',
+              borderRadius: 'var(--radar-radius)',
+            }}>
+              <h4 style={{
+                fontFamily: 'var(--radar-font-mono)',
+                fontSize: '0.7rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                color: 'var(--radar-text-muted)',
+                margin: '0 0 12px 0',
+              }}>
+                Active Threads ({threads.length})
+              </h4>
+              {threads.slice(0, 3).map(thread => (
+                <div
+                  key={thread.id}
+                  style={{
+                    padding: '10px',
+                    marginBottom: '8px',
+                    background: 'var(--radar-surface)',
+                    border: '1px solid var(--radar-border)',
+                    borderRadius: 'var(--radar-radius-sm)',
+                  }}
+                >
+                  <div style={{
+                    fontFamily: 'var(--radar-font-mono)',
+                    fontSize: '0.75rem',
+                    color: 'var(--radar-text-primary)',
+                    marginBottom: '4px',
+                  }}>
+                    {thread.topic}
                   </div>
-                );
-              })}
+                  <div style={{
+                    fontSize: '0.7rem',
+                    color: 'var(--radar-text-secondary)',
+                  }}>
+                    {thread.summary}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
-      )}
 
-      {/* ════════════════════════════════════════════════════
-          INTELLIGENCE SECTION
-          ════════════════════════════════════════════════════ */}
-      {activeSection === 'cognitive' && (
-        <div style={{ animation: 'currentCardSnap 0.35s ease-out' }}>
-          <CognitiveDashboard pattern={pattern} loading={patternLoading} />
-          <div style={{ textAlign: 'center', margin: '1.5rem 0' }}>
-            <button className="btn-primary" onClick={() => analyze()} disabled={patternLoading}>
-              {patternLoading ? '🧬 Analyzing...' : '🧠 Analyze My Patterns'}
-            </button>
-          </div>
-        </div>
+        {/* ═══ Cognitive Sidebar ═══ */}
+        <aside className="feed-radar-sidebar">
+          <CognitiveSidebar
+            pattern={pattern}
+            loading={patternLoading}
+            onAnalyze={analyze}
+          />
+        </aside>
+      </div>
+
+      {/* ═══ Briefing Overlay ═══ */}
+      {briefingOpen && (
+        <BriefingOverlay
+          briefing={briefing}
+          loading={briefingLoading}
+          generating={generating}
+          onClose={() => setBriefingOpen(false)}
+          onGenerate={handleGenerateBriefing}
+        />
       )}
-    </div>
+    </>
   );
 }
