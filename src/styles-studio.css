@@ -73,6 +73,7 @@
   color: var(--studio-text);
   overflow: hidden;
   position: relative;
+  padding: 40px 64px;
 }
 
 .studio-container::before {
@@ -119,10 +120,11 @@
 .studio-tabs {
   display: flex;
   gap: 8px;
-  padding: 16px 24px;
+  padding: 16px 0;
   overflow-x: auto;
   scrollbar-width: none;
   flex-shrink: 0;
+  margin-bottom: 24px;
 }
 
 .studio-tabs::-webkit-scrollbar { display: none; }
@@ -131,31 +133,31 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 18px;
-  background: var(--studio-surface);
-  border: 1px solid var(--studio-border);
-  border-radius: 100px;
-  color: var(--studio-text-dim);
+  padding: 10px 20px;
+  background: rgba(28, 25, 23, 0.4);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 12px;
+  color: #a8a29e;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.25s ease;
+  transition: all 0.2s ease;
   white-space: nowrap;
   flex-shrink: 0;
   backdrop-filter: blur(12px);
 }
 
 .studio-tab:hover {
-  color: var(--studio-text);
-  border-color: var(--studio-border-hover);
-  background: var(--studio-surface-hover);
+  color: #fef3c7;
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(28, 25, 23, 0.6);
 }
 
 .studio-tab.active {
-  color: var(--studio-text-bright);
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(6, 182, 212, 0.15));
-  border-color: rgba(168, 85, 247, 0.5);
-  box-shadow: 0 0 16px rgba(168, 85, 247, 0.15);
+  color: #fef3c7;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(217, 119, 6, 0.15));
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.15);
 }
 
 .studio-tab-icon { font-size: 16px; line-height: 1; }
@@ -204,7 +206,7 @@
 }
 
 .studio-prompt-bar {
-  padding: 0 24px 16px;
+  padding: 0 0 16px;
   flex-shrink: 0;
   max-width: 800px;
   margin: 0 auto;
