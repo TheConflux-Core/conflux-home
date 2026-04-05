@@ -1261,6 +1261,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_key ON life_knowledge(member_id,
 -- Life Autopilot: Orbit Tables
 CREATE TABLE IF NOT EXISTS life_tasks (
     id TEXT PRIMARY KEY,
+    member_id TEXT REFERENCES family_members(id),
     title TEXT NOT NULL,
     category TEXT,
     priority TEXT DEFAULT 'medium',
@@ -1270,11 +1271,13 @@ CREATE TABLE IF NOT EXISTS life_tasks (
     completed_at TEXT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
+CREATE INDEX IF NOT EXISTS idx_life_tasks_member ON life_tasks(member_id);
 CREATE INDEX IF NOT EXISTS idx_life_tasks_status ON life_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_life_tasks_due ON life_tasks(due_date);
 
 CREATE TABLE IF NOT EXISTS life_habits (
     id TEXT PRIMARY KEY,
+    member_id TEXT REFERENCES family_members(id),
     name TEXT NOT NULL,
     category TEXT,
     frequency TEXT DEFAULT 'daily',
@@ -1284,6 +1287,7 @@ CREATE TABLE IF NOT EXISTS life_habits (
     active INTEGER DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
+CREATE INDEX IF NOT EXISTS idx_life_habits_member ON life_habits(member_id);
 
 CREATE TABLE IF NOT EXISTS life_habit_logs (
     id TEXT PRIMARY KEY,
@@ -1294,18 +1298,22 @@ CREATE TABLE IF NOT EXISTS life_habit_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_habit_logs_habit ON life_habit_logs(habit_id);
 CREATE INDEX IF NOT EXISTS idx_habit_logs_date ON life_habit_logs(logged_date);
+CREATE INDEX IF NOT EXISTS idx_habit_logs_habit_date ON life_habit_logs(habit_id, logged_date);
 
 CREATE TABLE IF NOT EXISTS life_daily_focus (
     id TEXT PRIMARY KEY,
+    member_id TEXT REFERENCES family_members(id),
     focus_date TEXT NOT NULL,
     task_id TEXT REFERENCES life_tasks(id),
     position INTEGER DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 CREATE INDEX IF NOT EXISTS idx_focus_date ON life_daily_focus(focus_date);
+CREATE INDEX IF NOT EXISTS idx_focus_member ON life_daily_focus(member_id);
 
 CREATE TABLE IF NOT EXISTS life_schedules (
     id TEXT PRIMARY KEY,
+    member_id TEXT REFERENCES family_members(id),
     task_id TEXT REFERENCES life_tasks(id),
     suggested_time TEXT,
     energy_match TEXT,
@@ -1313,15 +1321,18 @@ CREATE TABLE IF NOT EXISTS life_schedules (
     accepted INTEGER DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
+CREATE INDEX IF NOT EXISTS idx_schedules_member ON life_schedules(member_id);
 
 CREATE TABLE IF NOT EXISTS life_nudges (
     id TEXT PRIMARY KEY,
+    member_id TEXT REFERENCES family_members(id),
     nudge_type TEXT NOT NULL,
     message TEXT NOT NULL,
     action_label TEXT,
     dismissed INTEGER DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
+CREATE INDEX IF NOT EXISTS idx_nudges_member ON life_nudges(member_id);
 
 -- ── Home Health ──
 
@@ -1404,6 +1415,7 @@ CREATE INDEX IF NOT EXISTS idx_dreams_status ON dreams(status);
 CREATE TABLE IF NOT EXISTS dream_milestones (
   id TEXT PRIMARY KEY,
   dream_id TEXT NOT NULL REFERENCES dreams(id),
+  member_id TEXT REFERENCES family_members(id),
   title TEXT NOT NULL,
   description TEXT,
   target_date TEXT,
@@ -1413,11 +1425,13 @@ CREATE TABLE IF NOT EXISTS dream_milestones (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 CREATE INDEX IF NOT EXISTS idx_milestones_dream ON dream_milestones(dream_id);
+CREATE INDEX IF NOT EXISTS idx_milestones_member ON dream_milestones(member_id);
 
 CREATE TABLE IF NOT EXISTS dream_tasks (
   id TEXT PRIMARY KEY,
   dream_id TEXT NOT NULL REFERENCES dreams(id),
   milestone_id TEXT REFERENCES dream_milestones(id),
+  member_id TEXT REFERENCES family_members(id),
   title TEXT NOT NULL,
   description TEXT,
   due_date TEXT,
@@ -1428,16 +1442,19 @@ CREATE TABLE IF NOT EXISTS dream_tasks (
 );
 CREATE INDEX IF NOT EXISTS idx_dream_tasks_dream ON dream_tasks(dream_id);
 CREATE INDEX IF NOT EXISTS idx_dream_tasks_due ON dream_tasks(due_date);
+CREATE INDEX IF NOT EXISTS idx_dream_tasks_member ON dream_tasks(member_id);
 
 CREATE TABLE IF NOT EXISTS dream_progress (
   id TEXT PRIMARY KEY,
   dream_id TEXT NOT NULL REFERENCES dreams(id),
+  member_id TEXT REFERENCES family_members(id),
   note TEXT,
   progress_change REAL,       -- percentage points changed
   ai_insight TEXT,            -- AI's analysis of the update
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 CREATE INDEX IF NOT EXISTS idx_dream_progress_dream ON dream_progress(dream_id);
+CREATE INDEX IF NOT EXISTS idx_dream_progress_member ON dream_progress(member_id);
 
 -- ── Agent Diary ──
 

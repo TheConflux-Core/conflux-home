@@ -2287,7 +2287,7 @@ fn execute_life_add_task(args: &Value) -> Result<ToolResult> {
     let due_date = args.get("due_date").and_then(|v| v.as_str());
     let energy_type = args.get("energy_type").and_then(|v| v.as_str());
 
-    match engine.db().add_life_task(&id, title, category, priority, due_date, energy_type) {
+    match engine.db().add_life_task(&id, "NULL", title, category, priority, due_date, energy_type) {
         Ok(()) => Ok(ToolResult {
             success: true,
             output: format!("Added task: '{}' (priority: {}{})", title, priority,
@@ -2301,7 +2301,7 @@ fn execute_life_add_task(args: &Value) -> Result<ToolResult> {
 fn execute_life_list_tasks(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let status = args.get("status").and_then(|v| v.as_str());
-    match engine.db().get_life_tasks(status) {
+    match engine.db().get_life_tasks("NULL", status) {
         Ok(tasks) => {
             if tasks.is_empty() {
                 return Ok(ToolResult { success: true, output: "No tasks found.".into(), error: None });
@@ -2323,7 +2323,7 @@ fn execute_life_complete_task(args: &Value) -> Result<ToolResult> {
     }
 
     let engine = super::get_engine();
-    match engine.db().update_life_task_status(task_id, "completed") {
+    match engine.db().update_life_task_status("NULL", task_id, "completed") {
         Ok(()) => Ok(ToolResult {
             success: true,
             output: format!("Task completed: {}", task_id),
@@ -2345,7 +2345,7 @@ fn execute_life_add_habit(args: &Value) -> Result<ToolResult> {
     let frequency = args.get("frequency").and_then(|v| v.as_str()).unwrap_or("daily");
     let target_count = args.get("target_count").and_then(|v| v.as_i64()).unwrap_or(1);
 
-    match engine.db().add_life_habit(&id, name, category, frequency, target_count) {
+    match engine.db().add_life_habit(&id, "NULL", name, category, frequency, target_count) {
         Ok(()) => Ok(ToolResult {
             success: true,
             output: format!("Added habit: '{}' ({}{})", name, frequency,
@@ -2364,7 +2364,7 @@ fn execute_life_log_habit(args: &Value) -> Result<ToolResult> {
 
     let engine = super::get_engine();
     let now = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    match engine.db().log_life_habit(&uuid::Uuid::new_v4().to_string(), habit_id, &now, 1) {
+    match engine.db().log_life_habit(&uuid::Uuid::new_v4().to_string(), habit_id, "NULL", &now, 1) {
         Ok(()) => Ok(ToolResult {
             success: true,
             output: format!("Habit logged for today: {}", habit_id),
@@ -2522,7 +2522,7 @@ fn execute_dream_add(args: &Value) -> Result<ToolResult> {
 fn execute_dream_list(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let status = args.get("status").and_then(|v| v.as_str());
-    match engine.db().get_dreams(status) {
+    match engine.db().get_dreams("NULL", status) {
         Ok(dreams) => {
             if dreams.is_empty() {
                 return Ok(ToolResult { success: true, output: "No dreams found.".into(), error: None });
@@ -2551,7 +2551,7 @@ fn execute_dream_add_milestone(args: &Value) -> Result<ToolResult> {
     let target_date = args.get("target_date").and_then(|v| v.as_str());
     let sort_order = args.get("sort_order").and_then(|v| v.as_i64()).unwrap_or(1);
 
-    match engine.db().add_milestone(&id, dream_id, title, description, target_date, sort_order) {
+    match engine.db().add_milestone(&id, &dream_id, "NULL", title, description, target_date, sort_order) {
         Ok(()) => Ok(ToolResult {
             success: true,
             output: format!("Added milestone to dream {}: '{}'{}", dream_id, title,
@@ -2576,7 +2576,7 @@ fn execute_dream_add_task(args: &Value) -> Result<ToolResult> {
     let due_date = args.get("due_date").and_then(|v| v.as_str());
     let frequency = args.get("frequency").and_then(|v| v.as_str());
 
-    match engine.db().add_dream_task(&id, dream_id, milestone_id, title, description, due_date, frequency) {
+    match engine.db().add_dream_task(&id, dream_id, milestone_id, "NULL", title, description, due_date, frequency) {
         Ok(()) => Ok(ToolResult {
             success: true,
             output: format!("Added task to dream {}: '{}'{}", dream_id, title,
@@ -2624,17 +2624,17 @@ fn execute_weekly_summary(_args: &Value) -> Result<ToolResult> {
     }
 
     // 3. Life — pending tasks and active habits
-    if let Ok(tasks) = engine.db().get_life_tasks(Some("pending")) {
+    if let Ok(tasks) = engine.db().get_life_tasks("NULL", Some("pending")) {
         sections.push(format!("🧠 Life: {} pending tasks", tasks.len()));
     }
-    if let Ok(habits) = engine.db().get_life_habits(true) {
+    if let Ok(habits) = engine.db().get_life_habits("NULL", true) {
         sections.push(format!("📊 Habits: {} active, best streak: {}",
             habits.len(),
             habits.iter().map(|h| h.streak).max().unwrap_or(0)));
     }
 
     // 4. Dreams — active
-    if let Ok(dashboard) = engine.db().get_dream_dashboard() {
+    if let Ok(dashboard) = engine.db().get_dream_dashboard("NULL") {
         let names: Vec<_> = dashboard.dreams.iter()
             .filter(|d| d.status == "active")
             .map(|d| format!("{} ({:.0}%)", d.title, d.progress * 100.0))
@@ -2705,7 +2705,7 @@ fn execute_day_overview(_args: &Value) -> Result<ToolResult> {
     let mut sections: Vec<String> = Vec::new();
 
     // 1. Tasks due today or overdue
-    if let Ok(tasks) = engine.db().get_life_tasks(Some("pending")) {
+    if let Ok(tasks) = engine.db().get_life_tasks("NULL", Some("pending")) {
         let today_tasks: Vec<_> = tasks.iter()
             .filter(|t| t.due_date.as_deref().map_or(false, |d| d <= today.as_str()))
             .collect();
@@ -2742,7 +2742,7 @@ fn execute_day_overview(_args: &Value) -> Result<ToolResult> {
     }
 
     // 4. Active dreams quick check
-    if let Ok(dreams) = engine.db().get_dreams(Some("active")) {
+    if let Ok(dreams) = engine.db().get_dreams("NULL", Some("active")) {
         if !dreams.is_empty() {
             let items: Vec<_> = dreams.iter().map(|d| format!("{} ({:.0}%)", d.title, d.progress * 100.0)).collect();
             sections.push(format!("🎯 Dreams: {}", items.join(", ")));

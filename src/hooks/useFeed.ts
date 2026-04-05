@@ -4,16 +4,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { ContentFeedItem } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 export function useContentFeed(memberId?: string) {
+  const { user } = useAuth();
+  const userId = user?.id || '';
   const [items, setItems] = useState<ContentFeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
   const load = useCallback(async () => {
+    if (!userId) return;
     try {
       setLoading(true);
       const data = await invoke<ContentFeedItem[]>('feed_get_items', {
+        userId,
         memberId: memberId ?? null,
         contentType: null,
         unreadOnly: false,
@@ -24,24 +29,25 @@ export function useContentFeed(memberId?: string) {
     } finally {
       setLoading(false);
     }
-  }, [memberId]);
+  }, [userId, memberId]);
 
   useEffect(() => { load(); }, [load]);
 
   const markRead = useCallback(async (id: string) => {
-    await invoke('feed_mark_read', { id });
+    await invoke('feed_mark_read', { userId, id });
     setItems(prev => prev.map(i => i.id === id ? { ...i, is_read: true } : i));
-  }, []);
+  }, [userId]);
 
   const toggleBookmark = useCallback(async (id: string) => {
-    await invoke('feed_toggle_bookmark', { id });
+    await invoke('feed_toggle_bookmark', { userId, id });
     setItems(prev => prev.map(i => i.id === id ? { ...i, is_bookmarked: !i.is_bookmarked } : i));
-  }, []);
+  }, [userId]);
 
   const generate = useCallback(async (interests?: string) => {
     setGenerating(true);
     try {
       const data = await invoke<ContentFeedItem[]>('feed_generate', {
+        userId,
         memberId: memberId ?? null,
         interests: interests ?? null,
       });
@@ -50,7 +56,7 @@ export function useContentFeed(memberId?: string) {
     } finally {
       setGenerating(false);
     }
-  }, [memberId]);
+  }, [userId, memberId]);
 
   const unreadCount = items.filter(i => !i.is_read).length;
 
