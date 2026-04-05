@@ -8,6 +8,7 @@ import { listen } from '@tauri-apps/api/event';
 import { syncSessionToEngine } from '@/lib/syncSession';
 import { supabase } from '@/lib/supabase';
 import type { AgentMessage } from '../types';
+import { useAuthContext } from '../contexts/AuthContext';
 
 export interface UseEngineChatResult {
   messages: AgentMessage[];
@@ -79,6 +80,10 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
   const [sessionId, setSessionId] = useState<string | null>(null);
   const assistantIdRef = useRef<string | null>(null);
   const unlistenFnsRef = useRef<(() => void)[]>([]);
+  
+  // Use AuthContext user.id if no explicit userId provided
+  const { user } = useAuthContext();
+  const authUserId = userId ?? user?.id;
 
   // Cleanup listeners on unmount
   useEffect(() => {
@@ -97,8 +102,6 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
     }
 
     let cancelled = false;
-    // Use AuthContext user.id if no explicit userId provided
-    const authUserId = userId ?? user?.id;
 
     async function initSession() {
       try {
