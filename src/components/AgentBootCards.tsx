@@ -59,6 +59,13 @@ export default function AgentBootCards({ userId, members, onComplete }: AgentBoo
 
   return (
     <div className={`agent-boot-cards-overlay ${fading ? 'fading' : ''}`}>
+      <button
+        className="agent-boot-skip"
+        onClick={() => { setFading(true); setTimeout(() => { setVisible(false); onComplete(); }, 500); }}
+        title="Skip to desktop"
+      >
+        Skip
+      </button>
       <div className="agent-boot-cards-container">
         {simpleStatuses.length === 0 ? (
           <div className="agent-boot-card">
