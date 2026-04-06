@@ -57,6 +57,7 @@ import './styles-agent-introductions.css';
 import './styles-agent-boot-cards.css';
 import './styles-agent-status.css';
 import MorningBrief from './components/MorningBrief';
+import WeeklyInsights from './components/WeeklyInsights';
 import AgentBootCards from './components/AgentBootCards';
 import './styles/morning-brief.css';
 import './styles-agent-boot-cards.css';
@@ -734,6 +735,7 @@ const [activeSnake, setActiveSnake] = useState(false);
       )}
       {showBrief && <MorningBrief onDismiss={handleBriefDismiss} />}
       {showTour && <GuidedTour onComplete={() => setShowTour(false)} />}
+      <WeeklyInsights onClose={() => { /* Component handles its own dismissal */ }} />
       <TopBar
         selectedAgent={selectedAgent}
         engineConnected={connected}
