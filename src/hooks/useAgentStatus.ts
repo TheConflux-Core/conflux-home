@@ -1,129 +1,206 @@
-import { useState, useEffect } from 'react';
+// Conflux Home — Agent Status Hook
+// Queries agent status data for ConfluxBarV2 badges and status panels.
+
+import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
-export interface AgentStatus {
-  id: string;
+export interface AgentStatusInfo {
+  agentId: string;
   emoji: string;
   name: string;
-  status: string;
+  statusText: string;
+  badgeText?: string;
+  badgeType?: 'default' | 'attention' | 'warning' | 'celebration';
+  details?: string;
+  actionable?: boolean;
 }
 
-export interface AgentStatusQuery {
-  userId: string;
-  member_id?: string;
+export interface BudgetPatternData {
+  category: string;
+  pattern_type: string;
+  description: string;
+  avg_amount: number;
+  frequency: string;
 }
 
-// Timeout helper — resolves to fallback after 1s
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 1000, fallback: T): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), timeoutMs)),
-  ]);
-}
+const timeout = (ms: number) => new Promise<never>((_, reject) =>
+  setTimeout(() => reject(new Error('timeout')), ms)
+);
 
-export async function queryHearthStatus(userId: string, member_id?: string): Promise<string> {
+const safeInvoke = async <T>(promise: Promise<T>, fallback: T): Promise<T> => {
   try {
-    const items = await withTimeout(
-      invoke<any[]>('kitchen_get_inventory', { memberId: member_id ?? undefined }),
-      1000,
-      []
-    );
-    const count = Array.isArray(items) ? items.length : 0;
-    return count > 0 ? `Pantry: ${count} items stocked` : 'Hearth: Ready';
+    return await Promise.race([promise, timeout(1500)]);
   } catch {
-    return 'Hearth: Ready';
+    return fallback;
   }
-}
+};
 
-export async function queryPulseStatus(userId: string, member_id?: string): Promise<string> {
-  try {
-    const now = new Date();
-    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const summary = await withTimeout(
-      invoke<any>('budget_get_summary', { month }),
-      1000,
-      null
-    );
-    if (summary && summary.total_expenses !== undefined) {
-      const txns = summary.categories?.reduce((sum: number, c: any) => sum + (c.count || 0), 0) || 0;
-      return txns > 0 ? `${txns} transactions this month` : 'Pulse: Ready';
+export function useAgentStatus(userId: string, memberId?: string | null) {
+  const [statusList, setStatusList] = useState<AgentStatusInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [patterns, setPatterns] = useState<BudgetPatternData[]>([]);
+  const [budgetSummary, setBudgetSummary] = useState<{
+    totalExpenses: number;
+    totalIncome: number;
+  } | null>(null);
+
+  const fetchAgentStatuses = useCallback(async () => {
+    setLoading(true);
+
+    const mid = memberId || null;
+    const month = new Date().toISOString().slice(0, 7);
+
+    // Fire all queries in parallel
+    const [kitchenItems, budgetData, budgetPatterns, orbitTasks, dreamList, feedUnread] = await Promise.all([
+      safeInvoke(invoke<any[]>('kitchen_get_inventory', { location: null, member_id: mid }), []),
+      safeInvoke(invoke<any>('budget_get_summary', { month }), null),
+      safeInvoke(invoke<any[]>('budget_detect_patterns', { member_id: mid }), []),
+      safeInvoke(invoke<any[]>('life_get_tasks', { user_id: userId, status: 'pending' }), []),
+      safeInvoke(invoke<any[]>('dream_get_all', { user_id: userId, status: null }), []),
+      safeInvoke(invoke<any[]>('feed_get_items', { user_id: userId, member_id: mid, content_type: null, unread_only: true }), []),
+    ]);
+
+    const statuses: AgentStatusInfo[] = [];
+
+    // Hearth (Kitchen)
+    const kitchenCount = kitchenItems.length;
+    if (kitchenCount > 0) {
+      const soon = kitchenItems.filter((i: any) => {
+        if (!i.expiry_date) return false;
+        const exp = new Date(i.expiry_date);
+        const now = new Date();
+        return exp <= new Date(now.getTime() + 3 * 86400000);
+      });
+      if (soon.length > 0) {
+        statuses.push({
+          agentId: 'hearth',
+          emoji: '🍳',
+          name: 'Hearth',
+          statusText: `${soon.length} items expiring soon`,
+          badgeText: `${soon.length}`,
+          badgeType: 'attention',
+          details: `${kitchenCount} items in pantry, ${soon.length} expiring within 3 days`,
+          actionable: true,
+        });
+      } else {
+        statuses.push({
+          agentId: 'hearth',
+          emoji: '🍳',
+          name: 'Hearth',
+          statusText: `${kitchenCount} items in pantry`,
+          details: `Pantry stocked with ${kitchenCount} items`,
+        });
+      }
+    } else {
+      statuses.push({
+        agentId: 'hearth',
+        emoji: '🍳',
+        name: 'Hearth',
+        statusText: 'Pantry is empty — want me to help you stock it?',
+        badgeType: 'default',
+        actionable: true,
+      });
     }
-    return 'Pulse: Ready';
-  } catch {
-    return 'Pulse: Ready';
-  }
-}
 
-export async function queryOrbitStatus(userId: string, member_id?: string): Promise<string> {
-  try {
-    const tasks = await withTimeout(
-      invoke<any[]>('life_get_tasks', { userId, status: 'pending' }),
-      1000,
-      []
-    );
-    const count = Array.isArray(tasks) ? tasks.length : 0;
-    return count > 0 ? `${count} tasks on your plate today` : 'Orbit: Ready';
-  } catch {
-    return 'Orbit: Ready';
-  }
-}
+    // Pulse (Budget)
+    if (budgetData) {
+      const expenses = budgetData.total_expenses || 0;
+      const income = budgetData.total_income || 0;
+      setBudgetSummary({ totalExpenses: expenses, totalIncome: income });
 
-export async function queryHorizonStatus(userId: string, member_id?: string): Promise<string> {
-  try {
-    const dreams = await withTimeout(
-      invoke<any[]>('dream_get_all', { userId, status: 'active' }),
-      1000,
-      []
-    );
-    const count = Array.isArray(dreams) ? dreams.length : 0;
-    return count > 0 ? `${count} active goals` : 'Horizon: Ready';
-  } catch {
-    return 'Horizon: Ready';
-  }
-}
-
-export async function queryCurrentStatus(userId: string, member_id?: string): Promise<string | null> {
-  try {
-    const items = await withTimeout(
-      invoke<any[]>('feed_get_items', {
-        userId,
-        memberId: member_id ?? undefined,
-        contentType: undefined,
-        unreadOnly: true,
-      }),
-      1000,
-      []
-    );
-    const count = Array.isArray(items) ? items.length : 0;
-    if (count > 0) {
-      return `${count} unread items in your feed`;
+      statuses.push({
+        agentId: 'pulse',
+        emoji: '💰',
+        name: 'Pulse',
+        statusText: `$${expenses.toFixed(0)} spent this month`,
+        details: `Income: $${income.toFixed(0)} · Expenses: $${expenses.toFixed(0)}`,
+      });
+    } else {
+      statuses.push({
+        agentId: 'pulse',
+        emoji: '💰',
+        name: 'Pulse',
+        statusText: 'Ready to track spending',
+        badgeType: 'default',
+        actionable: true,
+      });
     }
-    return null; // Skip if no content
-  } catch {
-    return null;
-  }
-}
 
-export async function fetchAgentStatuses(userId: string, member_id?: string): Promise<AgentStatus[]> {
-  const [hearth, pulse, orbit, horizon, current] = await Promise.all([
-    queryHearthStatus(userId, member_id),
-    queryPulseStatus(userId, member_id),
-    queryOrbitStatus(userId, member_id),
-    queryHorizonStatus(userId, member_id),
-    queryCurrentStatus(userId, member_id),
-  ]);
+    // Orbit (Life)
+    const pendingCount = orbitTasks.length;
+    if (pendingCount > 0) {
+      statuses.push({
+        agentId: 'orbit',
+        emoji: '🪐',
+        name: 'Orbit',
+        statusText: `${pendingCount} task${pendingCount > 1 ? 's' : ''} on your plate`,
+        badgeText: `${pendingCount}`,
+        badgeType: pendingCount > 5 ? 'attention' : 'default',
+        details: `${pendingCount} pending tasks`,
+      });
+    } else {
+      statuses.push({
+        agentId: 'orbit',
+        emoji: '🪐',
+        name: 'Orbit',
+        statusText: 'All caught up!',
+        badgeType: 'celebration',
+      });
+    }
 
-  const statuses: AgentStatus[] = [
-    { id: 'hearth', emoji: '🍳', name: 'Hearth', status: hearth },
-    { id: 'pulse', emoji: '💰', name: 'Pulse', status: pulse },
-    { id: 'orbit', emoji: '🪐', name: 'Orbit', status: orbit },
-    { id: 'horizon', emoji: '🌅', name: 'Horizon', status: horizon },
-  ];
+    // Horizon (Dreams)
+    const activeDreams = (dreamList || []).filter((d: any) => d.status === 'active' || !d.status);
+    const dreamCount = activeDreams.length;
+    if (dreamCount > 0) {
+      statuses.push({
+        agentId: 'horizon',
+        emoji: '🏔️',
+        name: 'Horizon',
+        statusText: `${dreamCount} active goal${dreamCount > 1 ? 's' : ''}`,
+        badgeText: `${dreamCount}`,
+        details: `${dreamCount} active dream${dreamCount > 1 ? 's' : ''}`,
+      });
+    } else {
+      statuses.push({
+        agentId: 'horizon',
+        emoji: '🏔️',
+        name: 'Horizon',
+        statusText: 'Ready for your next goal',
+        badgeType: 'default',
+        actionable: true,
+      });
+    }
 
-  if (current) {
-    statuses.push({ id: 'current', emoji: '📰', name: 'Current', status: current });
-  }
+    // Current (Feed)
+    const unreadCount = (feedUnread || []).length;
+    if (unreadCount > 0) {
+      statuses.push({
+        agentId: 'current',
+        emoji: '📰',
+        name: 'Current',
+        statusText: `${unreadCount} unread item${unreadCount > 1 ? 's' : ''}`,
+        badgeText: `${unreadCount}`,
+        badgeType: unreadCount > 3 ? 'attention' : 'default',
+      });
+    }
 
-  // Limit to 4 cards max
-  return statuses.slice(0, 4);
+    setStatusList(statuses);
+    setPatterns(budgetPatterns);
+    setLoading(false);
+  }, [userId, memberId]);
+
+  useEffect(() => {
+    fetchAgentStatuses();
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchAgentStatuses, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchAgentStatuses]);
+
+  return {
+    statusList,
+    loading,
+    patterns,
+    budgetSummary,
+    refresh: fetchAgentStatuses,
+  };
 }
