@@ -48,12 +48,10 @@ import VaultView from './components/VaultView';
 import StudioView from './components/StudioView';
 import GuidedTour from './components/GuidedTour';
 
-// Phase 0.3+: Global AI Input, Agent Status
-import GlobalAIInput from './components/GlobalAIInput';
+// Phase 0.3+: Agent Status
 import AgentStatusPanel from './components/AgentStatusPanel';
 import { useAgentStatus } from './hooks/useAgentStatus';
 import './styles-agent-introductions.css';
-import './styles-global-ai-input.css';
 import './styles-agent-boot-cards.css';
 import './styles-agent-status.css';
 import MorningBrief from './components/MorningBrief';
@@ -74,7 +72,6 @@ import { registerShortcuts } from './lib/shortcuts';
 import { trackEvent } from './lib/telemetry';
 import type { IntentResult } from './hooks/useIntentRouter';
 import './styles/animations.css';
-import './styles-global-ai-input.css';
 import './styles/tour.css';
 
 // Background images for immersive views
@@ -586,21 +583,7 @@ const [activeSnake, setActiveSnake] = useState(false);
     }
   }, [activeMember]);
 
-  // ── Phase 0.3: Intent Router ──
-  const handleIntentRoute = useCallback((intent: any) => {
-    if (intent.view === 'chat') {
-      onOpenGlobalChat(intent.prompt);
-    } else {
-      setImmersiveView(intent.view as View);
-      const targetAgent = agents.find(a => a.id === intent.agentId);
-      if (targetAgent) {
-        setSelectedAgent(targetAgent);
-        soundManager.playAgentWake(targetAgent.id);
-        localStorage.setItem('conflux-last-chat-agent', targetAgent.id);
-        setChatOpen(true);
-      }
-    }
-  }, [agents]);
+  // ── Phase 0.3: Intent Router (moved to DesktopQuadrants) ──
 
   const onOpenGlobalChat = useCallback((message?: string) => {
     if (!selectedAgent) {
@@ -957,12 +940,7 @@ const [activeSnake, setActiveSnake] = useState(false);
         />
       )}
 
-      {/* Global AI Input — sits above the dock */}
-      <GlobalAIInput
-        userId={user.id}
-        onRoute={handleIntentRoute}
-        onOpenChat={onOpenGlobalChat}
-      />
+
 
       {useBarV2 ? (
         <ConfluxBarV2
