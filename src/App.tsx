@@ -47,6 +47,8 @@ import ControlRoom from './components/ControlRoom';
 import VaultView from './components/VaultView';
 import StudioView from './components/StudioView';
 import GuidedTour from './components/GuidedTour';
+import NudgeCard from './components/NudgeCard';
+import { useNudgeEngine } from './hooks/useNudgeEngine';
 
 // Phase 0.3+: Agent Status
 import AgentStatusPanel from './components/AgentStatusPanel';
@@ -73,6 +75,7 @@ import { trackEvent } from './lib/telemetry';
 import type { IntentResult } from './hooks/useIntentRouter';
 import './styles/animations.css';
 import './styles/tour.css';
+import './styles-nudge.css';
 
 // Background images for immersive views
 const VIEW_BACKGROUNDS: Record<string, string> = {
@@ -342,6 +345,9 @@ const [activeSnake, setActiveSnake] = useState(false);
   const { seeds: storySeeds } = useStorySeeds(
     activeMemberId ? familyMembers.find(m => m.id === activeMemberId)?.age_group : undefined,
   );
+
+  // Phase 1.3: Nudge Engine
+  const { activeNudges, dismissNudge, takeAction } = useNudgeEngine();
 
   // Filter agents by active family member's age group
   const activeMember = familyMembers.find(m => m.id === activeMemberId);
@@ -951,7 +957,7 @@ const [activeSnake, setActiveSnake] = useState(false);
           statusBadges={statusBadges}
           statusDetails={statusDetails}
           onStatusClick={() => setShowStatusPanel(true)}
-          onBadgeClick={(badgeView) => setImmersiveView(badgeView)}
+          onBadgeClick={(badgeView, _agentId) => setImmersiveView(badgeView)}
         />
       ) : (
         <ConfluxBar
@@ -988,6 +994,16 @@ const [activeSnake, setActiveSnake] = useState(false);
 
       {/* Toast notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
+
+      {/* Phase 1.3: Nudge System */}
+      {activeNudges.map(nudge => (
+        <NudgeCard
+          key={nudge.id}
+          nudge={nudge}
+          onDismiss={dismissNudge}
+          onAction={takeAction}
+        />
+      ))}
     </div>
     </AuthProvider>
   );
