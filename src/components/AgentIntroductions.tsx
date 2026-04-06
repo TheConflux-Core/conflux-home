@@ -4,6 +4,23 @@ import { useIntroductions } from '../hooks/useIntroductions';
 import { playAgentWake } from '../lib/sound';
 import '../styles-agent-introductions.css';
 
+// Map app view IDs to agent intro config IDs
+const VIEW_TO_AGENT: Record<string, string> = {
+  kitchen: 'hearth',
+  budget: 'pulse',
+  dreams: 'horizon',
+  life: 'orbit',
+  feed: 'current',
+  home: 'foundation',
+  games: 'games',
+  marketplace: 'marketplace',
+  agents: 'agents',
+  studio: 'studio',
+  vault: 'vault',
+  echo: 'echo',
+  settings: 'settings',
+};
+
 interface AgentIntroductionsProps {
   userName: string;
   selectedAgentIds: string[];
@@ -25,9 +42,12 @@ export default function AgentIntroductions({
 
   // Determine agent order: selected agents first, then Conflux last
   const orderedAgentIds = useCallback(() => {
-    const ids = selectedAgentIds.filter(id => id !== 'conflux');
+    // Map view IDs to agent intro config IDs
+    const agentIds = selectedAgentIds
+      .map(id => VIEW_TO_AGENT[id] ?? id)
+      .filter(id => id !== 'conflux');
     // Ensure only known intro configs are included
-    const validIds = ids.filter(id => getAgentIntroConfig(id));
+    const validIds = agentIds.filter(id => getAgentIntroConfig(id));
     if (!validIds.includes('conflux')) validIds.push('conflux');
     return validIds;
   }, [selectedAgentIds]);
