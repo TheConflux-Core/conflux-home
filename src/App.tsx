@@ -15,6 +15,7 @@ import Marketplace from './components/Marketplace';
 import AgentDetail from './components/AgentDetail';
 import Onboarding from './components/Onboarding';
 import WelcomeOverlay from './components/WelcomeOverlay';
+import AgentIntroductions from './components/AgentIntroductions';
 import LoginScreen from './components/LoginScreen';
 import Settings from './components/Settings';
 import SplashScreen from './components/SplashScreen';
@@ -249,6 +250,9 @@ export default function App() {
     return localStorage.getItem('conflux-onboarded') === 'true';
   });
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showIntroductions, setShowIntroductions] = useState(() => {
+    return localStorage.getItem('conflux-introductions-complete') !== 'true';
+  });
   const [showBrief, setShowBrief] = useState(() => {
     const today = new Date().toISOString().split('T')[0];
     const lastBrief = localStorage.getItem('conflux-last-brief-date');
@@ -482,6 +486,17 @@ const [activeSnake, setActiveSnake] = useState(false);
   // Handle welcome dismiss
   const handleWelcomeComplete = useCallback(() => {
     setShowWelcome(false);
+    const introductionsComplete = localStorage.getItem('conflux-introductions-complete') === 'true';
+    if (!introductionsComplete) {
+      setShowIntroductions(true);
+    } else if (shouldAutoStartTour()) {
+      setShowTour(true);
+    }
+  }, []);
+
+  // Handle introductions completion
+  const handleIntroductionsComplete = useCallback(() => {
+    setShowIntroductions(false);
     if (shouldAutoStartTour()) {
       setShowTour(true);
     }
@@ -616,6 +631,19 @@ const [activeSnake, setActiveSnake] = useState(false);
         userName={userName}
         selectedAgentIds={selectedAgentIds}
         onComplete={handleWelcomeComplete}
+      />
+    );
+  }
+
+  // ── Gate: Agent Introductions ──
+  if (showIntroductions) {
+    return (
+      <AgentIntroductions
+        userName={userName}
+        selectedAgentIds={selectedAgentIds}
+        userId={user?.id ?? ''}
+        familyMemberId={activeMemberId ?? undefined}
+        onComplete={handleIntroductionsComplete}
       />
     );
   }
