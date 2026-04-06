@@ -354,7 +354,7 @@ const [activeSnake, setActiveSnake] = useState(false);
   const { goals: learningGoals, create: createLearningGoal } = useLearningGoals(activeMemberId);
 
   // Phase 0.4: Agent status data
-  const { statusList: agentStatuses } = useAgentStatus(user!.id, activeMemberId || undefined);
+  const { statusList: agentStatuses } = useAgentStatus(user?.id ?? '', activeMemberId || undefined);
   const [showStatusPanel, setShowStatusPanel] = useState(false);
   const statusBadges = useMemo(() => {
     const map: Record<string, { badgeText?: string; badgeType?: string }> = {};
