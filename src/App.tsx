@@ -48,9 +48,10 @@ import VaultView from './components/VaultView';
 import StudioView from './components/StudioView';
 import GuidedTour from './components/GuidedTour';
 import MorningBrief from './components/MorningBrief';
+import AgentBootCards from './components/AgentBootCards';
 import './styles/morning-brief.css';
-import { shouldAutoStartTour } from './hooks/useTourState';
-import { useEngine } from './hooks/useEngine';
+import './styles-agent-boot-cards.css';
+import { shouldAutoStartTour } from './hooks/useTourState';import { useEngine } from './hooks/useEngine';
 import { useToast } from './hooks/useToast';
 import { useFamily } from './hooks/useFamily';
 import { useAuth } from './hooks/useAuth';
@@ -253,6 +254,15 @@ export default function App() {
   const [showIntroductions, setShowIntroductions] = useState(() => {
     return localStorage.getItem('conflux-introductions-complete') !== 'true';
   });
+  const [showBootCards, setShowBootCards] = useState(() => {
+    // Show boot cards every boot — always true initially
+    return true;
+  });
+
+  // On first render, clear the session flag so boot cards show every page reload
+  useEffect(() => {
+    localStorage.removeItem('conflux-boot-cards-seen-this-session');
+  }, []);
   const [showBrief, setShowBrief] = useState(() => {
     const today = new Date().toISOString().split('T')[0];
     const lastBrief = localStorage.getItem('conflux-last-brief-date');
@@ -497,6 +507,8 @@ const [activeSnake, setActiveSnake] = useState(false);
   // Handle introductions completion
   const handleIntroductionsComplete = useCallback(() => {
     setShowIntroductions(false);
+    // Show boot cards after introductions
+    setShowBootCards(true);
     if (shouldAutoStartTour()) {
       setShowTour(true);
     }
@@ -651,6 +663,16 @@ const [activeSnake, setActiveSnake] = useState(false);
   return (
     <AuthProvider>
     <div className="desktop-shell">
+      {showBootCards && (
+        <AgentBootCards
+          userId={user?.id ?? ''}
+          members={familyMembers}
+          onComplete={() => {
+            setShowBootCards(false);
+            localStorage.setItem('conflux-boot-cards-seen-this-session', 'true');
+          }}
+        />
+      )}
       {showBrief && <MorningBrief onDismiss={handleBriefDismiss} />}
       {showTour && <GuidedTour onComplete={() => setShowTour(false)} />}
       <TopBar
