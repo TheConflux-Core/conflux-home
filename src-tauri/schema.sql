@@ -633,6 +633,24 @@ CREATE INDEX IF NOT EXISTS idx_comms_to ON agent_communications(to_agent);
 CREATE INDEX IF NOT EXISTS idx_comms_status ON agent_communications(status);
 
 -- ============================================================
+-- AGENT MESSAGES — Phase 2: Inter-Agent Communication Layer
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS agent_messages (
+    id              TEXT PRIMARY KEY,           -- uuid
+    sender_id       TEXT NOT NULL REFERENCES agents(id),
+    receiver_id     TEXT NOT NULL REFERENCES agents(id),
+    message_type    TEXT NOT NULL,              -- 'goal_update', 'pantry_alert', 'budget_nudge', etc.
+    payload         TEXT NOT NULL,              -- JSON: flexible message content
+    read_at         TEXT,                       -- NULL until the receiving agent processes it
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_messages_receiver ON agent_messages(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_agent_messages_receiver_unread ON agent_messages(receiver_id) WHERE read_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_agent_messages_created ON agent_messages(created_at DESC);
+
+-- ============================================================
 -- TASKS — Async work management
 -- ============================================================
 
@@ -1180,6 +1198,25 @@ CREATE TABLE IF NOT EXISTS kitchen_inventory (
 
 CREATE INDEX IF NOT EXISTS idx_inventory_location ON kitchen_inventory(location);
 CREATE INDEX IF NOT EXISTS idx_inventory_expiry ON kitchen_inventory(expiry_date);
+
+-- ============================================================
+-- FAMILY SHOPPING LIST — Shared pantry/grocery lists for family members
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS family_shopping_list (
+    id              TEXT PRIMARY KEY,
+    member_id       TEXT NOT NULL REFERENCES family_members(id),
+    item            TEXT NOT NULL,
+    quantity        REAL,
+    unit            TEXT,
+    category        TEXT,           -- 'produce' | 'dairy' | 'meat' | 'pantry' | 'spice' | 'frozen' | 'household'
+    is_checked      INTEGER DEFAULT 0,
+    added_by        TEXT,           -- agent_id who added this item
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_family_shopping_member ON family_shopping_list(member_id);
+CREATE INDEX IF NOT EXISTS idx_family_shopping_checked ON family_shopping_list(is_checked);
 
 -- Meal photos gallery (Hearth)
 CREATE TABLE IF NOT EXISTS meal_photos (
