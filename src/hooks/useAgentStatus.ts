@@ -113,6 +113,8 @@ export function useAgentStatus(userId: string, memberId?: string | null) {
         emoji: '💰',
         name: 'Pulse',
         statusText: `$${expenses.toFixed(0)} spent this month`,
+        badgeText: `$${expenses.toFixed(0)}`,
+        badgeType: 'default',
         details: `Income: $${income.toFixed(0)} · Expenses: $${expenses.toFixed(0)}`,
       });
     } else {
@@ -152,13 +154,16 @@ export function useAgentStatus(userId: string, memberId?: string | null) {
     const activeDreams = (dreamList || []).filter((d: any) => d.status === 'active' || !d.status);
     const dreamCount = activeDreams.length;
     if (dreamCount > 0) {
+      // Compute average progress across active dreams
+      const avgProgress = activeDreams.reduce((sum: number, d: any) => sum + (d.progress || 0), 0) / dreamCount;
+      const progressPercent = Math.round(avgProgress);
       statuses.push({
         agentId: 'horizon',
         emoji: '🏔️',
         name: 'Horizon',
-        statusText: `${dreamCount} active goal${dreamCount > 1 ? 's' : ''}`,
-        badgeText: `${dreamCount}`,
-        details: `${dreamCount} active dream${dreamCount > 1 ? 's' : ''}`,
+        statusText: `${dreamCount} active goal${dreamCount > 1 ? 's' : ''} — ${progressPercent}% avg progress`,
+        badgeText: `${progressPercent}%`,
+        details: `${dreamCount} active dream${dreamCount > 1 ? 's' : ''}, average ${progressPercent}% progress`,
       });
     } else {
       statuses.push({
