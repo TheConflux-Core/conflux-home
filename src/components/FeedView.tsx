@@ -2,8 +2,6 @@
 // Tactical Intelligence aesthetic: Radar view, Signal Cards, Cognitive Sidebar, Briefing Overlay.
 
 import { useState, useCallback } from 'react';
-import { useIntentRouter, RoutedIntent } from '../hooks/useIntentRouter';
-import AgentStatusGrid from './AgentStatusGrid';
 import { useBriefing } from '../hooks/useBriefing';
 import { useRipples } from '../hooks/useRipples';
 import { useSignalThreads } from '../hooks/useSignalThreads';
@@ -23,12 +21,9 @@ export default function FeedView() {
   const { threads, loading: threadsLoading, create } = useSignalThreads();
   const { pattern, loading: patternLoading, analyze } = useCognitivePatterns();
   const { items, loading: feedLoading, unreadCount } = useContentFeed();
-  const { route } = useIntentRouter();
 
   // State
   const [selectedSignal, setSelectedSignal] = useState<RippleSignal | null>(null);
-  const [globalInput, setGlobalInput] = useState('');
-  const [routedIntent, setRoutedIntent] = useState<RoutedIntent | null>(null);
   const [briefingOpen, setBriefingOpen] = useState(false);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
@@ -97,33 +92,6 @@ export default function FeedView() {
               </p>
             </div>
 
-            {/* Global AI Input */}
-            <div className="global-ai-input-wrapper" style={{ flex: 1, margin: '0 20px' }}>
-              <input
-                type="text"
-                className="global-ai-input"
-                placeholder="Ask anything... (e.g., 'Can I afford a new laptop?')"
-                value={globalInput}
-                onChange={(e) => setGlobalInput(e.target.value)}
-                onKeyDown={async (e) => {
-                  if (e.key === 'Enter' && globalInput.trim()) {
-                    const intent = await route(globalInput);
-                    setRoutedIntent(intent);
-                    setGlobalInput('');
-                  }
-                }}
-                style={{
-                  width: '100%',
-                  padding: '10px 16px',
-                  background: 'var(--radar-surface)',
-                  border: '1px solid var(--radar-border)',
-                  borderRadius: 'var(--radar-radius)',
-                  color: 'var(--radar-text-primary)',
-                  fontFamily: 'var(--radar-font-mono)',
-                  fontSize: '0.85rem',
-                }}
-              />
-            </div>
             <button
               className="briefing-trigger-btn"
               onClick={() => setBriefingOpen(true)}
@@ -219,19 +187,6 @@ export default function FeedView() {
             loading={patternLoading}
             onAnalyze={analyze}
           />
-          <div style={{ marginTop: '20px' }}>
-            <h4 style={{
-              fontFamily: 'var(--radar-font-mono)',
-              fontSize: '0.7rem',
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-              color: 'var(--radar-text-muted)',
-              margin: '0 0 12px 0',
-            }}>
-              Agent Status
-            </h4>
-            <AgentStatusGrid />
-          </div>
         </aside>
       </div>
 
