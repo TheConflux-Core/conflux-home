@@ -1,5 +1,6 @@
 import React from 'react';
 import type { CognitivePattern, CategoryDistribution } from '../types';
+import PatternBadge from './PatternBadge';
 
 interface CognitiveSidebarProps {
   pattern: CognitivePattern | null;
@@ -110,6 +111,44 @@ export default function CognitiveSidebar({ pattern, loading, onAnalyze }: Cognit
   return (
     <div className="cognitive-sidebar">
       <h3 className="cognitive-sidebar-title">Intelligence</h3>
+
+      {/* Pattern Badges Section */}
+      {pattern.category_distribution.length > 0 && (
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{
+            fontFamily: 'var(--radar-font-mono)',
+            fontSize: '0.7rem',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            color: 'var(--radar-text-muted)',
+            marginBottom: '12px',
+          }}>
+            Detected Patterns
+          </div>
+          <PatternBadge
+            type="info"
+            icon="📊"
+            title="Category Distribution"
+            description={`${pattern.category_distribution.length} categories tracked`}
+          />
+          {pattern.focus_shift && (
+            <PatternBadge
+              type="attention"
+              icon="🎯"
+              title="Focus Shift"
+              description={pattern.focus_shift}
+            />
+          )}
+          {pattern.recommendation && (
+            <PatternBadge
+              type="success"
+              icon="💡"
+              title="Recommendation"
+              description={pattern.recommendation}
+            />
+          )}
+        </div>
+      )}
 
       {/* Learning Velocity */}
       <div className="cognitive-stat">

@@ -1,183 +1,162 @@
-// Conflux Home — Intent Router Hook
-// Classifies natural language input and routes to the correct agent/app.
+import { useCallback } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 
-export type IntentType =
-  | 'budget'
-  | 'kitchen'
-  | 'dreams'
-  | 'life'
-  | 'home'
-  | 'feed'
-  | 'chat'
-  | 'general';
+export type IntentCategory =
+  | 'budget_affordability'
+  | 'budget_transaction'
+  | 'budget_pattern'
+  | 'kitchen_meal'
+  | 'kitchen_pantry'
+  | 'kitchen_recipe'
+  | 'life_task'
+  | 'life_schedule'
+  | 'dream_goal'
+  | 'dream_decompose'
+  | 'general_chat';
 
 export interface IntentResult {
-  type: IntentType;
-  view: string; // Target view for navigation
-  confidence: number; // 0-1
-  agentId?: string; // Target agent
-  prompt?: string; // Pre-built prompt to send
-  rationale?: string; // Why this route was chosen
+  type: string; // 'budget', 'kitchen', 'life', 'dreams', 'chat'
+  view: string; // 'budget', 'kitchen', 'life', 'dreams', 'chat'
+  confidence: number;
+  agentId: string; // 'pulse', 'hearth', 'orbit', 'horizon', 'conflux'
+  prompt?: string;
+  category?: IntentCategory;
 }
 
-// ── Keyword-based intent classification ──
-
-const INTENT_RULES: Array<{ keywords: string[]; type: IntentType; view: string; agentId: string }> = [
-  {
-    keywords: [
-      'afford', 'afford', 'budget', 'spend', 'spent', 'money', 'cost', 'price',
-      'income', 'salary', 'expense', 'save', 'saving', 'savings', 'bill', 'paid',
-      'pay', 'payment', 'categorize', 'transaction', 'dollar', 'dollars',
-      'financial', 'finances', 'how much', 'can i buy', 'can i get',
-    ],
-    type: 'budget',
-    view: 'budget',
-    agentId: 'pulse',
-  },
-  {
-    keywords: [
-      'cook', 'recipe', 'meal', 'dinner', 'lunch', 'breakfast', 'eat', 'food',
-      'hungry', 'pantry', 'grocery', 'groceries', 'kitchen', 'bake', 'fry',
-      'grill', 'snack', 'drink', 'what to make', 'what should i cook',
-      'what should i eat', 'what to eat', 'meal plan', 'ingredients',
-      'hungry', 'cook tonight', 'dinner tonight', 'dinner tonight', 'tonight', 'meal prep',
-    ],
-    type: 'kitchen',
-    view: 'kitchen',
-    agentId: 'hearth',
-  },
-  {
-    keywords: [
-      'dream', 'goal', 'achieve', 'milestone', 'progress', 'target',
-      'break down', 'breakdown', 'decompose', 'plan', 'objective',
-      'accomplish', 'want to do', 'want to', 'i want to', 'my dream',
-      'learn guitar', 'learn piano', 'learn music', 'get fit', 'lose weight',
-      'marathon', 'fitness', 'start a business', 'side hustle',
-    ],
-    type: 'dreams',
-    view: 'dreams',
-    agentId: 'horizon',
-  },
-  {
-    keywords: [
-      'task', 'schedule', 'calendar', 'focus', 'priority', 'habit',
-      'reminder', 'what today', 'what is my day', 'what should i do',
-      'what should i focus', "what's on my plate", 'todo', 'to-do',
-      'life', 'autopilot', 'reschedule', 'due', 'deadline',
-      'keep me on track', "keeping me up", 'stressed', 'stress',
-    ],
-    type: 'life',
-    view: 'life',
-    agentId: 'orbit',
-  },
-  {
-    keywords: [
-      'maintenance', 'appliance', 'fix', 'repair', 'home',
-      'bill due', 'utility', 'water', 'electricity', 'insurance',
-      'house', 'property', 'leak', 'broken',
-    ],
-    type: 'home',
-    view: 'home',
-    agentId: 'foundation',
-  },
-  {
-    keywords: [
-      'news', 'feed', 'briefing', 'happening', 'update',
-      'what', 'news today', 'daily brief', 'morning brief',
-      'what is going on', 'summarize', 'summary',
-    ],
-    type: 'feed',
-    view: 'feed',
-    agentId: 'current',
-  },
-];
-
-// ── Confidence scoring ──
-
-function scoreIntent(input: string, keywords: string[]): number {
-  const lower = input.toLowerCase();
-  const words = lower.split(/\s+/);
-  let score = 0;
-
-  for (const keyword of keywords) {
-    if (lower.includes(keyword)) {
-      // Longer/more specific keywords = higher confidence
-      score += keyword.split(' ').length * 0.3;
-      // Exact word match = bonus
-      if (words.some(w => w === keyword)) {
-        score += 0.5;
-      }
-    }
-  }
-
-  // Normalize: cap at 1.0
-  return Math.min(1.0, score / 1.5);
+export interface RoutedIntent {
+  category: IntentCategory;
+  agentId: string; // 'pulse', 'hearth', 'orbit', 'horizon', 'conflux'
+  appView: string; // 'budget', 'kitchen', 'life', 'dreams', 'chat'
+  query: string;
+  response?: string;
 }
 
-// ── Build a contextual prompt for the target app ──
-
-function buildPrompt(input: string, type: IntentType): string {
-  switch (type) {
-    case 'budget':
-      return `The user asked: "${input}". Help them with their budget question. If they're asking about affordability, check their spending and give a clear answer. Be concise and warm.`;
-    case 'kitchen':
-      return `The user asked: "${input}". Help them with their kitchen/meal question. Suggest recipes from what they might have, or help them plan.`;
-    case 'dreams':
-      return `The user asked: "${input}". Help them break this down into actionable steps. Create milestones and tasks if you can.`;
-    case 'life':
-      return `The user asked: "${input}". Help them organize their day, prioritize tasks, or manage their schedule.`;
-    case 'home':
-      return `The user asked: "${input}". Help them with their home maintenance, bills, or appliance tracking.`;
-    case 'feed':
-      return `The user asked: "${input}". Give them a helpful summary or briefing about what's relevant.`;
-    default:
-      return input;
-  }
-}
-
-// ── Main classification ──
-
+// Simple keyword-based classification (expandable to LLM-based later)
 export function classifyIntent(input: string): IntentResult {
-  const trimmed = input.trim();
-  if (!trimmed) {
-    return { type: 'chat', view: 'chat', confidence: 1.0, agentId: 'conflux' };
-  }
+  const text = input.toLowerCase();
 
-  let bestScore = 0;
-  let bestMatch: IntentResult = {
-    type: 'chat',
-    view: 'chat',
-    confidence: 0,
-    agentId: 'conflux',
-  };
-
-  for (const rule of INTENT_RULES) {
-    const score = scoreIntent(trimmed, rule.keywords);
-    if (score > bestScore) {
-      bestScore = score;
-      bestMatch = {
-        type: rule.type,
-        view: rule.view,
-        confidence: score,
-        agentId: rule.agentId,
-        prompt: buildPrompt(trimmed, rule.type),
-      };
-    }
-  }
-
-  // If no confident match, fallback to chat
-  if (bestMatch.confidence < 0.2) {
+  // Budget patterns
+  if (text.match(/afford|can i buy|can i purchase|can i get/)) {
     return {
-      type: 'chat',
-      view: 'chat',
-      confidence: 1.0 - bestMatch.confidence,
-      agentId: 'conflux',
-      rationale: 'No confident match — falling back to general chat',
+      type: 'budget',
+      view: 'budget',
+      confidence: 0.85,
+      agentId: 'pulse',
+      category: 'budget_affordability',
+    };
+  }
+  if (text.match(/spent|expense|transaction|categorize|where did i spend/)) {
+    return {
+      type: 'budget',
+      view: 'budget',
+      confidence: 0.8,
+      agentId: 'pulse',
+      category: 'budget_transaction',
+    };
+  }
+  if (text.match(/pattern|trend|spending habit|save money/)) {
+    return {
+      type: 'budget',
+      view: 'budget',
+      confidence: 0.75,
+      agentId: 'pulse',
+      category: 'budget_pattern',
     };
   }
 
+  // Kitchen patterns
+  if (text.match(/cook|meal|dinner|lunch|breakfast|what should i eat/)) {
+    return {
+      type: 'kitchen',
+      view: 'kitchen',
+      confidence: 0.85,
+      agentId: 'hearth',
+      category: 'kitchen_meal',
+    };
+  }
+  if (text.match(/pantry|fridge|ingredient|grocery/)) {
+    return {
+      type: 'kitchen',
+      view: 'kitchen',
+      confidence: 0.8,
+      agentId: 'hearth',
+      category: 'kitchen_pantry',
+    };
+  }
+  if (text.match(/recipe|how to make|cookbook/)) {
+    return {
+      type: 'kitchen',
+      view: 'kitchen',
+      confidence: 0.75,
+      agentId: 'hearth',
+      category: 'kitchen_recipe',
+    };
+  }
+
+  // Life patterns
+  if (text.match(/task|todo|reminder|schedule|appointment/)) {
+    return {
+      type: 'life',
+      view: 'life',
+      confidence: 0.85,
+      agentId: 'orbit',
+      category: 'life_task',
+    };
+  }
+  if (text.match(/focus|energy|productive|when should i/)) {
+    return {
+      type: 'life',
+      view: 'life',
+      confidence: 0.8,
+      agentId: 'orbit',
+      category: 'life_schedule',
+    };
+  }
+
+  // Dream patterns
+  if (text.match(/goal|dream|achieve|want to|objective/)) {
+    return {
+      type: 'dreams',
+      view: 'dreams',
+      confidence: 0.85,
+      agentId: 'horizon',
+      category: 'dream_goal',
+    };
+  }
+  if (text.match(/break down|step|milestone|plan/)) {
+    return {
+      type: 'dreams',
+      view: 'dreams',
+      confidence: 0.8,
+      agentId: 'horizon',
+      category: 'dream_decompose',
+    };
+  }
+
+  // Default to chat
   return {
-    ...bestMatch,
-    rationale: `Matched with ${Math.round(bestMatch.confidence * 100)}% confidence`,
+    type: 'chat',
+    view: 'chat',
+    confidence: 0.5,
+    agentId: 'conflux',
+    category: 'general_chat',
   };
+}
+
+export function useIntentRouter() {
+  const route = useCallback(async (input: string): Promise<RoutedIntent> => {
+    const result = classifyIntent(input);
+
+    // Convert IntentResult to RoutedIntent
+    const routed: RoutedIntent = {
+      category: result.category || 'general_chat',
+      agentId: result.agentId,
+      appView: result.view,
+      query: input,
+    };
+
+    return routed;
+  }, []);
+
+  return { route };
 }
