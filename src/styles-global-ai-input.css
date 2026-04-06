@@ -1,9 +1,13 @@
 /* Global AI Input — Intent Routing Component */
 
 .global-ai-input-wrapper {
-  position: relative;
+  position: fixed;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
   width: 100%;
   max-width: 480px;
+  z-index: 30;
 }
 
 .global-ai-input-trigger {
@@ -145,6 +149,7 @@
 
 @media (max-width: 600px) {
   .global-ai-input-wrapper {
-    max-width: 100%;
+    max-width: calc(100vw - 48px);
+    bottom: 90px;
   }
 }
