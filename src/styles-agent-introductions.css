@@ -1,0 +1,242 @@
+/* Full-screen overlay for Agent Introductions */
+.agent-introductions-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  pointer-events: auto;
+}
+
+.agent-introductions-overlay.entering {
+  animation: fade-in 300ms ease-out forwards;
+}
+
+.agent-introductions-overlay.exiting {
+  animation: fade-out 200ms ease-in forwards;
+  pointer-events: none;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Agent card container */
+.agent-card-container {
+  position: relative;
+  width: 90vw;
+  max-width: 600px;
+  height: 70vh;
+  max-height: 500px;
+  perspective: 1000px;
+}
+
+/* Individual agent card */
+.agent-card {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 24px;
+  padding: 32px;
+  color: white;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  transition: transform 500ms cubic-bezier(0.22, 1, 0.36, 1), opacity 500ms ease;
+}
+
+.agent-card.slide-in {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+.agent-card.active {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.agent-card.slide-out {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+/* Agent emoji */
+.agent-emoji {
+  font-size: 64px;
+  margin-bottom: 16px;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+}
+
+/* Agent name */
+.agent-name {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+/* Intro text */
+.agent-intro-text {
+  font-size: 18px;
+  line-height: 1.5;
+  text-align: center;
+  margin-bottom: 24px;
+  opacity: 0.9;
+  max-width: 80%;
+}
+
+/* Starter preview (optional) */
+.starter-preview {
+  background: rgba(255,255,255,0.15);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+/* Input field */
+.agent-input-wrapper {
+  width: 100%;
+  max-width: 320px;
+}
+
+.agent-input-label {
+  font-size: 14px;
+  margin-bottom: 8px;
+  opacity: 0.8;
+}
+
+.agent-input {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: none;
+  background: rgba(255,255,255,0.2);
+  color: white;
+  font-size: 16px;
+  outline: none;
+  transition: background 0.2s;
+}
+
+.agent-input::placeholder {
+  color: rgba(255,255,255,0.6);
+}
+
+.agent-input:focus {
+  background: rgba(255,255,255,0.3);
+}
+
+/* Buttons */
+.agent-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.agent-button {
+  padding: 12px 24px;
+  border-radius: 12px;
+  border: none;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.agent-button.primary {
+  background: white;
+  color: #333;
+}
+
+.agent-button.primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.agent-button.secondary {
+  background: rgba(255,255,255,0.2);
+  color: white;
+}
+
+.agent-button.secondary:hover {
+  background: rgba(255,255,255,0.3);
+}
+
+/* Skip button (top right) */
+.skip-button {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: none;
+  background: rgba(255,255,255,0.2);
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.skip-button:hover {
+  background: rgba(255,255,255,0.3);
+}
+
+/* Progress dots */
+.progress-dots {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+}
+
+.progress-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.4);
+  transition: background 0.3s, transform 0.3s;
+}
+
+.progress-dot.active {
+  background: white;
+  transform: scale(1.2);
+}
+
+/* Conflux card special styling */
+.agent-card.conflux {
+  background: linear-gradient(135deg, #6366F1, #8B5CF6);
+}
+
+/* Hearth card styling */
+.agent-card.hearth {
+  background: linear-gradient(135deg, #FF9800, #FF5722);
+}
+
+/* Pulse card styling */
+.agent-card.pulse {
+  background: linear-gradient(135deg, #00C853, #009624);
+}
+
+/* Horizon card styling */
+.agent-card.horizon {
+  background: linear-gradient(135deg, #1565C0, #0D47A1);
+}
+
+/* Orbit card styling */
+.agent-card.orbit {
+  background: linear-gradient(135deg, #7C4DFF, #651FFF);
+}
