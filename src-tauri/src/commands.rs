@@ -4,10 +4,9 @@
 use tauri::{Manager, Emitter};
 use serde::{Deserialize, Serialize};
 use chrono::{Datelike, Timelike};
-use uuid::Uuid;
 use super::engine;
 use super::engine::cloud;
-use super::engine::router::{self, OpenAIMessage};
+use super::engine::router::OpenAIMessage;
 
 // ── Request/Response Types ──
 
@@ -576,6 +575,44 @@ pub fn engine_get_communications(agent_id: String, limit: Option<i64>) -> Result
     let engine = engine::get_engine();
     let comms = engine.db().get_communications(&agent_id, limit.unwrap_or(20)).map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(comms).map_err(|e| e.to_string())?)
+}
+
+// ── Agent Messages (Phase 2: Inter-Agent Communication Layer) ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AgentMessageRequest {
+    pub sender_id: String,
+    pub receiver_id: String,
+    pub message_type: String,
+    pub payload: serde_json::Value,
+}
+
+#[tauri::command]
+pub fn engine_send_agent_message(req: AgentMessageRequest) -> Result<String, String> {
+    let engine = engine::get_engine();
+    engine.db().send_agent_message(&req.sender_id, &req.receiver_id, &req.message_type, &req.payload)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_get_unread_messages(receiver_id: String, limit: Option<i64>) -> Result<Vec<engine::types::AgentMessage>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_unread_messages(&receiver_id, limit)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_mark_message_read(message_id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().mark_message_read(&message_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_get_agent_communications(agent_id: String, limit: Option<i64>) -> Result<Vec<engine::types::AgentMessage>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_agent_communications(&agent_id, limit)
+        .map_err(|e| e.to_string())
 }
 
 // ── Tasks ──
@@ -1620,6 +1657,47 @@ pub fn kitchen_toggle_grocery_item(id: String, member_id: Option<String>) -> Res
     let _member_id = member_id;
     let engine = engine::get_engine();
     engine.db().toggle_grocery_item(&id).map_err(|e| e.to_string())
+}
+
+// ── Family Shopping List (Shared Pantry) ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FamilyAddShoppingItemRequest {
+    pub member_id: String,
+    pub item: String,
+    pub quantity: Option<f64>,
+    pub unit: Option<String>,
+    pub category: Option<String>,
+}
+
+#[tauri::command]
+pub fn family_add_shopping_item(req: FamilyAddShoppingItemRequest) -> Result<String, String> {
+    let engine = engine::get_engine();
+    engine.db().family_add_shopping_item(
+        &req.member_id,
+        &req.item,
+        req.quantity,
+        req.unit.as_deref(),
+        req.category.as_deref(),
+    ).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn family_get_shopping_list(member_id: String) -> Result<Vec<engine::types::FamilyShoppingItem>, String> {
+    let engine = engine::get_engine();
+    engine.db().family_get_shopping_list(&member_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn family_toggle_shopping_item(item_id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().family_toggle_shopping_item(&item_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn family_clear_checked_items(member_id: String) -> Result<usize, String> {
+    let engine = engine::get_engine();
+    engine.db().family_clear_checked_items(&member_id).map_err(|e| e.to_string())
 }
 
 // ── Smart Kitchen — Inventory ──
@@ -3272,7 +3350,20 @@ pub fn home_get_year_summary() -> Result<serde_json::Value, String> {
 #[tauri::command]
 pub fn dream_add(id: String, member_id: Option<String>, title: String, description: Option<String>, category: String, target_date: Option<String>) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.db().add_dream(&id, member_id.as_deref(), &title, description.as_deref(), &category, target_date.as_deref()).map_err(|e| e.to_string())
+    engine.db().add_dream(&id, member_id.as_deref(), &title, description.as_deref(), &category, target_date.as_deref()).map_err(|e| e.to_string())?;
+    
+    // Phase 2.2: Broadcast goal update to target agents
+    let goal_data = serde_json::json!({
+        "dream_id": id,
+        "title": title,
+        "description": description,
+        "category": category,
+        "target_date": target_date,
+        "action": "created",
+    });
+    engine.broadcast_goal_update(&id, &category, &goal_data).map_err(|e| e.to_string())?;
+    
+    Ok(())
 }
 
 #[tauri::command]
@@ -3374,7 +3465,21 @@ pub fn dream_get_timeline(user_id: String, dream_id: String) -> Result<engine::t
 #[tauri::command]
 pub fn dream_update_progress_manual(user_id: String, dream_id: String, progress_pct: f64) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.db().set_dream_progress(&user_id, &dream_id, progress_pct).map_err(|e| e.to_string())
+    engine.db().set_dream_progress(&user_id, &dream_id, progress_pct).map_err(|e| e.to_string())?;
+    
+    // Phase 2.2: Broadcast goal update to target agents
+    let goal_data = serde_json::json!({
+        "dream_id": dream_id,
+        "progress_pct": progress_pct,
+        "action": "progress_updated",
+    });
+    
+    // Get dream details for category
+    if let Ok(Some(dream)) = engine.db().get_dream(&dream_id, &user_id) {
+        engine.broadcast_goal_update(&dream_id, &dream.category, &goal_data).map_err(|e| e.to_string())?;
+    }
+    
+    Ok(())
 }
 
 #[tauri::command]

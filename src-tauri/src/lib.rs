@@ -149,6 +149,10 @@ pub fn run() {
             // Inter-Agent Communication
             commands::engine_agent_ask,
             commands::engine_get_communications,
+            commands::engine_send_agent_message,
+            commands::engine_get_unread_messages,
+            commands::engine_mark_message_read,
+            commands::engine_get_agent_communications,
             // Tasks
             commands::engine_create_task,
             commands::engine_update_task,
@@ -256,6 +260,11 @@ pub fn run() {
             commands::kitchen_get_nudges,
             commands::kitchen_smart_grocery,
             commands::kitchen_get_meal_photos,
+            // Family Shopping List (Shared Pantry)
+            commands::family_add_shopping_item,
+            commands::family_get_shopping_list,
+            commands::family_toggle_shopping_item,
+            commands::family_clear_checked_items,
             // Budget Tracker
             commands::budget_add_entry,
             commands::budget_get_entries,
