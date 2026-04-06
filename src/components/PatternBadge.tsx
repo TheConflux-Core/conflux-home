@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface PatternBadgeProps {
-  type: 'attention' | 'success' | 'warning' | 'info';
+  type: 'attention' | 'success' | 'warning' | 'info' | 'celebration';
   icon: string;
   title: string;
   description: string;
@@ -14,6 +14,7 @@ export default function PatternBadge({ type, icon, title, description, onClick }
     success: '#22c55e',   // emerald
     warning: '#ef4444',   // red
     info: '#3b82f6',      // blue
+    celebration: '#f59e0b', // gold/amber for celebration
   };
 
   return (
