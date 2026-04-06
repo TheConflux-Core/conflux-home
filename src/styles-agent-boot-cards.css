@@ -1,4 +1,4 @@
-/* Agent Boot Cards — styling */
+/* Agent Boot Cards — styling (fixed) */
 
 .agent-boot-cards-overlay {
   position: fixed;
@@ -19,7 +19,7 @@
   transform: translateY(-30px);
 }
 
-.boot-card {
+.agent-boot-card {
   display: flex;
   align-items: center;
   gap: 16px;
@@ -35,10 +35,10 @@
   animation: bootSlideInUp 0.5s ease forwards;
 }
 
-.boot-card:nth-child(1) { animation-delay: 0ms; }
-.boot-card:nth-child(2) { animation-delay: 150ms; }
-.boot-card:nth-child(3) { animation-delay: 300ms; }
-.boot-card:nth-child(4) { animation-delay: 450ms; }
+.agent-boot-card:nth-child(1) { animation-delay: 0ms; }
+.agent-boot-card:nth-child(2) { animation-delay: 150ms; }
+.agent-boot-card:nth-child(3) { animation-delay: 300ms; }
+.agent-boot-card:nth-child(4) { animation-delay: 450ms; }
 
 @keyframes bootSlideInUp {
   to {
@@ -47,7 +47,7 @@
   }
 }
 
-.boot-card-emoji {
+.agent-boot-card-emoji {
   font-size: 28px;
   flex-shrink: 0;
   width: 40px;
@@ -59,20 +59,20 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
-.boot-card-text {
+.agent-boot-card-content {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
 
-.boot-card-name {
+.agent-boot-card-name {
   font-weight: 600;
   font-size: 14px;
   color: #f0f0f5;
 }
 
-.boot-card-status {
+.agent-boot-card-status {
   font-size: 12px;
   color: rgba(240, 240, 245, 0.6);
   white-space: nowrap;
@@ -80,7 +80,7 @@
   text-overflow: ellipsis;
 }
 
-.boot-ready-label {
+.agent-boot-team-ready {
   margin-top: 16px;
   font-size: 16px;
   font-weight: 600;
@@ -94,24 +94,46 @@
   to { opacity: 1; }
 }
 
+/* Optional skip button in case user wants to dismiss earlier */
+.agent-boot-skip {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  z-index: 1001;
+  backdrop-filter: blur(8px);
+  transition: all 0.2s;
+}
+
+.agent-boot-skip:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+}
+
 @media (max-width: 500px) {
-  .boot-card {
+  .agent-boot-card {
     min-width: 280px;
     max-width: 90vw;
     padding: 12px 20px;
   }
 
-  .boot-card-emoji {
+  .agent-boot-card-emoji {
     font-size: 22px;
     width: 34px;
     height: 34px;
   }
 
-  .boot-card-name {
+  .agent-boot-card-name {
     font-size: 13px;
   }
 
-  .boot-card-status {
+  .agent-boot-card-status {
     font-size: 11px;
   }
 }
