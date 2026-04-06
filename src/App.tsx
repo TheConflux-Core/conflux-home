@@ -365,6 +365,19 @@ const [activeSnake, setActiveSnake] = useState(false);
     });
     return map;
   }, [agentStatuses]);
+  const statusDetails = useMemo(() => {
+    const map: Record<string, { agentId: string; badgeText?: string; badgeType?: string; statusText: string; details?: string }> = {};
+    agentStatuses.forEach(s => {
+      map[s.agentId] = {
+        agentId: s.agentId,
+        badgeText: s.badgeText,
+        badgeType: s.badgeType,
+        statusText: s.statusText,
+        details: s.details,
+      };
+    });
+    return map;
+  }, [agentStatuses]);
   const [dashboardMemberId, setDashboardMemberId] = useState<string | null>(null);
   const dashboardMember = familyMembers.find(m => m.id === dashboardMemberId);
 
@@ -958,7 +971,9 @@ const [activeSnake, setActiveSnake] = useState(false);
           pinnedApps={['chat', 'kitchen', 'budget', 'settings']}
           onNavigate={handleNavigate}
           statusBadges={statusBadges}
+          statusDetails={statusDetails}
           onStatusClick={() => setShowStatusPanel(true)}
+          onBadgeClick={(badgeView) => setImmersiveView(badgeView)}
         />
       ) : (
         <ConfluxBar
@@ -973,25 +988,6 @@ const [activeSnake, setActiveSnake] = useState(false);
       <AgentDetail />
 
       {/* Phase 0.4: Agent Status Panel */}
-      {showStatusPanel && (
-        <AgentStatusPanel
-          statuses={agentStatuses}
-          onClose={() => setShowStatusPanel(false)}
-          onOpenApp={(agentId) => {
-            const viewMap: Record<string, View> = {
-              hearth: 'kitchen',
-              pulse: 'budget',
-              orbit: 'life',
-              horizon: 'dreams',
-              current: 'feed',
-            };
-            setShowStatusPanel(false);
-            if (viewMap[agentId]) setImmersiveView(viewMap[agentId]);
-          }}
-        />
-      )}
-
-      {/* Agent Status Panel */}
       {showStatusPanel && (
         <AgentStatusPanel
           statuses={agentStatuses}

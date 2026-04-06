@@ -2,15 +2,35 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { View, Agent } from '../types';
 import { playClick, playNavSwish } from '../lib/sound';
 
-// ── Agent status badges (inline, lightweight) ──
-// These are small indicator dots/badges on the dock items.
-// The actual status data is fetched by the parent (App.tsx) and passed in.
-// This keeps the bar itself simple and avoids duplicating fetch logic.
+// ── Agent-to-View mapping (canonical) ──
+const AGENT_TO_VIEW: Record<string, View> = {
+  hearth: 'kitchen',
+  pulse: 'budget',
+  orbit: 'life',
+  horizon: 'dreams',
+  current: 'feed',
+};
+
+const VIEW_BADGE_LABEL: Record<string, string> = {
+  kitchen: 'items expiring',
+  budget: 'spent this month',
+  life: 'pending tasks',
+  dreams: 'active goals',
+  feed: 'unread items',
+};
+
+const VIEW_BADGE_EMOJI: Record<string, string> = {
+  kitchen: '🍳',
+  budget: '💰',
+  life: '🧠',
+  dreams: '🎯',
+  feed: '📰',
+};
 
 interface ConfluxBarV2Props {
   currentView: View;
   agents: Agent[];
-  pinnedApps: View[]; // kept for interface compat, not used in bar
+  pinnedApps: View[];
   onNavigate: (view: View) => void;
 }
 
@@ -20,6 +40,14 @@ interface AppItem {
   label: string;
   category: 'work' | 'life' | 'fun' | 'system';
   description: string;
+}
+
+interface BadgeInfo {
+  agentId: string;
+  badgeText?: string;
+  badgeType?: string;
+  statusText: string;
+  details?: string;
 }
 
 const APP_ICONS: Record<View, { icon: string; label: string }> = {
@@ -70,19 +98,27 @@ const CATEGORIES = [
   { id: 'system', label: 'System' },
 ];
 
+// The 5 intelligence agents get badges on the dock
+const INTELLIGENCE_VIEWS: View[] = ['kitchen', 'budget', 'life', 'dreams', 'feed'];
+
 export default function ConfluxBarV2({
   currentView,
   agents,
   onNavigate,
   statusBadges = {},
+  statusDetails = {},
   onStatusClick,
+  onBadgeClick,
 }: ConfluxBarV2Props & {
   statusBadges?: Record<string, { badgeText?: string; badgeType?: string }>;
+  statusDetails?: Record<string, BadgeInfo>;
   onStatusClick?: () => void;
+  onBadgeClick?: (view: View, agentId: string) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
+  const [hoveredBadge, setHoveredBadge] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -142,11 +178,10 @@ export default function ConfluxBarV2({
   const activeAgents = agents.filter(a => a.status !== 'offline').length;
   const workingAgents = agents.filter(a => a.status === 'working' || a.status === 'thinking').length;
 
-  // Determine hero status dot color
   const agentStatusColor = useMemo(() => {
-    if (workingAgents > 0) return '#f59e0b'; // amber — working
-    if (activeAgents > 0) return '#22c55e';  // green — idle but online
-    return '#6b7280'; // gray — all offline
+    if (workingAgents > 0) return '#f59e0b';
+    if (activeAgents > 0) return '#22c55e';
+    return '#6b7280';
   }, [activeAgents, workingAgents]);
 
   const handleAppClick = useCallback((view: View) => {
@@ -157,24 +192,25 @@ export default function ConfluxBarV2({
 
   const isChatOpen = currentView === 'chat';
 
-  // ── Helper to get badge for an app ──
-  const getViewBadge = (view: View) => {
-    const agentNameToView: Record<string, View> = {
-      'hearth': 'kitchen',
-      'pulse': 'budget',
-      'orbit': 'life',
-      'horizon': 'dreams',
-      'current': 'feed',
-    };
-    // The statusBadges map is agentId → badge data
-    for (const [agentId, badge] of Object.entries(statusBadges)) {
-      const mappedView = agentNameToView[agentId];
-      if (mappedView === view && badge.badgeText) {
-        return badge;
+  // Build a view→badge lookup for quick access
+  const viewBadgeMap = useMemo(() => {
+    const map: Record<View, BadgeInfo | null> = {} as Record<View, BadgeInfo | null>;
+    for (const view of INTELLIGENCE_VIEWS) {
+      const agentId = Object.entries(AGENT_TO_VIEW).find(([, v]) => v === view)?.[0] ?? null;
+      if (agentId && statusBadges[agentId]) {
+        map[view] = {
+          agentId,
+          badgeText: statusBadges[agentId].badgeText,
+          badgeType: statusBadges[agentId].badgeType,
+          statusText: statusDetails[agentId]?.statusText ?? '',
+          details: statusDetails[agentId]?.details,
+        };
       }
     }
-    return null;
-  };
+    return map;
+  }, [statusBadges, statusDetails]);
+
+  const totalBadges = Object.values(statusBadges).filter(b => b.badgeText).length;
 
   const handleHeroClick = useCallback(() => {
     playClick();
@@ -185,12 +221,63 @@ export default function ConfluxBarV2({
     }
   }, [isChatOpen, onNavigate]);
 
+  const handleBadgeClick = useCallback((view: View, agentId: string) => {
+    playClick();
+    if (onBadgeClick) {
+      onBadgeClick(view, agentId);
+    } else if (onStatusClick) {
+      onStatusClick();
+    }
+  }, [onBadgeClick, onStatusClick]);
+
   return (
     <div className="conflux-bar-v2-wrapper" data-tour-id="dock">
-      {/* Menu panel that rises from the bar — triggered by logo button */}
+      {/* ── Intelligence Badges Bar (above the 3-point spine) ── */}
+      {totalBadges > 0 && (
+        <div className="intelligence-bar">
+          {INTELLIGENCE_VIEWS.map((view) => {
+            const badge = viewBadgeMap[view];
+            if (!badge) return null;
+            const appInfo = APP_ICONS[view];
+            return (
+              <button
+                key={view}
+                className={`intelligence-badge ${badge.badgeType === 'attention' ? 'attention' : ''}`}
+                onClick={() => handleBadgeClick(view, badge.agentId)}
+                onMouseEnter={() => setHoveredBadge(view)}
+                onMouseLeave={() => setHoveredBadge(null)}
+              >
+                <span className="intelligence-badge-emoji">{VIEW_BADGE_EMOJI[view]}</span>
+                <span className="intelligence-badge-label">{appInfo?.label ?? view}</span>
+                <span className={`intelligence-badge-value ${badge.badgeType === 'attention' ? 'attention' : ''}`}>
+                  {badge.badgeText}
+                </span>
+                {/* Hover tooltip */}
+                {hoveredBadge === view && badge.statusText && (
+                  <div className="intelligence-badge-tooltip">
+                    <div className="tooltip-title">{VIEW_BADGE_EMOJI[view]} {appInfo?.label}</div>
+                    <div className="tooltip-text">{badge.statusText}</div>
+                    {badge.details && badge.details !== badge.statusText && (
+                      <div className="tooltip-detail">{badge.details}</div>
+                    )}
+                    <div className="tooltip-hint">Click for full status →</div>
+                  </div>
+                )}
+              </button>
+            );
+          })}
+          <button
+            className="intelligence-bar-summary"
+            onClick={() => onStatusClick?.()}
+          >
+            ◈ Team Status
+          </button>
+        </div>
+      )}
+
+      {/* ── Menu panel (start menu) ── */}
       {menuOpen && (
         <div className="conflux-menu" ref={menuRef}>
-          {/* Agent status hero */}
           <div className="conflux-menu-hero">
             <div className="conflux-menu-hero-icon">🤖</div>
             <div className="conflux-menu-hero-text">
@@ -205,7 +292,6 @@ export default function ConfluxBarV2({
             </div>
           </div>
 
-          {/* Search */}
           <div className="conflux-menu-search">
             <span className="conflux-menu-search-icon">🔍</span>
             <input
@@ -218,7 +304,6 @@ export default function ConfluxBarV2({
             />
           </div>
 
-          {/* Categories */}
           <div className="conflux-menu-categories">
             {CATEGORIES.map(cat => (
               <button
@@ -231,21 +316,34 @@ export default function ConfluxBarV2({
             ))}
           </div>
 
-          {/* App grid */}
+          {/* App grid with inline badges */}
           <div className="conflux-menu-grid">
-            {filtered.map(app => (
-              <button
-                key={app.id}
-                className={`conflux-menu-app ${currentView === app.id ? 'active' : ''}`}
-                onClick={() => handleAppClick(app.id)}
-              >
-                <span className="conflux-menu-app-icon">{app.icon}</span>
-                <div className="conflux-menu-app-info">
-                  <span className="conflux-menu-app-name">{app.label}</span>
-                  <span className="conflux-menu-app-desc">{app.description}</span>
-                </div>
-              </button>
-            ))}
+            {filtered.map(app => {
+              const badge = viewBadgeMap[app.id];
+              return (
+                <button
+                  key={app.id}
+                  className={`conflux-menu-app ${currentView === app.id ? 'active' : ''}`}
+                  onClick={() => handleAppClick(app.id)}
+                >
+                  <span className="conflux-menu-app-icon">{app.icon}</span>
+                  <div className="conflux-menu-app-info">
+                    <span className="conflux-menu-app-name">{app.label}</span>
+                    <span className="conflux-menu-app-desc">{app.description}</span>
+                    {badge && badge.statusText && (
+                      <span className="conflux-menu-app-badge">
+                        {badge.statusText}
+                      </span>
+                    )}
+                  </div>
+                  {badge?.badgeText && (
+                    <span className={`menu-app-count-badge ${badge.badgeType === 'attention' ? 'attention' : ''}`}>
+                      {badge.badgeText}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
             {filtered.length === 0 && (
               <div className="conflux-menu-empty">No apps found</div>
             )}
@@ -253,9 +351,9 @@ export default function ConfluxBarV2({
         </div>
       )}
 
-      {/* The bar itself — Three-Point Navigation Spine */}
+      {/* ── Three-Point Navigation Spine ── */}
       <div className="conflux-bar-v2">
-        {/* Left: Conflux Logo Start Button */}
+        {/* Left: Conflux Logo */}
         <div style={{ position: 'relative' }}>
           <button
             className={`conflux-logo-btn ${menuOpen ? 'active' : ''}`}
@@ -264,8 +362,7 @@ export default function ConfluxBarV2({
           >
             ◈
           </button>
-          {/* Aggregate status badge on the logo button */}
-          {Object.values(statusBadges).filter(b => b.badgeText).length > 0 && (
+          {totalBadges > 0 && (
             <span
               className="bar-status-dot"
               onClick={(e) => {
@@ -288,11 +385,7 @@ export default function ConfluxBarV2({
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2Z" fill="white" fillOpacity="0.9"/>
           </svg>
-          {/* Agent status dot */}
-          <span
-            className="hero-btn-status"
-            style={{ background: agentStatusColor }}
-          />
+          <span className="hero-btn-status" style={{ background: agentStatusColor }} />
         </button>
 
         {/* Right: Home Button */}
