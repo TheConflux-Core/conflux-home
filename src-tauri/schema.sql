@@ -1844,3 +1844,46 @@ INSERT OR IGNORE INTO voice_config (key, value) VALUES
   ('max_duration_ms', '30000'),
   ('sound_effects', 'false'),
   ('device_id', 'default');
+
+-- ============================================================
+-- NUDGE SYSTEM — Phase 1.3
+-- ============================================================
+
+-- Nudge preferences per user (enable/disable specific nudge types)
+CREATE TABLE IF NOT EXISTS nudge_preferences (
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL DEFAULT 'default',
+    nudge_type      TEXT NOT NULL,              -- 'budget_uncategorized' | 'kitchen_expiry' | 'dream_overdue' | 'habit_streak'
+    enabled         INTEGER NOT NULL DEFAULT 1, -- 1 = enabled, 0 = disabled
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    UNIQUE(user_id, nudge_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_nudge_preferences_user ON nudge_preferences(user_id);
+
+-- Nudge history (track when nudges were shown, dismissed, and acted upon)
+CREATE TABLE IF NOT EXISTS nudge_history (
+    id                  TEXT PRIMARY KEY,
+    user_id             TEXT NOT NULL DEFAULT 'default',
+    nudge_type          TEXT NOT NULL,
+    shown_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    dismissed_at        TEXT,
+    action_taken        INTEGER NOT NULL DEFAULT 0, -- 1 = user took action, 0 = not yet
+    permanent_dismissal INTEGER NOT NULL DEFAULT 0, -- 1 = don't remind me again
+    created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_nudge_history_user ON nudge_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_nudge_history_type ON nudge_history(nudge_type);
+CREATE INDEX IF NOT EXISTS idx_nudge_history_shown ON nudge_history(shown_at);
+CREATE INDEX IF NOT EXISTS idx_nudge_history_dismissed ON nudge_history(dismissed_at);
+
+-- Insert default preferences for all nudge types (if they don't exist)
+INSERT OR IGNORE INTO nudge_preferences (id, user_id, nudge_type, enabled, created_at, updated_at)
+VALUES
+    (lower(hex(randomblob(16))), 'default', 'budget_uncategorized', 1, datetime('now'), datetime('now')),
+    (lower(hex(randomblob(16))), 'default', 'kitchen_expiry', 1, datetime('now'), datetime('now')),
+    (lower(hex(randomblob(16))), 'default', 'dream_overdue', 1, datetime('now'), datetime('now')),
+    (lower(hex(randomblob(16))), 'default', 'habit_streak', 1, datetime('now'), datetime('now'));
+
