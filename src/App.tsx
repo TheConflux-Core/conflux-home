@@ -47,6 +47,15 @@ import ControlRoom from './components/ControlRoom';
 import VaultView from './components/VaultView';
 import StudioView from './components/StudioView';
 import GuidedTour from './components/GuidedTour';
+
+// Phase 0.3+: Global AI Input, Agent Status
+import GlobalAIInput from './components/GlobalAIInput';
+import AgentStatusPanel from './components/AgentStatusPanel';
+import { useAgentStatus } from './hooks/useAgentStatus';
+import './styles-agent-introductions.css';
+import './styles-global-ai-input.css';
+import './styles-agent-boot-cards.css';
+import './styles-agent-status.css';
 import MorningBrief from './components/MorningBrief';
 import AgentBootCards from './components/AgentBootCards';
 import './styles/morning-brief.css';
@@ -57,7 +66,6 @@ import { useFamily } from './hooks/useFamily';
 import { useAuth } from './hooks/useAuth';
 import { useSubscription } from './hooks/useSubscription';
 import FeatureGate from './components/FeatureGate';
-import GlobalAIInput from './components/GlobalAIInput';
 import { AuthProvider } from './contexts/AuthContext';
 import { useStoryGames, useStoryGame, useStorySeeds } from './hooks/useStoryGame';
 import { useLearningProgress, useLearningGoals } from './hooks/useLearning';
@@ -262,6 +270,8 @@ export default function App() {
     return true;
   });
 
+
+
   // On first render, clear the session flag so boot cards show every page reload
   useEffect(() => {
     localStorage.removeItem('conflux-boot-cards-seen-this-session');
@@ -342,6 +352,19 @@ const [activeSnake, setActiveSnake] = useState(false);
   // Learning progress for parent dashboard
   const { progress: learningProgress } = useLearningProgress(activeMemberId);
   const { goals: learningGoals, create: createLearningGoal } = useLearningGoals(activeMemberId);
+
+  // Phase 0.4: Agent status data
+  const { statusList: agentStatuses } = useAgentStatus(user!.id, activeMemberId || undefined);
+  const [showStatusPanel, setShowStatusPanel] = useState(false);
+  const statusBadges = useMemo(() => {
+    const map: Record<string, { badgeText?: string; badgeType?: string }> = {};
+    agentStatuses.forEach(s => {
+      if (s.badgeText || s.badgeType) {
+        map[s.agentId] = { badgeText: s.badgeText, badgeType: s.badgeType };
+      }
+    });
+    return map;
+  }, [agentStatuses]);
   const [dashboardMemberId, setDashboardMemberId] = useState<string | null>(null);
   const dashboardMember = familyMembers.find(m => m.id === dashboardMemberId);
 
@@ -550,6 +573,37 @@ const [activeSnake, setActiveSnake] = useState(false);
     }
   }, [activeMember]);
 
+  // ── Phase 0.3: Intent Router ──
+  const handleIntentRoute = useCallback((intent: any) => {
+    if (intent.view === 'chat') {
+      onOpenGlobalChat(intent.prompt);
+    } else {
+      setImmersiveView(intent.view as View);
+      const targetAgent = agents.find(a => a.id === intent.agentId);
+      if (targetAgent) {
+        setSelectedAgent(targetAgent);
+        soundManager.playAgentWake(targetAgent.id);
+        localStorage.setItem('conflux-last-chat-agent', targetAgent.id);
+        setChatOpen(true);
+      }
+    }
+  }, [agents]);
+
+  const onOpenGlobalChat = useCallback((message?: string) => {
+    if (!selectedAgent) {
+      const lastAgentId = localStorage.getItem('conflux-last-chat-agent');
+      const byLast = lastAgentId ? agents.find(a => a.id === lastAgentId) : null;
+      const byConflux = agents.find(a => a.id === 'conflux' || a.name.toLowerCase() === 'conflux');
+      const byActive = agents.find(a => a.status !== 'offline');
+      const pick = byLast || byConflux || byActive || agents[0];
+      if (pick) setSelectedAgent(pick);
+    }
+    setChatOpen(true);
+    if (message) {
+      window.dispatchEvent(new CustomEvent('conflux:prefill-chat', { detail: message }));
+    }
+  }, [agents, selectedAgent]);
+
   const handleCloseChat = useCallback(() => {
     setChatOpen(false);
     setVoiceChatOpen(false);
@@ -591,43 +645,6 @@ const [activeSnake, setActiveSnake] = useState(false);
       // Open immersive view for all other navigation
       setImmersiveView(v);
       setChatOpen(false);
-    }
-  }, [agents, selectedAgent]);
-
-  // ── Global AI Input handler ──
-  const handleIntentRoute = useCallback((intent: IntentResult) => {
-    // Open the target app
-    if (intent.view === 'chat') {
-      onOpenGlobalChat(intent.prompt);
-    } else {
-      // Navigate to the target app and open chat with that agent
-      setImmersiveView(intent.view as View);
-      // Find the target agent and open chat with pre-built prompt
-      const targetAgent = agents.find(a => a.id === intent.agentId);
-      if (targetAgent) {
-        setSelectedAgent(targetAgent);
-        soundManager.playAgentWake(targetAgent.id);
-        localStorage.setItem('conflux-last-chat-agent', targetAgent.id);
-        // We'll let the user send the message — for now open the chat panel
-        setChatOpen(true);
-      }
-    }
-  }, [agents]);
-
-  // Open chat with a pre-filled message (for intent routing)
-  const onOpenGlobalChat = useCallback((message?: string) => {
-    if (!selectedAgent) {
-      const lastAgentId = localStorage.getItem('conflux-last-chat-agent');
-      const byLast = lastAgentId ? agents.find(a => a.id === lastAgentId) : null;
-      const byConflux = agents.find(a => a.id === 'conflux' || a.name.toLowerCase() === 'conflux');
-      const byActive = agents.find(a => a.status !== 'offline');
-      const pick = byLast || byConflux || byActive || agents[0];
-      if (pick) setSelectedAgent(pick);
-    }
-    setChatOpen(true);
-    if (message) {
-      // Put the message in the input so user can review/edit before sending
-      window.dispatchEvent(new CustomEvent('conflux:prefill-chat', { detail: message }));
     }
   }, [agents, selectedAgent]);
 
@@ -940,6 +957,8 @@ const [activeSnake, setActiveSnake] = useState(false);
           agents={agents}
           pinnedApps={['chat', 'kitchen', 'budget', 'settings']}
           onNavigate={handleNavigate}
+          statusBadges={statusBadges}
+          onStatusClick={() => setShowStatusPanel(true)}
         />
       ) : (
         <ConfluxBar
@@ -952,6 +971,44 @@ const [activeSnake, setActiveSnake] = useState(false);
 
       {/* Agent Detail Modal — listens for conflux:agent-detail events */}
       <AgentDetail />
+
+      {/* Phase 0.4: Agent Status Panel */}
+      {showStatusPanel && (
+        <AgentStatusPanel
+          statuses={agentStatuses}
+          onClose={() => setShowStatusPanel(false)}
+          onOpenApp={(agentId) => {
+            const viewMap: Record<string, View> = {
+              hearth: 'kitchen',
+              pulse: 'budget',
+              orbit: 'life',
+              horizon: 'dreams',
+              current: 'feed',
+            };
+            setShowStatusPanel(false);
+            if (viewMap[agentId]) setImmersiveView(viewMap[agentId]);
+          }}
+        />
+      )}
+
+      {/* Agent Status Panel */}
+      {showStatusPanel && (
+        <AgentStatusPanel
+          statuses={agentStatuses}
+          onClose={() => setShowStatusPanel(false)}
+          onOpenApp={(agentId) => {
+            const viewMap: Record<string, View> = {
+              hearth: 'kitchen',
+              pulse: 'budget',
+              orbit: 'life',
+              horizon: 'dreams',
+              current: 'feed',
+            };
+            setShowStatusPanel(false);
+            if (viewMap[agentId]) setImmersiveView(viewMap[agentId]);
+          }}
+        />
+      )}
 
       <UpdateBanner />
 

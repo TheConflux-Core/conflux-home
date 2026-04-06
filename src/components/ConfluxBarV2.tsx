@@ -2,6 +2,11 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { View, Agent } from '../types';
 import { playClick, playNavSwish } from '../lib/sound';
 
+// ── Agent status badges (inline, lightweight) ──
+// These are small indicator dots/badges on the dock items.
+// The actual status data is fetched by the parent (App.tsx) and passed in.
+// This keeps the bar itself simple and avoids duplicating fetch logic.
+
 interface ConfluxBarV2Props {
   currentView: View;
   agents: Agent[];
@@ -65,7 +70,16 @@ const CATEGORIES = [
   { id: 'system', label: 'System' },
 ];
 
-export default function ConfluxBarV2({ currentView, agents, onNavigate }: ConfluxBarV2Props) {
+export default function ConfluxBarV2({
+  currentView,
+  agents,
+  onNavigate,
+  statusBadges = {},
+  onStatusClick,
+}: ConfluxBarV2Props & {
+  statusBadges?: Record<string, { badgeText?: string; badgeType?: string }>;
+  onStatusClick?: () => void;
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
@@ -142,6 +156,25 @@ export default function ConfluxBarV2({ currentView, agents, onNavigate }: Conflu
   }, [onNavigate]);
 
   const isChatOpen = currentView === 'chat';
+
+  // ── Helper to get badge for an app ──
+  const getViewBadge = (view: View) => {
+    const agentNameToView: Record<string, View> = {
+      'hearth': 'kitchen',
+      'pulse': 'budget',
+      'orbit': 'life',
+      'horizon': 'dreams',
+      'current': 'feed',
+    };
+    // The statusBadges map is agentId → badge data
+    for (const [agentId, badge] of Object.entries(statusBadges)) {
+      const mappedView = agentNameToView[agentId];
+      if (mappedView === view && badge.badgeText) {
+        return badge;
+      }
+    }
+    return null;
+  };
 
   const handleHeroClick = useCallback(() => {
     playClick();
@@ -223,13 +256,26 @@ export default function ConfluxBarV2({ currentView, agents, onNavigate }: Conflu
       {/* The bar itself — Three-Point Navigation Spine */}
       <div className="conflux-bar-v2">
         {/* Left: Conflux Logo Start Button */}
-        <button
-          className={`conflux-logo-btn ${menuOpen ? 'active' : ''}`}
-          onClick={() => { playClick(); setMenuOpen(!menuOpen); }}
-          title="Start Menu"
-        >
-          ◈
-        </button>
+        <div style={{ position: 'relative' }}>
+          <button
+            className={`conflux-logo-btn ${menuOpen ? 'active' : ''}`}
+            onClick={() => { playClick(); setMenuOpen(!menuOpen); }}
+            title="Start Menu"
+          >
+            ◈
+          </button>
+          {/* Aggregate status badge on the logo button */}
+          {Object.values(statusBadges).filter(b => b.badgeText).length > 0 && (
+            <span
+              className="bar-status-dot"
+              onClick={(e) => {
+                e.stopPropagation();
+                onStatusClick?.();
+              }}
+              style={{ cursor: 'pointer' }}
+            />
+          )}
+        </div>
 
         {/* Center: Hero Button */}
         <button
