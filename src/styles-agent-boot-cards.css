@@ -1,0 +1,139 @@
+/* Agent Boot Cards — Boot-time loading experience
+   Stacked cards that animate in with stagger and fade up/out together */
+
+.agent-boot-cards-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 10, 26, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+}
+
+.agent-boot-cards-overlay.fading {
+  opacity: 0;
+  transform: translateY(-40px);
+}
+
+.agent-boot-cards-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  max-width: 420px;
+  width: 100%;
+  padding: 24px;
+}
+
+.agent-boot-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 24px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  animation: slideInUp 0.5s ease-out both;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.agent-boot-card-emoji {
+  font-size: 36px;
+  line-height: 1;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
+}
+
+.agent-boot-card-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-boot-card-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.02em;
+  margin-bottom: 3px;
+}
+
+.agent-boot-card-status {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-boot-team-ready {
+  margin-top: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  text-align: center;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  animation: fadeIn 0.6s ease-out 0.6s both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Mobile responsiveness */
+@media (max-width: 480px) {
+  .agent-boot-cards-container {
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .agent-boot-card {
+    padding: 14px 18px;
+    gap: 12px;
+  }
+
+  .agent-boot-card-emoji {
+    font-size: 28px;
+  }
+
+  .agent-boot-card-name {
+    font-size: 14px;
+  }
+
+  .agent-boot-card-status {
+    font-size: 12px;
+  }
+
+  .agent-boot-team-ready {
+    font-size: 13px;
+    margin-top: 8px;
+  }
+}
