@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { soundManager } from './lib/sound';
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
 import { Agent, View } from './types';
@@ -16,6 +17,7 @@ import AgentDetail from './components/AgentDetail';
 import Onboarding from './components/Onboarding';
 import WelcomeOverlay from './components/WelcomeOverlay';
 import AgentIntroductions from './components/AgentIntroductions';
+import { ConfluxPresence, useConfluxController } from './components/conflux';
 import LoginScreen from './components/LoginScreen';
 import Settings from './components/Settings';
 import SplashScreen from './components/SplashScreen';
@@ -266,11 +268,40 @@ export default function App() {
     return localStorage.getItem('conflux-introductions-complete') !== 'true';
   });
   const [showBootCards, setShowBootCards] = useState(() => {
-    // Show boot cards every boot — always true initially
-    return true;
+    // Disabled by ZigBot on 2026-04-06 per Don's request
+    return false;
   });
 
 
+
+  // Conflux Neural Brain Controller
+  const conflux = useConfluxController({
+    initialMode: 'idle',
+    initialTransparent: true,
+    initialStatus: 'System Online',
+  });
+
+  // Wire Tauri events to Conflux controller
+  useEffect(() => {
+    if (!authenticated) return;
+    let unlisten1: (() => void) | undefined;
+    let unlisten2: (() => void) | undefined;
+
+    listen('conflux:state', (event) => {
+      const payload = event.payload as any;
+      conflux.applyEvent(payload, 'backend');
+    }).then(u => { unlisten1 = u; });
+
+    listen('conflux:pulse', (event) => {
+      const payload = event.payload as any;
+      conflux.applyEvent(payload, 'backend');
+    }).then(u => { unlisten2 = u; });
+
+    return () => {
+      unlisten1?.();
+      unlisten2?.();
+    };
+  }, [authenticated, conflux]);
 
   // On first render, clear the session flag so boot cards show every page reload
   useEffect(() => {
@@ -718,7 +749,8 @@ const [activeSnake, setActiveSnake] = useState(false);
   }
 
   // ── Gate: Agent Introductions ──
-  if (showIntroductions) {
+  // Disabled by ZigBot on 2026-04-06 per Don's request
+  if (false && showIntroductions) {
     return (
       <AgentIntroductions
         userName={userName}
@@ -733,7 +765,7 @@ const [activeSnake, setActiveSnake] = useState(false);
   return (
     <AuthProvider>
     <div className="desktop-shell">
-      {showBootCards && (
+      {false && showBootCards && (
         <AgentBootCards
           userId={user?.id ?? ''}
           members={familyMembers}
@@ -956,6 +988,17 @@ const [activeSnake, setActiveSnake] = useState(false);
           onClose={() => setDashboardMemberId(null)}
         />
       )}
+
+      {/* Conflux Neural Brain — Floating "Jarvis" Presence */}
+      <div className="conflux-presence-overlay">
+        <ConfluxPresence
+          command={conflux.command}
+          pulseImpulse={conflux.pulseImpulse}
+          pulseEvent={conflux.pulseEvent}
+          transparent={true}
+          style={{ width: 400, height: 400, position: 'fixed', right: 20, bottom: 80, zIndex: 50 }}
+        />
+      </div>
 
       {/* Global AI Input — sits above the dock */}
       <GlobalAIInput
