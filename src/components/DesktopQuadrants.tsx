@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useCredits, useUsageStats, useUsageHistory } from '../hooks/useCredits';
 import { useAuth } from '../hooks/useAuth';
+import { useIntentRouter, RoutedIntent } from '../hooks/useIntentRouter';
+import AgentStatusGrid from './AgentStatusGrid';
 
 import { View, Agent } from '../types';
 
@@ -116,6 +118,7 @@ function getAgentProgress(agent: Agent): number {
 
 interface IntelDashboardProps {
   agents: Agent[];
+  onNavigate: (view: View) => void;
 }
 
 // Ring gauge SVG component
@@ -146,10 +149,12 @@ function RingGauge({ value, max, color, label, sublabel }: { value: number; max:
   );
 }
 
-function IntelDashboard({ agents }: IntelDashboardProps) {
+function IntelDashboard({ agents, onNavigate }: IntelDashboardProps) {
   const { balance, loading: creditsLoading } = useCredits();
   const { stats, loading: statsLoading } = useUsageStats(7);
   const { entries, loading: historyLoading } = useUsageHistory(10);
+  const { route } = useIntentRouter();
+  const [globalInput, setGlobalInput] = useState('');
 
   const allLoading = creditsLoading || statsLoading || historyLoading;
 
@@ -178,10 +183,37 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
           </div>
         </div>
 
+        {/* Global AI Input */}
+        <div className="intel-section">
+          <div className="intel-section-title">GLOBAL AI</div>
+          <div className="intel-global-input-wrapper">
+            <input
+              type="text"
+              className="intel-global-input"
+              placeholder="Ask your AI team anything..."
+              value={globalInput}
+              onChange={(e) => setGlobalInput(e.target.value)}
+              onKeyDown={async (e) => {
+                if (e.key === 'Enter' && globalInput.trim()) {
+                  const intent = await route(globalInput);
+                  // Navigate to the appropriate view
+                  if (intent.appView === 'budget') onNavigate('budget');
+                  else if (intent.appView === 'kitchen') onNavigate('kitchen');
+                  else if (intent.appView === 'life') onNavigate('life');
+                  else if (intent.appView === 'dreams') onNavigate('dreams');
+                  else onNavigate('chat');
+                  setGlobalInput('');
+                }
+              }}
+            />
+          </div>
+        </div>
+
         {/* Agents Section — cockpit bars */}
         <div className="intel-section">
           <div className="intel-section-title">AGENT STATUS</div>
-          <div className="intel-section-content">
+          <AgentStatusGrid />
+          <div className="intel-section-content" style={{ marginTop: '12px' }}>
             {agents.map((agent) => {
               const color = STATUS_COLORS[agent.status] || '#4b5563';
               const progress = getAgentProgress(agent);
@@ -489,7 +521,7 @@ export default function DesktopQuadrants({ onNavigate, agents }: DesktopQuadrant
   return (
     <div className="desktop-quadrants" data-tour-id="apps">
       {/* Left: Intel Dashboard */}
-      <IntelDashboard agents={agents} />
+      <IntelDashboard agents={agents} onNavigate={onNavigate} />
 
       {/* Right: Category Cards */}
       <div className="desktop-quadrants-right">
