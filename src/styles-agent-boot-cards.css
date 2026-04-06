@@ -1,139 +1,117 @@
-/* Agent Boot Cards — Boot-time loading experience
-   Stacked cards that animate in with stagger and fade up/out together */
+/* Agent Boot Cards — styling */
 
 .agent-boot-cards-overlay {
   position: fixed;
   inset: 0;
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(10, 10, 26, 0.85);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  transition: opacity 0.5s ease-out, transform 0.5s ease-out;
-}
-
-.agent-boot-cards-overlay.fading {
-  opacity: 0;
-  transform: translateY(-40px);
-}
-
-.agent-boot-cards-container {
+  z-index: 1000;
   display: flex;
   flex-direction: column;
-  gap: 16px;
   align-items: center;
-  max-width: 420px;
-  width: 100%;
-  padding: 24px;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(10, 10, 26, 0.85);
+  backdrop-filter: blur(8px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
 }
 
-.agent-boot-card {
+.agent-boot-cards-overlay.exiting {
+  opacity: 0;
+  transform: translateY(-30px);
+}
+
+.boot-card {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 18px 24px;
-  width: 100%;
+  padding: 16px 28px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 14px;
+  border-radius: 16px;
   backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow:
-    0 4px 24px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  animation: slideInUp 0.5s ease-out both;
+  min-width: 320px;
+  max-width: 420px;
+  opacity: 0;
+  transform: translateY(12px);
+  animation: bootSlideInUp 0.5s ease forwards;
 }
 
-@keyframes slideInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
+.boot-card:nth-child(1) { animation-delay: 0ms; }
+.boot-card:nth-child(2) { animation-delay: 150ms; }
+.boot-card:nth-child(3) { animation-delay: 300ms; }
+.boot-card:nth-child(4) { animation-delay: 450ms; }
 
-.agent-boot-card-emoji {
-  font-size: 36px;
-  line-height: 1;
-  flex-shrink: 0;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
-}
-
-.agent-boot-card-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.agent-boot-card-name {
-  font-size: 16px;
-  font-weight: 700;
-  color: #ffffff;
-  letter-spacing: 0.02em;
-  margin-bottom: 3px;
-}
-
-.agent-boot-card-status {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.7);
-  line-height: 1.4;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.agent-boot-team-ready {
-  margin-top: 12px;
-  font-size: 15px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.5);
-  text-align: center;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  animation: fadeIn 0.6s ease-out 0.6s both;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
+@keyframes bootSlideInUp {
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-/* Mobile responsiveness */
-@media (max-width: 480px) {
-  .agent-boot-cards-container {
-    padding: 16px;
-    gap: 12px;
+.boot-card-emoji {
+  font-size: 28px;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.boot-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.boot-card-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #f0f0f5;
+}
+
+.boot-card-status {
+  font-size: 12px;
+  color: rgba(240, 240, 245, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.boot-ready-label {
+  margin-top: 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #6366f1;
+  opacity: 0;
+  animation: bootFadeIn 0.5s ease forwards;
+  animation-delay: 900ms;
+}
+
+@keyframes bootFadeIn {
+  to { opacity: 1; }
+}
+
+@media (max-width: 500px) {
+  .boot-card {
+    min-width: 280px;
+    max-width: 90vw;
+    padding: 12px 20px;
   }
 
-  .agent-boot-card {
-    padding: 14px 18px;
-    gap: 12px;
+  .boot-card-emoji {
+    font-size: 22px;
+    width: 34px;
+    height: 34px;
   }
 
-  .agent-boot-card-emoji {
-    font-size: 28px;
-  }
-
-  .agent-boot-card-name {
-    font-size: 14px;
-  }
-
-  .agent-boot-card-status {
-    font-size: 12px;
-  }
-
-  .agent-boot-team-ready {
+  .boot-card-name {
     font-size: 13px;
-    margin-top: 8px;
+  }
+
+  .boot-card-status {
+    font-size: 11px;
   }
 }

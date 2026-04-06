@@ -57,13 +57,16 @@ import { useFamily } from './hooks/useFamily';
 import { useAuth } from './hooks/useAuth';
 import { useSubscription } from './hooks/useSubscription';
 import FeatureGate from './components/FeatureGate';
+import GlobalAIInput from './components/GlobalAIInput';
 import { AuthProvider } from './contexts/AuthContext';
 import { useStoryGames, useStoryGame, useStorySeeds } from './hooks/useStoryGame';
 import { useLearningProgress, useLearningGoals } from './hooks/useLearning';
 import { initTheme, getSavedWallpaper, getSavedColorTheme, BASE_THEMES, COLOR_THEMES } from './lib/theme';
 import { registerShortcuts } from './lib/shortcuts';
 import { trackEvent } from './lib/telemetry';
+import type { IntentResult } from './hooks/useIntentRouter';
 import './styles/animations.css';
+import './styles-global-ai-input.css';
 import './styles/tour.css';
 
 // Background images for immersive views
@@ -591,6 +594,43 @@ const [activeSnake, setActiveSnake] = useState(false);
     }
   }, [agents, selectedAgent]);
 
+  // ── Global AI Input handler ──
+  const handleIntentRoute = useCallback((intent: IntentResult) => {
+    // Open the target app
+    if (intent.view === 'chat') {
+      onOpenGlobalChat(intent.prompt);
+    } else {
+      // Navigate to the target app and open chat with that agent
+      setImmersiveView(intent.view as View);
+      // Find the target agent and open chat with pre-built prompt
+      const targetAgent = agents.find(a => a.id === intent.agentId);
+      if (targetAgent) {
+        setSelectedAgent(targetAgent);
+        soundManager.playAgentWake(targetAgent.id);
+        localStorage.setItem('conflux-last-chat-agent', targetAgent.id);
+        // We'll let the user send the message — for now open the chat panel
+        setChatOpen(true);
+      }
+    }
+  }, [agents]);
+
+  // Open chat with a pre-filled message (for intent routing)
+  const onOpenGlobalChat = useCallback((message?: string) => {
+    if (!selectedAgent) {
+      const lastAgentId = localStorage.getItem('conflux-last-chat-agent');
+      const byLast = lastAgentId ? agents.find(a => a.id === lastAgentId) : null;
+      const byConflux = agents.find(a => a.id === 'conflux' || a.name.toLowerCase() === 'conflux');
+      const byActive = agents.find(a => a.status !== 'offline');
+      const pick = byLast || byConflux || byActive || agents[0];
+      if (pick) setSelectedAgent(pick);
+    }
+    setChatOpen(true);
+    if (message) {
+      // Put the message in the input so user can review/edit before sending
+      window.dispatchEvent(new CustomEvent('conflux:prefill-chat', { detail: message }));
+    }
+  }, [agents, selectedAgent]);
+
   // ── Keyboard shortcuts (FIX 10) ──
   useEffect(() => {
     if (!isOnboarded || showWelcome) return;
@@ -886,6 +926,13 @@ const [activeSnake, setActiveSnake] = useState(false);
           onClose={() => setDashboardMemberId(null)}
         />
       )}
+
+      {/* Global AI Input — sits above the dock */}
+      <GlobalAIInput
+        userId={user.id}
+        onRoute={handleIntentRoute}
+        onOpenChat={onOpenGlobalChat}
+      />
 
       {useBarV2 ? (
         <ConfluxBarV2
