@@ -1,0 +1,261 @@
+/* Nudge Card Styles — Phase 1.3 */
+
+/* Base positioning and container */
+.nudge-card {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  width: 320px;
+  max-width: calc(100vw - 40px);
+  z-index: 10000;
+  animation: slideInFromRight 0.3s ease-out;
+}
+
+/* Glassmorphism background */
+.nudge-glass {
+  position: absolute;
+  inset: 0;
+  background: rgba(30, 30, 40, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.3),
+    0 1px 2px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Accent bar on left side */
+.nudge-accent-bar {
+  position: absolute;
+  left: 0;
+  top: 16px;
+  bottom: 16px;
+  width: 4px;
+  border-radius: 2px 0 0 2px;
+}
+
+/* Content wrapper */
+.nudge-content {
+  position: relative;
+  padding: 16px 16px 12px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Header row */
+.nudge-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nudge-emoji {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.nudge-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex: 1;
+}
+
+.nudge-time {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Message */
+.nudge-message {
+  font-size: 14px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 4px 0;
+}
+
+/* Action buttons row */
+.nudge-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.nudge-btn {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.nudge-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.nudge-action-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.nudge-action-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.nudge-dismiss-btn {
+  background: transparent;
+}
+
+.nudge-dismiss-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* "Don't remind me again" link */
+.nudge-dont-remind-btn {
+  align-self: flex-start;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+  margin-top: 4px;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.2);
+  text-underline-offset: 2px;
+  transition: color 0.15s ease;
+}
+
+.nudge-dont-remind-btn:hover {
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration-color: rgba(255, 255, 255, 0.4);
+}
+
+/* Slide-in animation */
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Slide-out animation */
+.nudge-exit {
+  animation: slideOutToRight 0.3s ease-in forwards;
+}
+
+@keyframes slideOutToRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+/* Color theme variables */
+:root {
+  --nudge-emerald: #10b981;
+  --nudge-amber: #f59e0b;
+  --nudge-violet: #8b5cf6;
+  --nudge-rose: #f43f5e;
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: light) {
+  .nudge-glass {
+    background: rgba(250, 250, 255, 0.95);
+    border-color: rgba(0, 0, 0, 0.05);
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.12),
+      0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+
+  .nudge-title,
+  .nudge-message {
+    color: rgba(10, 10, 20, 0.9);
+  }
+
+  .nudge-time {
+    color: rgba(10, 10, 20, 0.5);
+  }
+
+  .nudge-btn {
+    background: rgba(0, 0, 0, 0.05);
+    color: rgba(10, 10, 20, 0.9);
+  }
+
+  .nudge-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+  }
+
+  .nudge-dont-remind-btn {
+    color: rgba(10, 10, 20, 0.5);
+  }
+
+  .nudge-dont-remind-btn:hover {
+    color: rgba(10, 10, 20, 0.7);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 400px) {
+  .nudge-card {
+    left: 10px;
+    right: 10px;
+    width: auto;
+    bottom: 70px;
+  }
+
+  .nudge-content {
+    padding: 14px 14px 10px 18px;
+  }
+
+  .nudge-actions {
+    flex-direction: column;
+  }
+
+  .nudge-btn {
+    width: 100%;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .nudge-glass {
+    background: rgba(0, 0, 0, 0.95);
+    border: 2px solid white;
+  }
+
+  .nudge-btn {
+    border: 2px solid currentColor;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .nudge-card {
+    animation: none;
+  }
+
+  .nudge-exit {
+    animation: none;
+    display: none;
+  }
+}

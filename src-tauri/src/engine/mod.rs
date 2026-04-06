@@ -12,6 +12,7 @@ pub mod google;
 pub mod cron;
 pub mod orbit_prompts;
 pub mod cloud;
+pub mod nudges;
 
 pub use db::EngineDb;
 
