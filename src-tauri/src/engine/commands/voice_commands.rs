@@ -1,4 +1,5 @@
 use tauri::{AppHandle, Manager, Window};
+#[cfg(not(target_os = "android"))]
 use crate::voice::{capture, stream, synth, openai};
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;

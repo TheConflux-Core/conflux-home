@@ -446,10 +446,11 @@ pub fn run() {
             commands::voice_commands::voice_get_config,
             #[cfg(not(target_os = "android"))]
             commands::voice_commands::voice_set_config,
-
             // New ElevenLabs streaming commands (desktop only)
             #[cfg(not(target_os = "android"))]
+            engine::commands::voice_commands::voice_start_stream,
             #[cfg(not(target_os = "android"))]
+            engine::commands::voice_commands::voice_synthesize,
             engine::commands::voice_commands::voice_start_stream,
             #[cfg(not(target_os = "android"))]
             engine::commands::voice_commands::voice_synthesize,

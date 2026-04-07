@@ -707,6 +707,7 @@ const [activeSnake, setActiveSnake] = useState(false);
     );
   }
 
+<<<<<<< HEAD
   // ── Gate: Agent Introductions ──
   if (showIntroductions) {
     return (
@@ -720,6 +721,8 @@ const [activeSnake, setActiveSnake] = useState(false);
     );
   }
 
+=======
+>>>>>>> 02f69dc (fix(android): Guard desktop-only voice commands with #[cfg(not(target_os = "android"))] to fix Android build)
   return (
     <AuthProvider>
     <div className="desktop-shell">
