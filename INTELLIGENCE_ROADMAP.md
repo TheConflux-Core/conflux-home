@@ -56,7 +56,7 @@ Phase 4: Trust & Launch (security, signing, positioning)
 
 ---
 
-## Phase 0: Cold-Start Intelligence (Week 1)
+## 🟢 Phase 0: Cold-Start Intelligence (Week 1)
 
 **Problem:** New users open Conflux Home to empty apps. Empty Budget ring. Empty Kitchen pantry. Empty Dreams board. This is cold-start failure — and it kills retention.
 
@@ -115,7 +115,7 @@ Phase 4: Trust & Launch (security, signing, positioning)
 
 ---
 
-## Phase 1: Proactive Intelligence (Week 2-3)
+## 🔵 Phase 1: Proactive Intelligence (Week 2-3)
 
 **Problem:** Agents are reactive. They sit in the chat panel waiting to be clicked. The MASTER_INSPIRATION_PROMPT says "proactive, not reactive" — and we haven't fully achieved it.
 
@@ -196,7 +196,7 @@ Target: `[💰 +$47 saved today] [🍳 3 items expiring] [🧠 3 tasks due] [�
 
 ---
 
-## Phase 2: Cross-App Relationships (Week 4-5)
+## 🟣 Phase 2: Cross-App Relationships (Week 4-5)
 
 **Problem:** Each app is its own world (good!). But the apps don't *talk to each other* (bad). The vision says "an AI that uses apps" — the current state is "9 separate AIs that each use one app."
 
@@ -250,7 +250,7 @@ Example flows:
 
 ---
 
-## Phase 3: Immersive Worlds Expansion (Week 6-7)
+## 🟠 Phase 3: Immersive Worlds Expansion (Week 6-7)
 
 **Problem:** Budget/Pulse, Kitchen/Hearth, and Dreams/Horizon have strong visual identity. Feed, Echo, Vault, Studio, and Games feel like dashboard panels with CSS, not *worlds.*
 
@@ -289,7 +289,7 @@ Apply the MASTER_INSPIRATION_PROMPT design standard to remaining apps:
 
 ---
 
-## Phase 4: Trust & Launch Positioning (Week 8)
+## 🔴 Phase 4: Trust & Launch Positioning (Week 8)
 
 **Problem:** mission-1224 (agent security) exists but hasn't been touched. Code signing isn't funded yet. The website sells features, not the *feeling.*
 
