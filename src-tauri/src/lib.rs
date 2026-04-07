@@ -430,8 +430,10 @@ pub fn run() {
             commands::voice_cmds::voice_get_config,
             commands::voice_cmds::voice_set_config,
             commands::voice_cmds::debug_audio_buffer_state,
-            // New ElevenLabs streaming commands
+            // New ElevenLabs streaming commands (desktop only)
+            #[cfg(not(target_os = "android"))]
             engine::commands::voice_commands::voice_start_stream,
+            #[cfg(not(target_os = "android"))]
             engine::commands::voice_commands::voice_synthesize,
             // Cloud — Supabase Credit & Usage System
             commands::get_credit_balance,
