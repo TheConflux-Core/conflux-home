@@ -14,6 +14,11 @@ pub mod orbit_prompts;
 pub mod cloud;
 pub mod nudges;
 pub mod agent_comms;
+pub mod state_events;
+pub mod state_manager;
+pub mod commands {
+    pub mod voice_commands;
+}
 
 pub use db::EngineDb;
 

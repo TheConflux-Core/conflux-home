@@ -4917,19 +4917,20 @@ pub async fn studio_generate_voice(generation_id: String, text: String, voice_id
 mod voice_commands {
     use crate::voice;
     use crate::voice::capture::{self, AUDIO_BUFFER};
+    use crate::voice::openai;
     use crate::engine;
-    use tauri::Manager;
+    use tauri::{Manager, Window};
 
     /// Start recording from the default microphone.
     #[tauri::command]
-    pub fn voice_capture_start() -> Result<String, String> {
-        capture::start_recording()
+    pub fn voice_capture_start(window: Window) -> Result<String, String> {
+        capture::start_recording(window)
     }
 
     /// Stop recording and return sample count.
     #[tauri::command]
-    pub fn voice_capture_stop() -> Result<serde_json::Value, String> {
-        let count = capture::stop_recording()?;
+    pub fn voice_capture_stop(window: Window) -> Result<serde_json::Value, String> {
+        let count = capture::stop_recording(window)?;
         Ok(serde_json::json!({
             "samples": count,
             "duration_seconds": count as f64 / 16000.0,
@@ -4938,7 +4939,7 @@ mod voice_commands {
 
     /// Transcribe the current audio buffer using Whisper.
     #[tauri::command]
-    pub fn voice_transcribe(app: tauri::AppHandle) -> Result<String, String> {
+    pub async fn voice_transcribe(app: tauri::AppHandle) -> Result<String, String> {
         let app_data_dir = app.path().app_data_dir()
             .map_err(|e| format!("Failed to get app data dir: {}", e))?;
         let resource_dir = app.path().resource_dir()
@@ -4971,13 +4972,13 @@ mod voice_commands {
             return Err("No audio recorded. Start recording first with voice_capture_start.".to_string());
         }
 
-        voice::transcribe::transcribe_audio(&path, &audio)
+        voice::transcribe::transcribe_audio(audio, openai::OpenAIConfig::default()).await.map_err(|e| e.to_string())
     }
 
     /// Start recording, wait up to max_duration_ms, stop, then transcribe.
     #[tauri::command]
-    pub async fn voice_capture_and_transcribe(app: tauri::AppHandle, max_duration_ms: Option<u64>) -> Result<String, String> {
-        capture::start_recording()?;
+    pub async fn voice_capture_and_transcribe(app: tauri::AppHandle, window: Window, max_duration_ms: Option<u64>) -> Result<String, String> {
+        capture::start_recording(window.clone())?;
 
         let timeout = max_duration_ms.unwrap_or(10000);
         tokio::time::sleep(std::time::Duration::from_millis(timeout)).await;
@@ -4986,7 +4987,7 @@ mod voice_commands {
             return Err("Recording was stopped before capture completed".to_string());
         }
 
-        let count = capture::stop_recording()?;
+        let count = capture::stop_recording(window)?;
         log::info!("Captured {} samples ({:.1}s) for transcription", count, count as f64 / 16000.0);
 
         let app_data_dir = app.path().app_data_dir()
@@ -5021,9 +5022,7 @@ mod voice_commands {
             return Err("No audio captured. Is your microphone working?".to_string());
         }
 
-        let result = tokio::task::spawn_blocking(move || {
-            voice::transcribe::transcribe_audio(&path, &audio)
-        }).await.map_err(|e| format!("Transcription task failed: {}", e))?;
+        let result = voice::transcribe::transcribe_audio(audio, openai::OpenAIConfig::default()).await.map_err(|e| e.to_string());
 
         result
     }
