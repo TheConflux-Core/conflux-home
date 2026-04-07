@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import { soundManager } from './lib/sound';
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
 import { Agent, View } from './types';
@@ -17,7 +16,6 @@ import AgentDetail from './components/AgentDetail';
 import Onboarding from './components/Onboarding';
 import WelcomeOverlay from './components/WelcomeOverlay';
 import AgentIntroductions from './components/AgentIntroductions';
-import ConfluxOrbit from './components/ConfluxOrbit';
 import LoginScreen from './components/LoginScreen';
 import Settings from './components/Settings';
 import SplashScreen from './components/SplashScreen';
@@ -49,16 +47,17 @@ import ControlRoom from './components/ControlRoom';
 import VaultView from './components/VaultView';
 import StudioView from './components/StudioView';
 import GuidedTour from './components/GuidedTour';
+import NudgeCard from './components/NudgeCard';
+import { useNudgeEngine } from './hooks/useNudgeEngine';
 
-// Phase 0.3+: Global AI Input, Agent Status
-import GlobalAIInput from './components/GlobalAIInput';
+// Phase 0.3+: Agent Status
 import AgentStatusPanel from './components/AgentStatusPanel';
 import { useAgentStatus } from './hooks/useAgentStatus';
 import './styles-agent-introductions.css';
-import './styles-global-ai-input.css';
 import './styles-agent-boot-cards.css';
 import './styles-agent-status.css';
 import MorningBrief from './components/MorningBrief';
+import WeeklyInsights from './components/WeeklyInsights';
 import AgentBootCards from './components/AgentBootCards';
 import './styles/morning-brief.css';
 import './styles-agent-boot-cards.css';
@@ -76,8 +75,8 @@ import { registerShortcuts } from './lib/shortcuts';
 import { trackEvent } from './lib/telemetry';
 import type { IntentResult } from './hooks/useIntentRouter';
 import './styles/animations.css';
-import './styles-global-ai-input.css';
 import './styles/tour.css';
+import './styles-nudge.css';
 
 // Background images for immersive views
 const VIEW_BACKGROUNDS: Record<string, string> = {
@@ -116,7 +115,6 @@ function getDefaultWallpaper(): string {
 
 export default function App() {
   const [view, setView] = useState<View>('dashboard');
-  const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
   const [immersiveView, setImmersiveView] = useState<View | null>(null);
   const [controlRoom, setControlRoom] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
@@ -269,123 +267,11 @@ export default function App() {
     return localStorage.getItem('conflux-introductions-complete') !== 'true';
   });
   const [showBootCards, setShowBootCards] = useState(() => {
-    // Disabled by ZigBot on 2026-04-06 per Don's request
-    return false;
+    // Show boot cards every boot — always true initially
+    return true;
   });
 
 
-
-  // Push-to-Talk Global Handler
-  useEffect(() => {
-    const handleKeyDown = async (e: KeyboardEvent) => {
-      // Ignore if typing in an input field
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-      // Spacebar triggers push-to-talk
-      if (e.code === 'Space' && !isPushToTalkActive) {
-        e.preventDefault();
-        setIsPushToTalkActive(true);
-
-        soundManager.playAgentWake('conflux'); // Play a listening chime for the Conflux fairy
-
-        try {
-          await invoke('voice_capture_start');
-        } catch (err) {
-          console.error('Failed to start voice capture:', err);
-        }
-
-        // Update ConfluxOrbit state via event or context (we'll wire this next)
-        // For now, we'll dispatch a custom event that ConfluxOrbit can listen to
-        window.dispatchEvent(new CustomEvent('push-to-talk-start'));
-      }
-    };
-
-    const handleKeyUp = async (e: KeyboardEvent) => {
-      if (e.code === 'Space' && isPushToTalkActive) {
-        setIsPushToTalkActive(false);
-        window.dispatchEvent(new CustomEvent('push-to-talk-end'));
-
-        try {
-          await invoke('voice_capture_stop');
-          
-          // Transcribe using OpenAI Whisper
-          console.log('[Voice] Transcribing with OpenAI Whisper...');
-          const text = await invoke('voice_transcribe');
-          
-          if (text && typeof text === 'string' && text.trim().length > 0) {
-            console.log('[Voice] Transcribed:', text);
-            // Send to Conflux for a response
-            await handleVoiceInput(text);
-          } else {
-            console.log('[Voice] No speech detected.');
-          }
-        } catch (err) {
-          console.error('[Voice] Transcription/Chat failed:', err);
-        } finally {
-          window.dispatchEvent(new CustomEvent('conflux-transcription-done'));
-        }
-      }
-    };
-
-    // Handle voice input -> Chat -> TTS
-    const handleVoiceInput = async (text: string) => {
-      try {
-        // Set Conflux to 'thinking' state
-        // We'll use a custom event to trigger this in ConfluxOrbit
-        window.dispatchEvent(new CustomEvent('conflux-thinking', { detail: { text } }));
-
-        // Route to the main chat engine (using Conflux as the primary persona)
-        // Using an existing session ID found in the DB to avoid FK errors
-        // Create or reuse a session for voice chat
-        // First, try to get existing sessions for 'conflux' agent
-        const sessions = await invoke('engine_get_sessions', { limit: 10 });
-        let sessionId = 'e95f3a8e-9246-48e3-a70b-0ae13d164d1a'; // fallback
-        
-        if (Array.isArray(sessions) && sessions.length > 0) {
-          // Look for an active session with the 'conflux' agent
-          const voiceSession = sessions.find((s: any) => s.agent_id === 'conflux');
-          if (voiceSession) {
-            sessionId = voiceSession.id;
-          } else {
-            // Create a new session for voice chat
-            const newSession = await invoke('engine_create_session', { agent_id: 'conflux' });
-            sessionId = (newSession as any).id;
-          }
-        } else {
-          // No sessions found, create a new one
-          const newSession = await invoke('engine_create_session', { agent_id: 'conflux' });
-          sessionId = (newSession as any).id;
-        }
-
-        const response = await invoke('engine_chat', {
-          req: {
-            session_id: sessionId,
-            agent_id: 'conflux',
-            message: text,
-          }
-        });
-
-        // Trigger TTS for the response
-        const chatResponse = response as any;
-        if (chatResponse.content) {
-          await invoke('voice_synthesize', { 
-            text: chatResponse.content, 
-            window: null 
-          });
-        }
-      } catch (err) {
-        console.error('[Voice] Chat failed:', err);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [isPushToTalkActive]);
 
   // On first render, clear the session flag so boot cards show every page reload
   useEffect(() => {
@@ -460,6 +346,9 @@ const [activeSnake, setActiveSnake] = useState(false);
   const { seeds: storySeeds } = useStorySeeds(
     activeMemberId ? familyMembers.find(m => m.id === activeMemberId)?.age_group : undefined,
   );
+
+  // Phase 1.3: Nudge Engine
+  const { activeNudges, dismissNudge, takeAction } = useNudgeEngine();
 
   // Filter agents by active family member's age group
   const activeMember = familyMembers.find(m => m.id === activeMemberId);
@@ -701,21 +590,7 @@ const [activeSnake, setActiveSnake] = useState(false);
     }
   }, [activeMember]);
 
-  // ── Phase 0.3: Intent Router ──
-  const handleIntentRoute = useCallback((intent: any) => {
-    if (intent.view === 'chat') {
-      onOpenGlobalChat(intent.prompt);
-    } else {
-      setImmersiveView(intent.view as View);
-      const targetAgent = agents.find(a => a.id === intent.agentId);
-      if (targetAgent) {
-        setSelectedAgent(targetAgent);
-        soundManager.playAgentWake(targetAgent.id);
-        localStorage.setItem('conflux-last-chat-agent', targetAgent.id);
-        setChatOpen(true);
-      }
-    }
-  }, [agents]);
+  // ── Phase 0.3: Intent Router (moved to DesktopQuadrants) ──
 
   const onOpenGlobalChat = useCallback((message?: string) => {
     if (!selectedAgent) {
@@ -833,8 +708,7 @@ const [activeSnake, setActiveSnake] = useState(false);
   }
 
   // ── Gate: Agent Introductions ──
-  // Disabled by ZigBot on 2026-04-06 per Don's request
-  if (false && showIntroductions) {
+  if (showIntroductions) {
     return (
       <AgentIntroductions
         userName={userName}
@@ -849,7 +723,7 @@ const [activeSnake, setActiveSnake] = useState(false);
   return (
     <AuthProvider>
     <div className="desktop-shell">
-      {false && showBootCards && (
+      {showBootCards && (
         <AgentBootCards
           userId={user?.id ?? ''}
           members={familyMembers}
@@ -861,6 +735,7 @@ const [activeSnake, setActiveSnake] = useState(false);
       )}
       {showBrief && <MorningBrief onDismiss={handleBriefDismiss} />}
       {showTour && <GuidedTour onComplete={() => setShowTour(false)} />}
+      <WeeklyInsights onClose={() => { /* Component handles its own dismissal */ }} />
       <TopBar
         selectedAgent={selectedAgent}
         engineConnected={connected}
@@ -1073,21 +948,7 @@ const [activeSnake, setActiveSnake] = useState(false);
         />
       )}
 
-      {/* Conflux Neural Brain — The "Zelda Fairy" */}
-      <ConfluxOrbit 
-        view={view}
-        immersiveView={immersiveView}
-        chatOpen={chatOpen}
-        voiceChatOpen={voiceChatOpen}
-        isPushToTalkActive={isPushToTalkActive}
-      />
 
-      {/* Global AI Input — sits above the dock */}
-      <GlobalAIInput
-        userId={user.id}
-        onRoute={handleIntentRoute}
-        onOpenChat={onOpenGlobalChat}
-      />
 
       {useBarV2 ? (
         <ConfluxBarV2
@@ -1098,7 +959,7 @@ const [activeSnake, setActiveSnake] = useState(false);
           statusBadges={statusBadges}
           statusDetails={statusDetails}
           onStatusClick={() => setShowStatusPanel(true)}
-          onBadgeClick={(badgeView) => setImmersiveView(badgeView)}
+          onBadgeClick={(badgeView, _agentId) => setImmersiveView(badgeView)}
         />
       ) : (
         <ConfluxBar
@@ -1135,6 +996,16 @@ const [activeSnake, setActiveSnake] = useState(false);
 
       {/* Toast notifications */}
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
+
+      {/* Phase 1.3: Nudge System */}
+      {activeNudges.map(nudge => (
+        <NudgeCard
+          key={nudge.id}
+          nudge={nudge}
+          onDismiss={dismissNudge}
+          onAction={takeAction}
+        />
+      ))}
     </div>
     </AuthProvider>
   );

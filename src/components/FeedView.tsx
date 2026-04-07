@@ -6,6 +6,7 @@ import { useBriefing } from '../hooks/useBriefing';
 import { useRipples } from '../hooks/useRipples';
 import { useSignalThreads } from '../hooks/useSignalThreads';
 import { useCognitivePatterns } from '../hooks/useCognitivePatterns';
+import { usePatterns } from '../hooks/usePatterns';
 import { useContentFeed } from '../hooks/useFeed';
 import RadarView from './RadarView';
 import SignalCard from './SignalCard';
@@ -20,6 +21,7 @@ export default function FeedView() {
   const { ripples, loading: ripplesLoading, detect } = useRipples();
   const { threads, loading: threadsLoading, create } = useSignalThreads();
   const { pattern, loading: patternLoading, analyze } = useCognitivePatterns();
+  const { patterns: detectedPatterns, loading: patternsLoading, analyze: analyzePatterns } = usePatterns();
   const { items, loading: feedLoading, unreadCount } = useContentFeed();
 
   // State
@@ -59,6 +61,12 @@ export default function FeedView() {
   const handleGenerateBriefing = useCallback(async () => {
     await generate();
   }, [generate]);
+
+  // Combined analyze handler for CognitiveSidebar
+  const handleAnalyzeAll = useCallback(async () => {
+    await analyze();
+    await analyzePatterns();
+  }, [analyze, analyzePatterns]);
 
   return (
     <>
@@ -184,8 +192,10 @@ export default function FeedView() {
         <aside className="feed-radar-sidebar">
           <CognitiveSidebar
             pattern={pattern}
-            loading={patternLoading}
-            onAnalyze={analyze}
+            detectedPatterns={detectedPatterns}
+            patternsLoading={patternsLoading}
+            loading={patternLoading && patternsLoading}
+            onAnalyze={handleAnalyzeAll}
           />
         </aside>
       </div>
