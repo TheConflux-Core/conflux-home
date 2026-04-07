@@ -430,17 +430,28 @@ pub fn run() {
             commands::studio_generate_image,
             commands::studio_generate_voice,
             // Voice Input (desktop only — see cfg below)
-            commands::voice_capture_start,
-            commands::voice_capture_stop,
-            commands::voice_transcribe,
-            commands::voice_capture_and_transcribe,
-            commands::voice_get_status,
-            commands::voice_list_devices,
-            commands::voice_get_config,
-            commands::voice_set_config,
-            // commands::debug_audio_buffer_state,
-            // New ElevenLabs streaming commands
+            #[cfg(not(target_os = "android"))]
+            commands::voice_commands::voice_capture_start,
+            #[cfg(not(target_os = "android"))]
+            commands::voice_commands::voice_capture_stop,
+            #[cfg(not(target_os = "android"))]
+            commands::voice_commands::voice_transcribe,
+            #[cfg(not(target_os = "android"))]
+            commands::voice_commands::voice_capture_and_transcribe,
+            #[cfg(not(target_os = "android"))]
+            commands::voice_commands::voice_get_status,
+            #[cfg(not(target_os = "android"))]
+            commands::voice_commands::voice_list_devices,
+            #[cfg(not(target_os = "android"))]
+            commands::voice_commands::voice_get_config,
+            #[cfg(not(target_os = "android"))]
+            commands::voice_commands::voice_set_config,
+
+            // New ElevenLabs streaming commands (desktop only)
+            #[cfg(not(target_os = "android"))]
+            #[cfg(not(target_os = "android"))]
             engine::commands::voice_commands::voice_start_stream,
+            #[cfg(not(target_os = "android"))]
             engine::commands::voice_commands::voice_synthesize,
             // Cloud — Supabase Credit & Usage System
             commands::get_credit_balance,
