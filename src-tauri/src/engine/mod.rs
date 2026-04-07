@@ -12,6 +12,8 @@ pub mod google;
 pub mod cron;
 pub mod orbit_prompts;
 pub mod cloud;
+pub mod state_events;
+pub mod state_manager;
 pub mod commands {
     pub mod voice_commands;
 }

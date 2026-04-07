@@ -1,8 +1,8 @@
 import { NeuralBrainScene } from "../NeuralBrainScene";
 import { BrainCommand, BrainMode } from "./types";
-import { COMMANDS, DEFAULT_COMMAND } from "../../lib/neuralBrain";
+import { COMMANDS, DEFAULT_COMMAND, APP_PALETTES } from "../../lib/neuralBrain";
 import { PulseEventDetail } from "./types";
-import { CSSProperties, HTMLAttributes } from "react";
+import { CSSProperties, HTMLAttributes, useMemo } from "react";
 
 type ConfluxPresenceProps = {
   mode?: BrainMode;
@@ -13,6 +13,14 @@ type ConfluxPresenceProps = {
   className?: string;
   style?: CSSProperties;
   containerProps?: HTMLAttributes<HTMLDivElement>;
+  appPalette?: string;
+  effectivePalette?: {
+    node: string;
+    hot: string;
+    line: string;
+    glow: string;
+    aura: string;
+  };
 };
 
 const modeToCommand = (mode: BrainMode) =>
@@ -26,9 +34,23 @@ export function ConfluxPresence({
   transparent = true,
   className,
   style,
-  containerProps
+  containerProps,
+  appPalette,
+  effectivePalette
 }: ConfluxPresenceProps) {
   const resolvedCommand = command ?? (mode ? modeToCommand(mode) : DEFAULT_COMMAND);
+  
+  // Merge effective palette into command if provided
+  const mergedCommand = useMemo(() => {
+    if (effectivePalette) {
+      return { ...resolvedCommand, palette: effectivePalette };
+    }
+    const appPaletteEntry = appPalette ? APP_PALETTES[appPalette] : undefined;
+    if (appPaletteEntry) {
+      return { ...resolvedCommand, palette: appPaletteEntry };
+    }
+    return resolvedCommand;
+  }, [resolvedCommand, effectivePalette, appPalette]);
 
   return (
     <div
@@ -37,7 +59,7 @@ export function ConfluxPresence({
       style={style ?? containerProps?.style}
     >
       <NeuralBrainScene
-        command={resolvedCommand}
+        command={mergedCommand}
         pulseImpulse={pulseImpulse}
         pulseEvent={pulseEvent}
         transparent={transparent}

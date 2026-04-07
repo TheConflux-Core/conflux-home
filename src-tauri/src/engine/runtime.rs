@@ -10,6 +10,7 @@ use super::cloud;
 use super::router::OpenAIMessage;
 use super::router::ModelResponse;
 use super::tools;
+use super::state_events::ConfluxState;
 
 const MAX_TOOL_ITERATIONS: usize = 3;
 
@@ -123,7 +124,21 @@ pub async fn process_turn(
     tool_defs.extend(tools::get_integration_tool_definitions());
     tool_defs.extend(tools::get_app_tool_definitions());
 
-    // 7. Tool calling loop
+    // 7. Emit thinking state
+    let state_manager = super::state_manager::get_state_manager();
+    let _ = state_manager.lock().map(|mut mgr| {
+        mgr.transition_with_context(
+            ConfluxState::Thinking,
+            Some(agent_id.to_string()),
+            Some(session_id.to_string()),
+            Some(serde_json::json!({
+                "model": agent.model_alias,
+                "session_message_count": history.len(),
+            })),
+        )
+    });
+
+    // 8. Tool calling loop
     let mut total_tokens: i64 = 0;
     let mut final_response: Option<ModelResponse> = None;
 
