@@ -1,9 +1,13 @@
 use tauri::{AppHandle, Manager, Window};
+#[cfg(not(target_os = "android"))]
 use crate::voice::{capture, stream, synth, openai};
+#[cfg(not(target_os = "android"))]
 use tokio::fs::File;
+#[cfg(not(target_os = "android"))]
 use tokio::io::AsyncWriteExt;
 
 #[tauri::command]
+#[cfg(not(target_os = "android"))]
 pub async fn voice_start_stream(window: Window) -> Result<String, String> {
     let config = stream::StreamConfig::default();
     let _tx = stream::start_stream(config, window)
@@ -13,6 +17,7 @@ pub async fn voice_start_stream(window: Window) -> Result<String, String> {
 }
 
 #[tauri::command]
+#[cfg(not(target_os = "android"))]
 pub async fn voice_synthesize(text: String, window: Window) -> Result<String, String> {
     println!("[TTS] voice_synthesize called with text: {}", text);
     
