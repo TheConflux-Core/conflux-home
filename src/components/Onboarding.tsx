@@ -763,30 +763,48 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            {step !== 1 && (
-              <button
-                className="next-btn"
-                onClick={nextStep}
-                disabled={
-                  (step === 0 && userName.trim().length === 0) ||
-                  (step === 2 && selectedApps.size === 0)
-                }
-                style={{
-                  width: 'auto',
-                  padding: '10px 28px',
-                  opacity: (
+            <div style={{ display: 'flex', gap: 12 }}>
+              {step === 1 && (
+                <button
+                  onClick={nextStep}
+                  style={{
+                    padding: '10px 28px',
+                    borderRadius: 10,
+                    background: 'var(--accent-primary)',
+                    color: 'white',
+                    border: 'none',
+                    fontSize: 14,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Skip →
+                </button>
+              )}
+              {step !== 1 && (
+                <button
+                  className="next-btn"
+                  onClick={nextStep}
+                  disabled={
                     (step === 0 && userName.trim().length === 0) ||
                     (step === 2 && selectedApps.size === 0)
-                  ) ? 0.5 : 1,
-                  cursor: (
-                    (step === 0 && userName.trim().length === 0) ||
-                    (step === 2 && selectedApps.size === 0)
-                  ) ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {step === 0 ? 'Get Started' : step === 2 ? 'Enter Conflux' : ''}
-              </button>
-            )}
+                  }
+                  style={{
+                    width: 'auto',
+                    padding: '10px 28px',
+                    opacity: (
+                      (step === 0 && userName.trim().length === 0) ||
+                      (step === 2 && selectedApps.size === 0)
+                    ) ? 0.5 : 1,
+                    cursor: (
+                      (step === 0 && userName.trim().length === 0) ||
+                      (step === 2 && selectedApps.size === 0)
+                    ) ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {step === 0 ? 'Get Started' : step === 2 ? 'Enter Conflux' : ''}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
