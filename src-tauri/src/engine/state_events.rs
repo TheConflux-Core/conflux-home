@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 use chrono::{Utc, DateTime};
+use crate::engine::state_manager;
 
 // ── State Types ──
 
@@ -111,7 +112,7 @@ impl StateManager {
 
 #[tauri::command]
 pub fn conflux_set_state(state: String) -> Result<(), String> {
-    let manager = crate::engine::state_manager::get_state_manager();
+    let manager = state_manager::get_state_manager();
     let mut mgr = manager.lock().map_err(|e| e.to_string())?;
 
     match state.as_str() {
@@ -130,7 +131,7 @@ pub fn conflux_set_state_with_context(
     session_id: Option<String>,
     metadata: Option<serde_json::Value>,
 ) -> Result<(), String> {
-    let manager = crate::engine::state_manager::get_state_manager();
+    let manager = state_manager::get_state_manager();
     let mut mgr = manager.lock().map_err(|e| e.to_string())?;
 
     let conflux_state = match state.as_str() {
