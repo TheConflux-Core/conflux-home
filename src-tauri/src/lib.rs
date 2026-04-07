@@ -426,6 +426,7 @@ pub fn run() {
             commands::voice_list_devices,
             commands::voice_get_config,
             commands::voice_set_config,
+            commands::debug_audio_buffer_state,
             // commands::voice_synthesize,
             // Cloud — Supabase Credit & Usage System
             commands::get_credit_balance,
