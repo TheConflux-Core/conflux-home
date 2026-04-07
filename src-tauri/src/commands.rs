@@ -5057,7 +5057,7 @@ pub mod voice_cmds {
 
 // Re-export voice commands — desktop uses real impl, Android gets stubs
 #[cfg(not(target_os = "android"))]
-pub use voice_commands::*;
+pub use voice_cmds::*;
 
 #[cfg(target_os = "android")]
 #[tauri::command]
