@@ -421,14 +421,23 @@ pub fn run() {
             commands::studio_generate_image,
             commands::studio_generate_voice,
             // Voice Input (desktop only — see cfg below)
+            #[cfg(not(target_os = "android"))]
             commands::voice_cmds::voice_capture_start,
+            #[cfg(not(target_os = "android"))]
             commands::voice_cmds::voice_capture_stop,
+            #[cfg(not(target_os = "android"))]
             commands::voice_cmds::voice_transcribe,
+            #[cfg(not(target_os = "android"))]
             commands::voice_cmds::voice_capture_and_transcribe,
+            #[cfg(not(target_os = "android"))]
             commands::voice_cmds::voice_get_status,
+            #[cfg(not(target_os = "android"))]
             commands::voice_cmds::voice_list_devices,
+            #[cfg(not(target_os = "android"))]
             commands::voice_cmds::voice_get_config,
+            #[cfg(not(target_os = "android"))]
             commands::voice_cmds::voice_set_config,
+            #[cfg(not(target_os = "android"))]
             commands::voice_cmds::debug_audio_buffer_state,
             // New ElevenLabs streaming commands (desktop only)
             #[cfg(not(target_os = "android"))]
