@@ -1810,6 +1810,51 @@ pub fn kitchen_get_meal_photos(meal_id: String, member_id: Option<String>) -> Re
     engine.db().get_meal_photos(&meal_id).map_err(|e| e.to_string())
 }
 
+// ── Onboarding Setup ──
+
+/// Stub: save_budget_data — called during onboarding to seed initial budget data.
+/// Delegates to budget_add_entry under the hood.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SaveBudgetDataRequest {
+    pub income: Option<f64>,
+    pub categories: Option<Vec<String>>,
+}
+
+#[tauri::command]
+pub async fn save_budget_data(req: SaveBudgetDataRequest) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let income = req.income.unwrap_or(5000.0);
+    let categories = req.categories.unwrap_or_else(|| vec!["groceries".to_string(), "rent".to_string(), "utilities".to_string()]);
+
+    // Save income entry
+    let income_id = uuid::Uuid::new_v4().to_string();
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let _ = engine.db().conn().execute(
+        "INSERT INTO budget_entries (id, member_id, entry_type, category, amount, description, recurring, frequency, date, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        rusqlite::params![income_id, None::<String>, "income", "salary", income, "Onboarding starter income", 1i64, "monthly", today, chrono::Utc::now().to_rfc3339()],
+    ).map_err(|e| e.to_string())?;
+
+    // Save starter expense entries for each category
+    let mut entries_created = 1; // income
+    for cat in &categories {
+        let id = uuid::Uuid::new_v4().to_string();
+        let _ = engine.db().conn().execute(
+            "INSERT INTO budget_entries (id, member_id, entry_type, category, amount, description, recurring, frequency, date, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            rusqlite::params![id, None::<String>, "expense", cat, 0.0, format!("Starter category: {}", cat), 0i64, None::<String>, today, chrono::Utc::now().to_rfc3339()],
+        ).map_err(|e| e.to_string())?;
+        entries_created += 1;
+    }
+
+    Ok(serde_json::json!({
+        "success": true,
+        "income": income,
+        "categories": categories,
+        "entries_created": entries_created,
+    }))
+}
+
 // ── Budget Tracker ──
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -4714,6 +4759,54 @@ pub async fn studio_generate_image(generation_id: String, prompt: String, aspect
     engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
         .map_err(|e| e.to_string())?;
     Err("Generation timed out after 60 seconds".to_string())
+}
+
+// ── TTS Speak ── Lightweight ElevenLabs for Onboarding/UI ──
+
+/// Simple TTS: calls ElevenLabs and returns base64 audio for frontend playback.
+#[tauri::command]
+pub async fn tts_speak(text: String, voice: Option<String>) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+
+    let api_key = engine.db().get_config("elevenlabs_key")
+        .ok().flatten().filter(|k| !k.is_empty())
+        .or_else(|| engine.db().get_config("studio_elevenlabs_key").ok().flatten().filter(|k| !k.is_empty()))
+        .unwrap_or_else(|| std::env::var("ELEVENLABS_API_KEY").unwrap_or_default());
+
+    if api_key.is_empty() {
+        return Err("ElevenLabs API key not configured.".to_string());
+    }
+
+    // Map voice name → ElevenLabs voice ID
+    let voice_id = match voice.as_deref() {
+        Some("Conflux") | Some("conflux") => "JBFqnCBsd6RMkjVDRZzb", // George
+        Some(id) => id,
+        None => "JBFqnCBsd6RMkjVDRZzb",
+    };
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(&format!("https://api.elevenlabs.io/v1/text-to-speech/{}", voice_id))
+        .header("xi-api-key", &api_key)
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!({
+            "text": text,
+            "model_id": "eleven_multilingual_v2",
+            "voice_settings": { "stability": 0.5, "similarity_boost": 0.75 }
+        }))
+        .send().await.map_err(|e| format!("ElevenLabs request failed: {e}"))?;
+
+    if !resp.status().is_success() {
+        let s = resp.status();
+        let b = resp.text().await.unwrap_or_default();
+        return Err(format!("ElevenLabs error ({s}): {b}"));
+    }
+
+    let bytes = resp.bytes().await.map_err(|e| format!("Read audio failed: {e}"))?;
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+
+    Ok(serde_json::json!({ "audio_base64": b64, "voice_id": voice_id }))
 }
 
 // ── Studio: Voice Generation (ElevenLabs) ──

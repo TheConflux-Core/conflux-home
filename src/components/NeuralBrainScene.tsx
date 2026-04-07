@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import {
   BrainCommand,
+  DEFAULT_COMMAND,
   LobeName,
   PulseEventDetail,
   createNeuralGraph,
@@ -19,7 +20,7 @@ type Pulse = {
 };
 
 type NeuralBrainSceneProps = {
-  command: BrainCommand;
+  command?: BrainCommand;
   pulseImpulse: number;
   pulseEvent?: PulseEventDetail & { id: number };
   transparent?: boolean;
@@ -88,7 +89,8 @@ function SpeechRings({
   );
 }
 
-function NeuralBrain({ command, pulseImpulse, pulseEvent }: NeuralBrainSceneProps) {
+function NeuralBrain({ command: commandProp, pulseImpulse, pulseEvent }: NeuralBrainSceneProps) {
+  const command = commandProp ?? DEFAULT_COMMAND;
   const groupRef = useRef<THREE.Group>(null);
   const nodeMeshRef = useRef<THREE.InstancedMesh>(null);
   const lineRef = useRef<THREE.LineSegments>(null);

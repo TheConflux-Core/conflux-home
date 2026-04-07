@@ -1,7 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { invoke } from '@tauri-apps/api/core';
 import { playTourBlip, playHeartbeat, playWelcomeChime } from '../lib/sound';
 import { NeuralBrainScene } from './NeuralBrainScene';
+import { COMMANDS } from '../lib/neuralBrain';
+import ConfluxOrbit from './ConfluxOrbit';
 import '../styles/animations.css';
 
 // ── Types ──
@@ -24,6 +27,15 @@ const APPS: AppOption[] = [
   { id: 'kitchen', name: 'Kitchen', emoji: '🍳', description: 'Recipes and meal planning' },
   { id: 'dreams', name: 'Dreams', emoji: '✨', description: 'Goals and aspirations' },
   { id: 'life', name: 'Life', emoji: '🏠', description: 'Daily tasks and organization' },
+];
+
+// Wizard choreography sequence for Step 3 setup
+const WIZARD_SEQUENCE = [
+  { x: 0.5, y: 0.5, delay: 1200, label: 'Initializing...' },
+  { x: 0.1, y: 0.5, delay: 1500, label: 'Setting up Budget' },
+  { x: 0.9, y: 0.5, delay: 1500, label: 'Stocking Kitchen' },
+  { x: 0.5, y: 0.2, delay: 1500, label: 'Creating Dreams' },
+  { x: 0.5, y: 0.5, delay: 1000, label: 'Done!' },
 ];
 
 // ── Heartbeat SVG Component ──
@@ -159,9 +171,54 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   // Step 2: Checklist - Selected apps
   const [selectedApps, setSelectedApps] = useState<Set<string>>(new Set());
 
-  // Step 3: Setup Phase
+  // Step 3: Interactive Setup State Machine
   const [setupProgress, setSetupProgress] = useState(0);
   const [setupAppName, setSetupAppName] = useState('');
+  const [currentSetupApp, setCurrentSetupApp] = useState<string | null>(null);
+  const [userAnswer, setUserAnswer] = useState('');
+  const [isConfiguring, setIsConfiguring] = useState(false);
+  const [setupQueue, setSetupQueue] = useState<string[]>([]);
+  const [setupQueueIndex, setSetupQueueIndex] = useState(0);
+  const [completedApps, setCompletedApps] = useState<Set<string>>(new Set());
+  const [income, setIncome] = useState(5000); // store income across steps
+
+  // TTS state
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  // Play base64 MP3 audio via Web Audio API
+  const playBase64Audio = useCallback((base64: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const ctx = audioContextRef.current;
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+      ctx.decodeAudioData(bytes.buffer).then((buffer) => {
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.onended = () => resolve();
+        source.start(0);
+      }).catch(reject);
+    });
+  }, []);
+
+  // Speak the Ice Breaker prompt via ElevenLabs
+  const speakPrompt = useCallback(async () => {
+    const promptText = `Hey ${userName || 'there'}! Let's get to know each other. What's on your mind today? What do you need help with?`;
+    setIsSpeaking(true);
+    try {
+      const result = await invoke<{ audio_base64: string }>('tts_speak', { text: promptText, voice: 'Conflux' });
+      await playBase64Audio(result.audio_base64);
+    } catch (err) {
+      console.warn('[Onboarding] TTS failed (non-fatal):', err);
+    } finally {
+      setIsSpeaking(false);
+    }
+  }, [userName, playBase64Audio]);
 
   // Load persisted data on mount
   useEffect(() => {
@@ -184,12 +241,19 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     playWelcomeChime();
   }, []);
 
+  // Step 1: Speak the Ice Breaker prompt via TTS
+  useEffect(() => {
+    if (step === 1) {
+      speakPrompt();
+    }
+  }, [step, speakPrompt]);
+
   // Always dark mode
   useEffect(() => {
     document.body.classList.add('dark');
   }, []);
 
-  // Step 3: Simulate app setup progress
+  // Step 3: Interactive Setup — initialize the queue when entering Step 3
   useEffect(() => {
     if (step !== 3) return;
 
@@ -199,40 +263,211 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       return;
     }
 
-    let currentAppIndex = 0;
-    let progress = 0;
+    // Build queue from selected apps and kick off first question
+    setSetupQueue(apps);
+    setSetupQueueIndex(0);
+    setCurrentSetupApp(apps[0]);
+    setSetupAppName(APPS.find(a => a.id === apps[0])?.name || apps[0]);
+    setUserAnswer('');
+    setIsConfiguring(false);
+    setSetupProgress(0);
+    setCompletedApps(new Set());
+  }, [step, selectedApps, onComplete]);
 
-    const setupInterval = setInterval(() => {
-      progress += 2;
-      if (progress >= 100) {
-        progress = 0;
-        currentAppIndex++;
-        if (currentAppIndex >= apps.length) {
-          clearInterval(setupInterval);
-          // All apps "set up" - finish
-          const appsArr = Array.from(selectedApps);
-          localStorage.setItem('conflux-onboarded', 'true');
-          localStorage.setItem('conflux-name', userName.trim() || 'there');
-          localStorage.setItem('conflux-setup-apps', JSON.stringify(appsArr));
-          onComplete([], appsArr);
-          return;
-        }
+  // Save current app's data and advance to the next question
+  const handleSaveAndFly = useCallback(async () => {
+    if (!currentSetupApp) return;
+
+    setIsConfiguring(true);
+    const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+    // Animate progress bar
+    const animateProgress = async () => {
+      for (let p = 0; p <= 100; p += 2) {
+        setSetupProgress(Math.min(p, 100));
+        await delay(16);
       }
-      setSetupProgress(progress);
-      setSetupAppName(APPS.find(a => a.id === apps[currentAppIndex])?.name || '');
-    }, 30);
+    };
 
-    return () => clearInterval(setupInterval);
-  }, [step, selectedApps, userName, onComplete]);
+    // Income may have been set previously; default to 5000
+    const parsedIncome = parseFloat(userAnswer) || 5000;
+    if (currentSetupApp === 'budget') {
+      setIncome(parsedIncome);
+    }
 
-  // Navigation
+    try {
+      switch (currentSetupApp) {
+        case 'budget': {
+          // Cross-app intelligence: calculate suggested limits
+          const groceriesLimit = Math.max(500, Math.min(2000, parsedIncome * 0.15));
+          const monthlySavings = parsedIncome * 0.20;
+          const isHighIncome = parsedIncome > 7000;
+          
+          // Prepare categories list
+          const categories = ['groceries', 'rent', 'utilities', 'transportation', 'entertainment'];
+          if (isHighIncome) categories.push('Premium Pantry');
+          
+          // Save budget data with income and categories
+          await invoke('save_budget_data', {
+            req: {
+              income: parsedIncome,
+              categories: categories,
+            },
+          });
+          
+          // Add groceries expense entry with suggested limit
+          const today = new Date().toISOString().split('T')[0];
+          await invoke('budget_add_entry', {
+            req: {
+              member_id: null,
+              entry_type: 'expense',
+              category: 'groceries',
+              amount: groceriesLimit,
+              description: 'Suggested groceries budget (cross-app intelligence)',
+              recurring: true,
+              frequency: 'monthly',
+              date: today,
+            },
+          });
+          
+          // Add monthly savings projection entry
+          await invoke('budget_add_entry', {
+            req: {
+              member_id: null,
+              entry_type: 'savings',
+              category: 'savings',
+              amount: monthlySavings,
+              description: 'Monthly savings projection (cross-app intelligence)',
+              recurring: true,
+              frequency: 'monthly',
+              date: today,
+            },
+          });
+          
+          break;
+        }
+        case 'kitchen': {
+          const staples = userAnswer
+            ? userAnswer.split(',').map(s => s.trim()).filter(Boolean)
+            : ['Rice', 'Olive Oil', 'Salt'];
+          // Cross-app intelligence: if Income is high, suggest Premium Pantry (already added in Budget)
+          for (const item of staples) {
+            // Default quantity for Rice
+            let quantity = 1;
+            let unit = 'item';
+            if (item.toLowerCase() === 'rice') {
+              quantity = 5; // default quantity for rice
+              unit = 'item';
+            }
+            await invoke('kitchen_add_inventory', {
+              req: {
+                name: item,
+                quantity: quantity,
+                unit: unit,
+                category: 'pantry',
+                expiry_date: null,
+                location: 'pantry',
+              },
+              member_id: null,
+            });
+          }
+          break;
+        }
+        case 'dreams': {
+          const dreamId = crypto.randomUUID?.() || `dream-${Date.now()}`;
+          await invoke('dream_add', {
+            id: dreamId,
+            memberId: null,
+            title: userAnswer || 'My First Dream',
+            description: 'A starter goal to get things rolling!',
+            category: 'personal',
+            targetDate: null,
+          });
+          // Cross-app intelligence: break dream into a Savings sub-task in Budget (create a goal)
+          const dreamTitle = userAnswer || 'My First Dream';
+          const monthlyAllocation = Math.round(income * 0.10); // 10% of income towards this dream
+          await invoke('budget_create_goal', {
+            name: `Save for ${dreamTitle}`,
+            target_amount: 0, // unknown target
+            deadline: null,
+            monthly_allocation: monthlyAllocation,
+            member_id: null,
+          });
+          break;
+        }
+        case 'life': {
+          await invoke('life_add_habit', {
+            userId: 'default',
+            name: userAnswer || 'Morning Routine',
+            category: 'wellness',
+            frequency: 'daily',
+            targetCount: 1,
+          });
+          break;
+        }
+        default:
+          await delay(800);
+          break;
+      }
+    } catch (err) {
+      console.warn(`[Onboarding] invoke failed for ${currentSetupApp}:`, err);
+      await delay(800);
+    }
+
+    // Animate progress bar
+    await animateProgress();
+
+    // Mark current app as completed
+    setCompletedApps(prev => new Set([...prev, currentSetupApp]));
+
+    // Advance to next app in queue
+    const nextIndex = setupQueueIndex + 1;
+    if (nextIndex < setupQueue.length) {
+      setSetupQueueIndex(nextIndex);
+      setCurrentSetupApp(setupQueue[nextIndex]);
+      setSetupAppName(APPS.find(a => a.id === setupQueue[nextIndex])?.name || setupQueue[nextIndex]);
+      setUserAnswer('');
+      setSetupProgress(0);
+      setIsConfiguring(false);
+    } else {
+      // All apps configured — finish
+      const appsArr = Array.from(selectedApps);
+      localStorage.setItem('conflux-onboarded', 'true');
+      localStorage.setItem('conflux-name', userName.trim() || 'there');
+      localStorage.setItem('conflux-setup-apps', JSON.stringify(appsArr));
+      onComplete([], appsArr);
+    }
+  }, [currentSetupApp, userAnswer, setupQueueIndex, setupQueue, selectedApps, userName, onComplete, income]);
+
+  // Skip current app and advance to next
+  const handleSkipApp = useCallback(() => {
+    if (!currentSetupApp) return;
+
+    const nextIndex = setupQueueIndex + 1;
+    if (nextIndex < setupQueue.length) {
+      setSetupQueueIndex(nextIndex);
+      setCurrentSetupApp(setupQueue[nextIndex]);
+      setSetupAppName(APPS.find(a => a.id === setupQueue[nextIndex])?.name || setupQueue[nextIndex]);
+      setUserAnswer('');
+      setSetupProgress(0);
+      setIsConfiguring(false);
+    } else {
+      const appsArr = Array.from(selectedApps);
+      localStorage.setItem('conflux-onboarded', 'true');
+      localStorage.setItem('conflux-name', userName.trim() || 'there');
+      localStorage.setItem('conflux-setup-apps', JSON.stringify(appsArr));
+      onComplete([], appsArr);
+    }
+  }, [currentSetupApp, setupQueueIndex, setupQueue, selectedApps, userName, onComplete]);
+
+  // Navigation — use a longer crossfade between steps for smoother transitions
   const goToStep = useCallback((nextStep: number) => {
     playTourBlip();
     setAnimating(true);
     setTimeout(() => {
       setStep(nextStep);
-      setAnimating(false);
-    }, 50);
+      setTimeout(() => setAnimating(false), 400);
+    }, 300);
   }, []);
 
   const nextStep = () => {
@@ -271,10 +506,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   // Render Step 0: Heartbeat
   const renderHeartbeatStep = () => (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.5 }}
+      exit={{ opacity: 0, y: -16 }}
+      transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
       style={{ textAlign: 'center', maxWidth: 420, width: '100%', margin: '0 auto', position: 'relative' }}
     >
       <Particles count={15} />
@@ -309,10 +544,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       {/* Initial Neural Brain Pulse */}
       <div style={{ marginBottom: 24 }}>
         <NeuralBrainScene 
-          mode="idle" 
-          pulseImpulse={{ strength: 5, bursts: 1 }} 
+          command={COMMANDS[0]} 
+          pulseImpulse={5} 
           transparent={true}
-          style={{ width: 200, height: 200, margin: '0 auto' }}
         />
       </div>
 
@@ -366,19 +600,18 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   // Render Step 1: Ice Breaker
   const renderIceBreakerStep = () => (
     <motion.div
-      initial={{ opacity: 0, x: 40 }}
+      initial={{ opacity: 0, x: 30 }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -40 }}
-      transition={{ duration: 0.4 }}
+      exit={{ opacity: 0, x: -20 }}
+      transition={{ duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
       style={{ textAlign: 'center', maxWidth: 520, width: '100%', margin: '0 auto', position: 'relative' }}
     >
       {/* Conflux Presence visible in background of Ice Breaker */}
       <div style={{ position: 'absolute', top: -120, left: '50%', transform: 'translateX(-50%)' }}>
         <NeuralBrainScene 
-          mode="listen" 
-          pulseImpulse={{ strength: 8, bursts: 2 }} 
+          command={isSpeaking ? COMMANDS[3] : COMMANDS[1]} 
+          pulseImpulse={isSpeaking ? 24 : 8} 
           transparent={true}
-          style={{ width: 150, height: 150 }}
         />
       </div>
 
@@ -456,13 +689,13 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     </motion.div>
   );
 
-  // Render Step 2: Checklist
+  // Render Step 2: Checklist — smooth exit transitions to App Setup
   const renderChecklistStep = () => (
     <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 1.05 }}
-      transition={{ duration: 0.4 }}
+      initial={{ opacity: 0, scale: 0.96, y: 10 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.98, y: -10 }}
+      transition={{ duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
       style={{ textAlign: 'center', maxWidth: 560, width: '100%', margin: '0 auto' }}
     >
       <h2 style={{
@@ -553,123 +786,294 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     </motion.div>
   );
 
-  // Render Step 3: Setup Progress (The "Typewriter" Phase)
+  // Get question config for each app type
+  const getAppQuestion = (appId: string): { prompt: string; placeholder: string; inputType: string } => {
+    switch (appId) {
+      case 'budget':
+        return {
+          prompt: '💰 What is your monthly income?',
+          placeholder: 'e.g. 5000',
+          inputType: 'number',
+        };
+      case 'kitchen':
+        return {
+          prompt: '🍳 What kitchen staples do you have?',
+          placeholder: 'e.g. Rice, Olive Oil, Salt (comma-separated)',
+          inputType: 'text',
+        };
+      case 'dreams':
+        return {
+          prompt: '✨ What\'s your first dream or goal?',
+          placeholder: 'e.g. Learn to play guitar',
+          inputType: 'text',
+        };
+      case 'life':
+        return {
+          prompt: '🏠 What habit do you want to build?',
+          placeholder: 'e.g. Morning Routine',
+          inputType: 'text',
+        };
+      default:
+        return {
+          prompt: `Setting up ${appId}...`,
+          placeholder: 'Enter something...',
+          inputType: 'text',
+        };
+    }
+  };
+
+  // Render Step 3: Interactive Setup — Question UI with wizard fly animation
   const renderSetupStep = () => {
-    const apps = Array.from(selectedApps);
-    const currentApp = APPS.find(a => a.id === apps[Math.floor(setupProgress / 100 * apps.length)]);
+    if (!currentSetupApp) return null;
+
+    const question = getAppQuestion(currentSetupApp);
+    const appInfo = APPS.find(a => a.id === currentSetupApp);
+    const isLastApp = setupQueueIndex >= setupQueue.length - 1;
 
     return (
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        key={currentSetupApp}
+        initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        style={{ textAlign: 'center', maxWidth: 600, width: '100%', margin: '0 auto', position: 'relative' }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+        style={{ textAlign: 'center', maxWidth: 520, width: '100%', margin: '0 auto', position: 'relative' }}
       >
+        {/* Conflux Wizard — only flies during isConfiguring (save animation) */}
+        {isConfiguring && (
+          <ConfluxOrbit
+            view="dashboard"
+            immersiveView={null}
+            chatOpen={false}
+            voiceChatOpen={false}
+            isPushToTalkActive={false}
+            wizardMode={true}
+            wizardSequence={WIZARD_SEQUENCE}
+          />
+        )}
+
         {/* Active Neural Brain in center during setup */}
         <div style={{ position: 'absolute', top: -140, left: '50%', transform: 'translateX(-50%)' }}>
-          <NeuralBrainScene 
-            mode="focus" 
-            pulseImpulse={{ strength: 10 + (setupProgress / 10), bursts: 3 }} 
+          <NeuralBrainScene
+            command={isConfiguring ? COMMANDS[4] : COMMANDS[1]}
+            pulseImpulse={isConfiguring ? 10 + (setupProgress / 10) * 3 : 8}
             transparent={true}
-            style={{ width: 180, height: 180 }}
           />
         </div>
 
-        <h2 style={{
-          fontSize: 24,
-          fontWeight: 700,
-          marginBottom: 40,
-          marginTop: 80,
-          color: 'var(--text-primary)',
-        }}>
-          Setting up your workspace...
-        </h2>
-
-        {/* App Icons Grid */}
+        {/* App progress indicator — which app in the queue */}
         <div style={{
           display: 'flex',
           justifyContent: 'center',
-          gap: 24,
-          marginBottom: 32,
+          gap: 16,
+          marginBottom: 24,
+          marginTop: 60,
         }}>
-          {APPS.map((app) => {
-            const isSelected = selectedApps.has(app.id);
-            const appIndex = Array.from(selectedApps).indexOf(app.id);
-            const isCompleted = setupProgress >= 100 && Array.from(selectedApps).indexOf(app.id) < Math.floor(setupProgress / 100 * apps.length);
-            const isCurrent = currentApp?.id === app.id;
-
+          {setupQueue.map((appId, idx) => {
+            const app = APPS.find(a => a.id === appId);
+            const isCompleted = completedApps.has(appId);
+            const isCurrent = appId === currentSetupApp && !isConfiguring;
+            const isProcessing = appId === currentSetupApp && isConfiguring;
             return (
-              <motion.div
-                key={app.id}
-                initial={{ scale: 0.8, opacity: 0.5 }}
-                animate={{
-                  scale: isSelected ? (isCurrent ? 1.2 : 1) : 0.8,
-                  opacity: isSelected ? 1 : 0.3,
-                }}
+              <div
+                key={appId}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: 8,
-                  opacity: isSelected ? 1 : 0.3,
+                  gap: 6,
                 }}
               >
                 <div style={{
-                  width: 60,
-                  height: 60,
-                  borderRadius: 16,
-                  background: isCurrent
-                    ? 'var(--accent-primary)'
-                    : isCompleted
-                      ? '#10b981'
-                      : 'var(--bg-card)',
-                  border: `2px solid ${isCurrent ? 'var(--accent-primary)' : 'var(--border)'}`,
+                  width: 48,
+                  height: 48,
+                  borderRadius: 14,
+                  background: isCompleted
+                    ? '#10b981'
+                    : isCurrent
+                      ? 'var(--accent-primary)'
+                      : isProcessing
+                        ? 'var(--accent-primary)'
+                        : 'var(--bg-card)',
+                  border: `2px solid ${isCurrent || isProcessing ? 'var(--accent-primary)' : isCompleted ? '#10b981' : 'var(--border)'}`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: 28,
+                  fontSize: 22,
                   transition: 'all 0.3s ease',
+                  transform: isCurrent ? 'scale(1.15)' : 'scale(1)',
                 }}>
-                  {app.emoji}
+                  {app?.emoji}
                 </div>
                 <span style={{
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: 600,
-                  color: isCurrent ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                  color: isCurrent ? 'var(--accent-primary)' : isCompleted ? '#10b981' : 'var(--text-secondary)',
                 }}>
-                  {app.name}
+                  {app?.name}
                 </span>
-              </motion.div>
+              </div>
             );
           })}
         </div>
 
-        {/* Progress Bar */}
-        <div style={{
-          background: 'var(--bg-card)',
-          border: '1px solid var(--border)',
-          borderRadius: 20,
-          padding: 6,
-          marginBottom: 16,
-        }}>
-          <motion.div
-            animate={{ width: `${setupProgress}%` }}
-            transition={{ duration: 0.2 }}
-            style={{
-              height: 8,
-              borderRadius: 16,
-              background: 'var(--accent-primary)',
-              width: `${setupProgress}%`,
-            }}
-          />
-        </div>
+        {/* Question UI or Configuring animation */}
+        {!isConfiguring ? (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentSetupApp}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.35 }}
+            >
+              <h2 style={{
+                fontSize: 22,
+                fontWeight: 700,
+                marginBottom: 8,
+                color: 'var(--text-primary)',
+              }}>
+                Let's set up {appInfo?.name || currentSetupApp} {appInfo?.emoji}
+              </h2>
 
-        <p style={{
-          fontSize: 14,
-          color: 'var(--text-secondary)',
-        }}>
-          {currentApp ? `Setting up ${currentApp.name}...` : 'Complete!'}
-        </p>
+              <p style={{
+                fontSize: 15,
+                color: 'var(--text-secondary)',
+                marginBottom: 28,
+                lineHeight: 1.5,
+              }}>
+                {question.prompt}
+              </p>
+
+              {/* Question Input */}
+              <div style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+                borderRadius: 16,
+                padding: 24,
+                marginBottom: 24,
+              }}>
+                <input
+                  type={question.inputType}
+                  value={userAnswer}
+                  onChange={e => setUserAnswer(e.target.value)}
+                  placeholder={question.placeholder}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && userAnswer.trim()) {
+                      handleSaveAndFly();
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '14px 16px',
+                    borderRadius: 10,
+                    border: '1px solid var(--border)',
+                    background: 'var(--bg-primary)',
+                    color: 'var(--text-primary)',
+                    fontSize: 16,
+                    textAlign: 'center',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                  autoFocus
+                />
+              </div>
+
+              {/* Action buttons */}
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
+                <button
+                  onClick={handleSkipApp}
+                  style={{
+                    padding: '10px 24px',
+                    borderRadius: 10,
+                    background: 'none',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-secondary)',
+                    fontSize: 14,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Skip →
+                </button>
+                <button
+                  onClick={handleSaveAndFly}
+                  disabled={!userAnswer.trim()}
+                  style={{
+                    padding: '10px 28px',
+                    borderRadius: 10,
+                    background: userAnswer.trim() ? 'var(--accent-primary)' : 'var(--bg-card)',
+                    color: userAnswer.trim() ? 'white' : 'var(--text-secondary)',
+                    border: userAnswer.trim() ? 'none' : '1px solid var(--border)',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: userAnswer.trim() ? 'pointer' : 'not-allowed',
+                    opacity: userAnswer.trim() ? 1 : 0.6,
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  {isLastApp ? '✨ Save & Finish' : '🚀 Save & Fly'}
+                </button>
+              </div>
+            </motion.div>
+          </AnimatePresence>
+        ) : (
+          /* Configuring animation — progress bar + typewriter */
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            <h2 style={{
+              fontSize: 22,
+              fontWeight: 700,
+              marginBottom: 24,
+              color: 'var(--text-primary)',
+            }}>
+              Setting up {appInfo?.name || currentSetupApp}...
+            </h2>
+
+            {/* Progress Bar */}
+            <div style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: 20,
+              padding: 6,
+              marginBottom: 16,
+            }}>
+              <motion.div
+                animate={{ width: `${setupProgress}%` }}
+                transition={{ duration: 0.15 }}
+                style={{
+                  height: 8,
+                  borderRadius: 16,
+                  background: 'var(--accent-primary)',
+                  width: `${setupProgress}%`,
+                }}
+              />
+            </div>
+
+            {/* Typewriter status text */}
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={setupProgress > 90 ? 'done' : 'saving'}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.25, ease: 'easeOut' }}
+                style={{
+                  fontSize: 14,
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                {setupProgress < 50
+                  ? `Saving your ${appInfo?.name || ''} data...`
+                  : setupProgress < 90
+                    ? `Almost there...`
+                    : `Done! ✨`}
+              </motion.p>
+            </AnimatePresence>
+          </motion.div>
+        )}
       </motion.div>
     );
   };
@@ -767,17 +1171,20 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               {step === 1 && (
                 <button
                   onClick={nextStep}
+                  disabled={isSpeaking}
                   style={{
                     padding: '10px 28px',
                     borderRadius: 10,
-                    background: 'var(--accent-primary)',
-                    color: 'white',
-                    border: 'none',
+                    background: isSpeaking ? 'var(--bg-card)' : 'var(--accent-primary)',
+                    color: isSpeaking ? 'var(--text-secondary)' : 'white',
+                    border: isSpeaking ? '1px solid var(--border)' : 'none',
                     fontSize: 14,
-                    cursor: 'pointer',
+                    cursor: isSpeaking ? 'not-allowed' : 'pointer',
+                    opacity: isSpeaking ? 0.7 : 1,
+                    transition: 'all 0.3s ease',
                   }}
                 >
-                  Skip →
+                  {isSpeaking ? '🎙️ Listening...' : 'Skip →'}
                 </button>
               )}
               {step !== 1 && (
