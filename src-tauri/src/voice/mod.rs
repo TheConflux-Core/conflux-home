@@ -1,7 +1,10 @@
 // Voice Engine — Speech capture and transcription
-// Uses cpal for audio capture and whisper-rs for local STT.
+// Uses cpal for audio capture.
+// Supports ElevenLabs and OpenAI for cloud STT/TTS.
 
 pub mod capture;
 pub mod model;
-// pub mod synthesize;
-pub mod transcribe;
+pub mod stream;
+pub mod synth;
+pub mod openai;
+

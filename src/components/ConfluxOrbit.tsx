@@ -2,8 +2,9 @@ import { motion } from 'framer-motion';
 import { ConfluxPresence, useConfluxController, attachTauriConfluxListeners } from './conflux';
 import type { ConfluxTauriListen } from './conflux';
 import { View } from '../types';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
 
 interface ConfluxOrbitProps {
   view: View;
@@ -14,6 +15,39 @@ interface ConfluxOrbitProps {
 }
 
 export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatOpen, isPushToTalkActive }: ConfluxOrbitProps) {
+
+  // Audio Context for TTS playback
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const playTTS = useCallback((base64: string, sampleRate: number) => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    const ctx = audioContextRef.current;
+    
+    const binaryString = atob(base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    // Decode MP3 (browser native) - note: browser decodeAudioData expects compressed audio (mp3/wav/etc)
+    ctx.decodeAudioData(bytes.buffer).then((audioBuffer) => {
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(ctx.destination);
+      source.start(0);
+      
+      // Trigger the fairy to speak visually when audio starts
+      conflux.setMode('speak', 'backend', 'Speaking...');
+      console.log('[ConfluxOrbit] Playing TTS audio');
+
+      // Reset to idle when audio finishes
+      source.onended = () => {
+        console.log('[ConfluxOrbit] TTS finished, returning to idle');
+        conflux.setMode('idle', 'backend', 'Ready');
+      };
+    }).catch(e => console.error('TTS Decode Error:', e));
+  }, []);
   const conflux = useConfluxController({
     initialMode: 'idle',
     initialTransparent: true,
@@ -26,6 +60,8 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
   const applyEventRef = useRef(conflux.applyEvent);
   applyEventRef.current = conflux.applyEvent;
 
+
+
   useEffect(() => {
     let disposed = false;
     let cleanup: { dispose: () => Promise<void> } | undefined;
@@ -34,15 +70,23 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
       return listen(event, (e) => handler(e as any));
     };
 
-    attachTauriConfluxListeners(tauriListen, (event, source) => {
-      // Log raw payload to diagnose STT pipeline
-      console.log('[ConfluxOrbit] conflux:state event received:', JSON.stringify(event));
-      console.log('[ConfluxOrbit] Event source:', source);
-      if (event.listeningCadence) {
-        console.log('[ConfluxOrbit] listeningCadence tokens:', event.listeningCadence.tokens);
+    attachTauriConfluxListeners(
+      tauriListen, 
+      (event, source) => {
+        // Log raw payload to diagnose STT pipeline
+        console.log('[ConfluxOrbit] conflux:state event received:', JSON.stringify(event));
+        console.log('[ConfluxOrbit] Event source:', source);
+        if (event.listeningCadence) {
+          console.log('[ConfluxOrbit] listeningCadence tokens:', event.listeningCadence.tokens);
+        }
+        applyEventRef.current(event, source);
+      },
+      // Handle TTS audio playback via Web Audio API
+      (audioData) => {
+        console.log('[ConfluxOrbit] TTS audio received');
+        playTTS(audioData.audio_base64, audioData.sample_rate);
       }
-      applyEventRef.current(event, source);
-    }).then((bridge) => {
+    ).then((bridge) => {
       if (disposed) {
         void bridge.dispose();
         return;
@@ -62,6 +106,8 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
     const handlePTTStart = () => {
       console.log('[ConfluxOrbit] PTT Start - switching to listen mode');
       conflux.setMode('listen', 'manual', 'Listening...');
+      // Trigger a pulsing ripple effect to indicate the fairy is ready
+      conflux.triggerPulse(5, 'PTT Engaged');
     };
     const handlePTTEnd = () => {
       // Don't go idle yet — stay in listen mode while transcription is processing.
@@ -77,11 +123,16 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
     window.addEventListener('push-to-talk-start', handlePTTStart);
     window.addEventListener('push-to-talk-end', handlePTTEnd);
     window.addEventListener('conflux-transcription-done', handleTranscriptionDone);
+    window.addEventListener('conflux-thinking', (e: any) => {
+      console.log('[ConfluxOrbit] Thinking...', e.detail?.text);
+      conflux.setMode('focus', 'backend', 'Thinking...');
+    });
 
     return () => {
       window.removeEventListener('push-to-talk-start', handlePTTStart);
       window.removeEventListener('push-to-talk-end', handlePTTEnd);
       window.removeEventListener('conflux-transcription-done', handleTranscriptionDone);
+      window.removeEventListener('conflux-thinking', () => {});
     };
   }, []);
 
@@ -103,11 +154,13 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
   let targetY = dimensions.height - 350; // Bottom with padding
   let scale = 1;
 
-  if (isPushToTalkActive) {
-    // When listening (Push-to-Talk), fly to the center and grow
+  const isSpeaking = conflux.mode === 'speak';
+
+  if (isPushToTalkActive || isSpeaking) {
+    // When listening (PTT) or Speaking, fly to the center and grow
     targetX = dimensions.width / 2 - 250; // Centered horizontally
     targetY = dimensions.height / 2 - 250; // Centered vertically
-    scale = 1.8; // Much larger to indicate it's "leaning in"
+    scale = 1.8; // Much larger to indicate it's "active"
   } else if (immersiveView) {
     // If in an app, move to the top-right of the app view
     targetX = dimensions.width - 350;
@@ -131,25 +184,29 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
   if (dimensions.width === 0) return null;
 
   return (
-    <motion.div
-      initial={false}
-      animate={{ x: targetX, y: targetY, scale }}
-      transition={transition}
-      style={{
-        position: 'fixed',
-        zIndex: 100,
-        pointerEvents: 'none', // Let clicks pass through the fairy
-        top: 0,
-        left: 0,
-      }}
-    >
-      <ConfluxPresence
-        command={conflux.command}
-        pulseImpulse={conflux.pulseImpulse}
-        pulseEvent={conflux.pulseEvent}
-        transparent={conflux.transparent}
-        style={{ width: 300, height: 300 }}
-      />
-    </motion.div>
+    <>
+      <motion.div
+        initial={false}
+        animate={{ x: targetX, y: targetY, scale }}
+        transition={transition}
+        style={{
+          position: 'fixed',
+          zIndex: 100,
+          pointerEvents: 'none', // Let clicks pass through the fairy
+          top: 0,
+          left: 0,
+        }}
+      >
+        <ConfluxPresence
+          command={conflux.command}
+          pulseImpulse={conflux.pulseImpulse}
+          pulseEvent={conflux.pulseEvent}
+          transparent={conflux.transparent}
+          style={{ width: 300, height: 300 }}
+        />
+      </motion.div>
+      
+
+    </>
   );
 }

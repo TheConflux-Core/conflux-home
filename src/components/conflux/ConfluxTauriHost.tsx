@@ -39,9 +39,14 @@ export function ConfluxTauriHost({
     let disposed = false;
     let cleanup: { dispose: () => Promise<void> } | undefined;
 
-    attachTauriConfluxListeners(listen, (event, source) => {
-      applyEventRef.current(event, source);
-    }, eventNames).then((bridge) => {
+    attachTauriConfluxListeners(
+      listen, 
+      (event, source) => {
+        applyEventRef.current(event, source);
+      },
+      undefined, // No TTS handler needed in the host yet
+      eventNames
+    ).then((bridge) => {
       if (disposed) {
         void bridge.dispose();
         return;
