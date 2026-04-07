@@ -12,10 +12,12 @@ type EventConsumer = (event: ConfluxExternalEvent, source?: "backend" | "system"
 export async function attachTauriConfluxListeners(
   listen: ConfluxTauriListen,
   applyEvent: EventConsumer,
-  eventNames: { state?: string; pulse?: string } = {}
+  onTTSAudio?: (audioData: { audio_base64: string; sample_rate: number }) => void,
+  eventNames: { state?: string; pulse?: string; tts?: string } = {}
 ) {
   const stateEventName = eventNames.state ?? "conflux:state";
   const pulseEventName = eventNames.pulse ?? "conflux:pulse";
+  const ttsEventName = eventNames.tts ?? "conflux:tts-audio";
 
   const unlistenState = await listen<ConfluxExternalEvent>(stateEventName, (event) => {
     applyEvent(event.payload, "backend");
@@ -25,9 +27,20 @@ export async function attachTauriConfluxListeners(
     applyEvent(event.payload, "backend");
   });
 
+  let unlistenTTS: (() => void) | undefined;
+  if (onTTSAudio) {
+    unlistenTTS = await listen<{ audio_base64: string; sample_rate: number }>(ttsEventName, (event) => {
+      onTTSAudio(event.payload);
+    });
+  }
+
   return {
     async dispose() {
-      await Promise.all([Promise.resolve(unlistenState()), Promise.resolve(unlistenPulse())]);
+      await Promise.all([
+        Promise.resolve(unlistenState()), 
+        Promise.resolve(unlistenPulse()),
+        unlistenTTS ? Promise.resolve(unlistenTTS()) : Promise.resolve()
+      ]);
     }
   };
 }

@@ -12,6 +12,9 @@ pub mod google;
 pub mod cron;
 pub mod orbit_prompts;
 pub mod cloud;
+pub mod commands {
+    pub mod voice_commands;
+}
 
 pub use db::EngineDb;
 

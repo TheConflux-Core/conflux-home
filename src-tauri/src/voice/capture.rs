@@ -6,9 +6,12 @@ use once_cell::sync::Lazy;
 use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
 use std::time::Duration;
 use tauri::{Emitter, Window};
+use tokio::sync::mpsc::Sender;
+use crate::voice::stream::{StreamMessage, start_stream, StreamConfig};
 
 pub static AUDIO_BUFFER: Lazy<Arc<Mutex<Vec<f32>>>> = Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
 static IS_RECORDING: Lazy<Arc<AtomicBool>> = Lazy::new(|| Arc::new(AtomicBool::new(false)));
+static ELEVENLABS_SENDER: Lazy<Arc<Mutex<Option<Sender<StreamMessage>>>>> = Lazy::new(|| Arc::new(Mutex::new(None)));
 // cpal::Stream is not Send, so we use a thread-local holder instead
 thread_local! {
     static STREAM_HANDLE: std::cell::RefCell<Option<cpal::Stream>> = std::cell::RefCell::new(None);
@@ -50,10 +53,29 @@ pub fn input_device_available() -> bool {
 
 /// Start recording from the default input device.
 /// Captures audio at 16kHz mono f32.
-pub fn start_recording() -> Result<String, String> {
+pub fn start_recording(window: Window) -> Result<String, String> {
     if is_recording() {
         return Err("Already recording".to_string());
     }
+
+    // Start ElevenLabs streaming STT in the background
+    let window_clone = window.clone();
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let config = StreamConfig::default();
+            match start_stream(config, window_clone).await {
+                Ok(sender) => {
+                    let mut tx = ELEVENLABS_SENDER.lock().unwrap();
+                    *tx = Some(sender);
+                    log::info!("[STT] ElevenLabs streaming started");
+                }
+                Err(e) => {
+                    log::error!("[STT] Failed to start ElevenLabs stream: {}", e);
+                }
+            }
+        });
+    });
 
     let host = cpal::default_host();
     let device = host
@@ -144,6 +166,17 @@ pub fn start_recording() -> Result<String, String> {
                 if let Ok(mut buf) = buffer.lock() {
                     buf.extend_from_slice(&resampled);
                 }
+
+                // Send audio data to ElevenLabs stream sender
+                // Convert f32 samples to 16-bit PCM bytes for ElevenLabs
+                if let Some(tx) = ELEVENLABS_SENDER.lock().ok().and_then(|s| s.clone()) {
+                    let pcm_bytes: Vec<u8> = resampled.iter().flat_map(|&s| {
+                        let clamped = s.max(-1.0).min(1.0);
+                        let i16_val = (clamped * i16::MAX as f32) as i16;
+                        i16_val.to_le_bytes()
+                    }).collect();
+                    let _ = tx.try_send(StreamMessage::Audio(pcm_bytes));
+                }
             },
             |err| {
                 log::error!("Audio capture error: {}", err);
@@ -166,12 +199,17 @@ pub fn start_recording() -> Result<String, String> {
 }
 
 /// Stop recording and return the number of samples captured.
-pub fn stop_recording() -> Result<u64, String> {
+pub fn stop_recording(window: Window) -> Result<u64, String> {
     if !is_recording() {
         return Err("Not recording".to_string());
     }
 
     IS_RECORDING.store(false, Ordering::Relaxed);
+
+    // Signal ElevenLabs stream to close
+    if let Some(tx) = ELEVENLABS_SENDER.lock().unwrap().take() {
+        let _ = tx.try_send(StreamMessage::StreamStop);
+    }
 
     // Drop the stream
     STREAM_HANDLE.with(|cell| {
@@ -189,11 +227,11 @@ pub fn stop_recording() -> Result<u64, String> {
 
 /// Start recording, wait up to `max_duration_ms`, then stop and return sample count.
 /// If `max_duration_ms` is None, defaults to 30 seconds.
-pub fn record_with_timeout(max_duration_ms: Option<u64>) -> Result<u64, String> {
+pub fn record_with_timeout(window: Window, max_duration_ms: Option<u64>) -> Result<u64, String> {
     let timeout = max_duration_ms.unwrap_or(30000);
-    start_recording()?;
+    start_recording(window.clone())?;
     std::thread::sleep(Duration::from_millis(timeout));
-    stop_recording()
+    stop_recording(window)
 }
 
 /// Start a background thread that monitors microphone volume and emits
