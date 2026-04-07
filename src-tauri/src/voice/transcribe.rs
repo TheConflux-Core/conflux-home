@@ -2,7 +2,9 @@
 // Uses whisper-rs for local STT inference.
 
 use std::path::Path;
-use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
+use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, SegmentCallbackData};
+use tauri::{Window, Emitter};
+use serde_json::json;
 
 /// Transcribe an audio buffer using the Whisper GGML model.
 ///
@@ -11,7 +13,7 @@ use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextPar
 /// - `audio`: 16kHz mono f32 samples
 ///
 /// Returns the transcribed text on success.
-pub fn transcribe_audio(model_path: &Path, audio: &[f32]) -> Result<String, String> {
+pub fn transcribe_audio(model_path: &Path, audio: &[f32], window: &Window) -> Result<String, String> {
     if audio.is_empty() {
         return Err("Audio buffer is empty. Record something first.".to_string());
     }
@@ -47,6 +49,31 @@ pub fn transcribe_audio(model_path: &Path, audio: &[f32]) -> Result<String, Stri
     params.set_print_progress(false);
     params.set_print_realtime(false);
     params.set_print_timestamps(false);
+
+    // Set up callback to emit partial transcripts as they become available
+    let window_ptr = window as *const Window;
+    params.set_segment_callback_safe(move |data: SegmentCallbackData| {
+        // Split segment text into tokens (words)
+        let tokens: Vec<String> = data.text.split_whitespace().map(|s| s.to_string()).collect();
+        if tokens.is_empty() {
+            return;
+        }
+        // Emit conflux:state event with listeningCadence
+        unsafe {
+            let window = &*window_ptr;
+            let _ = window.emit("conflux:state", json!({
+                "listeningCadence": {
+                    "tokens": tokens,
+                    "intervalMs": 90,
+                    "strength": 9,
+                    "burstsPerToken": 2,
+                    "route": ["perception", "reasoning"],
+                },
+                "mode": "listen",
+                "status": "Receiving speech",
+            }));
+        }
+    });
 
     // Convert f32 to the format whisper-rs expects
     // whisper-rs expects &[f32] at 16kHz

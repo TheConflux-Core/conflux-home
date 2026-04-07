@@ -4833,7 +4833,7 @@ mod voice_commands {
 
     /// Transcribe the current audio buffer using Whisper.
     #[tauri::command]
-    pub fn voice_transcribe(app: tauri::AppHandle) -> Result<String, String> {
+    pub fn voice_transcribe(app: tauri::AppHandle, window: tauri::Window) -> Result<String, String> {
         let app_data_dir = app.path().app_data_dir()
             .map_err(|e| format!("Failed to get app data dir: {}", e))?;
         let resource_dir = app.path().resource_dir()
@@ -4846,7 +4846,7 @@ mod voice_commands {
                 "SELECT value FROM voice_config WHERE key = 'model_name'",
                 [],
                 |row| row.get::<_, String>(0),
-            ).unwrap_or_else(|_| "base".to_string())
+            ).unwrap_or_else(|_| "small".to_string())
         };
 
         let path = voice::model::model_path(&resource_dir, &app_data_dir, &model_name);
@@ -4866,12 +4866,12 @@ mod voice_commands {
             return Err("No audio recorded. Start recording first with voice_capture_start.".to_string());
         }
 
-        voice::transcribe::transcribe_audio(&path, &audio)
+        voice::transcribe::transcribe_audio(&path, &audio, &window)
     }
 
     /// Start recording, wait up to max_duration_ms, stop, then transcribe.
     #[tauri::command]
-    pub async fn voice_capture_and_transcribe(app: tauri::AppHandle, max_duration_ms: Option<u64>) -> Result<String, String> {
+    pub async fn voice_capture_and_transcribe(app: tauri::AppHandle, window: tauri::Window, max_duration_ms: Option<u64>) -> Result<String, String> {
         capture::start_recording()?;
 
         let timeout = max_duration_ms.unwrap_or(10000);
@@ -4896,7 +4896,7 @@ mod voice_commands {
                 "SELECT value FROM voice_config WHERE key = 'model_name'",
                 [],
                 |row| row.get::<_, String>(0),
-            ).unwrap_or_else(|_| "base".to_string())
+            ).unwrap_or_else(|_| "small".to_string())
         };
 
         let path = voice::model::model_path(&resource_dir, &app_data_dir, &model_name);
@@ -4917,7 +4917,7 @@ mod voice_commands {
         }
 
         let result = tokio::task::spawn_blocking(move || {
-            voice::transcribe::transcribe_audio(&path, &audio)
+            voice::transcribe::transcribe_audio(&path, &audio, &window)
         }).await.map_err(|e| format!("Transcription task failed: {}", e))?;
 
         result
@@ -4984,6 +4984,57 @@ mod voice_commands {
 
         Ok(())
     }
+
+    /*
+    /// Synthesize text to speech using Piper TTS.
+    ///
+    /// Returns PCM audio data (base64 i16le) and metadata for frontend playback.
+    /// The amplitude envelope can be used to drive Conflux `pulseImpulse`.
+    #[tauri::command]
+    pub fn voice_synthesize(app: tauri::AppHandle, text: String, voice: Option<String>) -> Result<serde_json::Value, String> {
+        let resource_dir = app.path().resource_dir()
+            .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+        let app_data_dir = app.path().app_data_dir()
+            .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+
+        let voice_name = voice.as_deref();
+
+        // Synthesize to PCM (blocking — Piper inference is CPU-bound)
+        let (samples, sample_rate) = voice::synthesize::synthesize_to_pcm(
+            &resource_dir, &app_data_dir, &text, voice_name,
+        )?;
+
+        // Convert f32 -> i16 PCM bytes
+        let pcm_bytes: Vec<u8> = samples
+            .iter()
+            .flat_map(|&s| {
+                let clamped = s.max(-1.0).min(1.0);
+                let i16_val = (clamped * i16::MAX as f32) as i16;
+                i16_val.to_le_bytes()
+            })
+            .collect();
+
+        // Base64 encode for JSON transport
+        let encoded = base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD,
+            &pcm_bytes,
+        );
+
+        // Compute amplitude envelope for pulseImpulse (256-sample windows)
+        let envelope = voice::synthesize::compute_envelope(&samples, 256);
+
+        Ok(serde_json::json!({
+            "sample_rate": sample_rate,
+            "channels": 1,
+            "format": "pcm_i16le",
+            "samples_count": samples.len(),
+            "duration_ms": (samples.len() as f64 / sample_rate as f64 * 1000.0) as u64,
+            "data": encoded,
+            "envelope": envelope,
+            "voice": voice_name.unwrap_or(voice::synthesize::default_voice()),
+        }))
+    }
+    */
 }
 
 // Re-export voice commands — desktop uses real impl, Android gets stubs
@@ -5030,6 +5081,13 @@ pub fn voice_get_config() -> Result<Vec<serde_json::Value>, String> {
 pub fn voice_set_config(_key: String, _value: String) -> Result<(), String> {
     Err("Voice input is not available on Android".to_string())
 }
+/*
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn voice_synthesize(_app: tauri::AppHandle, _text: String, _voice: Option<String>) -> Result<serde_json::Value, String> {
+    Err("Voice synthesis is not available on Android".to_string())
+}
+*/
 
 // ═══════════════════════════════════════════════════════
 // Cloud — Supabase Credit & Usage System
