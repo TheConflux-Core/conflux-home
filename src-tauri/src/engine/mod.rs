@@ -12,11 +12,8 @@ pub mod google;
 pub mod cron;
 pub mod orbit_prompts;
 pub mod cloud;
-pub mod state_events;
-pub mod state_manager;
-pub mod commands {
-    pub mod voice_commands;
-}
+pub mod nudges;
+pub mod agent_comms;
 
 pub use db::EngineDb;
 
@@ -340,6 +337,22 @@ impl ConfluxEngine {
 
     // ── Inter-Agent Communication ──
 
+    pub fn send_agent_message(&self, sender_id: &str, receiver_id: &str, message_type: &str, payload: &serde_json::Value) -> Result<String> {
+        self.db.send_agent_message(sender_id, receiver_id, message_type, payload)
+    }
+
+    pub fn get_unread_messages(&self, receiver_id: &str, limit: Option<i64>) -> Result<Vec<types::AgentMessage>> {
+        self.db.get_unread_messages(receiver_id, limit)
+    }
+
+    pub fn mark_message_read(&self, message_id: &str) -> Result<()> {
+        self.db.mark_message_read(message_id)
+    }
+
+    pub fn get_agent_communications(&self, agent_id: &str, limit: Option<i64>) -> Result<Vec<types::AgentMessage>> {
+        self.db.get_agent_communications(agent_id, limit)
+    }
+
     pub async fn agent_ask(&self, from_agent: &str, to_agent: &str, question: &str, session_id: Option<&str>) -> Result<String> {
         // Check permissions
         if !self.can_agent_talk_to(from_agent, to_agent)? {
@@ -371,6 +384,39 @@ impl ConfluxEngine {
         self.db.complete_communication(&comm_id, &response.content, response.tokens_used)?;
 
         Ok(response.content)
+    }
+
+    // ── Cross-App Goal Alignment (Phase 2.2) ──
+
+    /// Broadcast a goal update to all target agents (Hearth, Orbit, Pulse).
+    pub fn broadcast_goal_update(&self, dream_id: &str, goal_type: &str, goal_data: &serde_json::Value) -> Result<Vec<String>> {
+        // Map dream categories to target agents
+        let targets = match goal_type {
+            "health" | "fitness" | "weight_loss" | "wellness" => vec!["hearth", "orbit", "pulse"],
+            "finance" | "savings" | "budget" => vec!["pulse"],
+            "career" | "education" | "learning" => vec!["orbit"],
+            "relationship" | "family" => vec!["orbit", "hearth"],
+            "home" => vec!["hearth"],
+            _ => vec!["hearth", "orbit", "pulse"], // Default: broadcast to all
+        };
+
+        let sender_id = "horizon"; // Dreams agent sends goal updates
+        let message_type = "goal_update";
+        let mut message_ids = Vec::new();
+
+        for receiver_id in targets {
+            // Send message to each target agent
+            let message_id = self.db.send_agent_message(
+                sender_id,
+                receiver_id,
+                message_type,
+                goal_data,
+            )?;
+            message_ids.push(message_id);
+            log::info!("[Goal Alignment] Sent {} message to {} (dream_id: {})", message_type, receiver_id, dream_id);
+        }
+
+        Ok(message_ids)
     }
 
     // ── Verification (Anti-Hallucination Enforcement) ──

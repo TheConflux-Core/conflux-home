@@ -2794,6 +2794,64 @@ impl EngineDb {
     }
 
     // ============================================================
+    // Family Shopping List (Shared Pantry)
+    // ============================================================
+
+    pub fn family_add_shopping_item(&self, member_id: &str, item: &str, quantity: Option<f64>, unit: Option<&str>, category: Option<&str>) -> Result<String> {
+        let conn = self.conn();
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = Self::now();
+        conn.execute(
+            "INSERT INTO family_shopping_list (id, member_id, item, quantity, unit, category, is_checked, added_by, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, NULL, ?7)",
+            params![id, member_id, item, quantity, unit, category, now],
+        )?;
+        Ok(id)
+    }
+
+    pub fn family_get_shopping_list(&self, member_id: &str) -> Result<Vec<super::types::FamilyShoppingItem>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, member_id, item, quantity, unit, category, is_checked, added_by, created_at
+             FROM family_shopping_list WHERE member_id = ?1 ORDER BY category, item"
+        )?;
+        let rows = stmt.query_map(params![member_id], |row| {
+            Ok(super::types::FamilyShoppingItem {
+                id: row.get(0)?,
+                member_id: row.get(1)?,
+                item: row.get(2)?,
+                quantity: row.get(3)?,
+                unit: row.get(4)?,
+                category: row.get(5)?,
+                is_checked: row.get::<_, i64>(6)? != 0,
+                added_by: row.get(7)?,
+                created_at: row.get(8)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+
+    pub fn family_toggle_shopping_item(&self, id: &str) -> Result<()> {
+        let conn = self.conn();
+        conn.execute(
+            "UPDATE family_shopping_list SET is_checked = CASE WHEN is_checked = 1 THEN 0 ELSE 1 END WHERE id = ?1",
+            params![id],
+        )?;
+        Ok(())
+    }
+
+    pub fn family_clear_checked_items(&self, member_id: &str) -> Result<usize> {
+        let conn = self.conn();
+        let count = conn.execute(
+            "DELETE FROM family_shopping_list WHERE member_id = ?1 AND is_checked = 1",
+            params![member_id],
+        )?;
+        Ok(count)
+    }
+
+    // ============================================================
     // Kitchen Inventory
     // ============================================================
 
@@ -3663,6 +3721,25 @@ impl EngineDb {
             for r in rows { result.push(r?); }
         }
         Ok(result)
+    }
+    pub fn get_dream(&self, dream_id: &str, member_id: &str) -> Result<Option<super::types::Dream>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, member_id, title, description, category, target_date, status, progress, ai_plan, ai_next_actions, created_at, updated_at 
+             FROM dreams WHERE id = ?1 AND member_id = ?2"
+        )?;
+        let dream = stmt.query_row(params![dream_id, member_id], |row| {
+            Ok(super::types::Dream {
+                id: row.get(0)?, member_id: row.get(1)?, title: row.get(2)?, description: row.get(3)?,
+                category: row.get(4)?, target_date: row.get(5)?, status: row.get(6)?, progress: row.get(7)?,
+                ai_plan: row.get(8)?, ai_next_actions: row.get(9)?, created_at: row.get(10)?, updated_at: row.get(11)?,
+            })
+        });
+        match dream {
+            Ok(d) => Ok(Some(d)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
     }
     pub fn add_milestone(&self, id: &str, dream_id: &str, member_id: &str, title: &str, description: Option<&str>, target_date: Option<&str>, sort_order: i64) -> Result<()> {
         let conn = self.conn();

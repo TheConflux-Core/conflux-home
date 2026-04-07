@@ -1409,3 +1409,31 @@ export const STUDIO_MODULES: Record<StudioModule, { icon: string; label: string;
   code: { icon: '💻', label: 'Web', description: 'Build websites and web apps' },
   design: { icon: '🎨', label: 'Design', description: 'Create logos, templates, and brand assets' },
 };
+
+// ============================================================
+// NUDGE SYSTEM — Phase 1.3
+// ============================================================
+
+export type NudgeType = 'budget_uncategorized' | 'kitchen_expiry' | 'dream_overdue' | 'habit_streak';
+
+export interface NudgeData {
+  id: string;
+  type: NudgeType;
+  message: string;
+  timestamp: string;
+  data?: Record<string, unknown>;
+}
+
+export interface NudgePreferences {
+  budget_uncategorized: boolean;
+  kitchen_expiry: boolean;
+  dream_overdue: boolean;
+  habit_streak: boolean;
+}
+
+export interface NudgeSettings {
+  maxNudgesPerHour: number;
+  cooldownMinutes: number;
+  idleThresholdMinutes: number;
+  autoDismissSeconds: number;
+}

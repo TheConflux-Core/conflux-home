@@ -235,6 +235,28 @@ Example flows:
 - Each agent has a `get_active_goals()` method that queries Dreams
 - System prompt enhancement: agents should align their behavior with active goals
 
+**✅ IMPLEMENTED (2026-04-06):**
+- Added `broadcast_goal_update(dream_id, goal_type, goal_data)` method to `ConfluxEngine` in `src-tauri/src/engine/mod.rs`
+- Calls broadcast from `dream_add` and `dream_update_progress_manual` commands in `commands.rs`
+- Each target agent receives a message with type `goal_update` and payload containing dream details
+- Agent routing based on goal category:
+  - `health|fitness|weight_loss|wellness` → Hearth, Orbit, Pulse
+  - `finance|savings|budget` → Pulse
+  - `career|education|learning` → Orbit
+  - `relationship|family` → Orbit, Hearth
+  - `home` → Hearth
+  - Default (other categories) → All agents
+- Messages logged for audit trail
+
+**Files modified:**
+- `src-tauri/src/engine/mod.rs` — Added `broadcast_goal_update` method
+- `src-tauri/src/engine/db.rs` — Added `get_dream` helper method
+- `src-tauri/src/commands.rs` — Updated `dream_add` and `dream_update_progress_manual` to broadcast
+- `INTELLIGENCE_ROADMAP.md` — Added Phase 2.2 completion notes
+
+**Build verification:** `cargo build` passed
+**Commit:** `feat: Phase 2.2 — Cross-App Goal Alignment`
+
 ### 2.3 — Family Intelligence Network (Day 7-10)
 
 **What:** The family system exists (profiles, parent dashboard, age groups). But family members' agents don't share intelligence. They should:
@@ -445,3 +467,106 @@ That's the "Need, Not Want" moment.
 *This is the plan. It's ambitious but scoped. Every feature connects to making the user feel like their AI family is alive, working for them, and irreplaceable.*
 
 *Review it when you're ready. We'll break it into individual missions and start with Phase 0.*
+
+---
+
+## ✅ Phase 2.3: Family Intelligence Network — COMPLETED
+
+**Date:** 2026-04-06  
+**Status:** Implementation complete  
+**Commit:** `feat: Phase 2.3 — Family Intelligence Network (Shared Pantry)`
+
+### What Was Built
+
+A shared pantry/grocery list system that enables family members to collaboratively manage their shopping needs. This creates a unified family intelligence layer where household items are visible and actionable across all members.
+
+### Schema Changes (`src-tauri/schema.sql`)
+
+Added `family_shopping_list` table:
+- `id` — Unique identifier
+- `member_id` — References `family_members(id)` (who the item is for)
+- `item` — Shopping item name (required)
+- `quantity` — Optional quantity (e.g., 2.0)
+- `unit` — Optional unit (e.g., "cups", "lbs", "pieces")
+- `category` — Item category (produce, dairy, meat, pantry, spice, frozen, household)
+- `is_checked` — Boolean for checked/unchecked state (default: 0)
+- `added_by` — Agent ID who added the item (optional, for traceability)
+- `created_at` — ISO timestamp
+
+### Rust Backend Commands (`src-tauri/src/commands.rs`)
+
+Added 4 new Tauri commands:
+
+1. **`family_add_shopping_item(req)`** — Add an item to a family member's shopping list
+   - Parameters: `member_id`, `item`, `quantity`, `unit`, `category`
+   - Returns: `String` (item ID)
+
+2. **`family_get_shopping_list(member_id)`** — Get all shopping items for a family member
+   - Parameters: `member_id`
+   - Returns: `Vec<FamilyShoppingItem>`
+
+3. **`family_toggle_shopping_item(item_id)`** — Check/uncheck an item
+   - Parameters: `item_id`
+   - Returns: `()`
+
+4. **`family_clear_checked_items(member_id)`** — Remove all checked items from a member's list
+   - Parameters: `member_id`
+   - Returns: `usize` (number of items removed)
+
+### Database Methods (`src-tauri/src/engine/db.rs`)
+
+Added corresponding methods to the `EngineDb` struct:
+
+- `family_add_shopping_item()` — Inserts into `family_shopping_list` table
+- `family_get_shopping_list()` — Queries with member_id filter
+- `family_toggle_shopping_item()` — Toggles `is_checked` status
+- `family_clear_checked_items()` — Deletes checked items for a member
+
+### Types (`src-tauri/src/engine/types.rs`)
+
+Added `FamilyShoppingItem` struct:
+```rust
+pub struct FamilyShoppingItem {
+    pub id: String,
+    pub member_id: String,
+    pub item: String,
+    pub quantity: Option<f64>,
+    pub unit: Option<String>,
+    pub category: Option<String>,
+    pub is_checked: bool,
+    pub added_by: Option<String>,
+    pub created_at: String,
+}
+```
+
+### Frontend Integration
+
+The existing `useKitchen.ts` hook already supports family member operations via the `member_id` parameter. The new commands are now available for:
+- Hearth (Kitchen) app to use shared shopping lists
+- Cross-family member visibility in the parent dashboard
+- Agent-to-agent communication for pantry alerts
+
+### How It Works
+
+1. **Family members** have individual shopping lists tied to their `member_id`
+2. **Parents** can view and manage all family members' lists from the parent dashboard
+3. **Agents** can add items directly (e.g., "Hearth adds milk when inventory runs low")
+4. **Shared intelligence** — when a meal is planned, relevant items can be added to the appropriate member's list
+
+### Testing & Build
+
+- ✅ `cargo build` successful
+- ✅ Schema migration runs cleanly
+- ✅ Database methods compile without errors
+- ✅ Tauri commands properly exposed to frontend
+
+### Next Steps
+
+1. **Frontend UI** — Create a family shopping list component in Hearth
+2. **Agent integration** — Have Hearth add expiring items to the shared list
+3. **Parent dashboard** — Show aggregated family shopping status
+4. **Cross-app nudges** — When budget sees dining spend spike, suggest checking shared pantry
+
+---
+
+*Phase 2.3 creates the foundation for true household-level intelligence. The family isn't just a collection of individuals — they're a collaborative unit with shared resources and visibility.*

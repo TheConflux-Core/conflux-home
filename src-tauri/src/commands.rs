@@ -4,11 +4,9 @@
 use tauri::{Manager, Emitter};
 use serde::{Deserialize, Serialize};
 use chrono::{Datelike, Timelike};
-use uuid::Uuid;
 use super::engine;
 use super::engine::cloud;
-use super::engine::router::{self, OpenAIMessage};
-use super::engine::commands::voice_commands;
+use super::engine::router::OpenAIMessage;
 
 // ── Request/Response Types ──
 
@@ -577,6 +575,44 @@ pub fn engine_get_communications(agent_id: String, limit: Option<i64>) -> Result
     let engine = engine::get_engine();
     let comms = engine.db().get_communications(&agent_id, limit.unwrap_or(20)).map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(comms).map_err(|e| e.to_string())?)
+}
+
+// ── Agent Messages (Phase 2: Inter-Agent Communication Layer) ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AgentMessageRequest {
+    pub sender_id: String,
+    pub receiver_id: String,
+    pub message_type: String,
+    pub payload: serde_json::Value,
+}
+
+#[tauri::command]
+pub fn engine_send_agent_message(req: AgentMessageRequest) -> Result<String, String> {
+    let engine = engine::get_engine();
+    engine.db().send_agent_message(&req.sender_id, &req.receiver_id, &req.message_type, &req.payload)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_get_unread_messages(receiver_id: String, limit: Option<i64>) -> Result<Vec<engine::types::AgentMessage>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_unread_messages(&receiver_id, limit)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_mark_message_read(message_id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().mark_message_read(&message_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_get_agent_communications(agent_id: String, limit: Option<i64>) -> Result<Vec<engine::types::AgentMessage>, String> {
+    let engine = engine::get_engine();
+    engine.db().get_agent_communications(&agent_id, limit)
+        .map_err(|e| e.to_string())
 }
 
 // ── Tasks ──
@@ -1621,6 +1657,47 @@ pub fn kitchen_toggle_grocery_item(id: String, member_id: Option<String>) -> Res
     let _member_id = member_id;
     let engine = engine::get_engine();
     engine.db().toggle_grocery_item(&id).map_err(|e| e.to_string())
+}
+
+// ── Family Shopping List (Shared Pantry) ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FamilyAddShoppingItemRequest {
+    pub member_id: String,
+    pub item: String,
+    pub quantity: Option<f64>,
+    pub unit: Option<String>,
+    pub category: Option<String>,
+}
+
+#[tauri::command]
+pub fn family_add_shopping_item(req: FamilyAddShoppingItemRequest) -> Result<String, String> {
+    let engine = engine::get_engine();
+    engine.db().family_add_shopping_item(
+        &req.member_id,
+        &req.item,
+        req.quantity,
+        req.unit.as_deref(),
+        req.category.as_deref(),
+    ).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn family_get_shopping_list(member_id: String) -> Result<Vec<engine::types::FamilyShoppingItem>, String> {
+    let engine = engine::get_engine();
+    engine.db().family_get_shopping_list(&member_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn family_toggle_shopping_item(item_id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().family_toggle_shopping_item(&item_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn family_clear_checked_items(member_id: String) -> Result<usize, String> {
+    let engine = engine::get_engine();
+    engine.db().family_clear_checked_items(&member_id).map_err(|e| e.to_string())
 }
 
 // ── Smart Kitchen — Inventory ──
@@ -3273,7 +3350,20 @@ pub fn home_get_year_summary() -> Result<serde_json::Value, String> {
 #[tauri::command]
 pub fn dream_add(id: String, member_id: Option<String>, title: String, description: Option<String>, category: String, target_date: Option<String>) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.db().add_dream(&id, member_id.as_deref(), &title, description.as_deref(), &category, target_date.as_deref()).map_err(|e| e.to_string())
+    engine.db().add_dream(&id, member_id.as_deref(), &title, description.as_deref(), &category, target_date.as_deref()).map_err(|e| e.to_string())?;
+    
+    // Phase 2.2: Broadcast goal update to target agents
+    let goal_data = serde_json::json!({
+        "dream_id": id,
+        "title": title,
+        "description": description,
+        "category": category,
+        "target_date": target_date,
+        "action": "created",
+    });
+    engine.broadcast_goal_update(&id, &category, &goal_data).map_err(|e| e.to_string())?;
+    
+    Ok(())
 }
 
 #[tauri::command]
@@ -3375,7 +3465,21 @@ pub fn dream_get_timeline(user_id: String, dream_id: String) -> Result<engine::t
 #[tauri::command]
 pub fn dream_update_progress_manual(user_id: String, dream_id: String, progress_pct: f64) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.db().set_dream_progress(&user_id, &dream_id, progress_pct).map_err(|e| e.to_string())
+    engine.db().set_dream_progress(&user_id, &dream_id, progress_pct).map_err(|e| e.to_string())?;
+    
+    // Phase 2.2: Broadcast goal update to target agents
+    let goal_data = serde_json::json!({
+        "dream_id": dream_id,
+        "progress_pct": progress_pct,
+        "action": "progress_updated",
+    });
+    
+    // Get dream details for category
+    if let Ok(Some(dream)) = engine.db().get_dream(&dream_id, &user_id) {
+        engine.broadcast_goal_update(&dream_id, &dream.category, &goal_data).map_err(|e| e.to_string())?;
+    }
+    
+    Ok(())
 }
 
 #[tauri::command]
@@ -4810,29 +4914,22 @@ pub async fn studio_generate_voice(generation_id: String, text: String, voice_id
 // ═══════════════════════════════════════════════════════
 
 #[cfg(not(target_os = "android"))]
-pub mod voice_cmds {
+mod voice_commands {
     use crate::voice;
     use crate::voice::capture::{self, AUDIO_BUFFER};
     use crate::engine;
     use tauri::Manager;
 
-    /// Start recording from the default microphone and begin volume monitoring.
+    /// Start recording from the default microphone.
     #[tauri::command]
-    pub fn voice_capture_start(window: tauri::Window) -> Result<String, String> {
-        let result = capture::start_recording(window.clone());
-        // Only start volume monitor if recording actually started
-        if result.is_ok() {
-            capture::start_volume_monitor(window);
-        }
-        result
+    pub fn voice_capture_start() -> Result<String, String> {
+        capture::start_recording()
     }
 
     /// Stop recording and return sample count.
     #[tauri::command]
-    pub fn voice_capture_stop(window: tauri::Window) -> Result<serde_json::Value, String> {
-        println!("[STT] voice_capture_stop command triggered");
-        // TODO: Stop the ElevenLabs stream sender here
-        let count = capture::stop_recording(window.clone())?;
+    pub fn voice_capture_stop() -> Result<serde_json::Value, String> {
+        let count = capture::stop_recording()?;
         Ok(serde_json::json!({
             "samples": count,
             "duration_seconds": count as f64 / 16000.0,
@@ -4841,78 +4938,94 @@ pub mod voice_cmds {
 
     /// Transcribe the current audio buffer using Whisper.
     #[tauri::command]
-    pub async fn voice_transcribe() -> Result<String, String> {
-        // Use OpenAI Whisper API for STT
-        println!("[STT] Transcribing with OpenAI Whisper...");
-        
+    pub fn voice_transcribe(app: tauri::AppHandle) -> Result<String, String> {
+        let app_data_dir = app.path().app_data_dir()
+            .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+        let resource_dir = app.path().resource_dir()
+            .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+
+        let model_name = {
+            let engine = engine::get_engine();
+            let conn = engine.db().conn();
+            conn.query_row(
+                "SELECT value FROM voice_config WHERE key = 'model_name'",
+                [],
+                |row| row.get::<_, String>(0),
+            ).unwrap_or_else(|_| "base".to_string())
+        };
+
+        let path = voice::model::model_path(&resource_dir, &app_data_dir, &model_name);
+        if !path.exists() {
+            return Err(format!(
+                "Whisper model not found. Expected ggml-{}.bin in bundled resources or app data models/ directory.",
+                model_name
+            ));
+        }
+
         let audio = {
             let buf = AUDIO_BUFFER.lock().map_err(|e| e.to_string())?;
             buf.clone()
         };
 
         if audio.is_empty() {
-            return Err("No audio recorded.".to_string());
+            return Err("No audio recorded. Start recording first with voice_capture_start.".to_string());
         }
 
-        // Convert f32 samples to WAV bytes for OpenAI
-        let wav_bytes = audio_to_wav_bytes(&audio);
-
-        let openai_config = crate::voice::openai::OpenAIConfig::default();
-        if openai_config.api_key.is_empty() {
-            return Err("OPENAI_API_KEY not set".to_string());
-        }
-
-        match crate::voice::openai::transcribe_audio(wav_bytes, openai_config).await {
-            Ok(text) => Ok(text),
-            Err(e) => Err(format!("OpenAI STT Error: {}", e)),
-        }
-    }
-
-    fn audio_to_wav_bytes(samples: &[f32]) -> Vec<u8> {
-        // Simple WAV header construction
-        let sample_rate: u32 = 16000;
-        let num_samples = samples.len() as u32;
-        let byte_rate = sample_rate * 2; // 16-bit mono
-        let block_align: u16 = 2;
-        let data_size = num_samples * 2;
-
-        let mut wav = Vec::new();
-        // RIFF Header
-        wav.extend_from_slice(b"RIFF");
-        wav.extend_from_slice(&(36u32 + data_size).to_le_bytes());
-        wav.extend_from_slice(b"WAVE");
-        // fmt chunk
-        wav.extend_from_slice(b"fmt ");
-        wav.extend_from_slice(&(16u32).to_le_bytes()); // Subchunk1Size
-        wav.extend_from_slice(&(1u16).to_le_bytes()); // AudioFormat (PCM)
-        wav.extend_from_slice(&(1u16).to_le_bytes()); // NumChannels
-        wav.extend_from_slice(&sample_rate.to_le_bytes());
-        wav.extend_from_slice(&byte_rate.to_le_bytes());
-        wav.extend_from_slice(&block_align.to_le_bytes());
-        wav.extend_from_slice(&(16u16).to_le_bytes()); // BitsPerSample
-        // data chunk
-        wav.extend_from_slice(b"data");
-        wav.extend_from_slice(&data_size.to_le_bytes());
-        // Audio data (convert f32 to i16)
-        for &sample in samples {
-            let i16_sample = (sample.max(-1.0).min(1.0) * i16::MAX as f32) as i16;
-            wav.extend_from_slice(&i16_sample.to_le_bytes());
-        }
-        wav
+        voice::transcribe::transcribe_audio(&path, &audio)
     }
 
     /// Start recording, wait up to max_duration_ms, stop, then transcribe.
     #[tauri::command]
-    pub async fn voice_capture_and_transcribe(window: tauri::Window, max_duration_ms: Option<u64>) -> Result<String, String> {
-        // Deprecated: Whisper replaced by ElevenLabs streaming STT
-        // This function now just simulates the old behavior but uses streaming
-        
-        capture::start_recording(window.clone())?;
+    pub async fn voice_capture_and_transcribe(app: tauri::AppHandle, max_duration_ms: Option<u64>) -> Result<String, String> {
+        capture::start_recording()?;
+
         let timeout = max_duration_ms.unwrap_or(10000);
         tokio::time::sleep(std::time::Duration::from_millis(timeout)).await;
-        capture::stop_recording(window.clone())?;
-        
-        Ok("(STT via ElevenLabs streaming)".to_string())
+
+        if !capture::is_recording() {
+            return Err("Recording was stopped before capture completed".to_string());
+        }
+
+        let count = capture::stop_recording()?;
+        log::info!("Captured {} samples ({:.1}s) for transcription", count, count as f64 / 16000.0);
+
+        let app_data_dir = app.path().app_data_dir()
+            .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+        let resource_dir = app.path().resource_dir()
+            .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+
+        let model_name = {
+            let engine = engine::get_engine();
+            let conn = engine.db().conn();
+            conn.query_row(
+                "SELECT value FROM voice_config WHERE key = 'model_name'",
+                [],
+                |row| row.get::<_, String>(0),
+            ).unwrap_or_else(|_| "base".to_string())
+        };
+
+        let path = voice::model::model_path(&resource_dir, &app_data_dir, &model_name);
+        if !path.exists() {
+            return Err(format!(
+                "Whisper model not found. Expected ggml-{}.bin in bundled resources or app data models/ directory.",
+                model_name
+            ));
+        }
+
+        let audio = {
+            let buf = AUDIO_BUFFER.lock().map_err(|e| e.to_string())?;
+            buf.clone()
+        };
+
+        if audio.is_empty() {
+            return Err("No audio captured. Is your microphone working?".to_string());
+        }
+
+        let result = tokio::task::spawn_blocking(move || {
+            voice::transcribe::transcribe_audio(&path, &audio)
+        }).await.map_err(|e| format!("Transcription task failed: {}", e))?;
+
+        result
     }
 
     /// Get current voice engine status.
@@ -4976,83 +5089,6 @@ pub mod voice_cmds {
 
         Ok(())
     }
-
-    /*
-    /// Synthesize text to speech using Piper TTS.
-    ///
-    /// Returns PCM audio data (base64 i16le) and metadata for frontend playback.
-    /// The amplitude envelope can be used to drive Conflux `pulseImpulse`.
-    #[tauri::command]
-    pub fn voice_synthesize(app: tauri::AppHandle, text: String, voice: Option<String>) -> Result<serde_json::Value, String> {
-        let resource_dir = app.path().resource_dir()
-            .map_err(|e| format!("Failed to get resource dir: {}", e))?;
-        let app_data_dir = app.path().app_data_dir()
-            .map_err(|e| format!("Failed to get app data dir: {}", e))?;
-
-        let voice_name = voice.as_deref();
-
-        // Synthesize to PCM (blocking — Piper inference is CPU-bound)
-        let (samples, sample_rate) = voice::synthesize::synthesize_to_pcm(
-            &resource_dir, &app_data_dir, &text, voice_name,
-        )?;
-
-        // Convert f32 -> i16 PCM bytes
-        let pcm_bytes: Vec<u8> = samples
-            .iter()
-            .flat_map(|&s| {
-                let clamped = s.max(-1.0).min(1.0);
-                let i16_val = (clamped * i16::MAX as f32) as i16;
-                i16_val.to_le_bytes()
-            })
-            .collect();
-
-        // Base64 encode for JSON transport
-        let encoded = base64::Engine::encode(
-            &base64::engine::general_purpose::STANDARD,
-            &pcm_bytes,
-        );
-
-        // Compute amplitude envelope for pulseImpulse (256-sample windows)
-        let envelope = voice::synthesize::compute_envelope(&samples, 256);
-
-        Ok(serde_json::json!({
-            "sample_rate": sample_rate,
-            "channels": 1,
-            "format": "pcm_i16le",
-            "samples_count": samples.len(),
-            "duration_ms": (samples.len() as f64 / sample_rate as f64 * 1000.0) as u64,
-            "data": encoded,
-            "envelope": envelope,
-            "voice": voice_name.unwrap_or(voice::synthesize::default_voice()),
-        }))
-    }
-    */
-
-    /// Debug diagnostic: returns audio buffer state and stream status.
-    /// Reports buffer size in samples, elapsed seconds, device info, and recording flag.
-    #[tauri::command]
-    pub fn debug_audio_buffer_state() -> Result<serde_json::Value, String> {
-        let recording = capture::is_recording();
-        let device_available = capture::input_device_available();
-        let sample_count = {
-            let buf = AUDIO_BUFFER.lock().map_err(|e| e.to_string())?;
-            buf.len()
-        };
-        let buffer_capacity = {
-            let buf = AUDIO_BUFFER.lock().map_err(|e| e.to_string())?;
-            buf.capacity()
-        };
-        let devices = capture::list_input_devices().unwrap_or_default();
-
-        Ok(serde_json::json!({
-            "recording": recording,
-            "buffer_samples": sample_count,
-            "buffer_duration_seconds": sample_count as f64 / 16000.0,
-            "device_available": device_available,
-            "input_devices": devices,
-            "buffer_capacity_samples": buffer_capacity,
-        }))
-    }
 }
 
 // Re-export voice commands — desktop uses real impl, Android gets stubs
@@ -5099,13 +5135,6 @@ pub fn voice_get_config() -> Result<Vec<serde_json::Value>, String> {
 pub fn voice_set_config(_key: String, _value: String) -> Result<(), String> {
     Err("Voice input is not available on Android".to_string())
 }
-/*
-#[cfg(target_os = "android")]
-#[tauri::command]
-pub fn voice_synthesize(_app: tauri::AppHandle, _text: String, _voice: Option<String>) -> Result<serde_json::Value, String> {
-    Err("Voice synthesis is not available on Android".to_string())
-}
-*/
 
 // ═══════════════════════════════════════════════════════
 // Cloud — Supabase Credit & Usage System

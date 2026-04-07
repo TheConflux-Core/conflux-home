@@ -276,6 +276,19 @@ pub struct AgentCommunication {
     pub responded_at: Option<String>,
 }
 
+// ── Agent Messages (Phase 2) ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentMessage {
+    pub id: String,
+    pub sender_id: String,
+    pub receiver_id: String,
+    pub message_type: String,
+    pub payload: serde_json::Value,
+    pub read_at: Option<String>,
+    pub created_at: String,
+}
+
 // ── Task ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -782,6 +795,19 @@ pub struct GroceryItem {
     pub is_checked: bool,
     pub source_meal_id: Option<String>,
     pub week_start: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FamilyShoppingItem {
+    pub id: String,
+    pub member_id: String,
+    pub item: String,
+    pub quantity: Option<f64>,
+    pub unit: Option<String>,
+    pub category: Option<String>,
+    pub is_checked: bool,
+    pub added_by: Option<String>,
     pub created_at: String,
 }
 
