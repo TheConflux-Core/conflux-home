@@ -6,6 +6,7 @@ import { Agent } from '../types';
 import { useEngineChat } from '../hooks/useEngineChat';
 import { useAuth } from '../hooks/useAuth';
 import { MicButton } from './voice';
+import { useConfluxController } from './conflux';
 import { playMessageSent, playMessageReceived, soundManager } from '../lib/sound';
 
 // Configure marked for safe rendering
@@ -43,11 +44,45 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
   // Auth — pass user ID to engine for cloud credit tracking
   const { session } = useAuth();
 
+  // Conflux Neural Controller (for visual sync)
+  const conflux = useConfluxController({
+    initialMode: 'idle',
+    initialTransparent: true,
+  });
+
   // Engine chat — handles personality, memory, sessions, tools, AND cloud credits
   const { messages, sendMessage, streaming, thinking, error, remainingCalls, credits, isQuotaExceeded, sessionId, loadSession } = useEngineChat(
     agent?.id ?? null,
     session?.user?.id
   );
+
+  // Sync Conflux Neural State
+  // 1. Thinking Mode (Focus)
+  useEffect(() => {
+    if (thinking) {
+      conflux.setMode('focus', 'system', 'Thinking...');
+    } else if (!streaming) {
+      conflux.setMode('idle', 'system', 'Ready');
+    }
+  }, [thinking, streaming, conflux]);
+
+  // 2. Streaming/Speaking Mode (Cadence)
+  useEffect(() => {
+    if (streaming && messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if ('role' in lastMessage && lastMessage.role === 'assistant') {
+        // Simple token split simulation for visual pulse
+        // In a real scenario, we'd tap into the actual stream tokens
+        const tokens = lastMessage.content.split(/\s+/);
+        conflux.runSpeechCadence({
+          tokens: tokens.slice(-10), // Pulse with last 10 words for effect
+          intervalMs: 100,
+          strength: 10,
+          burstsPerToken: 2,
+        });
+      }
+    }
+  }, [streaming, messages, conflux]);
 
   // Reset input when agent changes
   useEffect(() => {
