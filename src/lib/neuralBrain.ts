@@ -48,8 +48,25 @@ export type BrainCommand = {
   activeLobes: LobeName[];
 };
 
+export type PaletteName =
+  | "budget"
+  | "kitchen"
+  | "life"
+  | "dreams"
+  | "idle"
+  | "listen"
+  | "focus"
+  | "speak"
+  | "excited"
+  | "compact"
+  | "expanded";
+
+export type MorphTargetName = "heart" | "smile" | "neutral";
+
 export type NeuralGraph = {
   positions: Float32Array;
+  basePositions: Float32Array;
+  targetPositions: Float32Array;
   nodeCount: number;
   edges: Uint16Array;
   edgeCount: number;
@@ -59,6 +76,8 @@ export type NeuralGraph = {
   adjacency: number[][];
   edgeIndexByPair: Record<string, number>;
   lobeAnchors: Record<LobeName, number>;
+  morphFactor: number;
+  currentMorphTarget: MorphTargetName | null;
 };
 
 type LobeCenter = Record<LobeName, [number, number, number]>;
@@ -115,19 +134,19 @@ export const COMMANDS: BrainCommand[] = [
   {
     label: "Focused Reply",
     mode: "focus",
-    glowBoost: 1.25,
-    pulseRate: 1.5,
+    glowBoost: 2.0, // More vibrant glow
+    pulseRate: 2.5, // Faster pulses
     scale: 0.95,
-    turbulence: 0.06,
+    turbulence: 0.12, // More dynamic movement
     palette: {
-      node: "#69b4ff",
-      hot: "#ffffff",
-      line: "#1f437b",
-      glow: "#7ab7ff",
-      aura: "#1b2f7c"
+      node: "#4facfe", // Brighter blue
+      hot: "#00f2ff", // Cyan hot spots
+      line: "#0c3547",
+      glow: "#00d2ff", // Vibrant cyan glow
+      aura: "#0099cc" // Deep cyan aura
     },
     driftAxis: [0.08, -0.12, 0.03],
-    wobble: 0.05,
+    wobble: 0.15, // More wobble for energy
     lobeSpread: 0.82,
     speechRingIntensity: 0.05,
     activeLobes: ["reasoning", "memory"]
@@ -214,6 +233,133 @@ export const COMMANDS: BrainCommand[] = [
   }
 ];
 
+// ============================================
+// Palette Per App
+// ============================================
+
+export const APP_PALETTES: Record<string, {
+  node: string;
+  hot: string;
+  line: string;
+  glow: string;
+  aura: string;
+} | undefined> = {
+  // Core apps with distinct colors
+  budget: {
+    node: "#10b981",
+    hot: "#d1fae5",
+    line: "#065f46",
+    glow: "#34d399",
+    aura: "#047857"
+  },
+  kitchen: {
+    node: "#f59e0b",
+    hot: "#fef3c7",
+    line: "#92400e",
+    glow: "#fbbf24",
+    aura: "#d97706"
+  },
+  life: {
+    node: "#8b5cf6",
+    hot: "#ede9fe",
+    line: "#5b21b6",
+    glow: "#a78bfa",
+    aura: "#7c3aed"
+  },
+  dreams: {
+    node: "#3b82f6",
+    hot: "#dbeafe",
+    line: "#1e40af",
+    glow: "#60a5fa",
+    aura: "#2563eb"
+  },
+  // Additional apps with complementary palettes
+  agents: {
+    node: "#ec4899",
+    hot: "#fce7f3",
+    line: "#9d174d",
+    glow: "#f472b6",
+    aura: "#be185d"
+  },
+  feed: {
+    node: "#06b6d4",
+    hot: "#cffafe",
+    line: "#164e63",
+    glow: "#22d3ee",
+    aura: "#0e7490"
+  },
+  games: {
+    node: "#ef4444",
+    hot: "#fee2e2",
+    line: "#991b1b",
+    glow: "#f87171",
+    aura: "#dc2626"
+  },
+  marketplace: {
+    node: "#f59e0b",
+    hot: "#fef3c7",
+    line: "#92400e",
+    glow: "#fbbf24",
+    aura: "#d97706"
+  },
+  settings: {
+    node: "#6b7280",
+    hot: "#f3f4f6",
+    line: "#374151",
+    glow: "#9ca3af",
+    aura: "#4b5563"
+  },
+  studio: {
+    node: "#a855f7",
+    hot: "#f3e8ff",
+    line: "#6b21a8",
+    glow: "#c084fc",
+    aura: "#9333ea"
+  },
+  vault: {
+    node: "#78716c",
+    hot: "#f5f5f4",
+    line: "#44403c",
+    glow: "#a8a29e",
+    aura: "#57534e"
+  },
+  echo: {
+    node: "#0ea5e9",
+    hot: "#e0f2fe",
+    line: "#0369a1",
+    glow: "#38bdf8",
+    aura: "#0284c7"
+  },
+  home: {
+    node: "#84cc16",
+    hot: "#ecfccb",
+    line: "#3f6212",
+    glow: "#a3e635",
+    aura: "#65a30d"
+  },
+  dashboard: {
+    node: "#3b82f6",
+    hot: "#dbeafe",
+    line: "#1e40af",
+    glow: "#60a5fa",
+    aura: "#2563eb"
+  },
+  google: {
+    node: "#4285f4",
+    hot: "#dbeafe",
+    line: "#1d4ed8",
+    glow: "#60a5fa",
+    aura: "#1d4ed8"
+  },
+  'api-dashboard': {
+    node: "#8b5cf6",
+    hot: "#ede9fe",
+    line: "#5b21b6",
+    glow: "#a78bfa",
+    aura: "#7c3aed"
+  }
+};
+
 export const DEFAULT_COMMAND = COMMANDS[0];
 
 export const LOBE_CENTERS: LobeCenter = {
@@ -225,6 +371,62 @@ export const LOBE_CENTERS: LobeCenter = {
 };
 
 const lobeNames = Object.keys(LOBE_CENTERS) as LobeName[];
+
+// ============================================
+// Polymorphic Shape Targets
+// ============================================
+
+const generateHeartPoints = (count: number): Float32Array => {
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const t = (i / count) * 2 * Math.PI;
+    const scale = 0.5;
+    const x = scale * 16 * Math.pow(Math.sin(t), 3);
+    const y = scale * (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+    const z = (Math.random() - 0.5) * 0.1;
+    positions[i * 3] = x / 20;
+    positions[i * 3 + 1] = y / 20;
+    positions[i * 3 + 2] = z;
+  }
+  return positions;
+};
+
+const generateSmilePoints = (count: number): Float32Array => {
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const t = (i / count) * Math.PI * 2;
+    const scale = 0.6;
+    const x = scale * Math.cos(t) * 0.8;
+    const y = scale * (Math.sin(t) * 0.6 + 0.3);
+    const z = (Math.random() - 0.5) * 0.08;
+    positions[i * 3] = x;
+    positions[i * 3 + 1] = y;
+    positions[i * 3 + 2] = z;
+  }
+  return positions;
+};
+
+const generateNeutralPoints = (count: number): Float32Array => {
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    const theta = (i / count) * Math.PI * 2;
+    const phi = Math.acos(2 * (i / count) - 1);
+    const radius = 0.5;
+    const x = radius * Math.sin(phi) * Math.cos(theta);
+    const y = radius * Math.cos(phi);
+    const z = radius * Math.sin(phi) * Math.sin(theta) * 0.7;
+    positions[i * 3] = x;
+    positions[i * 3 + 1] = y;
+    positions[i * 3 + 2] = z;
+  }
+  return positions;
+};
+
+export const morphTargets: Record<MorphTargetName, (count: number) => Float32Array> = {
+  heart: generateHeartPoints,
+  smile: generateSmilePoints,
+  neutral: generateNeutralPoints
+};
 
 const classifyNodeLobe = (x: number, y: number, z: number): LobeName => {
   let best: LobeName = "reasoning";
@@ -247,10 +449,13 @@ const classifyNodeLobe = (x: number, y: number, z: number): LobeName => {
 
 export const createNeuralGraph = (
   nodeCount = 140,
-  seed = 7
+  seed = 7,
+  morphFactor = 0.0,
+  morphTargetName: MorphTargetName | null = null,
+  paletteName: PaletteName = "idle"
 ): NeuralGraph => {
   const random = rand(seed);
-  const positions = new Float32Array(nodeCount * 3);
+  const basePositions = new Float32Array(nodeCount * 3);
   const vectors: { x: number; y: number; z: number }[] = [];
   const nodeLobes: LobeName[] = [];
   const lobeNodeIndices: Record<LobeName, number[]> = {
@@ -281,9 +486,9 @@ export const createNeuralGraph = (
       Math.sin(phi) * Math.sin(theta) * radius * 0.8 +
       Math.cos(phi * 2) * 0.05;
 
-    positions[i * 3] = x;
-    positions[i * 3 + 1] = y;
-    positions[i * 3 + 2] = z;
+    basePositions[i * 3] = x;
+    basePositions[i * 3 + 1] = y;
+    basePositions[i * 3 + 2] = z;
     vectors.push({ x, y, z });
 
     const lobe = classifyNodeLobe(x, y, z);
@@ -299,9 +504,9 @@ export const createNeuralGraph = (
 
       for (const nodeIndex of lobeNodeIndices[lobe]) {
         const offset = nodeIndex * 3;
-        const dx = positions[offset] - cx;
-        const dy = positions[offset + 1] - cy;
-        const dz = positions[offset + 2] - cz;
+        const dx = basePositions[offset] - cx;
+        const dy = basePositions[offset + 1] - cy;
+        const dz = basePositions[offset + 2] - cz;
         const distance = dx * dx + dy * dy + dz * dz;
         if (distance < bestDistance) {
           bestDistance = distance;
@@ -352,8 +557,20 @@ export const createNeuralGraph = (
       });
   }
 
+  // Interpolate positions toward morph target if specified
+  const positions = new Float32Array(basePositions);
+  if (morphTargetName && morphFactor > 0) {
+    const targetGen = morphTargets[morphTargetName];
+    const targetPositions = targetGen(nodeCount);
+    for (let i = 0; i < nodeCount * 3; i++) {
+      positions[i] = lerp(basePositions[i], targetPositions[i], morphFactor);
+    }
+  }
+
   return {
     positions,
+    basePositions,
+    targetPositions: new Float32Array(nodeCount * 3),
     nodeCount,
     edges: Uint16Array.from(edgePairs),
     edgeCount: edgePairs.length / 2,
@@ -362,8 +579,76 @@ export const createNeuralGraph = (
     edgeLobes,
     adjacency,
     edgeIndexByPair,
-    lobeAnchors
+    lobeAnchors,
+    morphFactor,
+    currentMorphTarget: morphTargetName
   };
+};
+
+// ============================================
+// Signal Mapping: pulseEvent triggers shape shifts
+// ============================================
+
+export const getMorphTargetForMode = (mode: BrainMode): MorphTargetName | null => {
+  switch (mode) {
+    case "excited":
+      return "heart";
+    case "idle":
+    case "compact":
+      return "neutral";
+    case "speak":
+    case "expanded":
+      return "smile";
+    default:
+      return null;
+  }
+};
+
+export const getMorphFactorForMode = (mode: BrainMode): number => {
+  switch (mode) {
+    case "excited":
+      return 1.0;
+    case "idle":
+      return 0.0;
+    case "speak":
+      return 0.7;
+    case "compact":
+      return 0.2;
+    case "expanded":
+      return 0.5;
+    default:
+      return 0.0;
+  }
+};
+
+export const pulseEvent = (
+  graph: NeuralGraph,
+  mode: BrainMode,
+  smoothFactor = 0.1
+): NeuralGraph => {
+  const targetMorphName = getMorphTargetForMode(mode);
+  const targetMorphFactor = getMorphFactorForMode(mode);
+
+  if (!targetMorphName) {
+    return graph;
+  }
+
+  // Interpolate morph factor smoothly
+  const newMorphFactor = lerp(graph.morphFactor, targetMorphFactor, smoothFactor);
+
+  // Generate target positions
+  const targetGen = morphTargets[targetMorphName];
+  const targetPositions = targetGen(graph.nodeCount);
+
+  // Interpolate each node position
+  for (let i = 0; i < graph.nodeCount * 3; i++) {
+    graph.positions[i] = lerp(graph.basePositions[i], targetPositions[i], newMorphFactor);
+  }
+
+  graph.morphFactor = newMorphFactor;
+  graph.currentMorphTarget = targetMorphName;
+
+  return graph;
 };
 
 export const lerp = (from: number, to: number, alpha: number) =>

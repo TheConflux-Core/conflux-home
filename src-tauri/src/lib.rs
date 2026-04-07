@@ -9,7 +9,6 @@ mod commands;
 mod stripe;
 use dotenvy;
 
-
 use tauri::{Manager, Emitter};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -236,6 +235,10 @@ pub fn run() {
             commands::kitchen_add_ingredient,
             commands::kitchen_ai_add_meal,
             commands::kitchen_set_plan_entry,
+            // State Events
+            engine::state_events::conflux_set_state,
+            engine::state_events::conflux_set_state_with_context,
+            // engine::state_manager::get_state_manager,
             commands::kitchen_get_weekly_plan,
             commands::kitchen_clear_week_plan,
             commands::kitchen_generate_grocery,

@@ -8,6 +8,7 @@ use std::time::Duration;
 use tauri::{Emitter, Window};
 use tokio::sync::mpsc::Sender;
 use crate::voice::stream::{StreamMessage, start_stream, StreamConfig};
+use crate::engine::state_events::ConfluxState;
 
 pub static AUDIO_BUFFER: Lazy<Arc<Mutex<Vec<f32>>>> = Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
 static IS_RECORDING: Lazy<Arc<AtomicBool>> = Lazy::new(|| Arc::new(AtomicBool::new(false)));
@@ -83,6 +84,12 @@ pub fn start_recording(window: Window) -> Result<String, String> {
         .ok_or_else(|| "No input device available. Check your microphone.".to_string())?;
 
     let device_name = device.name().unwrap_or_else(|_| "unknown".to_string());
+
+    // Emit Listening state (capture started)
+    let _ = window.emit("conflux:state", serde_json::json!({
+        "state": "Listening",
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+    }));
 
     // Find a supported config: prefer 16000 Hz mono f32
     let supported_configs = device
@@ -205,6 +212,11 @@ pub fn stop_recording(window: Window) -> Result<u64, String> {
     }
 
     IS_RECORDING.store(false, Ordering::Relaxed);
+
+    // Don't emit Idle state here - let the backend handle the transition to thinking
+    // This prevents the fairy from dropping to the dock before thinking starts
+
+
 
     // Signal ElevenLabs stream to close
     if let Some(tx) = ELEVENLABS_SENDER.lock().unwrap().take() {

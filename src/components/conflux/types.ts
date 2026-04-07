@@ -3,7 +3,8 @@ import type {
   BrainMode,
   LobeName,
   PulseEventDetail,
-  TokenCadenceDetail
+  TokenCadenceDetail,
+  PaletteName
 } from "../../lib/neuralBrain";
 import type { ConfluxTauriHostProps } from "./ConfluxTauriHost";
 import type { UseConfluxControllerOptions } from "./useConfluxController";
@@ -26,6 +27,7 @@ export type ConfluxExternalEvent = {
   pulseEvent?: PulseEventDetail;
   speechCadence?: TokenCadenceDetail;
   listeningCadence?: TokenCadenceDetail;
+  appPalette?: string | PaletteName;
 };
 
 export type ConfluxStatusSource = "manual" | "backend" | "system";
