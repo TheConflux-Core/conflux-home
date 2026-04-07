@@ -64,9 +64,9 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
     } else if (!streaming) {
       conflux.setMode('idle', 'system', 'Ready');
     }
-  }, [thinking, streaming, conflux]);
+  }, [thinking, streaming, conflux.setMode]);
 
-  // 2. Streaming/Speaking Mode (Cadence)
+  // 2. Streaming/Speaking Mode (Cadence
   useEffect(() => {
     if (streaming && messages.length > 0) {
       const lastMessage = messages[messages.length - 1];
@@ -82,7 +82,7 @@ export default function ChatPanel({ agent, agents, isOpen, isExpanded, onClose, 
         });
       }
     }
-  }, [streaming, messages, conflux]);
+  }, [streaming, messages, conflux.runSpeechCadence]);
 
   // Reset input when agent changes
   useEffect(() => {

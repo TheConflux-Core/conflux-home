@@ -4815,15 +4815,21 @@ mod voice_commands {
     use crate::engine;
     use tauri::Manager;
 
-    /// Start recording from the default microphone.
+    /// Start recording from the default microphone and begin volume monitoring.
     #[tauri::command]
-    pub fn voice_capture_start() -> Result<String, String> {
-        capture::start_recording()
+    pub fn voice_capture_start(window: tauri::Window) -> Result<String, String> {
+        let result = capture::start_recording();
+        // Only start volume monitor if recording actually started
+        if result.is_ok() {
+            capture::start_volume_monitor(window);
+        }
+        result
     }
 
     /// Stop recording and return sample count.
     #[tauri::command]
     pub fn voice_capture_stop() -> Result<serde_json::Value, String> {
+        println!("[STT] voice_capture_stop command triggered");
         let count = capture::stop_recording()?;
         Ok(serde_json::json!({
             "samples": count,
@@ -4834,6 +4840,7 @@ mod voice_commands {
     /// Transcribe the current audio buffer using Whisper.
     #[tauri::command]
     pub fn voice_transcribe(app: tauri::AppHandle, window: tauri::Window) -> Result<String, String> {
+        println!("[STT] voice_transcribe command triggered");
         let app_data_dir = app.path().app_data_dir()
             .map_err(|e| format!("Failed to get app data dir: {}", e))?;
         let resource_dir = app.path().resource_dir()
@@ -5035,6 +5042,32 @@ mod voice_commands {
         }))
     }
     */
+
+    /// Debug diagnostic: returns audio buffer state and stream status.
+    /// Reports buffer size in samples, elapsed seconds, device info, and recording flag.
+    #[tauri::command]
+    pub fn debug_audio_buffer_state() -> Result<serde_json::Value, String> {
+        let recording = capture::is_recording();
+        let device_available = capture::input_device_available();
+        let sample_count = {
+            let buf = AUDIO_BUFFER.lock().map_err(|e| e.to_string())?;
+            buf.len()
+        };
+        let buffer_capacity = {
+            let buf = AUDIO_BUFFER.lock().map_err(|e| e.to_string())?;
+            buf.capacity()
+        };
+        let devices = capture::list_input_devices().unwrap_or_default();
+
+        Ok(serde_json::json!({
+            "recording": recording,
+            "buffer_samples": sample_count,
+            "buffer_duration_seconds": sample_count as f64 / 16000.0,
+            "device_available": device_available,
+            "input_devices": devices,
+            "buffer_capacity_samples": buffer_capacity,
+        }))
+    }
 }
 
 // Re-export voice commands — desktop uses real impl, Android gets stubs

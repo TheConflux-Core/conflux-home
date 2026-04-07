@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BrainCommand,
   BrainMode,
@@ -32,12 +32,15 @@ export function useConfluxController(options: UseConfluxControllerOptions = {}) 
   const [transparent, setTransparent] = useState(options.initialTransparent ?? true);
   const cadenceTimersRef = useRef<number[]>([]);
 
-  const setMode = useEffectEvent(
-    (
-      nextMode: BrainMode,
-      source: ConfluxStatusSource = "manual",
-      nextStatus?: string
-    ) => {
+  // Ref-stable callbacks: each ref holds the *latest* implementation.
+  // The public-facing wrapper uses useCallback([], []) so it never changes identity.
+  const clearCadenceTimers = useCallback(() => {
+    cadenceTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    cadenceTimersRef.current = [];
+  }, []);
+
+  const setModeRef = useRef(
+    (nextMode: BrainMode, source: ConfluxStatusSource = "manual", nextStatus?: string) => {
       const nextCommand = modeToCommand(nextMode);
       setCommand(nextCommand);
       setStatus(
@@ -51,17 +54,17 @@ export function useConfluxController(options: UseConfluxControllerOptions = {}) 
     }
   );
 
-  const triggerPulse = useEffectEvent((strength = 8, nextStatus = "Signal pulse") => {
+  const triggerPulseRef = useRef((strength = 8, nextStatus = "Signal pulse") => {
     setSignalCount((count) => count + strength);
     setPulseImpulse((value) => value + strength);
     setStatus(nextStatus);
   });
 
-  const routePulse = useEffectEvent(
+  const routePulseRef = useRef(
     (
       detail: PulseEventDetail,
       nextStatus = "Directed pulse",
-      options?: { updateStatus?: boolean }
+      opts?: { updateStatus?: boolean }
     ) => {
       const strength = detail.strength ?? 10;
       setSignalCount((count) => count + strength);
@@ -70,18 +73,13 @@ export function useConfluxController(options: UseConfluxControllerOptions = {}) 
         id: Date.now() + Math.floor(Math.random() * 1000),
         ...detail
       });
-      if (options?.updateStatus !== false) {
+      if (opts?.updateStatus !== false) {
         setStatus(nextStatus);
       }
     }
   );
 
-  const clearCadenceTimers = useEffectEvent(() => {
-    cadenceTimersRef.current.forEach((timer) => window.clearTimeout(timer));
-    cadenceTimersRef.current = [];
-  });
-
-  const runCadence = useEffectEvent(
+  const runCadenceRef = useRef(
     (
       detail: TokenCadenceDetail,
       fallbackRoute: BrainCommand["activeLobes"],
@@ -99,11 +97,11 @@ export function useConfluxController(options: UseConfluxControllerOptions = {}) 
       const burstsPerToken = detail.burstsPerToken ?? 2;
       const strength = detail.strength ?? 9;
 
-      setMode(fallbackMode, "manual", detail.status ?? fallbackStatus);
+      setModeRef.current(fallbackMode, "manual", detail.status ?? fallbackStatus);
 
       tokens.forEach((_, index) => {
         const timer = window.setTimeout(() => {
-          routePulse(
+          routePulseRef.current(
             {
               route,
               strength: strength + (index % 2 === 0 ? 1.2 : 0),
@@ -118,45 +116,7 @@ export function useConfluxController(options: UseConfluxControllerOptions = {}) 
     }
   );
 
-  const runSpeechCadence = useEffectEvent((detail: TokenCadenceDetail) => {
-    runCadence(
-      detail,
-      ["memory", "reasoning", "speech"],
-      detail.status ?? "Speaking cadence",
-      "speak"
-    );
-  });
-
-  const runListeningCadence = useEffectEvent((detail: TokenCadenceDetail) => {
-    runCadence(
-      detail,
-      ["perception", "reasoning"],
-      detail.status ?? "Listening cadence",
-      "listen"
-    );
-  });
-
-  const applyEvent = useEffectEvent(
-    (event: ConfluxExternalEvent, source: ConfluxStatusSource = "backend") => {
-      if (event.mode) {
-        setMode(event.mode, source, event.status);
-      }
-      if (event.speechCadence) {
-        runSpeechCadence(event.speechCadence);
-      }
-      if (event.listeningCadence) {
-        runListeningCadence(event.listeningCadence);
-      }
-      if (event.pulseEvent) {
-        routePulse(event.pulseEvent, event.status ?? "Directed pulse");
-      }
-      if (event.pulse) {
-        triggerPulse(event.pulse, event.status ?? "Signal pulse");
-      }
-    }
-  );
-
-  const reset = useEffectEvent(() => {
+  const resetRef = useRef(() => {
     clearCadenceTimers();
     setCommand(DEFAULT_COMMAND);
     setSignalCount(12);
@@ -165,6 +125,85 @@ export function useConfluxController(options: UseConfluxControllerOptions = {}) 
     setStatus(options.initialStatus ?? "Conflux is dormant");
   });
 
+  // ── Stable wrapper functions ──────────────────────────────────────────
+  // These use useCallback with [] deps so they never change identity.
+
+  const setMode = useCallback(
+    (nextMode: BrainMode, source?: ConfluxStatusSource, nextStatus?: string) => {
+      setModeRef.current(nextMode, source, nextStatus);
+    },
+    []
+  );
+
+  const triggerPulse = useCallback((strength?: number, nextStatus?: string) => {
+    triggerPulseRef.current(strength, nextStatus);
+  }, []);
+
+  const routePulse = useCallback(
+    (detail: PulseEventDetail, nextStatus?: string, opts?: { updateStatus?: boolean }) => {
+      routePulseRef.current(detail, nextStatus, opts);
+    },
+    []
+  );
+
+  const runSpeechCadence = useCallback((detail: TokenCadenceDetail) => {
+    runCadenceRef.current(
+      detail,
+      ["memory", "reasoning", "speech"],
+      detail.status ?? "Speaking cadence",
+      "speak"
+    );
+  }, []);
+
+  const runListeningCadence = useCallback((detail: TokenCadenceDetail) => {
+    runCadenceRef.current(
+      detail,
+      ["perception", "reasoning"],
+      detail.status ?? "Listening cadence",
+      "listen"
+    );
+  }, []);
+
+  const applyEvent = useCallback(
+    (event: ConfluxExternalEvent, source: ConfluxStatusSource = "backend") => {
+      if (event.pulseImpulse !== undefined) {
+        // Direct volume-driven impulse (e.g. from mic RMS monitor)
+        setPulseImpulse(event.pulseImpulse);
+      }
+      if (event.mode) {
+        setModeRef.current(event.mode, source, event.status);
+      }
+      if (event.speechCadence) {
+        runCadenceRef.current(
+          event.speechCadence,
+          ["memory", "reasoning", "speech"],
+          event.speechCadence.status ?? "Speaking cadence",
+          "speak"
+        );
+      }
+      if (event.listeningCadence) {
+        runCadenceRef.current(
+          event.listeningCadence,
+          ["perception", "reasoning"],
+          event.listeningCadence.status ?? "Listening cadence",
+          "listen"
+        );
+      }
+      if (event.pulseEvent) {
+        routePulseRef.current(event.pulseEvent, event.status ?? "Directed pulse");
+      }
+      if (event.pulse) {
+        triggerPulseRef.current(event.pulse, event.status ?? "Signal pulse");
+      }
+    },
+    []
+  );
+
+  const reset = useCallback(() => {
+    resetRef.current();
+  }, []);
+
+  // Decay interval — runs forever while mounted, clears cadence timers on unmount.
   useEffect(() => {
     const decay = window.setInterval(() => {
       setPulseImpulse((value) => Math.max(0, value - 1.2));
@@ -175,6 +214,8 @@ export function useConfluxController(options: UseConfluxControllerOptions = {}) 
     };
   }, [clearCadenceTimers]);
 
+  // The returned object is only recreated when state values change,
+  // because every function in deps is referentially stable.
   return useMemo(
     () => ({
       command,
@@ -194,19 +235,12 @@ export function useConfluxController(options: UseConfluxControllerOptions = {}) 
       reset
     }),
     [
-      applyEvent,
       command,
       pulseEvent,
       pulseImpulse,
-      reset,
-      routePulse,
-      runListeningCadence,
-      runSpeechCadence,
-      setMode,
       signalCount,
       status,
-      transparent,
-      triggerPulse
+      transparent
     ]
   );
 }
