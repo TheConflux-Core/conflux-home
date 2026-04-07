@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ConfluxPresence, useConfluxController, attachTauriConfluxListeners } from './conflux';
 import type { ConfluxTauriListen } from './conflux';
 import { View } from '../types';
@@ -6,12 +6,21 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 
+interface WizardSequenceStep {
+  x: number;
+  y: number;
+  delay: number;
+  label?: string;
+}
+
 interface ConfluxOrbitProps {
   view: View;
   immersiveView: View | null;
   chatOpen: boolean;
   voiceChatOpen: boolean;
   isPushToTalkActive: boolean;
+  wizardMode?: boolean;
+  wizardSequence?: WizardSequenceStep[];
 }
 
 // Magnetic Zones: target coordinates for each app view
@@ -53,7 +62,24 @@ const APP_LOBE_MAP: Record<string, string> = {
   'api-dashboard': 'perception',
 };
 
-export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatOpen, isPushToTalkActive }: ConfluxOrbitProps) {
+export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatOpen, isPushToTalkActive, wizardMode = false, wizardSequence = [] }: ConfluxOrbitProps) {
+
+  // Wizard Mode: cycle through sequence steps
+  const [wizardStepIndex, setWizardStepIndex] = useState(0);
+
+  useEffect(() => {
+    if (!wizardMode || wizardSequence.length === 0) {
+      setWizardStepIndex(0);
+      return;
+    }
+
+    const currentStep = wizardSequence[wizardStepIndex % wizardSequence.length];
+    const timer = setTimeout(() => {
+      setWizardStepIndex(prev => (prev + 1) % wizardSequence.length);
+    }, currentStep.delay);
+
+    return () => clearTimeout(timer);
+  }, [wizardMode, wizardSequence]); // Removed wizardStepIndex to prevent infinite loop
 
   // Audio Context for TTS playback
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -280,7 +306,13 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
   const isSpeaking = conflux.mode === 'speak';
   const isThinking = conflux.mode === 'focus';
 
-  if (isPushToTalkActive || isSpeaking) {
+  if (wizardMode && wizardSequence.length > 0) {
+    // Wizard Mode: override position with sequence coordinates
+    const currentStep = wizardSequence[wizardStepIndex % wizardSequence.length];
+    targetX = (dimensions.width - 300) * currentStep.x;
+    targetY = (dimensions.height - 300) * currentStep.y;
+    scale = 1;
+  } else if (isPushToTalkActive || isSpeaking) {
     // When listening (PTT) or Speaking, fly to the center and grow
     targetX = dimensions.width / 2 - 250;
     targetY = dimensions.height / 2 - 250;
@@ -321,25 +353,35 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
   }
 
   // Fly-Over Animation: curved bezier flight path using spring physics
-  // Instead of linear interpolation, use a spring with bezier offset for organic movement
+  // For wizard mode, the spring handles the final position settle;
+  // the organic curve/oscillation is applied via the wizardOffset wrapper.
   const getTransitionConfig = () => {
-    const isBuilderModeTransition = isBuilderMode;
-    
+    if (wizardMode) {
+      // Snappy spring for the base position — the organic wiggle is layered on top
+      return {
+        type: 'spring' as const,
+        stiffness: 200,
+        damping: 22,
+        mass: 0.3,
+        bounce: 0.1,
+      };
+    }
     return {
       type: 'spring' as const,
-      stiffness: isBuilderModeTransition ? 120 : 80, // Snappier in builder mode
-      damping: isBuilderModeTransition ? 20 : 18,
-      mass: isBuilderModeTransition ? 0.4 : 0.6,    // Lighter feels more responsive
+      stiffness: isBuilderMode ? 120 : 80,
+      damping: isBuilderMode ? 20 : 18,
+      mass: isBuilderMode ? 0.4 : 0.6,
       bounce: 0.3,
       duration: 0.8,
     };
   };
 
-  // Add bezier offset for curved flight path
+  // Add bezier offset for curved flight path (non-wizard mode only)
   const [bezierOffset, setBezierOffset] = useState({ x: 0, y: 0 });
   const prevImmersiveViewRef = useRef(immersiveView);
 
   useEffect(() => {
+    if (wizardMode) return; // Skip non-wizard bezier — wizard has its own
     if (immersiveView !== prevImmersiveViewRef.current && immersiveView) {
       // Trigger a brief "fly-over" curve when entering a new app
       const curveDirection = Math.random() > 0.5 ? 1 : -1;
@@ -352,7 +394,161 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
       return () => clearTimeout(timer);
     }
     prevImmersiveViewRef.current = immersiveView;
-  }, [immersiveView]);
+  }, [immersiveView, wizardMode]);
+
+  // ─── Wizard Mode: Organic Bezier Movement ─────────────────────────
+  // Layered on top of the base spring position so non-wizard transitions stay intact.
+  // Phases: dashing (bezier curve + oscillation) → hovering (settle) → thinking (micro-drift)
+  const [wizardOffset, setWizardOffset] = useState({ x: 0, y: 0 });
+  // Ref mirror of wizardOffset to avoid reading stale state inside the rAF loop
+  const wizardOffsetRef = useRef({ x: 0, y: 0 });
+  const wizardAnimRef = useRef<{
+    rafId: number;
+    phase: 'dashing' | 'hovering' | 'thinking';
+    phaseStart: number;
+    ctrlX: number;
+    ctrlY: number;
+    oscFreq: number;
+    oscAmp: number;
+    srcX: number;
+    srcY: number;
+    dashDuration: number;
+    hoverDuration: number;
+    thinkDuration: number;
+    lastStepKey: string;
+  }>({
+    rafId: 0,
+    phase: 'dashing',
+    phaseStart: 0,
+    ctrlX: 0,
+    ctrlY: 0,
+    oscFreq: 3 + Math.random() * 3,
+    oscAmp: 12 + Math.random() * 15,
+    srcX: 0,
+    srcY: 0,
+    dashDuration: 400 + Math.random() * 200,   // 400-600ms fast dash
+    hoverDuration: 300 + Math.random() * 200,   // 300-500ms brief pause
+    thinkDuration: 500 + Math.random() * 400,   // 500-900ms micro-drift
+    lastStepKey: '',
+  });
+
+  // Sync ref with state to avoid stale reads in RAF loop
+  useEffect(() => {
+    wizardOffsetRef.current = wizardOffset;
+  }, [wizardOffset]);
+
+  useEffect(() => {
+    if (!wizardMode || wizardSequence.length === 0) {
+      setWizardOffset({ x: 0, y: 0 });
+      const a = wizardAnimRef.current;
+      if (a.rafId) cancelAnimationFrame(a.rafId);
+      return;
+    }
+
+    const currentStep = wizardSequence[wizardStepIndex % wizardSequence.length];
+    const stepKey = `${currentStep.x},${currentStep.y},${wizardStepIndex}`;
+
+    const state = wizardAnimRef.current;
+    const now = performance.now();
+    const prevRafId = state.rafId; // Store previous ID before starting new loop
+
+    // Each step restarts the dashing phase with fresh random params
+    if (stepKey !== state.lastStepKey) {
+      state.lastStepKey = stepKey;
+
+      // Source = current apparent offset (smooth handoff)
+      state.srcX = wizardOffsetRef.current.x;
+      state.srcY = wizardOffsetRef.current.y;
+
+      // Quadratic bezier control point with random offset from midpoint
+      state.ctrlX = state.srcX / 2 + (Math.random() - 0.5) * 200;
+      state.ctrlY = state.srcY / 2 + (Math.random() - 0.5) * 100;
+
+      // Randomise oscillation and pacing per step
+      state.oscFreq = 3 + Math.random() * 3;
+      state.oscAmp = 12 + Math.random() * 15;
+      state.dashDuration = 400 + Math.random() * 200;
+      state.hoverDuration = 300 + Math.random() * 200;
+      state.thinkDuration = 500 + Math.random() * 400;
+
+      state.phase = 'dashing';
+      state.phaseStart = now;
+    }
+
+    // Cancel any previous loop before starting a new one
+    if (prevRafId) cancelAnimationFrame(prevRafId);
+
+    // Quadratic bezier: B(t) = (1-t)²P0 + 2(1-t)tP1 + t²P2
+    // P0=src, P1=ctrl, P2=(0,0) — always curves back to the spring-settled position
+    function quadBezier(p0: number, p1: number, p2: number, t: number): number {
+      const mt = 1 - t;
+      return mt * mt * p0 + 2 * mt * t * p1 + t * t * p2;
+    }
+
+    function loop() {
+      const s = wizardAnimRef.current;
+      const t = performance.now();
+      const elapsed = t - s.phaseStart;
+
+      if (s.phase === 'dashing') {
+        const rawT = Math.min(elapsed / s.dashDuration, 1);
+        // Ease-out cubic for snappy dash feel
+        const easedT = 1 - Math.pow(1 - rawT, 3);
+
+        const bx = quadBezier(s.srcX, s.ctrlX, 0, easedT);
+        const by = quadBezier(s.srcY, s.ctrlY, 0, easedT);
+
+        // Sine-wave zig-zag perpendicular to travel (fades out near destination)
+        const zigFade = 1 - rawT * rawT; // fade quickly
+        const zigzagX = Math.sin(easedT * s.oscFreq * Math.PI * 2) * s.oscAmp * zigFade;
+        const zigzagY = Math.cos(easedT * s.oscFreq * Math.PI * 2) * s.oscAmp * 0.5 * zigFade;
+
+        setWizardOffset({ x: bx + zigzagX, y: by + zigzagY });
+
+        if (rawT >= 1) {
+          s.phase = 'hovering';
+          s.phaseStart = t;
+        }
+      } else if (s.phase === 'hovering') {
+        // Small jitter — like a butterfly hovering
+        const jitterX = (Math.random() - 0.5) * 3;
+        const jitterY = (Math.random() - 0.5) * 3;
+        setWizardOffset({ x: jitterX, y: jitterY });
+
+        if (elapsed >= s.hoverDuration) {
+          s.phase = 'thinking';
+          s.phaseStart = t;
+        }
+      } else if (s.phase === 'thinking') {
+        // Organic micro-drift with layered sine waves (two frequencies = loopy Lissajous)
+        const driftAmp = 6;
+        const dx = Math.sin(t * 0.004) * driftAmp + Math.sin(t * 0.009) * driftAmp * 0.5;
+        const dy = Math.cos(t * 0.005) * driftAmp * 0.8 + Math.cos(t * 0.011) * driftAmp * 0.3;
+        setWizardOffset({ x: dx, y: dy });
+
+        if (elapsed >= s.thinkDuration) {
+          // Loop back to dashing with fresh random params
+          s.srcX = dx;
+          s.srcY = dy;
+          s.ctrlX = dx / 2 + (Math.random() - 0.5) * 200;
+          s.ctrlY = dy / 2 + (Math.random() - 0.5) * 100;
+          s.oscFreq = 3 + Math.random() * 3;
+          s.oscAmp = 12 + Math.random() * 15;
+          s.dashDuration = 400 + Math.random() * 200;
+          s.hoverDuration = 300 + Math.random() * 200;
+          s.thinkDuration = 500 + Math.random() * 400;
+          s.phase = 'dashing';
+          s.phaseStart = t;
+        }
+      }
+
+      s.rafId = requestAnimationFrame(loop);
+    }
+
+    state.rafId = requestAnimationFrame(loop);
+    const currentRafId = state.rafId;
+    return () => cancelAnimationFrame(currentRafId);
+  }, [wizardMode, wizardSequence, wizardStepIndex]);
 
   if (dimensions.width === 0) return null;
 
@@ -362,11 +558,12 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
 
   return (
     <>
+      {/* Base position — spring-driven to target */}
       <motion.div
         initial={false}
         animate={{ 
-          x: targetX + bezierOffset.x, 
-          y: targetY + bezierOffset.y, 
+          x: targetX + (wizardMode ? 0 : bezierOffset.x), 
+          y: targetY + (wizardMode ? 0 : bezierOffset.y), 
           scale,
           filter: builderModeFilter,
         }}
@@ -379,16 +576,54 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
           left: 0,
         }}
       >
-        <ConfluxPresence
-          command={conflux.command}
-          pulseImpulse={conflux.pulseImpulse}
-          pulseEvent={conflux.pulseEvent}
-          transparent={conflux.transparent}
-          effectivePalette={conflux.effectivePalette}
-          style={{ width: 300, height: 300 }}
-        />
+        {/* Wizard organic offset — wraps ConfluxPresence to layer bezier + oscillation on top of base spring */}
+        <motion.div
+          animate={wizardMode ? { x: wizardOffset.x, y: wizardOffset.y } : { x: 0, y: 0 }}
+          transition={wizardMode ? { duration: 0 } : { type: 'spring', stiffness: 80, damping: 18 }}
+          style={{ position: 'relative', top: 0, left: 0 }}
+        >
+          <ConfluxPresence
+            command={conflux.command}
+            pulseImpulse={conflux.pulseImpulse}
+            pulseEvent={conflux.pulseEvent}
+            transparent={conflux.transparent}
+            effectivePalette={conflux.effectivePalette}
+            style={{ width: 300, height: 300 }}
+          />
+        </motion.div>
       </motion.div>
-      
+
+      {/* Wizard Mode Label */}
+      <AnimatePresence>
+        {wizardMode && wizardSequence.length > 0 && (() => {
+          const currentStep = wizardSequence[wizardStepIndex % wizardSequence.length];
+          if (!currentStep.label) return null;
+          return (
+            <motion.div
+              key={wizardStepIndex}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3 }}
+              style={{
+                position: 'fixed',
+                left: targetX + 150 + (wizardMode ? wizardOffset.x : 0),
+                top: targetY + 320 + (wizardMode ? wizardOffset.y : 0),
+                zIndex: 101,
+                pointerEvents: 'none',
+                color: 'var(--accent-primary)',
+                fontSize: 16,
+                fontWeight: 600,
+                textAlign: 'center',
+                textShadow: '0 0 12px var(--accent-primary)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {currentStep.label}
+            </motion.div>
+          );
+        })()}
+      </AnimatePresence>
 
     </>
   );

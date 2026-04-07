@@ -601,30 +601,27 @@ const [activeSnake, setActiveSnake] = useState(false);
     return () => window.removeEventListener('conflux:open-chat', handler);
   }, [agents]);
 
-  // Handle onboarding completion
-  const handleOnboardingComplete = useCallback((goals: string[], agentIds: string[]) => {
+  // Handle onboarding completion — receives (goals, selectedApps) from the Wizard
+  const handleOnboardingComplete = useCallback((_goals: string[], selectedApps: string[]) => {
     const name = localStorage.getItem('conflux-name') || 'there';
     setUserName(name);
-    setSelectedAgentIds(agentIds);
 
     // 1. Persist locally
     localStorage.setItem('conflux-onboarded', 'true');
-    localStorage.setItem('conflux-goals', JSON.stringify(goals));
-    localStorage.setItem('conflux-selected-agents', JSON.stringify(agentIds));
+    localStorage.setItem('conflux-setup-apps', JSON.stringify(selectedApps));
 
     // 2. Create the Family Member record in the local DB (isolated by user_id in Rust)
-    // We wait for this to ensure the user has a profile in the system
     if (user) {
-      invoke('family_create', { 
-        req: { 
-          name, 
-          age: null as unknown as number, 
-          age_group: 'adult', 
-          avatar: '👤', 
-          color: '#6366f1', 
-          default_agent_id: 'conflux', 
-          parent_id: null 
-        } 
+      invoke('family_create', {
+        req: {
+          name,
+          age: null as unknown as number,
+          age_group: 'adult',
+          avatar: '👤',
+          color: '#6366f1',
+          default_agent_id: 'conflux',
+          parent_id: null
+        }
       }).catch(e => console.error('[Onboarding] Failed to create family member:', e));
 
       // 3. Save onboarding state to Supabase
@@ -632,19 +629,23 @@ const [activeSnake, setActiveSnake] = useState(false);
         supabase.from('ch_profiles').upsert({
           id: user.id,
           onboarded: true,
-          onboarding_goals: goals,
-          selected_agents: agentIds,
+          onboarding_goals: selectedApps,
           display_name: name,
         }).then()
       })
-      trackEvent(user.id, null, 'onboarding_completed', { goals, agentIds })
+      trackEvent(user.id, null, 'onboarding_completed', { selectedApps })
     }
+
     setIsOnboarded(true);
 
-    // Show welcome if not already welcomed
+    // Gate: WelcomeOverlay (first-time) or GuidedTour (returning user)
     const alreadyWelcomed = localStorage.getItem('conflux-welcomed') === 'true';
-    setShowWelcome(!alreadyWelcomed);
-    setIsOnboarded(true);
+    if (!alreadyWelcomed) {
+      setShowWelcome(true);
+    } else if (shouldAutoStartTour()) {
+      // Delay so desktop renders and tour targets exist in the DOM
+      setTimeout(() => setShowTour(true), 1500);
+    }
   }, [user]);
 
   // Handle welcome dismiss
