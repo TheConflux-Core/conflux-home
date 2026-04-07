@@ -3,7 +3,9 @@ import {
   BrainCommand,
   BrainMode,
   COMMANDS,
-  DEFAULT_COMMAND
+  DEFAULT_COMMAND,
+  APP_PALETTES,
+  PaletteName
 } from "../../lib/neuralBrain";
 import {
   ConfluxExternalEvent,
@@ -19,6 +21,7 @@ export type UseConfluxControllerOptions = {
   initialMode?: BrainMode;
   initialStatus?: string;
   initialTransparent?: boolean;
+  initialAppPalette?: PaletteName;
 };
 
 export function useConfluxController(options: UseConfluxControllerOptions = {}) {
@@ -30,6 +33,7 @@ export function useConfluxController(options: UseConfluxControllerOptions = {}) 
   const [pulseEvent, setPulseEvent] = useState<(PulseEventDetail & { id: number }) | undefined>();
   const [status, setStatus] = useState(options.initialStatus ?? "Conflux is dormant");
   const [transparent, setTransparent] = useState(options.initialTransparent ?? true);
+  const [appPalette, setAppPalette] = useState<PaletteName | null>(options.initialAppPalette ?? null);
   const cadenceTimersRef = useRef<number[]>([]);
 
   // Ref-stable callbacks: each ref holds the *latest* implementation.
@@ -51,6 +55,8 @@ export function useConfluxController(options: UseConfluxControllerOptions = {}) 
       );
       setSignalCount((count) => count + Math.ceil(nextCommand.glowBoost * 2));
       setPulseImpulse((value) => value + 6 + nextCommand.glowBoost * 4);
+      // Clear app palette when mode changes
+      setAppPalette(null);
     }
   );
 
@@ -164,6 +170,13 @@ export function useConfluxController(options: UseConfluxControllerOptions = {}) 
     );
   }, []);
 
+  const setAppPaletteMode = useCallback((palette: PaletteName) => {
+    setAppPalette(palette);
+    setStatus(`App palette: ${palette}`);
+    setSignalCount((count) => count + 4);
+    setPulseImpulse((value) => value + 4);
+  }, []);
+
   const applyEvent = useCallback(
     (event: ConfluxExternalEvent, source: ConfluxStatusSource = "backend") => {
       if (event.pulseImpulse !== undefined) {
@@ -172,6 +185,9 @@ export function useConfluxController(options: UseConfluxControllerOptions = {}) 
       }
       if (event.mode) {
         setModeRef.current(event.mode, source, event.status);
+      }
+      if (event.appPalette) {
+        setAppPaletteMode(event.appPalette as PaletteName);
       }
       if (event.speechCadence) {
         runCadenceRef.current(
@@ -196,7 +212,7 @@ export function useConfluxController(options: UseConfluxControllerOptions = {}) 
         triggerPulseRef.current(event.pulse, event.status ?? "Signal pulse");
       }
     },
-    []
+    [setAppPaletteMode]
   );
 
   const reset = useCallback(() => {
@@ -214,6 +230,15 @@ export function useConfluxController(options: UseConfluxControllerOptions = {}) 
     };
   }, [clearCadenceTimers]);
 
+  // Compute effective palette: app palette overrides command palette
+  const effectivePalette = useMemo(() => {
+    const appPaletteEntry = appPalette ? APP_PALETTES[appPalette] : undefined;
+    if (appPaletteEntry) {
+      return appPaletteEntry;
+    }
+    return command.palette;
+  }, [appPalette, command.palette]);
+
   // The returned object is only recreated when state values change,
   // because every function in deps is referentially stable.
   return useMemo(
@@ -225,8 +250,11 @@ export function useConfluxController(options: UseConfluxControllerOptions = {}) 
       signalCount,
       status,
       transparent,
+      appPalette,
+      effectivePalette,
       setTransparent,
       setMode,
+      setAppPaletteMode,
       triggerPulse,
       routePulse,
       runSpeechCadence,
@@ -240,7 +268,9 @@ export function useConfluxController(options: UseConfluxControllerOptions = {}) 
       pulseImpulse,
       signalCount,
       status,
-      transparent
+      transparent,
+      appPalette,
+      effectivePalette
     ]
   );
 }

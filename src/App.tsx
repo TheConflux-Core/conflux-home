@@ -312,7 +312,7 @@ export default function App() {
           console.log('[Voice] Transcribing with OpenAI Whisper...');
           const text = await invoke('voice_transcribe');
           
-          if (text && text.trim().length > 0) {
+          if (text && typeof text === 'string' && text.trim().length > 0) {
             console.log('[Voice] Transcribed:', text);
             // Send to Conflux for a response
             await handleVoiceInput(text);
@@ -336,18 +336,40 @@ export default function App() {
 
         // Route to the main chat engine (using Conflux as the primary persona)
         // Using an existing session ID found in the DB to avoid FK errors
+        // Create or reuse a session for voice chat
+        // First, try to get existing sessions for 'conflux' agent
+        const sessions = await invoke('engine_get_sessions', { limit: 10 });
+        let sessionId = 'e95f3a8e-9246-48e3-a70b-0ae13d164d1a'; // fallback
+        
+        if (Array.isArray(sessions) && sessions.length > 0) {
+          // Look for an active session with the 'conflux' agent
+          const voiceSession = sessions.find((s: any) => s.agent_id === 'conflux');
+          if (voiceSession) {
+            sessionId = voiceSession.id;
+          } else {
+            // Create a new session for voice chat
+            const newSession = await invoke('engine_create_session', { agent_id: 'conflux' });
+            sessionId = (newSession as any).id;
+          }
+        } else {
+          // No sessions found, create a new one
+          const newSession = await invoke('engine_create_session', { agent_id: 'conflux' });
+          sessionId = (newSession as any).id;
+        }
+
         const response = await invoke('engine_chat', {
           req: {
-            session_id: 'e95f3a8e-9246-48e3-a70b-0ae13d164d1a',
+            session_id: sessionId,
             agent_id: 'conflux',
             message: text,
           }
         });
 
         // Trigger TTS for the response
-        if (response.content) {
+        const chatResponse = response as any;
+        if (chatResponse.content) {
           await invoke('voice_synthesize', { 
-            text: response.content, 
+            text: chatResponse.content, 
             window: null 
           });
         }

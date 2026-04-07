@@ -39,6 +39,12 @@ pub async fn stream_tts(
         return Err(Box::from("ELEVENLABS_API_KEY is not set"));
     }
 
+    // Emit Speaking state when TTS starts
+    let _ = window.emit("conflux:state", serde_json::json!({
+        "state": "Speaking",
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+    }));
+
     let client = Client::new();
     let url = format!(
         "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream",
@@ -74,8 +80,10 @@ pub async fn stream_tts(
     // In a production implementation, we would parse the audio stream amplitude.
     let tokens: Vec<String> = text.split_whitespace().map(|s| s.to_string()).collect();
     
-    // Emit cadence immediately for visual sync
+    // Emit cadence immediately for visual sync (sends conflux:state event)
     let event_payload = serde_json::json!({
+        "state": "Speaking",
+        "timestamp": chrono::Utc::now().to_rfc3339(),
         "speechCadence": {
             "tokens": tokens,
             "intervalMs": 100, // Adjust based on speaking speed
@@ -106,6 +114,14 @@ pub async fn stream_tts(
             "burstsPerToken": 1,
             "route": ["speech", "memory"],
         }
+    }));
+
+    // Emit Idle state after TTS playback completes
+    log::info!("[TTS] Emitting Idle state after playback complete");
+    let _ = window.emit("conflux:state", serde_json::json!({
+        "state": "Idle",
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "source": "synth.rs",
     }));
 
     Ok(())
