@@ -17,7 +17,7 @@ import AgentDetail from './components/AgentDetail';
 import Onboarding from './components/Onboarding';
 import WelcomeOverlay from './components/WelcomeOverlay';
 import AgentIntroductions from './components/AgentIntroductions';
-import { ConfluxPresence, useConfluxController } from './components/conflux';
+import ConfluxOrbit from './components/ConfluxOrbit';
 import LoginScreen from './components/LoginScreen';
 import Settings from './components/Settings';
 import SplashScreen from './components/SplashScreen';
@@ -116,6 +116,7 @@ function getDefaultWallpaper(): string {
 
 export default function App() {
   const [view, setView] = useState<View>('dashboard');
+  const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
   const [immersiveView, setImmersiveView] = useState<View | null>(null);
   const [controlRoom, setControlRoom] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
@@ -274,34 +275,38 @@ export default function App() {
 
 
 
-  // Conflux Neural Brain Controller
-  const conflux = useConfluxController({
-    initialMode: 'idle',
-    initialTransparent: true,
-    initialStatus: 'System Online',
-  });
-
-  // Wire Tauri events to Conflux controller
+  // Push-to-Talk Global Handler
   useEffect(() => {
-    if (!authenticated) return;
-    let unlisten1: (() => void) | undefined;
-    let unlisten2: (() => void) | undefined;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input field
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
-    listen('conflux:state', (event) => {
-      const payload = event.payload as any;
-      conflux.applyEvent(payload, 'backend');
-    }).then(u => { unlisten1 = u; });
+      // Spacebar triggers push-to-talk
+      if (e.code === 'Space' && !isPushToTalkActive) {
+        e.preventDefault();
+        setIsPushToTalkActive(true);
+        
+        // Update ConfluxOrbit state via event or context (we'll wire this next)
+        // For now, we'll dispatch a custom event that ConfluxOrbit can listen to
+        window.dispatchEvent(new CustomEvent('push-to-talk-start'));
+      }
+    };
 
-    listen('conflux:pulse', (event) => {
-      const payload = event.payload as any;
-      conflux.applyEvent(payload, 'backend');
-    }).then(u => { unlisten2 = u; });
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && isPushToTalkActive) {
+        setIsPushToTalkActive(false);
+        window.dispatchEvent(new CustomEvent('push-to-talk-end'));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
 
     return () => {
-      unlisten1?.();
-      unlisten2?.();
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [authenticated, conflux]);
+  }, [isPushToTalkActive]);
 
   // On first render, clear the session flag so boot cards show every page reload
   useEffect(() => {
@@ -989,16 +994,14 @@ const [activeSnake, setActiveSnake] = useState(false);
         />
       )}
 
-      {/* Conflux Neural Brain — Floating "Jarvis" Presence */}
-      <div className="conflux-presence-overlay">
-        <ConfluxPresence
-          command={conflux.command}
-          pulseImpulse={conflux.pulseImpulse}
-          pulseEvent={conflux.pulseEvent}
-          transparent={true}
-          style={{ width: 400, height: 400, position: 'fixed', right: 20, bottom: 80, zIndex: 50 }}
-        />
-      </div>
+      {/* Conflux Neural Brain — The "Zelda Fairy" */}
+      <ConfluxOrbit 
+        view={view}
+        immersiveView={immersiveView}
+        chatOpen={chatOpen}
+        voiceChatOpen={voiceChatOpen}
+        isPushToTalkActive={isPushToTalkActive}
+      />
 
       {/* Global AI Input — sits above the dock */}
       <GlobalAIInput
