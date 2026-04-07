@@ -259,6 +259,8 @@ pub fn run() {
             commands::kitchen_get_nudges,
             commands::kitchen_smart_grocery,
             commands::kitchen_get_meal_photos,
+            // Onboarding Setup
+            commands::save_budget_data,
             // Budget Tracker
             commands::budget_add_entry,
             commands::budget_get_entries,
@@ -420,6 +422,7 @@ pub fn run() {
             commands::studio_get_api_keys_status,
             commands::studio_generate_image,
             commands::studio_generate_voice,
+            commands::tts_speak,
             // Voice Input (desktop only — see cfg below)
             #[cfg(not(target_os = "android"))]
             commands::voice_cmds::voice_capture_start,
