@@ -100,11 +100,11 @@ export const COMMANDS: BrainCommand[] = [
     scale: 1.04,
     turbulence: 0.16,
     palette: {
-      node: "#7af0ff",
-      hot: "#f5ffff",
-      line: "#164f69",
-      glow: "#9bfaff",
-      aura: "#2c7f7c"
+      node: "#a855f7", // Indigo/Purple
+      hot: "#e9d5ff",
+      line: "#581c87",
+      glow: "#c084fc",
+      aura: "#7e22ce"
     },
     driftAxis: [-0.22, 0.2, 0.12],
     wobble: 0.2,
