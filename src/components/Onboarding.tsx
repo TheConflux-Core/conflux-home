@@ -1,144 +1,58 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { playTourBlip, playTeamAlive, playHeartbeat, playWelcomeChime } from '../lib/sound';
-
-import Avatar from './Avatar';
+import { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { playTourBlip, playHeartbeat, playWelcomeChime } from '../lib/sound';
+import { NeuralBrainScene } from './NeuralBrainScene';
 import '../styles/animations.css';
 
 // ── Types ──
 
 interface OnboardingProps {
-  onComplete: (goals: string[], selectedAgents: string[]) => void;
+  onComplete: (goals: string[], selectedApps: string[]) => void;
 }
 
-// ── Constants ──
+// ── Apps for Step 2 ──
 
-interface GoalOption {
-  id: string;
-  slug: string;
-  emoji: string;
-  title: string;
-  description: string;
-}
-
-const GOALS: GoalOption[] = [
-  { id: 'business', slug: 'building-a-business', emoji: '🚀', title: 'Building a business', description: 'Strategy, research, content, and growth' },
-  { id: 'learn', slug: 'learning-research', emoji: '📚', title: 'Learning & research', description: 'Deep dives, analysis, and knowledge building' },
-  { id: 'work', slug: 'work-productivity', emoji: '💼', title: 'Work productivity', description: 'Task management, writing, and automation' },
-  { id: 'creative', slug: 'creative-projects', emoji: '🎨', title: 'Creative projects', description: 'Writing, design, and brainstorming' },
-  { id: 'life', slug: 'everyday-life', emoji: '🏠', title: 'Everyday life', description: 'Planning, organizing, and daily help' },
-];
-
-const GOAL_AGENT_MAP: Record<string, string[]> = {
-  'building-a-business': ['conflux', 'helix', 'forge', 'vector', 'pulse'],
-  'learning-research': ['helix', 'quanta', 'conflux'],
-  'work-productivity': ['prism', 'forge', 'spectra', 'quanta'],
-  'creative-projects': ['forge', 'pulse', 'helix'],
-  'everyday-life': ['conflux', 'helix', 'catalyst'],
-};
-
-interface AgentInfo {
+interface AppOption {
   id: string;
   name: string;
   emoji: string;
-  role: string;
-  why: string;
+  description: string;
 }
 
-const ALL_AGENTS: Record<string, AgentInfo> = {
-  conflux: { id: 'conflux', name: 'Conflux', emoji: '🤖', role: 'Strategic Partner', why: 'Guides your strategy and helps you think clearly about opportunities' },
-  helix: { id: 'helix', name: 'Helix', emoji: '🔬', role: 'Market Researcher', why: 'Finds market data, competitor intel, and validates ideas' },
-  forge: { id: 'forge', name: 'Forge', emoji: '🔨', role: 'Execution Builder', why: 'Builds products, writes code, and creates deliverables' },
-  vector: { id: 'vector', name: 'Vector', emoji: '🧭', role: 'Business Strategist', why: 'Evaluates opportunities and keeps your portfolio on track' },
-  pulse: { id: 'pulse', name: 'Pulse', emoji: '📣', role: 'Growth Engine', why: 'Handles marketing, launch strategy, and audience building' },
-  quanta: { id: 'quanta', name: 'Quanta', emoji: '✅', role: 'Quality Control', why: 'Verifies outputs, checks facts, and ensures quality' },
-  prism: { id: 'prism', name: 'Prism', emoji: '💎', role: 'System Orchestrator', why: 'Coordinates missions and manages the agent pipeline' },
-  spectra: { id: 'spectra', name: 'Spectra', emoji: '🧩', role: 'Task Decomposer', why: 'Breaks complex goals into clear, actionable tasks' },
-  luma: { id: 'luma', name: 'Luma', emoji: '🚀', role: 'Run Launcher', why: 'Launches and monitors agent runs across the system' },
-  catalyst: { id: 'catalyst', name: 'Catalyst', emoji: '⚡', role: 'Everyday Assistant', why: 'Helps with daily planning, organization, and quick tasks' },
-};
-
-// ── Keyword-based conversation responses ──
-
-const KEYWORD_RESPONSES = [
-  {
-    keywords: ['business', 'startup', 'company', 'agency', 'scale', 'revenue', 'growth', 'marketing', 'clients', 'sales', 'money', 'earn', 'income'],
-    agents: ['conflux', 'helix', 'forge', 'vector', 'pulse'],
-    response: "Got it. You're building something and you want to grow.\n\nI'm thinking:\n• Helix 🔬 — she'll dig into your market and find what your competitors are missing\n• Pulse 📣 — he handles all the marketing and launch strategy\n• Forge 🔨 — he builds. Landing pages, content, automation. Fast.\n\nAnd obviously me. I'm not going anywhere.",
-  },
-  {
-    keywords: ['learn', 'research', 'study', 'understand', 'knowledge', 'analysis', 'curious', 'interesting', 'read', 'explore', 'figure out'],
-    agents: ['conflux', 'helix', 'quanta'],
-    response: "Love the curiosity. You want to dig deep and actually understand things.\n\nFor that:\n• Helix 🔬 — deep research specialist. Give her a question, she'll find answers nobody else has.\n• Quanta ✅ — she verifies everything. No fake facts.\n\nI'll be here to help you think through what you find.",
-  },
-  {
-    keywords: ['code', 'build', 'develop', 'app', 'software', 'automate', 'technical', 'programming', 'website', 'tool'],
-    agents: ['forge', 'quanta', 'spectra', 'prism'],
-    response: "A builder. I like it.\n\nYour crew:\n• Forge 🔨 — writes code, builds products. Fast.\n• Spectra 🧩 — breaks big goals into small steps.\n• Quanta ✅ — reviews everything before it ships.\n\nLet's build something great.",
-  },
-  {
-    keywords: ['write', 'content', 'creative', 'design', 'blog', 'article', 'story', 'brand', 'art', 'photo', 'video', 'music'],
-    agents: ['forge', 'pulse', 'helix'],
-    response: "Creative energy — I can feel it.\n\nYour creative team:\n• Forge 🔨 — content, design, creation.\n• Pulse 📣 — gets your work in front of the right people.\n• Helix 🔬 — researches what your audience wants.\n\nLet's make something people remember.",
-  },
-  {
-    keywords: ['family', 'kids', 'schedule', 'meal', 'home', 'dinner', 'planning', 'calendar', 'grocery', 'chores', 'clean', 'organize'],
-    agents: ['conflux', 'catalyst', 'spectra'],
-    response: "Life gets busy. Let me help you take some of it back.\n\nYour daily team:\n• Catalyst ⚡ — she catches things before they slip through the cracks.\n• Spectra 🧩 — breaks overwhelming days into manageable pieces.\n\nAnd me — I'm always here when you need to think something through.",
-  },
-  {
-    keywords: ['overwhelmed', 'stressed', 'too much', 'burned out', 'exhausted', 'anxious', 'busy', 'chaos', 'drowning'],
-    agents: ['catalyst', 'spectra', 'conflux'],
-    response: "I hear you. When everything feels like too much, that's usually because there's no system holding it together.\n\nLet's fix that:\n• Spectra 🧩 — she'll break the chaos into clear, doable pieces.\n• Catalyst ⚡ — she's your early warning system. Things stop falling through.\n\nAnd me — sometimes you just need someone to think with.",
-  },
-  {
-    keywords: ['health', 'fitness', 'workout', 'diet', 'exercise', 'weight', 'sleep', 'wellness', 'cook', 'recipe'],
-    agents: ['catalyst', 'conflux', 'helix'],
-    response: "Taking care of yourself is the foundation for everything else.\n\nYour wellness team:\n• Catalyst ⚡ — she'll help you build habits that stick.\n• Helix 🔬 — she can research the best approaches for your goals.\n\nSmall steps, big results. Let's go.",
-  },
-  {
-    keywords: ['nothing', 'just looking', 'idk', "don't know", 'not sure', 'browsing', 'checking', 'playing around'],
-    agents: ['conflux', 'helix', 'catalyst'],
-    response: "No worries — you don't need a big plan to get started. Sometimes the best things come from just exploring.\n\nI'll give you a versatile team:\n• Helix 🔬 — she's great at finding interesting things to dig into.\n• Catalyst ⚡ — she'll help you stay on top of the little stuff.\n\nWe'll figure it out together.",
-  },
+const APPS: AppOption[] = [
+  { id: 'budget', name: 'Budget', emoji: '💰', description: 'Track expenses and savings' },
+  { id: 'kitchen', name: 'Kitchen', emoji: '🍳', description: 'Recipes and meal planning' },
+  { id: 'dreams', name: 'Dreams', emoji: '✨', description: 'Goals and aspirations' },
+  { id: 'life', name: 'Life', emoji: '🏠', description: 'Daily tasks and organization' },
 ];
 
-// Agent personality one-liners
-const AGENT_HELLOS: Record<string, string> = {
-  conflux: "I'm the one you come to when you need to think. Or when it's 2 AM and you have a crazy idea.",
-  helix: "I find things other people miss. Market signals, competitor moves, hidden opportunities.",
-  forge: "You describe it, I build it. Landing pages, content, code. I don't do slow.",
-  vector: "I'm the reality check. I'll tell you if your idea is gold or garbage.",
-  pulse: "I get your stuff in front of the right people. Marketing, launches, growth.",
-  quanta: "I check everything twice. Nothing ships without my sign-off.",
-  prism: "I keep the team organized. When 10 things need to happen at once, I'm your person.",
-  spectra: "I break big scary goals into small doable steps.",
-  luma: "I press the buttons. Launches, deployments, going live. That's me.",
-  catalyst: "I'm the early warning system. If something's about to break, I'll let you know.",
-};
+// ── Heartbeat SVG Component ──
 
-// BYOK removed — all inference runs through the Conflux cloud router
+function HeartbeatSVG({ active, variant = 'default' }: { active: boolean; variant?: 'default' | 'pulse' }) {
+  return (
+    <svg viewBox="0 0 400 80" style={{ width: '100%', maxWidth: 400, height: 80 }}>
+      <path
+        d="M0,40 L60,40 L70,40 L80,20 L90,60 L100,10 L110,70 L120,40 L130,40 L200,40 L210,40 L220,20 L230,60 L240,10 L250,70 L260,40 L270,40 L340,40 L350,40 L360,20 L370,60 L380,10 L390,70 L400,40"
+        fill="none"
+        stroke={variant === 'pulse' ? '#10b981' : 'var(--accent-primary)'}
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{
+          strokeDasharray: 800,
+          filter: `drop-shadow(0 0 6px ${variant === 'pulse' ? '#10b981' : 'var(--accent-primary)'})`,
+          animation: active
+            ? variant === 'pulse'
+              ? 'heartbeat-pulse 1.5s ease-in-out infinite'
+              : 'heartbeat-draw 2s linear infinite'
+            : 'none',
+        }}
+      />
+    </svg>
+  );
+}
 
-// Setup facts
-const SETUP_FACTS = [
-  "Each agent has a soul — a unique personality that shapes how they think",
-  "Your team's heartbeat checks in to make sure everyone's okay",
-  "Your agents remember everything. The longer you use them, the smarter they get",
-  "Your data stays on your machine. Always.",
-  "Agents can collaborate — like a real team, but they never sleep",
-  "This isn't just software. It's a home for your AI family.",
-];
-
-// Goal → gradient map
-const GOAL_GRADIENTS: Record<string, string> = {
-  business: 'rgba(99,102,241,0.06)',
-  learn: 'rgba(59,130,246,0.06)',
-  work: 'rgba(16,185,129,0.06)',
-  creative: 'rgba(236,72,153,0.06)',
-  life: 'rgba(245,158,11,0.06)',
-};
-
-// ── Particles for Welcome ──
+// ── Particles Component ──
 
 function Particles({ count = 15 }: { count?: number }) {
   const particles = Array.from({ length: count }, (_, i) => ({
@@ -171,127 +85,147 @@ function Particles({ count = 15 }: { count?: number }) {
   );
 }
 
-// ── Confetti for Alive Phase 2 ──
+// ── Progress Bar Component ──
 
-function Confetti({ count = 20 }: { count?: number }) {
-  const particles = Array.from({ length: count }, (_, i) => {
-    const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
-    const distance = 80 + Math.random() * 120;
-    return {
-      dx: Math.cos(angle) * distance,
-      dy: Math.sin(angle) * distance - 60,
-      rotation: Math.random() * 720 - 360,
-      color: ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6'][i % 6],
-      size: 4 + Math.random() * 4,
-      delay: Math.random() * 0.2,
-    };
-  });
-
+function ProgressBar({ step }: { step: number }) {
   return (
-    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      {particles.map((p, i) => (
-        <div
-          key={i}
-          style={{
-            position: 'absolute',
-            width: p.size,
-            height: p.size,
-            borderRadius: i % 3 === 0 ? '50%' : '2px',
-            background: p.color,
-            '--dx': `${p.dx}px`,
-            '--dy': `${p.dy}px`,
-            '--rotation': `${p.rotation}deg`,
-            animation: `confetti-particle 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) ${p.delay}s forwards`,
-          } as React.CSSProperties}
-        />
-      ))}
+    <div style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: 10,
+      padding: '20px 0 0',
+      flexShrink: 0,
+    }}>
+      {[0, 1, 2, 3].map(i => {
+        const isActive = i === step;
+        const isDone = i < step;
+        return (
+          <motion.div
+            key={i}
+            animate={{
+              width: isActive ? 32 : 10,
+              backgroundColor: isDone || isActive
+                ? 'var(--accent-primary)'
+                : 'var(--border)',
+              opacity: isDone || isActive ? 1 : 0.4,
+            }}
+            transition={{ duration: 0.3 }}
+            style={{
+              width: isActive ? 32 : 10,
+              height: 10,
+              borderRadius: 5,
+              backgroundColor: isDone || isActive
+                ? 'var(--accent-primary)'
+                : 'var(--border)',
+              opacity: isDone || isActive ? 1 : 0.4,
+            }}
+          />
+        );
+      })}
     </div>
   );
 }
 
-// ── Typewriter placeholder ──
+// ── Main Component ──
 
-function useTypewriterPlaceholder(text: string, typing: boolean, speed = 100) {
-  const [displayed, setDisplayed] = useState('');
-
-  useEffect(() => {
-    if (typing) return; // Only animate when not typing
-    let i = 0;
-    setDisplayed('');
-    const interval = setInterval(() => {
-      i++;
-      setDisplayed(text.slice(0, i));
-      if (i >= text.length) clearInterval(interval);
-    }, speed);
-    return () => clearInterval(interval);
-  }, [text, typing, speed]);
-
-  return typing ? '' : displayed;
-}
-
-// ── Component ──
-
+/**
+ * Onboarding Component - 4-Step Wizard Flow
+ * 
+ * Steps:
+ * 0. Heartbeat: Name input + Return support + Heartbeat animation
+ * 1. Ice Breaker: Large input for "What do you need help with?"
+ * 2. The Checklist: Grid of toggles for Apps to Set Up Now (Budget, Kitchen, Dreams, Life)
+ * 3. App Setup (Skeleton): Progress bar showing setup progress
+ * 
+ * Data Storage:
+ * - userName → localStorage: 'conflux-name'
+ * - selectedApps → localStorage: 'conflux-setup-apps'
+ * 
+ * @param onComplete - Callback with selected apps when flow completes
+ */
 export default function Onboarding({ onComplete }: OnboardingProps) {
   const [step, setStep] = useState(0);
   const [animating, setAnimating] = useState(false);
 
-  // Always dark mode
-  useEffect(() => {
-    document.body.classList.add('dark');
-  }, []);
-
-  // Step 0 — Welcome
+  // Step 0: Heartbeat - Name input
   const [userName, setUserName] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const typewriterPlaceholder = useTypewriterPlaceholder("What's your name?", isTyping, 80);
+  const [heartbeatActive, setHeartbeatActive] = useState(false);
 
-  // Step 1 — Provider
-  const [setupPhase, setSetupPhase] = useState<'connecting' | 'alive' | 'done'>('connecting');
-  const [factIndex, setFactIndex] = useState(0);
-  const [heartbeatPulse, setHeartbeatPulse] = useState(false);
+  // Step 1: Ice Breaker - Large text input
+  const [iceBreakerInput, setIceBreakerInput] = useState('');
 
-  // Play heartbeat sound when pulse activates
+  // Step 2: Checklist - Selected apps
+  const [selectedApps, setSelectedApps] = useState<Set<string>>(new Set());
+
+  // Step 3: Setup Phase
+  const [setupProgress, setSetupProgress] = useState(0);
+  const [setupAppName, setSetupAppName] = useState('');
+
+  // Load persisted data on mount
   useEffect(() => {
-    if (heartbeatPulse) playHeartbeat();
-  }, [heartbeatPulse]);
-  // BYOK removed — cloud router handles all providers
+    const savedName = localStorage.getItem('conflux-name');
+    if (savedName) setUserName(savedName);
 
-  // Step 2 — Conversation
-  const [chatMessages, setChatMessages] = useState<Array<{role: 'conflux' | 'user', text: string}>>([]);
-  const [chatInput, setChatInput] = useState('');
-  const [conversationDone, setConversationDone] = useState(false);
-  const [selectedTeam, setSelectedTeam] = useState<string[]>([]);
-
-  // Step 3 — Team
-  const [selectedAgents, setSelectedAgents] = useState<Set<string>>(new Set());
-  const [shakingAgent, setShakingAgent] = useState<string | null>(null);
-  const [flashingAgent, setFlashingAgent] = useState<string | null>(null);
-
-  // Step 4 — Connect Google
-  const [googleStatus, setGoogleStatus] = useState<'loading' | 'canConnect' | 'connected' | 'error'>('loading');
-  const [googleEmail, setGoogleEmail] = useState<string | null>(null);
-
-  // Step 5 — Alive (formerly step 4)
-  const [alivePhase, setAlivePhase] = useState<'loading' | 'ready'>('loading');
-
-  const nameInputRef = useRef<HTMLInputElement>(null);
+    const savedApps = localStorage.getItem('conflux-setup-apps');
+    if (savedApps) {
+      try {
+        const apps = JSON.parse(savedApps);
+        setSelectedApps(new Set(apps));
+      } catch (e) {
+        console.error('Failed to parse saved apps:', e);
+      }
+    }
+  }, []);
 
   // Play welcome chime on mount
   useEffect(() => {
     playWelcomeChime();
   }, []);
 
-  // ── Init chat on Step 2 ──
+  // Always dark mode
   useEffect(() => {
-    if (step === 2 && chatMessages.length === 0) {
-      setChatMessages([{
-        role: 'conflux',
-        text: "👋 Hey! I'm Conflux.\n\nWhat do you wish you had more help with? Doesn't have to be big — even just day-to-day stuff counts.\n\nNo wrong answers here.",
-      }]);
-    }
-  }, [step]);
+    document.body.classList.add('dark');
+  }, []);
 
-  // ── Navigation ──
+  // Step 3: Simulate app setup progress
+  useEffect(() => {
+    if (step !== 3) return;
+
+    const apps = Array.from(selectedApps);
+    if (apps.length === 0) {
+      onComplete([], []);
+      return;
+    }
+
+    let currentAppIndex = 0;
+    let progress = 0;
+
+    const setupInterval = setInterval(() => {
+      progress += 2;
+      if (progress >= 100) {
+        progress = 0;
+        currentAppIndex++;
+        if (currentAppIndex >= apps.length) {
+          clearInterval(setupInterval);
+          // All apps "set up" - finish
+          const appsArr = Array.from(selectedApps);
+          localStorage.setItem('conflux-onboarded', 'true');
+          localStorage.setItem('conflux-name', userName.trim() || 'there');
+          localStorage.setItem('conflux-setup-apps', JSON.stringify(appsArr));
+          onComplete([], appsArr);
+          return;
+        }
+      }
+      setSetupProgress(progress);
+      setSetupAppName(APPS.find(a => a.id === apps[currentAppIndex])?.name || '');
+    }, 30);
+
+    return () => clearInterval(setupInterval);
+  }, [step, selectedApps, userName, onComplete]);
+
+  // Navigation
   const goToStep = useCallback((nextStep: number) => {
     playTourBlip();
     setAnimating(true);
@@ -302,201 +236,50 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   }, []);
 
   const nextStep = () => {
-    // If still on 'connecting', skip to 'alive' immediately
-    if (step === 1 && setupPhase === 'connecting') {
-      setSetupPhase('alive');
-      setHeartbeatPulse(true);
-      localStorage.setItem('conflux-provider-setup', JSON.stringify({ type: 'free' }));
-      return;
+    if (step === 0 && userName.trim().length > 0) {
+      localStorage.setItem('conflux-name', userName.trim());
+    }
+    if (step === 2) {
+      const appsArr = Array.from(selectedApps);
+      localStorage.setItem('conflux-setup-apps', JSON.stringify(appsArr));
     }
     goToStep(step + 1);
   };
+
   const prevStep = () => goToStep(step - 1);
 
-  // ── Provider: Auto-advance through facts ──
-  useEffect(() => {
-    if (step !== 1 || setupPhase !== 'connecting') return;
-    const interval = setInterval(() => {
-      setFactIndex(prev => (prev + 1) % SETUP_FACTS.length);
-    }, 2200);
-    const timer = setTimeout(() => {
-      setSetupPhase('alive');
-      setHeartbeatPulse(true);
-      localStorage.setItem('conflux-provider-setup', JSON.stringify({ type: 'free' }));
-    }, 6000);
-    return () => { clearInterval(interval); clearTimeout(timer); };
-  }, [step, setupPhase]);
-
-  // BYOK removed — cloud router handles all providers
-
-  // ── Goals ──
-  // ── Conversation ──
-  const handleChatSend = useCallback(() => {
-    const msg = chatInput.trim();
-    if (!msg) return;
-
-    setChatMessages(prev => [...prev, { role: 'user', text: msg }]);
-    setChatInput('');
-
-    // Match keywords
-    const lower = msg.toLowerCase();
-    let matched = KEYWORD_RESPONSES.find(r =>
-      r.keywords.some(k => lower.includes(k))
-    );
-
-    if (!matched) {
-      matched = {
-        keywords: [],
-        agents: ['conflux', 'helix', 'catalyst'],
-        response: "Interesting. I've got a good feeling about this.\n\nI'm starting you with a versatile team:\n• Helix 🔬 — she'll help you explore and figure things out.\n• Catalyst ⚡ — she keeps the day-to-day running smooth.\n\nAnd me, obviously. We'll figure out the rest as we go.",
-      };
-    }
-
-    setSelectedTeam(matched!.agents);
-    setSelectedAgents(new Set(matched!.agents));
-
-    setTimeout(() => {
-      setChatMessages(prev => [...prev, { role: 'conflux', text: matched!.response }]);
-      setConversationDone(true);
-    }, 800);
-  }, [chatInput]);
-
-  const handleConversationContinue = useCallback(() => {
-    localStorage.setItem('conflux-user-profile', JSON.stringify({
-      name: userName,
-      messages: chatMessages,
-      recommendedAgents: selectedTeam,
-    }));
-    nextStep();
-  }, [userName, chatMessages, selectedTeam, nextStep]);
-
-  // ── Team ──
-  const toggleAgent = (id: string) => {
-    setSelectedAgents(prev => {
+  // Toggle app selection
+  const toggleApp = (appId: string) => {
+    setSelectedApps(prev => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        if (next.size > 1) {
-          next.delete(id);
-        } else {
-          // Shake — can't deselect last
-          setShakingAgent(id);
-          setTimeout(() => setShakingAgent(null), 400);
-        }
+      if (next.has(appId)) {
+        next.delete(appId);
       } else {
-        next.add(id);
-        // Flash working then idle
-        setFlashingAgent(id);
-        setTimeout(() => setFlashingAgent(null), 600);
+        next.add(appId);
       }
       return next;
     });
   };
 
-  // ── Enter home ──
-  const handleEnter = () => {
-    const agentsArr = Array.from(selectedAgents);
-    localStorage.setItem('conflux-onboarded', 'true');
-    localStorage.setItem('conflux-goals', JSON.stringify(selectedTeam));
-    localStorage.setItem('conflux-selected-agents', JSON.stringify(agentsArr));
-    localStorage.setItem('conflux-name', userName.trim() || 'there');
-    onComplete(selectedTeam, agentsArr);
-  };
-
-  // ── Google Connect (Step 4) Hooks & Handlers ──
-  useEffect(() => {
-    if (step === 4) {
-      const checkGoogle = async () => {
-        try {
-          setGoogleStatus('loading');
-          const isConnected = await invoke('engine_google_is_connected');
-          if (isConnected) {
-            const email = await invoke('engine_google_get_email');
-            setGoogleEmail(email as string);
-            setGoogleStatus('connected');
-          } else {
-            setGoogleStatus('canConnect');
-          }
-        } catch (error) {
-          console.error("Error checking Google status:", error);
-          setGoogleStatus('canConnect');
-        }
-      };
-      checkGoogle();
-    }
-  }, [step]);
-
-  const handleGoogleConnect = async () => {
-    try {
-      const email = await invoke('engine_google_connect');
-      setGoogleEmail(email as string);
-      setGoogleStatus('connected');
-    } catch (error) {
-      console.error("Error connecting to Google:", error);
-      // Optionally, show an error message to the user
-      setGoogleStatus('error');
+  // Handle Enter key on name input
+  const handleNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && userName.trim().length > 0) {
+      nextStep();
     }
   };
 
-  const handleGoogleSkip = () => {
-    nextStep(); // Move to the next step without connecting Google
-  };
-
-  // ── Alive animation (Step 5) ──
-  useEffect(() => {
-    if (step === 5) {
-      setAlivePhase('loading');
-      const timer = setTimeout(() => {
-        setAlivePhase('ready');
-        playTeamAlive();
-      }, 2500);
-      return () => clearTimeout(timer);
-    }
-  }, [step]);
-
-  // ── Skip overall onboarding ──
-  const handleSkip = (skipGoogleConnect: boolean = false) => {
-    const allAgentIds = Object.keys(ALL_AGENTS);
-    localStorage.setItem('conflux-onboarded', 'true');
-    localStorage.setItem('conflux-goals', JSON.stringify([]));
-    localStorage.setItem('conflux-selected-agents', JSON.stringify(allAgentIds));
-    localStorage.setItem('conflux-name', userName.trim() || 'there');
-    if (skipGoogleConnect) {
-      localStorage.setItem('conflux-google-skip', 'true');
-    }
-    onComplete([], allAgentIds);
-  };
-
-  // ── Derived ──
-  const canNext = (
-    (step === 0 && userName.trim().length > 0) || // Welcome: Must enter name
-    step === 1 ||  // Provider: always can proceed
-    (step === 2 && conversationDone) || // Conversation: must complete chat
-    step === 3 || // Team: always can proceed, even if no agents selected (default to all)
-    step === 4 || // Google Connect: always can skip or connect
-    step === 5 // Alive: always has continue
-  );
-
-  // ── Background gradient for goals ──
-  // ── Render ──
-
-  const renderStep = () => {
-    switch (step) {
-      case 0: return renderWelcome();
-      case 1: return renderProvider();
-      case 2: return renderGoals();
-      case 3: return renderTeam();
-      case 4: return renderGoogleConnect();
-      case 5: return renderAlive();
-      default: return null;
-    }
-  };
-
-  const renderWelcome = () => (
-    <div style={{ textAlign: 'center', maxWidth: 420, width: '100%', margin: '0 auto', position: 'relative' }}>
-      {/* Floating particles */}
+  // Render Step 0: Heartbeat
+  const renderHeartbeatStep = () => (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.5 }}
+      style={{ textAlign: 'center', maxWidth: 420, width: '100%', margin: '0 auto', position: 'relative' }}
+    >
       <Particles count={15} />
 
-      <div className="animate-scale-in" style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 24 }}>
         <img
           src="/logo.png"
           alt="Conflux Home"
@@ -504,42 +287,48 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         />
       </div>
 
-      <h1
-        className="animate-fade-in"
-        style={{
-          fontSize: 32,
-          fontWeight: 700,
-          letterSpacing: '-0.5px',
-          color: 'var(--text-primary)',
-          marginBottom: 12,
-          '--stagger-delay': '200ms',
-        } as React.CSSProperties}
-      >
+      <h1 style={{
+        fontSize: 32,
+        fontWeight: 700,
+        letterSpacing: '-0.5px',
+        color: 'var(--text-primary)',
+        marginBottom: 12,
+      }}>
         Welcome to Conflux Home
       </h1>
 
-      <p
-        className="animate-fade-in"
-        style={{
-          fontSize: 17,
-          color: 'var(--text-secondary)',
-          marginBottom: 32,
-          lineHeight: 1.5,
-          '--stagger-delay': '350ms',
-        } as React.CSSProperties}
-      >
+      <p style={{
+        fontSize: 17,
+        color: 'var(--text-secondary)',
+        marginBottom: 32,
+        lineHeight: 1.5,
+      }}>
         Your AI family is about to come alive.
       </p>
+      
+      {/* Initial Neural Brain Pulse */}
+      <div style={{ marginBottom: 24 }}>
+        <NeuralBrainScene 
+          mode="idle" 
+          pulseImpulse={{ strength: 5, bursts: 1 }} 
+          transparent={true}
+          style={{ width: 200, height: 200, margin: '0 auto' }}
+        />
+      </div>
+
+      {/* Heartbeat Animation */}
+      <div style={{ marginBottom: 24 }}>
+        <HeartbeatSVG active={heartbeatActive} />
+      </div>
 
       <input
-        ref={nameInputRef}
         type="text"
-        placeholder={typewriterPlaceholder || "What's your name?"}
+        placeholder="What's your name?"
         value={userName}
         onChange={e => setUserName(e.target.value)}
-        onFocus={() => setIsTyping(true)}
-        onBlur={() => setIsTyping(false)}
-        className="animate-fade-in"
+        onKeyDown={handleNameKeyDown}
+        onFocus={() => { setIsTyping(true); setHeartbeatActive(true); }}
+        onBlur={() => { setIsTyping(false); setHeartbeatActive(false); }}
         style={{
           width: '100%',
           maxWidth: 280,
@@ -551,591 +340,421 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           fontSize: 16,
           textAlign: 'center',
           outline: 'none',
-          marginBottom: 24,
           boxSizing: 'border-box',
-          '--stagger-delay': '500ms',
-        } as React.CSSProperties}
+        }}
         autoFocus
       />
 
-    </div>
+      {userName && (
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          style={{ marginTop: 16, fontSize: 14, color: 'var(--text-secondary)' }}
+        >
+          Press <kbd style={{
+            padding: '2px 8px',
+            borderRadius: 4,
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            fontSize: 12,
+          }}>Enter</kbd> to continue
+        </motion.p>
+      )}
+    </motion.div>
   );
 
-  const renderProvider = () => (
-    <div style={{ textAlign: 'center', maxWidth: 480, width: '100%', margin: '0 auto', position: 'relative' }}>
-      {setupPhase === 'connecting' && (
-        <div style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          justifyContent: 'center', minHeight: 400, gap: 24,
-        }}>
-          {/* Heartbeat SVG — drawing animation */}
-          <svg viewBox="0 0 400 80" style={{ width: '100%', maxWidth: 400, height: 80 }}>
-            <path
-              d="M0,40 L60,40 L70,40 L80,20 L90,60 L100,10 L110,70 L120,40 L130,40 L200,40 L210,40 L220,20 L230,60 L240,10 L250,70 L260,40 L270,40 L340,40 L350,40 L360,20 L370,60 L380,10 L390,70 L400,40"
-              fill="none"
-              stroke="var(--accent-primary)"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{
-                strokeDasharray: 800,
-                filter: 'drop-shadow(0 0 6px currentColor)',
-                animation: 'heartbeat-draw 2s linear infinite',
-              }}
-            />
-          </svg>
+  // Render Step 1: Ice Breaker
+  const renderIceBreakerStep = () => (
+    <motion.div
+      initial={{ opacity: 0, x: 40 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -40 }}
+      transition={{ duration: 0.4 }}
+      style={{ textAlign: 'center', maxWidth: 520, width: '100%', margin: '0 auto', position: 'relative' }}
+    >
+      {/* Conflux Presence visible in background of Ice Breaker */}
+      <div style={{ position: 'absolute', top: -120, left: '50%', transform: 'translateX(-50%)' }}>
+        <NeuralBrainScene 
+          mode="listen" 
+          pulseImpulse={{ strength: 8, bursts: 2 }} 
+          transparent={true}
+          style={{ width: 150, height: 150 }}
+        />
+      </div>
 
-          {/* "Waking up" text */}
-          <h2
-            className="animate-fade-in"
-            style={{
-              fontSize: 24, fontWeight: 700, color: 'var(--text-primary)',
-              marginBottom: 0,
-            }}
-          >
-            Your team is waking up...
-          </h2>
+      <h1 style={{
+        fontSize: 28,
+        fontWeight: 700,
+        color: 'var(--text-primary)',
+        marginBottom: 60,
+      }}>
+        👋 Hey {userName || 'there'}!
+      </h1>
 
-          {/* Cycling facts */}
-          <p
-            key={factIndex}
-            className="animate-fade-in"
-            style={{
-              fontSize: 15, color: 'var(--text-secondary)', maxWidth: 340,
-              lineHeight: 1.6, minHeight: 48,
-            }}
-          >
-            {SETUP_FACTS[factIndex]}
-          </p>
-        </div>
-      )}
-
-      {setupPhase === 'alive' && (
-        <div style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          justifyContent: 'center', minHeight: 400, gap: 24,
-        }}>
-          {/* Heartbeat SVG — stable pulse, green */}
-          <svg viewBox="0 0 400 80" style={{ width: '100%', maxWidth: 400, height: 80 }}>
-            <path
-              d="M0,40 L60,40 L70,40 L80,20 L90,60 L100,10 L110,70 L120,40 L130,40 L200,40 L210,40 L220,20 L230,60 L240,10 L250,70 L260,40 L270,40 L340,40 L350,40 L360,20 L370,60 L380,10 L390,70 L400,40"
-              fill="none"
-              stroke="#10b981"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{
-                strokeDasharray: 800,
-                filter: 'drop-shadow(0 0 6px #10b981)',
-                animation: 'heartbeat-pulse 1.5s ease-in-out infinite',
-              }}
-            />
-          </svg>
-
-          {/* Alive text */}
-          <h2
-            className="animate-scale-in"
-            style={{
-              fontSize: 24, fontWeight: 700, color: '#10b981',
-              marginBottom: 0,
-            }}
-          >
-            Your team's heart is beating. ✨
-          </h2>
-
-          {/* Cloud router — no BYOK needed */}
-          <p
-            className="animate-fade-in"
-            style={{
-              color: '#10b981', fontSize: 13, marginTop: 12,
-              '--stagger-delay': '700ms',
-            } as React.CSSProperties}
-          >
-            ☁️ Connected to Conflux cloud — no keys needed
-          </p>
-        </div>
-      )}
-    </div>
-  );
-
-  const renderGoals = () => (
-    <div style={{ textAlign: 'center', maxWidth: 520, width: '100%', margin: '0 auto' }}>
-      <h2
-        className="animate-fade-in"
-        style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}
-      >
-        Let's get to know you
-      </h2>
-      <p
-        className="animate-fade-in"
-        style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20, '--stagger-delay': '100ms' } as React.CSSProperties}
-      >
-        Chat with Conflux and he'll put together your perfect team.
-      </p>
-
-      {/* Chat messages */}
       <div style={{
         background: 'var(--bg-card)',
         border: '1px solid var(--border)',
         borderRadius: 16,
-        padding: 16,
-        maxHeight: 320,
-        overflowY: 'auto',
-        marginBottom: 16,
-        textAlign: 'left',
+        padding: 32,
+        boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
       }}>
-        {chatMessages.map((msg, i) => (
-          <div
-            key={i}
-            className="animate-fade-in"
-            style={{
-              display: 'flex',
-              justifyContent: msg.role === 'conflux' ? 'flex-start' : 'flex-end',
-              marginBottom: 12,
-            }}
-          >
-            {msg.role === 'conflux' && (
-              <span style={{ fontSize: 20, marginRight: 8, flexShrink: 0, marginTop: 2 }}>🤖</span>
-            )}
-            <div style={{
-              maxWidth: '80%',
-              padding: '10px 14px',
-              borderRadius: 14,
-              background: msg.role === 'conflux' ? 'var(--bg-primary)' : 'var(--accent-primary)',
-              color: msg.role === 'conflux' ? 'var(--text-primary)' : '#fff',
-              fontSize: 14,
-              lineHeight: 1.5,
-              whiteSpace: 'pre-wrap',
-            }}>
-              {msg.text}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Input or Continue */}
-      {!conversationDone ? (
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            type="text"
-            value={chatInput}
-            onChange={e => setChatInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleChatSend()}
-            placeholder="What do you wish you had more help with?"
-            autoFocus
-            style={{
-              flex: 1,
-              padding: '12px 16px',
-              borderRadius: 10,
-              border: '1px solid var(--border)',
-              background: 'var(--bg-primary)',
-              color: 'var(--text-primary)',
-              fontSize: 14,
-              outline: 'none',
-            }}
-          />
-          <button
-            onClick={handleChatSend}
-            style={{
-              padding: '12px 20px',
-              borderRadius: 10,
-              border: 'none',
-              background: 'var(--accent-primary)',
-              color: '#fff',
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: 'pointer',
-              flexShrink: 0,
-            }}
-          >
-            Send
-          </button>
-        </div>
-      ) : (
-        <div>
-          <p style={{ fontSize: 13, color: '#10b981', marginBottom: 12 }}>
-            ✓ Your team has been selected based on our chat
-          </p>
-          <button
-            className="next-btn"
-            onClick={handleConversationContinue}
-            style={{ maxWidth: 280, margin: '0 auto' }}
-          >
-            Meet Your Team →
-          </button>
-        </div>
-      )}
-    </div>
-  );
-
-  const renderTeam = () => {
-    const agentIds = Array.from(selectedAgents);
-    const agentList = agentIds.map(id => ALL_AGENTS[id]).filter(Boolean);
-
-    return (
-      <div style={{ textAlign: 'center', maxWidth: 520, width: '100%', margin: '0 auto' }}>
-        <h2
-          className="animate-fade-in"
-          style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}
-        >
-          Your personalized AI team
-        </h2>
-        <p
-          className="animate-fade-in"
-          style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 28, '--stagger-delay': '100ms' } as React.CSSProperties}
-        >
-          Based on your goals, we recommend these agents. Toggle any on or off.
+        <p style={{
+          fontSize: 16,
+          color: 'var(--text-secondary)',
+          marginBottom: 24,
+          lineHeight: 1.6,
+        }}>
+          Let's get to know each other. What's on your mind today? What do you need help with?
         </p>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left', marginBottom: 20 }}>
-          {agentList.map((agent, i) => {
-            const isOn = selectedAgents.has(agent.id);
-            const isShaking = shakingAgent === agent.id;
-            const isFlashing = flashingAgent === agent.id;
-            return (
-              <div
-                key={agent.id}
-                className={`animate-slide-up ${isShaking ? 'animate-shake' : ''}`}
-                onClick={() => toggleAgent(agent.id)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 14,
-                  padding: '14px 16px',
-                  background: 'var(--bg-card)',
-                  border: `2px solid ${isOn ? 'var(--accent-primary)' : 'var(--border)'}`,
-                  borderRadius: 14,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  opacity: isOn ? 1 : 0.5,
-                  '--stagger-delay': `${i * 150}ms`,
-                } as React.CSSProperties}
-              >
-                <Avatar
-                  agentId={agent.id}
-                  name={agent.name}
-                  emoji={agent.emoji}
-                  status={isFlashing ? 'working' : isOn ? 'idle' : 'offline'}
-                  size="md"
-                  showStatus={false}
-                />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
-                    {agent.name}
-                    <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8 }}>
-                      {agent.role}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>
-                    {AGENT_HELLOS[agent.id] || agent.why}
-                  </div>
-                </div>
-                {/* Toggle switch with bounce */}
-                <div style={{
-                  width: 44, height: 26, borderRadius: 13,
-                  background: isOn ? 'var(--accent-primary)' : 'var(--border)',
-                  position: 'relative', flexShrink: 0,
-                  transition: 'background 0.2s ease',
-                }}>
-                  <div style={{
-                    width: 22, height: 22, borderRadius: '50%',
-                    background: '#fff',
-                    position: 'absolute', top: 2,
-                    left: isOn ? 20 : 2,
-                    transition: 'left 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                  }} />
-                </div>
+        <textarea
+          value={iceBreakerInput}
+          onChange={e => setIceBreakerInput(e.target.value)}
+          placeholder="What do you need help with?"
+          rows={3}
+          style={{
+            width: '100%',
+            padding: '16px',
+            borderRadius: 12,
+            border: '1px solid var(--border)',
+            background: 'var(--bg-primary)',
+            color: 'var(--text-primary)',
+            fontSize: 16,
+            outline: 'none',
+            resize: 'none',
+            marginBottom: 16,
+            boxSizing: 'border-box',
+          }}
+        />
+
+        <p style={{
+          fontSize: 13,
+          color: 'var(--text-muted)',
+          fontStyle: 'italic',
+        }}>
+          (This will help us personalize your experience)
+        </p>
+      </div>
+      
+      {/* Next button triggers TTS in real app - placeholder for now */}
+      <div style={{ marginTop: 32 }}>
+        <button
+          onClick={nextStep}
+          style={{
+            padding: '12px 24px',
+            borderRadius: 12,
+            background: 'var(--accent-primary)',
+            color: 'white',
+            border: 'none',
+            fontSize: 16,
+            cursor: 'pointer',
+          }}
+        >
+          Let's Build Your Team →
+        </button>
+      </div>
+    </motion.div>
+  );
+
+  // Render Step 2: Checklist
+  const renderChecklistStep = () => (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 1.05 }}
+      transition={{ duration: 0.4 }}
+      style={{ textAlign: 'center', maxWidth: 560, width: '100%', margin: '0 auto' }}
+    >
+      <h2 style={{
+        fontSize: 24,
+        fontWeight: 700,
+        marginBottom: 8,
+        color: 'var(--text-primary)',
+      }}>
+        Apps to Set Up Now
+      </h2>
+      <p style={{
+        fontSize: 14,
+        color: 'var(--text-secondary)',
+        marginBottom: 24,
+      }}>
+        Select the apps you'd like to get started with.
+      </p>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, 1fr)',
+        gap: 16,
+        marginBottom: 24,
+      }}>
+        {APPS.map((app, index) => {
+          const isSelected = selectedApps.has(app.id);
+          return (
+            <motion.div
+              key={app.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              onClick={() => toggleApp(app.id)}
+              style={{
+                padding: 20,
+                borderRadius: 14,
+                border: `2px solid ${isSelected ? 'var(--accent-primary)' : 'var(--border)'}`,
+                background: isSelected ? 'rgba(99, 102, 241, 0.1)' : 'var(--bg-card)',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <div style={{ fontSize: 36 }}>{app.emoji}</div>
+              <div style={{
+                fontSize: 16,
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+              }}>
+                {app.name}
               </div>
+              <div style={{
+                fontSize: 12,
+                color: 'var(--text-secondary)',
+                textAlign: 'center',
+              }}>
+                {app.description}
+              </div>
+              <div style={{
+                width: 24,
+                height: 24,
+                borderRadius: 12,
+                border: `2px solid ${isSelected ? 'var(--accent-primary)' : 'var(--border)'}`,
+                background: isSelected ? 'var(--accent-primary)' : 'transparent',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginTop: 4,
+              }}>
+                {isSelected && (
+                  <span style={{ color: '#fff', fontSize: 14 }}>✓</span>
+                )}
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      <p style={{
+        fontSize: 13,
+        color: 'var(--text-muted)',
+      }}>
+        {selectedApps.size} app{selectedApps.size !== 1 ? 's' : ''} selected
+      </p>
+    </motion.div>
+  );
+
+  // Render Step 3: Setup Progress (The "Typewriter" Phase)
+  const renderSetupStep = () => {
+    const apps = Array.from(selectedApps);
+    const currentApp = APPS.find(a => a.id === apps[Math.floor(setupProgress / 100 * apps.length)]);
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        style={{ textAlign: 'center', maxWidth: 600, width: '100%', margin: '0 auto', position: 'relative' }}
+      >
+        {/* Active Neural Brain in center during setup */}
+        <div style={{ position: 'absolute', top: -140, left: '50%', transform: 'translateX(-50%)' }}>
+          <NeuralBrainScene 
+            mode="focus" 
+            pulseImpulse={{ strength: 10 + (setupProgress / 10), bursts: 3 }} 
+            transparent={true}
+            style={{ width: 180, height: 180 }}
+          />
+        </div>
+
+        <h2 style={{
+          fontSize: 24,
+          fontWeight: 700,
+          marginBottom: 40,
+          marginTop: 80,
+          color: 'var(--text-primary)',
+        }}>
+          Setting up your workspace...
+        </h2>
+
+        {/* App Icons Grid */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          gap: 24,
+          marginBottom: 32,
+        }}>
+          {APPS.map((app) => {
+            const isSelected = selectedApps.has(app.id);
+            const appIndex = Array.from(selectedApps).indexOf(app.id);
+            const isCompleted = setupProgress >= 100 && Array.from(selectedApps).indexOf(app.id) < Math.floor(setupProgress / 100 * apps.length);
+            const isCurrent = currentApp?.id === app.id;
+
+            return (
+              <motion.div
+                key={app.id}
+                initial={{ scale: 0.8, opacity: 0.5 }}
+                animate={{
+                  scale: isSelected ? (isCurrent ? 1.2 : 1) : 0.8,
+                  opacity: isSelected ? 1 : 0.3,
+                }}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 8,
+                  opacity: isSelected ? 1 : 0.3,
+                }}
+              >
+                <div style={{
+                  width: 60,
+                  height: 60,
+                  borderRadius: 16,
+                  background: isCurrent
+                    ? 'var(--accent-primary)'
+                    : isCompleted
+                      ? '#10b981'
+                      : 'var(--bg-card)',
+                  border: `2px solid ${isCurrent ? 'var(--accent-primary)' : 'var(--border)'}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 28,
+                  transition: 'all 0.3s ease',
+                }}>
+                  {app.emoji}
+                </div>
+                <span style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: isCurrent ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                }}>
+                  {app.name}
+                </span>
+              </motion.div>
             );
           })}
         </div>
 
-        <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-          You can add more agents anytime from the Marketplace.
-        </p>
-      </div>
-    );
-  };
-
-  const renderGoogleConnect = () => (
-    <div style={{ textAlign: 'center', maxWidth: 480, width: '100%', margin: '0 auto', position: 'relative' }}>
-        <h2
-            className="animate-fade-in"
-            style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}
-        >
-            Connect Your World
-        </h2>
-        <p
-            className="animate-fade-in"
-            style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20, '--stagger-delay': '100ms' } as React.CSSProperties}
-        >
-            Integrate with Google to unlock powerful AI capabilities.
-        </p>
-
-        {/* Info Card */}
-        <div
-            className="animate-scale-in"
+        {/* Progress Bar */}
+        <div style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
+          borderRadius: 20,
+          padding: 6,
+          marginBottom: 16,
+        }}>
+          <motion.div
+            animate={{ width: `${setupProgress}%` }}
+            transition={{ duration: 0.2 }}
             style={{
-                background: 'var(--bg-card)',
-                border: '1px solid var(--border)',
-                borderRadius: 16,
-                padding: 20,
-                marginBottom: 20,
-                textAlign: 'left',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 16,
+              height: 8,
+              borderRadius: 16,
+              background: 'var(--accent-primary)',
+              width: `${setupProgress}%`,
             }}
-        >
-            <div style={{ fontSize: 36 }}>🔗</div>
-            <div>
-                <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
-                    What connecting Google enables:
-                </p>
-                <ul style={{ fontSize: 13, color: 'var(--text-secondary)', listStyle: 'none', padding: 0, margin: 0 }}>
-                    <li style={{ marginBottom: 4 }}>✉️ Gmail — read, send, search emails</li>
-                    <li style={{ marginBottom: 4 }}>📄 Docs — read and write documents</li>
-                    <li style={{ marginBottom: 4 }}>📊 Sheets — data and reports</li>
-                    <li>📁 Drive — file management</li>
-                </ul>
-            </div>
+          />
         </div>
 
-        {googleStatus === 'loading' && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, minHeight: 150 }}>
-                <span className="dot-pulse" />
-                <p style={{ color: 'var(--text-muted)' }}>Checking Google connection status...</p>
-            </div>
-        )}
-
-        {googleStatus === 'canConnect' && (
-            <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-                <button
-                    className="next-btn"
-                    onClick={handleGoogleConnect}
-                    style={{ width: 'auto', padding: '12px 32px', fontSize: 16 }}
-                >
-                    Connect with Google
-                </button>
-            </div>
-        )}
-
-        {googleStatus === 'connected' && (
-            <div className="animate-scale-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, color: '#10b981' }}>
-                <span style={{ fontSize: 48 }}>&#10004;&#65039;</span>
-                <p style={{ fontSize: 18, fontWeight: 600 }}>Google Connected!</p>
-                {googleEmail && <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>Connected as: {googleEmail}</p>}
-            </div>
-        )}
-
-        {googleStatus === 'error' && (
-             <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, color: 'var(--accent-red)' }}>
-                <span style={{ fontSize: 48 }}>&#9888;&#65039;</span>
-                <p style={{ fontSize: 18, fontWeight: 600 }}>Connection Error</p>
-                <p style={{ fontSize: 14, color: 'var(--text-secondary)',maxWidth: 300 }}>
-                    There was an issue connecting to Google. Please check your credentials and try again.
-                </p>
-                <button
-                    className="next-btn"
-                    onClick={() => setGoogleStatus('canConnect')}
-                    style={{ width: 'auto', padding: '10px 24px' }}
-                >
-                    Try Again
-                </button>
-            </div>
-        )}
-    </div>
-  );
-
-  const renderAlive = () => {
-    const agentIds = Array.from(selectedAgents);
-    const agentList = agentIds.map(id => ALL_AGENTS[id]).filter(Boolean);
-
-    return (
-      <div style={{
-        textAlign: 'center', maxWidth: 420, width: '100%', margin: '0 auto', position: 'relative',
-        minHeight: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      }}>
-        {/* Confetti on ready */}
-        {alivePhase === 'ready' && <Confetti count={20} />}
-
-        {alivePhase === 'loading' ? (
-          <div>
-            <h2
-              className="animate-fade-in"
-              style={{ fontSize: 24, fontWeight: 700, marginBottom: 32, color: 'var(--text-primary)' }}
-            >
-              Your team is coming alive…
-            </h2>
-
-            {/* Scan-line agent outlines */}
-            <div style={{
-              display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 16,
-              marginBottom: 32,
-            }}>
-              {agentList.map((agent, i) => (
-                <div
-                  key={agent.id}
-                  style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                    animation: `scan-line 0.6s ease ${i * 0.2}s both`,
-                  }}
-                >
-                  <Avatar
-                    agentId={agent.id}
-                    name={agent.name}
-                    emoji={agent.emoji}
-                    status="working"
-                    size="md"
-                  />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                    {agent.name}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {/* Central pulsing text */}
-            <div className="animate-breathe" style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-              fontSize: 14, color: 'var(--text-muted)',
-            }}>
-              <span>Syncing neural pathways</span>
-              <span style={{ display: 'inline-block', width: 24, textAlign: 'left' }}>
-                <DotPulse />
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div>
-            <h2
-              className="animate-scale-in"
-              style={{ fontSize: 28, fontWeight: 700, marginBottom: 24, color: 'var(--text-primary)' }}
-            >
-              Your team is ready!
-            </h2>
-
-            <div style={{
-              display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 16, marginBottom: 24,
-            }}>
-              {agentList.map((agent, i) => (
-                <div
-                  key={agent.id}
-                  className="animate-fade-in"
-                  style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                    '--stagger-delay': `${i * 100}ms`,
-                  } as React.CSSProperties}
-                >
-                  <Avatar
-                    agentId={agent.id}
-                    name={agent.name}
-                    emoji={agent.emoji}
-                    status="idle"
-                    size="md"
-                  />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                    {agent.name}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <p
-              className="animate-fade-in"
-              style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 28, '--stagger-delay': '200ms' } as React.CSSProperties}
-            >
-              {agentList.length} agent{agentList.length !== 1 ? 's' : ''} ready to go.
-            </p>
-
-            <button
-              className="next-btn animate-slide-up"
-              onClick={handleEnter}
-              style={{ maxWidth: 280, margin: '0 auto', display: 'block', '--stagger-delay': '400ms' } as React.CSSProperties}
-            >
-              Enter Conflux Home
-            </button>
-          </div>
-        )}
-      </div>
+        <p style={{
+          fontSize: 14,
+          color: 'var(--text-secondary)',
+        }}>
+          {currentApp ? `Setting up ${currentApp.name}...` : 'Complete!'}
+        </p>
+      </motion.div>
     );
   };
 
-  // ── DotPulse helper ──
-  function DotPulse() {
-    const [dots, setDots] = useState('');
-    useEffect(() => {
-      const interval = setInterval(() => {
-        setDots(prev => prev.length >= 3 ? '' : prev + '.');
-      }, 400);
-      return () => clearInterval(interval);
-    }, []);
-    return <>{dots}</>;
-  }
+  // Render step based on current step
+  const renderStep = () => {
+    switch (step) {
+      case 0:
+        return renderHeartbeatStep();
+      case 1:
+        return renderIceBreakerStep();
+      case 2:
+        return renderChecklistStep();
+      case 3:
+        return renderSetupStep();
+      default:
+        return null;
+    }
+  };
 
-  // ── Main Render ──
+  // ── Commented out old code for reference ──
+  /*
+  // OLD GOALS STEP (Step 2)
+  // - Chat with Conflux to determine which agents to use
+  // - Keyword-based conversation system
+  // - Replaced by new Checklist step
+
+  // OLD GOOGLE CONNECT STEP (Step 4)
+  // - Google integration setup
+  // - Connection status checking
+  // - Replaced by new Setup step
+
+  // OLD ALIVE STEP (Step 5)
+  // - Final team animation
+  // - Confetti celebration
+  // - Replaced by streamlined setup flow
+  */
 
   return (
     <div style={{
-      display: 'flex', flexDirection: 'column',
-      height: '100vh', width: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100vh',
+      width: '100%',
       background: 'var(--bg-primary)',
     }}>
-      {/* Progress bar */}
-      {step < 5 && (
-        <div style={{
-          display: 'flex', justifyContent: 'center', alignItems: 'center',
-          gap: 10, padding: '20px 0 0', flexShrink: 0,
-        }}>
-          {[0, 1, 2, 3, 4, 5].map(i => {
-            const isActive = i === step;
-            const isDone = i < step;
-            return (
-              <div
-                key={i}
-                className={isActive ? 'animate-breathe' : ''}
-                style={{
-                  width: isActive ? 32 : 10,
-                  height: 10,
-                  borderRadius: 5,
-                  background: isDone || isActive
-                    ? 'var(--accent-primary)'
-                    : 'var(--border)',
-                  opacity: isDone || isActive ? 1 : 0.4,
-                  transition: 'all 0.3s ease',
-                }}
-              />
-            );
-          })}
-        </div>
-      )}
+      {/* Progress Bar */}
+      {step < 3 && <ProgressBar step={step} />}
 
-      {/* Content area */}
+      {/* Content Area */}
       <div style={{
-        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         padding: '24px',
         overflow: 'auto',
       }}>
-        <div className={animating ? '' : 'step-enter'} key={step} style={{ width: '100%' }}>
+        <AnimatePresence mode="wait">
           {renderStep()}
-        </div>
+        </AnimatePresence>
       </div>
 
-      {/* Bottom navigation */}
-      {step < 5 && (
+      {/* Bottom Navigation */}
+      {step < 3 && (
         <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '12px 24px 28px', flexShrink: 0,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '12px 24px 28px',
+          flexShrink: 0,
         }}>
           <div>
             {step > 0 && (
               <button
                 onClick={prevStep}
                 style={{
-                  background: 'none', border: '1px solid var(--border)',
-                  borderRadius: 10, padding: '10px 20px',
-                  color: 'var(--text-secondary)', fontSize: 14, fontWeight: 500,
-                  cursor: 'pointer', transition: 'all 0.15s ease',
+                  background: 'none',
+                  border: '1px solid var(--border)',
+                  borderRadius: 10,
+                  padding: '10px 20px',
+                  color: 'var(--text-secondary)',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  cursor: 'pointer',
                 }}
               >
                 ← Back
@@ -1144,39 +763,30 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            {(step === 2 || step === 3 || step === 4) && (
+            {step !== 1 && (
               <button
-                onClick={() => handleSkip()}
+                className="next-btn"
+                onClick={nextStep}
+                disabled={
+                  (step === 0 && userName.trim().length === 0) ||
+                  (step === 2 && selectedApps.size === 0)
+                }
                 style={{
-                  background: 'none', border: 'none',
-                  color: 'var(--text-muted)', fontSize: 13,
-                  cursor: 'pointer', textDecoration: 'underline',
+                  width: 'auto',
+                  padding: '10px 28px',
+                  opacity: (
+                    (step === 0 && userName.trim().length === 0) ||
+                    (step === 2 && selectedApps.size === 0)
+                  ) ? 0.5 : 1,
+                  cursor: (
+                    (step === 0 && userName.trim().length === 0) ||
+                    (step === 2 && selectedApps.size === 0)
+                  ) ? 'not-allowed' : 'pointer',
                 }}
               >
-                Skip setup
+                {step === 0 ? 'Get Started' : step === 2 ? 'Enter Conflux' : ''}
               </button>
             )}
-            <button
-              className="next-btn"
-              onClick={step === 0 ? nextStep : step === 1 ? nextStep : step === 2 ? nextStep : step === 3 ? nextStep : step === 4 ? nextStep : undefined}
-              disabled={
-                (step === 0 && userName.trim().length === 0) ||
-                (step === 3 && selectedAgents.size < 1)
-              }
-              style={{
-                width: 'auto', padding: '10px 28px',
-                opacity: (
-                  (step === 0 && userName.trim().length === 0) ||
-                  (step === 3 && selectedAgents.size < 1)
-                ) ? 0.5 : 1,
-                cursor: (
-                  (step === 0 && userName.trim().length === 0) ||
-                  (step === 3 && selectedAgents.size < 1)
-                ) ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {step === 0 ? 'Get Started' : step === 1 ? 'Continue →' : 'Next →'}
-            </button>
           </div>
         </div>
       )}
