@@ -56,6 +56,12 @@ lettre = { version = "0.11", features = ["smtp-transport", "builder", "hostname"
 cpal = "0.15"
 whisper-rs = "0.12"
 hound = "3.5"
+piper-rs = "0.1"
+# Override ort to use rustls instead of native-tls (avoids OpenSSL build dep)
 
 # imap = "2"                                              # TODO: Add when OpenSSL available
 # native-tls = "0.2"                                      # TODO: Add when OpenSSL available
+
+# Patch piper-rs to use rustls instead of native-tls (avoids OpenSSL build dep)
+[patch.crates-io]
+piper-rs = { path = "/tmp/piper-rs" }
