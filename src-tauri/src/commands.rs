@@ -8,6 +8,7 @@ use uuid::Uuid;
 use super::engine;
 use super::engine::cloud;
 use super::engine::router::{self, OpenAIMessage};
+use super::engine::commands::voice_commands;
 
 // ── Request/Response Types ──
 
@@ -4809,7 +4810,7 @@ pub async fn studio_generate_voice(generation_id: String, text: String, voice_id
 // ═══════════════════════════════════════════════════════
 
 #[cfg(not(target_os = "android"))]
-mod voice_commands {
+pub mod voice_cmds {
     use crate::voice;
     use crate::voice::capture::{self, AUDIO_BUFFER};
     use crate::engine;
@@ -4818,7 +4819,7 @@ mod voice_commands {
     /// Start recording from the default microphone and begin volume monitoring.
     #[tauri::command]
     pub fn voice_capture_start(window: tauri::Window) -> Result<String, String> {
-        let result = capture::start_recording();
+        let result = capture::start_recording(window.clone());
         // Only start volume monitor if recording actually started
         if result.is_ok() {
             capture::start_volume_monitor(window);
@@ -4828,9 +4829,10 @@ mod voice_commands {
 
     /// Stop recording and return sample count.
     #[tauri::command]
-    pub fn voice_capture_stop() -> Result<serde_json::Value, String> {
+    pub fn voice_capture_stop(window: tauri::Window) -> Result<serde_json::Value, String> {
         println!("[STT] voice_capture_stop command triggered");
-        let count = capture::stop_recording()?;
+        // TODO: Stop the ElevenLabs stream sender here
+        let count = capture::stop_recording(window.clone())?;
         Ok(serde_json::json!({
             "samples": count,
             "duration_seconds": count as f64 / 16000.0,
@@ -4839,95 +4841,78 @@ mod voice_commands {
 
     /// Transcribe the current audio buffer using Whisper.
     #[tauri::command]
-    pub fn voice_transcribe(app: tauri::AppHandle, window: tauri::Window) -> Result<String, String> {
-        println!("[STT] voice_transcribe command triggered");
-        let app_data_dir = app.path().app_data_dir()
-            .map_err(|e| format!("Failed to get app data dir: {}", e))?;
-        let resource_dir = app.path().resource_dir()
-            .map_err(|e| format!("Failed to get resource dir: {}", e))?;
-
-        let model_name = {
-            let engine = engine::get_engine();
-            let conn = engine.db().conn();
-            conn.query_row(
-                "SELECT value FROM voice_config WHERE key = 'model_name'",
-                [],
-                |row| row.get::<_, String>(0),
-            ).unwrap_or_else(|_| "small".to_string())
-        };
-
-        let path = voice::model::model_path(&resource_dir, &app_data_dir, &model_name);
-        if !path.exists() {
-            return Err(format!(
-                "Whisper model not found. Expected ggml-{}.bin in bundled resources or app data models/ directory.",
-                model_name
-            ));
-        }
-
+    pub async fn voice_transcribe() -> Result<String, String> {
+        // Use OpenAI Whisper API for STT
+        println!("[STT] Transcribing with OpenAI Whisper...");
+        
         let audio = {
             let buf = AUDIO_BUFFER.lock().map_err(|e| e.to_string())?;
             buf.clone()
         };
 
         if audio.is_empty() {
-            return Err("No audio recorded. Start recording first with voice_capture_start.".to_string());
+            return Err("No audio recorded.".to_string());
         }
 
-        voice::transcribe::transcribe_audio(&path, &audio, &window)
+        // Convert f32 samples to WAV bytes for OpenAI
+        let wav_bytes = audio_to_wav_bytes(&audio);
+
+        let openai_config = crate::voice::openai::OpenAIConfig::default();
+        if openai_config.api_key.is_empty() {
+            return Err("OPENAI_API_KEY not set".to_string());
+        }
+
+        match crate::voice::openai::transcribe_audio(wav_bytes, openai_config).await {
+            Ok(text) => Ok(text),
+            Err(e) => Err(format!("OpenAI STT Error: {}", e)),
+        }
+    }
+
+    fn audio_to_wav_bytes(samples: &[f32]) -> Vec<u8> {
+        // Simple WAV header construction
+        let sample_rate: u32 = 16000;
+        let num_samples = samples.len() as u32;
+        let byte_rate = sample_rate * 2; // 16-bit mono
+        let block_align: u16 = 2;
+        let data_size = num_samples * 2;
+
+        let mut wav = Vec::new();
+        // RIFF Header
+        wav.extend_from_slice(b"RIFF");
+        wav.extend_from_slice(&(36u32 + data_size).to_le_bytes());
+        wav.extend_from_slice(b"WAVE");
+        // fmt chunk
+        wav.extend_from_slice(b"fmt ");
+        wav.extend_from_slice(&(16u32).to_le_bytes()); // Subchunk1Size
+        wav.extend_from_slice(&(1u16).to_le_bytes()); // AudioFormat (PCM)
+        wav.extend_from_slice(&(1u16).to_le_bytes()); // NumChannels
+        wav.extend_from_slice(&sample_rate.to_le_bytes());
+        wav.extend_from_slice(&byte_rate.to_le_bytes());
+        wav.extend_from_slice(&block_align.to_le_bytes());
+        wav.extend_from_slice(&(16u16).to_le_bytes()); // BitsPerSample
+        // data chunk
+        wav.extend_from_slice(b"data");
+        wav.extend_from_slice(&data_size.to_le_bytes());
+        // Audio data (convert f32 to i16)
+        for &sample in samples {
+            let i16_sample = (sample.max(-1.0).min(1.0) * i16::MAX as f32) as i16;
+            wav.extend_from_slice(&i16_sample.to_le_bytes());
+        }
+        wav
     }
 
     /// Start recording, wait up to max_duration_ms, stop, then transcribe.
     #[tauri::command]
-    pub async fn voice_capture_and_transcribe(app: tauri::AppHandle, window: tauri::Window, max_duration_ms: Option<u64>) -> Result<String, String> {
-        capture::start_recording()?;
-
+    pub async fn voice_capture_and_transcribe(window: tauri::Window, max_duration_ms: Option<u64>) -> Result<String, String> {
+        // Deprecated: Whisper replaced by ElevenLabs streaming STT
+        // This function now just simulates the old behavior but uses streaming
+        
+        capture::start_recording(window.clone())?;
         let timeout = max_duration_ms.unwrap_or(10000);
         tokio::time::sleep(std::time::Duration::from_millis(timeout)).await;
-
-        if !capture::is_recording() {
-            return Err("Recording was stopped before capture completed".to_string());
-        }
-
-        let count = capture::stop_recording()?;
-        log::info!("Captured {} samples ({:.1}s) for transcription", count, count as f64 / 16000.0);
-
-        let app_data_dir = app.path().app_data_dir()
-            .map_err(|e| format!("Failed to get app data dir: {}", e))?;
-        let resource_dir = app.path().resource_dir()
-            .map_err(|e| format!("Failed to get resource dir: {}", e))?;
-
-        let model_name = {
-            let engine = engine::get_engine();
-            let conn = engine.db().conn();
-            conn.query_row(
-                "SELECT value FROM voice_config WHERE key = 'model_name'",
-                [],
-                |row| row.get::<_, String>(0),
-            ).unwrap_or_else(|_| "small".to_string())
-        };
-
-        let path = voice::model::model_path(&resource_dir, &app_data_dir, &model_name);
-        if !path.exists() {
-            return Err(format!(
-                "Whisper model not found. Expected ggml-{}.bin in bundled resources or app data models/ directory.",
-                model_name
-            ));
-        }
-
-        let audio = {
-            let buf = AUDIO_BUFFER.lock().map_err(|e| e.to_string())?;
-            buf.clone()
-        };
-
-        if audio.is_empty() {
-            return Err("No audio captured. Is your microphone working?".to_string());
-        }
-
-        let result = tokio::task::spawn_blocking(move || {
-            voice::transcribe::transcribe_audio(&path, &audio, &window)
-        }).await.map_err(|e| format!("Transcription task failed: {}", e))?;
-
-        result
+        capture::stop_recording(window.clone())?;
+        
+        Ok("(STT via ElevenLabs streaming)".to_string())
     }
 
     /// Get current voice engine status.

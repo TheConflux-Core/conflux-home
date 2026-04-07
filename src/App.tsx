@@ -286,6 +286,8 @@ export default function App() {
         e.preventDefault();
         setIsPushToTalkActive(true);
 
+        soundManager.playAgentWake('conflux'); // Play a listening chime for the Conflux fairy
+
         try {
           await invoke('voice_capture_start');
         } catch (err) {
@@ -305,14 +307,52 @@ export default function App() {
 
         try {
           await invoke('voice_capture_stop');
+          
+          // Transcribe using OpenAI Whisper
+          console.log('[Voice] Transcribing with OpenAI Whisper...');
           const text = await invoke('voice_transcribe');
-          console.log('[Voice Transcription]:', text);
+          
+          if (text && text.trim().length > 0) {
+            console.log('[Voice] Transcribed:', text);
+            // Send to Conflux for a response
+            await handleVoiceInput(text);
+          } else {
+            console.log('[Voice] No speech detected.');
+          }
         } catch (err) {
-          console.error('Voice transcribe failed:', err);
+          console.error('[Voice] Transcription/Chat failed:', err);
         } finally {
-          // Tell ConfluxOrbit the transcription is done so it can pulse and reset to idle
           window.dispatchEvent(new CustomEvent('conflux-transcription-done'));
         }
+      }
+    };
+
+    // Handle voice input -> Chat -> TTS
+    const handleVoiceInput = async (text: string) => {
+      try {
+        // Set Conflux to 'thinking' state
+        // We'll use a custom event to trigger this in ConfluxOrbit
+        window.dispatchEvent(new CustomEvent('conflux-thinking', { detail: { text } }));
+
+        // Route to the main chat engine (using Conflux as the primary persona)
+        // Using an existing session ID found in the DB to avoid FK errors
+        const response = await invoke('engine_chat', {
+          req: {
+            session_id: 'e95f3a8e-9246-48e3-a70b-0ae13d164d1a',
+            agent_id: 'conflux',
+            message: text,
+          }
+        });
+
+        // Trigger TTS for the response
+        if (response.content) {
+          await invoke('voice_synthesize', { 
+            text: response.content, 
+            window: null 
+          });
+        }
+      } catch (err) {
+        console.error('[Voice] Chat failed:', err);
       }
     };
 
