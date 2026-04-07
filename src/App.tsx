@@ -708,6 +708,19 @@ const [activeSnake, setActiveSnake] = useState(false);
   }
 
 
+  // ── Gate: Agent Introductions ──
+  if (showIntroductions) {
+    return (
+      <AgentIntroductions
+        userName={userName}
+        selectedAgentIds={selectedAgentIds}
+        userId={user?.id ?? ''}
+        familyMemberId={activeMemberId ?? undefined}
+        onComplete={handleIntroductionsComplete}
+      />
+    );
+  }
+
   return (
     <AuthProvider>
     <div className="desktop-shell">
