@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use chrono::{Datelike, Timelike};
 use super::engine;
 use super::engine::cloud;
-use super::engine::router::OpenAIMessage;
+use super::engine::router::{self, OpenAIMessage};
 
 // ── Request/Response Types ──
 
@@ -4914,7 +4914,7 @@ pub async fn studio_generate_voice(generation_id: String, text: String, voice_id
 // ═══════════════════════════════════════════════════════
 
 #[cfg(not(target_os = "android"))]
-mod voice_commands {
+pub mod voice_commands {
     use crate::voice;
     use crate::voice::capture::{self, AUDIO_BUFFER};
     use crate::voice::openai;
@@ -5092,7 +5092,7 @@ mod voice_commands {
 
 // Re-export voice commands — desktop uses real impl, Android gets stubs
 #[cfg(not(target_os = "android"))]
-pub use voice_cmds::*;
+pub use voice_commands::*;
 
 #[cfg(target_os = "android")]
 #[tauri::command]
