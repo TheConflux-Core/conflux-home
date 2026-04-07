@@ -290,6 +290,11 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
     targetX = dimensions.width / 2 - 250;
     targetY = dimensions.height / 2 - 250;
     scale = 1.6;
+  } else if (chatOpen) {
+    // Retreat behavior: move to bottom-left corner when chat is open
+    targetX = (dimensions.width - 300) * 0.05;
+    targetY = (dimensions.height - 300) * 0.9;
+    scale = 0.6;
   } else if (immersiveView) {
     // Magnetic Zones: use pre-defined coordinates for each app view
     const zone = MAGNETIC_ZONES[immersiveView];
