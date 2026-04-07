@@ -1839,7 +1839,7 @@ CREATE TABLE IF NOT EXISTS voice_config (
 );
 
 INSERT OR IGNORE INTO voice_config (key, value) VALUES
-  ('model_name', 'base'),
+  ('model_name', 'small'),
   ('language', 'en'),
   ('max_duration_ms', '30000'),
   ('sound_effects', 'false'),

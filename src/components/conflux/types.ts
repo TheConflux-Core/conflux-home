@@ -21,6 +21,7 @@ export type {
 export type ConfluxExternalEvent = {
   mode?: BrainMode;
   pulse?: number;
+  pulseImpulse?: number;
   status?: string;
   pulseEvent?: PulseEventDetail;
   speechCadence?: TokenCadenceDetail;

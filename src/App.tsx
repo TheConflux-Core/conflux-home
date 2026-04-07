@@ -277,7 +277,7 @@ export default function App() {
 
   // Push-to-Talk Global Handler
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
       // Ignore if typing in an input field
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
@@ -285,17 +285,34 @@ export default function App() {
       if (e.code === 'Space' && !isPushToTalkActive) {
         e.preventDefault();
         setIsPushToTalkActive(true);
-        
+
+        try {
+          await invoke('voice_capture_start');
+        } catch (err) {
+          console.error('Failed to start voice capture:', err);
+        }
+
         // Update ConfluxOrbit state via event or context (we'll wire this next)
         // For now, we'll dispatch a custom event that ConfluxOrbit can listen to
         window.dispatchEvent(new CustomEvent('push-to-talk-start'));
       }
     };
 
-    const handleKeyUp = (e: KeyboardEvent) => {
+    const handleKeyUp = async (e: KeyboardEvent) => {
       if (e.code === 'Space' && isPushToTalkActive) {
         setIsPushToTalkActive(false);
         window.dispatchEvent(new CustomEvent('push-to-talk-end'));
+
+        try {
+          await invoke('voice_capture_stop');
+          const text = await invoke('voice_transcribe');
+          console.log('[Voice Transcription]:', text);
+        } catch (err) {
+          console.error('Voice transcribe failed:', err);
+        } finally {
+          // Tell ConfluxOrbit the transcription is done so it can pulse and reset to idle
+          window.dispatchEvent(new CustomEvent('conflux-transcription-done'));
+        }
       }
     };
 

@@ -5,6 +5,7 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use once_cell::sync::Lazy;
 use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
 use std::time::Duration;
+use tauri::{Emitter, Window};
 
 pub static AUDIO_BUFFER: Lazy<Arc<Mutex<Vec<f32>>>> = Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
 static IS_RECORDING: Lazy<Arc<AtomicBool>> = Lazy::new(|| Arc::new(AtomicBool::new(false)));
@@ -193,4 +194,49 @@ pub fn record_with_timeout(max_duration_ms: Option<u64>) -> Result<u64, String> 
     start_recording()?;
     std::thread::sleep(Duration::from_millis(timeout));
     stop_recording()
+}
+
+/// Start a background thread that monitors microphone volume and emits
+/// `conflux:state` events with `pulseImpulse` (0.0 – 10.0) for the Fairy orbs.
+///
+/// The loop runs at ~30 fps and stops automatically when `IS_RECORDING` is set
+/// to false (i.e. after `stop_recording()` is called).
+pub fn start_volume_monitor(window: Window) {
+    std::thread::spawn(move || {
+        loop {
+            // Check if still recording
+            if !IS_RECORDING.load(Ordering::Relaxed) {
+                break;
+            }
+
+            // Calculate RMS of the most recent 1024 samples
+            let rms = if let Ok(buf) = AUDIO_BUFFER.lock() {
+                let len = buf.len();
+                if len == 0 {
+                    0.0f32
+                } else {
+                    let window_size = 1024.min(len);
+                    let start = len - window_size;
+                    let sum_sq: f32 = buf[start..].iter().map(|s| s * s).sum();
+                    (sum_sq / window_size as f32).sqrt()
+                }
+            } else {
+                0.0
+            };
+
+            // Map RMS to pulseImpulse (0.0 – 10.0)
+            // Typical RMS for speech ranges ~0.01 – 0.15, so we scale and clamp.
+            let pulse = (rms * 80.0).min(10.0).max(0.0);
+
+            // Emit the event — ignore errors if the window was closed
+            let _ = window.emit("conflux:state", serde_json::json!({
+                "pulseImpulse": pulse
+            }));
+
+            // ~30 fps
+            std::thread::sleep(Duration::from_millis(33));
+        }
+
+        log::info!("[VolumeMonitor] Stopped (recording ended)");
+    });
 }

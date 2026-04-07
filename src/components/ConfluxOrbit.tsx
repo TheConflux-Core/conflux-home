@@ -1,7 +1,9 @@
 import { motion } from 'framer-motion';
-import { ConfluxPresence, useConfluxController } from './conflux';
+import { ConfluxPresence, useConfluxController, attachTauriConfluxListeners } from './conflux';
+import type { ConfluxTauriListen } from './conflux';
 import { View } from '../types';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { listen } from '@tauri-apps/api/event';
 
 interface ConfluxOrbitProps {
   view: View;
@@ -18,6 +20,43 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
     initialStatus: 'System Online',
   });
 
+  // Wire up Tauri event listeners for conflux:state and conflux:pulse
+  // useEventListener ref pattern: useEffectEvent returns a new wrapper each render,
+  // so we store it in a ref to keep the dependency array stable.
+  const applyEventRef = useRef(conflux.applyEvent);
+  applyEventRef.current = conflux.applyEvent;
+
+  useEffect(() => {
+    let disposed = false;
+    let cleanup: { dispose: () => Promise<void> } | undefined;
+
+    const tauriListen: ConfluxTauriListen = (event, handler) => {
+      return listen(event, (e) => handler(e as any));
+    };
+
+    attachTauriConfluxListeners(tauriListen, (event, source) => {
+      // Log raw payload to diagnose STT pipeline
+      console.log('[ConfluxOrbit] conflux:state event received:', JSON.stringify(event));
+      console.log('[ConfluxOrbit] Event source:', source);
+      if (event.listeningCadence) {
+        console.log('[ConfluxOrbit] listeningCadence tokens:', event.listeningCadence.tokens);
+      }
+      applyEventRef.current(event, source);
+    }).then((bridge) => {
+      if (disposed) {
+        void bridge.dispose();
+        return;
+      }
+      cleanup = bridge;
+      console.log('[ConfluxOrbit] Tauri listeners attached');
+    });
+
+    return () => {
+      disposed = true;
+      void cleanup?.dispose();
+    };
+  }, []);
+
   // Listen for Push-to-Talk events
   useEffect(() => {
     const handlePTTStart = () => {
@@ -25,18 +64,26 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
       conflux.setMode('listen', 'manual', 'Listening...');
     };
     const handlePTTEnd = () => {
-      console.log('[ConfluxOrbit] PTT End - switching to idle mode');
+      // Don't go idle yet — stay in listen mode while transcription is processing.
+      // The 'conflux-transcription-done' event will handle the final reset.
+      console.log('[ConfluxOrbit] PTT End - keeping listen mode during transcription');
+    };
+    const handleTranscriptionDone = () => {
+      console.log('[ConfluxOrbit] Transcription done - pulsing and resetting to idle');
+      conflux.triggerPulse(10, 'Transcription complete');
       conflux.setMode('idle', 'manual', 'Ready');
     };
 
     window.addEventListener('push-to-talk-start', handlePTTStart);
     window.addEventListener('push-to-talk-end', handlePTTEnd);
+    window.addEventListener('conflux-transcription-done', handleTranscriptionDone);
 
     return () => {
       window.removeEventListener('push-to-talk-start', handlePTTStart);
       window.removeEventListener('push-to-talk-end', handlePTTEnd);
+      window.removeEventListener('conflux-transcription-done', handleTranscriptionDone);
     };
-  }, [conflux]);
+  }, []);
 
   // Determine position based on app state
   // Using window.innerWidth/Height to handle responsiveness
