@@ -1,9 +1,12 @@
 # 🧚‍♂️ Conflux Presence: The "Jarvis" Integration Roadmap
 
-> **Current Version:** v0.1.53-pre
+> **Current Version:** v0.1.53
 > **Status:** Visuals & Movement ✅ | TTS/STT Wiring 🚧 | Cross-App Awareness ⏳
 
 This document serves as the master checklist and technical specification for integrating the **Conflux Presence** (the "Fairy" or neural brain) into Conflux Home. It is designed to prevent context bloat and ensure we can resume high-level development across multiple sessions.
+
+**Connection to INTELLIGENCE_ROADMAP.md:**
+This roadmap focuses specifically on the *visual layer* and *voice interface*. The broader agent intelligence (proactive nudges, cross-app awareness, pattern detection) is detailed in `INTELLIGENCE_ROADMAP.md` (Phase 1 & 2).
 
 ---
 
@@ -29,41 +32,51 @@ These files are the "Source of Truth" for the visual component and design philos
 
 ## 3. Master Checklist: Remaining Implementation
 
-### Phase A: The Voice Layer (TTS/STT) 🗣️ — Pivot to ElevenLabs for Streaming
+### 🟢 Phase A: The Voice Layer (TTS/STT) 🗣️ — ElevenLabs Integration
 *Goal: Move from "simulated" pulses to actual audio-driven reactions.*
 
-> **Status:** Groundwork complete. Local Whisper Small is integrated but currently blocking the UI thread on transcription. PTT, audio capture, and volume-driven fairy pulses all work. For responsive real-time streaming, we are pivoting to ElevenLabs for Phase B.
+> **Status:** PTT, audio capture, volume-driven pulses are live. Local Whisper was blocked by UI thread issues.
 
+- [x] **PTT & Audio Capture:**
+    - [x] Spacebar triggers "Listening" state (Indigo pulse).
+    - [x] Volume-driven amplitude reacting to live mic.
 - [x] **STT Groundwork (Local Whisper Small):**
     - [x] Audio capture from PTT wired via `voice/capture.rs`.
-    - [x] Volume-driven pulses working (fairy reacts to live mic amplitude).
     - [x] Whisper Small integrated in `voice/transcribe.rs`.
-    - [ ] **Blocked:** Local Whisper inference is synchronous and blocks the UI; needs async/streaming or replacement.
+    - [ ] **Blocked:** Local Whisper inference is synchronous and blocks the UI; requires async/streaming or replacement (ElevenLabs).
 - [ ] **TTS Implementation (Text-to-Speech):**
+    - [x] Web Audio API wired for playback (`src/components/ConfluxOrbit.tsx`).
     - [ ] **Provider:** ElevenLabs streaming API (replacing local blocking calls).
     - [ ] **Audio Envelope:** Extract the audio amplitude/phoneme timing from the ElevenLabs stream.
     - [ ] **Sync:** Pass the TTS tokens to `conflux.runSpeechCadence()` to match the mouth-movement of the neural pulses.
 
-### Phase B: Cross-App "Awareness" 📱
+### 🔵 Phase B: Cross-App "Awareness" 📱
 *Goal: The Fairy should "inspect" the app the user is currently in.*
 
-- [ ] **App-Specific Lobe Routing:**
-    - [ ] **Budget (Pulse):** Trigger `routePulse({ route: ['reasoning', 'tools'] })` to show financial analysis.
-    - [ ] **Kitchen (Hearth):** Trigger a pulse in the `memory` lobe as it "recalls" pantry items.
-    - [ ] **Dreams (Horizon):** Trigger the `focus` lobe when decomposing goals.
+> **Status:** Magnetic positioning and app-specific palettes are implemented. Lobe routing is wired.
+
+- [x] **App-Specific Lobe Routing:**
+    - [x] `APP_LOBE_MAP` in `ConfluxOrbit.tsx` maps apps to lobes (Budget → reasoning, Kitchen → memory).
+    - [x] `conflux.routePulse()` triggers visual pulses in specific brain lobes based on app context.
+- [x] **App-Specific Palettes:**
+    - [x] `APP_PALETTES` in `neuralBrain.ts` defines unique color schemes per app.
+    - [x] `conflux.setAppPaletteMode()` switches colors dynamically.
 - [ ] **Data-Driven Pulses:**
     - [ ] **Deep Dive:** How do we map a "notification" or "nudge" from an app to a specific `strength` and `burst` count in the neural brain?
+    - [ ] **Integration:** Connect to `INTELLIGENCE_ROADMAP.md` Phase 1 (Nudge System) to trigger visual pulses from backend events.
 
-### Phase C: The "Master Intelligence" Layer (Backend) 🧠
+### 🟣 Phase C: The "Master Intelligence" Layer (Backend) 🧠
 *Goal: The brain should react to the Rust engine's internal state, not just the UI.*
 
-- [ ] **Rust Event Emission:**
-    - [ ] **Thinking Phase:** Emit `conflux:state` with `mode: 'focus'` from `router.rs` when the LLM token stream starts.
-    - [ ] **Tool Use:** When the agent calls a tool (e.g., `budget_detect_patterns`), trigger a `pulseEvent` to the `tools` lobe.
+- [x] **Rust Event Emission:**
+    - [x] `conflux:state` events are emitted by the backend (`router.rs`) during thinking/speaking.
+    - [x] `ConfluxOrbit.tsx` listens for these events and updates visual state accordingly.
+- [ ] **Tool Use Reaction:**
+    - [ ] When the agent calls a tool (e.g., `budget_detect_patterns`), trigger a `pulseEvent` to the `tools` lobe.
 - [ ] **Wake Word Simulation:**
     - [ ] **Deep Dive:** Implement a "Hey Conflux" listener that triggers `mode: 'excited'` and a unique `SoundManager` effect.
 
-### Phase D: Polish & Physics 🚀
+### 🟠 Phase D: Polish & Physics 🚀
 - [ ] **Collision Avoidance:** Ensure the Fairy doesn't overlap with the `GlobalAIInput` or the `ConfluxBarV2`.
 - [ ] **Idle Animations:** Add "micro-movements" (breathing/drift) when the user hasn't interacted for 30+ seconds.
 
@@ -80,4 +93,4 @@ These files are the "Source of Truth" for the visual component and design philos
 ---
 
 ## 5. Next Session "Kickoff" Prompt
-> "ZigBot, let's continue the Conflux Presence integration. Phase A voice groundwork is complete (PTT, audio capture, volume-driven pulses, Whisper Small integrated but blocking). **Priority: Phase B — ElevenLabs streaming TTS/STT** to replace the local blocking Whisper calls. We need real-time streaming transcription and audio-envelope-driven fairy pulses. Reference `MASTER_INSPIRATION_PROMPT.md` for the vision and `SESSION_HANDOFF_VOICE.md` for current state."
+> "ZigBot, let's continue the Conflux Presence integration. Phase A voice groundwork is complete (PTT, audio capture, volume-driven pulses). **Priority: Phase B — ElevenLabs streaming TTS/STT** to replace the local blocking Whisper calls. We need real-time streaming transcription and audio-envelope-driven fairy pulses. Reference `INTELLIGENCE_ROADMAP.md` for the broader agent vision and `CONFLUX_PRESENCE_ROADMAP.md` for the visual/voice layer."
