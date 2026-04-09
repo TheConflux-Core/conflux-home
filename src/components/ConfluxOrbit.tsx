@@ -62,7 +62,9 @@ const APP_LOBE_MAP: Record<string, string> = {
   'api-dashboard': 'perception',
 };
 
-export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatOpen, isPushToTalkActive, wizardMode = false, wizardSequence = [] }: ConfluxOrbitProps) {
+const EMPTY_SEQ: never[] = [];
+
+export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatOpen, isPushToTalkActive, wizardMode = false, wizardSequence = EMPTY_SEQ }: ConfluxOrbitProps) {
 
   // Wizard Mode: cycle through sequence steps
   const [wizardStepIndex, setWizardStepIndex] = useState(0);

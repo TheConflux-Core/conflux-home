@@ -1,10 +1,12 @@
 // Conflux Home — Kitchen View (Hearth Overhaul)
+import { invoke } from '@tauri-apps/api/core';
 // Home menu, meal library, weekly planner, smart grocery, pantry heatmap.
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useMeals, useWeeklyPlan, useGroceryList } from '../hooks/useKitchen';
 import { useHomeMenu, useKitchenNudges, useKitchenDigest } from '../hooks/useHearth';
 import { useFridgeScanner } from '../hooks/useFridgeScanner';
+import { useAuth } from '../hooks/useAuth';
 import type { Meal } from '../types';
 import { MEAL_CATEGORIES, MEAL_CUISINES, MEAL_CATEGORY_EMOJI } from '../types';
 
@@ -34,6 +36,7 @@ function formatCost(n: number | null): string {
 const SLOTS = ['breakfast', 'lunch', 'dinner'] as const;
 
 export default function KitchenView() {
+  const { user } = useAuth();
   const [tab, setTab] = useState<'home' | 'library' | 'plan' | 'grocery' | 'pantry'>('home');
   const [filterCat, setFilterCat] = useState<string>('all');
   const [filterCuisine, setFilterCuisine] = useState<string>('all');
@@ -68,6 +71,38 @@ export default function KitchenView() {
     loadNudges();
     loadDigest();
   }, [loadHomeMenu, loadNudges, loadDigest]);
+
+  // Load pantry inventory for Pantry tab
+  const [pantryItems, setPantryItems] = useState<any[]>([]);
+  useEffect(() => {
+    const loadInventory = async () => {
+      try {
+        const inventory = await invoke<any[]>('kitchen_get_inventory', { location: null, member_id: user?.id || null });
+        console.log('[KitchenView] Inventory loaded:', inventory.length, 'items');
+        // Convert KitchenInventoryItem → PantryHeatItem
+        const today = new Date();
+        const heatItems = inventory.map((item: any) => {
+          let daysUntilExpiry: number | null = null;
+          let freshness = 1.0;
+          if (item.expiry_date) {
+            const expiry = new Date(item.expiry_date);
+            daysUntilExpiry = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            freshness = Math.max(0, Math.min(1, daysUntilExpiry / 30));
+          }
+          return {
+            name: item.name,
+            freshness,
+            days_until_expiry: daysUntilExpiry,
+            location: item.location || 'pantry',
+          };
+        });
+        setPantryItems(heatItems);
+      } catch (e) {
+        console.error('[KitchenView] Failed to load inventory:', e);
+      }
+    };
+    loadInventory();
+  }, [user?.id]);
 
   const handleAIAdd = useCallback(async () => {
     if (!aiPrompt.trim() || aiLoading) return;
@@ -300,13 +335,15 @@ export default function KitchenView() {
       {tab === 'pantry' && (
         <div className="kitchen-pantry">
           {/* Placeholder data until backend provides pantry items */}
-          <PantryHeatmap items={[]} />
-          <div className="kitchen-empty" style={{ marginTop: '1rem' }}>
-            <p>🌡️ Connect your fridge scanner or add items to see pantry freshness.</p>
-            <button className="btn-primary" onClick={() => setTab('library')}>
-              Go to Fridge Scanner
-            </button>
-          </div>
+          <PantryHeatmap items={pantryItems} />
+          {pantryItems.length === 0 && (
+            <div className="kitchen-empty" style={{ marginTop: '1rem' }}>
+              <p>🌡️ Add items during onboarding or use the AI to stock your pantry.</p>
+              <button className="btn-primary" onClick={() => setTab('home')}>
+                Go to Home
+              </button>
+            </div>
+          )}
         </div>
       )}
 

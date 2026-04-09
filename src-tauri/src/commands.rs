@@ -1637,29 +1637,29 @@ pub struct AddInventoryRequest {
 
 #[tauri::command]
 pub fn kitchen_add_inventory(req: AddInventoryRequest, member_id: Option<String>) -> Result<(), String> {
-    let _member_id = member_id;
+    let user_id = member_id.unwrap_or_else(|| get_supabase_user_id());
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
     engine.db().add_inventory_item(
-        &id, &req.name, req.quantity, req.unit.as_deref(),
+        &id, &user_id, &req.name, req.quantity, req.unit.as_deref(),
         req.category.as_deref(), req.expiry_date.as_deref(), req.location.as_deref(),
     ).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn kitchen_get_inventory(location: Option<String>, member_id: Option<String>) -> Result<Vec<engine::types::KitchenInventoryItem>, String> {
-    let _member_id = member_id;
+    let user_id = member_id.unwrap_or_else(|| get_supabase_user_id());
     let engine = engine::get_engine();
-    engine.db().get_inventory(location.as_deref()).map_err(|e| e.to_string())
+    engine.db().get_inventory(&user_id, location.as_deref()).map_err(|e| e.to_string())
 }
 
 // ── Kitchen Hearth Commands ──
 
 #[tauri::command]
 pub fn kitchen_home_menu(member_id: Option<String>) -> Result<Vec<engine::types::HomeMenuItem>, String> {
-    let _member_id = member_id;
+    let user_id = member_id.unwrap_or_else(|| get_supabase_user_id());
     let engine = engine::get_engine();
-    let _inventory = engine.db().get_inventory(None).unwrap_or_default();
+    let _inventory = engine.db().get_inventory(&user_id, None).unwrap_or_default();
     let meals = engine.db().get_meals(None, None, false).unwrap_or_default();
     let mut menu = Vec::new();
     for meal in meals.iter().take(5) {
@@ -1812,19 +1812,20 @@ pub fn kitchen_get_meal_photos(meal_id: String, member_id: Option<String>) -> Re
 
 // ── Onboarding Setup ──
 
-/// Stub: save_budget_data — called during onboarding to seed initial budget data.
-/// Delegates to budget_add_entry under the hood.
+/// Onboarding: save_budget_data — seeds initial budget data for the current user.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SaveBudgetDataRequest {
     pub income: Option<f64>,
     pub categories: Option<Vec<String>>,
+    pub member_id: Option<String>,
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn save_budget_data(req: SaveBudgetDataRequest) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
     let income = req.income.unwrap_or(5000.0);
     let categories = req.categories.unwrap_or_else(|| vec!["groceries".to_string(), "rent".to_string(), "utilities".to_string()]);
+    let member_id = req.member_id;
 
     // Save income entry
     let income_id = uuid::Uuid::new_v4().to_string();
@@ -1832,7 +1833,7 @@ pub async fn save_budget_data(req: SaveBudgetDataRequest) -> Result<serde_json::
     let _ = engine.db().conn().execute(
         "INSERT INTO budget_entries (id, member_id, entry_type, category, amount, description, recurring, frequency, date, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-        rusqlite::params![income_id, None::<String>, "income", "salary", income, "Onboarding starter income", 1i64, "monthly", today, chrono::Utc::now().to_rfc3339()],
+        rusqlite::params![income_id, member_id, "income", "salary", income, "Onboarding starter income", 1i64, "monthly", today, chrono::Utc::now().to_rfc3339()],
     ).map_err(|e| e.to_string())?;
 
     // Save starter expense entries for each category
@@ -1842,7 +1843,7 @@ pub async fn save_budget_data(req: SaveBudgetDataRequest) -> Result<serde_json::
         let _ = engine.db().conn().execute(
             "INSERT INTO budget_entries (id, member_id, entry_type, category, amount, description, recurring, frequency, date, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-            rusqlite::params![id, None::<String>, "expense", cat, 0.0, format!("Starter category: {}", cat), 0i64, None::<String>, today, chrono::Utc::now().to_rfc3339()],
+            rusqlite::params![id, member_id, "expense", cat, 0.0, format!("Starter category: {}", cat), 0i64, None::<String>, today, chrono::Utc::now().to_rfc3339()],
         ).map_err(|e| e.to_string())?;
         entries_created += 1;
     }
@@ -1869,7 +1870,7 @@ pub struct CreateBudgetEntryRequest {
     pub date: String,
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn budget_add_entry(req: CreateBudgetEntryRequest) -> Result<engine::types::BudgetEntry, String> {
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
@@ -1888,7 +1889,7 @@ pub fn budget_add_entry(req: CreateBudgetEntryRequest) -> Result<engine::types::
     })
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn budget_get_entries(member_id: Option<String>, month: Option<String>) -> Result<Vec<engine::types::BudgetEntry>, String> {
     let engine = engine::get_engine();
     let conn = engine.db().conn();
@@ -1924,33 +1925,33 @@ pub fn budget_get_entries(member_id: Option<String>, month: Option<String>) -> R
     Ok(result)
 }
 
-#[tauri::command]
-pub fn budget_get_summary(month: String) -> Result<engine::types::BudgetSummary, String> {
+#[tauri::command(rename_all = "snake_case")]
+pub fn budget_get_summary(member_id: String, month: String) -> Result<engine::types::BudgetSummary, String> {
     let engine = engine::get_engine();
     let conn = engine.db().conn();
 
     let total_income: f64 = conn.query_row(
-        "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE entry_type = 'income' AND strftime('%Y-%m', date) = ?1",
-        rusqlite::params![month], |row| row.get(0)
+        "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id = ?1 AND entry_type = 'income' AND strftime('%Y-%m', date) = ?2",
+        rusqlite::params![member_id, month], |row| row.get(0)
     ).unwrap_or(0.0);
 
     let total_expenses: f64 = conn.query_row(
-        "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE entry_type = 'expense' AND strftime('%Y-%m', date) = ?1",
-        rusqlite::params![month], |row| row.get(0)
+        "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id = ?1 AND entry_type = 'expense' AND strftime('%Y-%m', date) = ?2",
+        rusqlite::params![member_id, month], |row| row.get(0)
     ).unwrap_or(0.0);
 
     let total_savings: f64 = conn.query_row(
-        "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE entry_type = 'savings' AND strftime('%Y-%m', date) = ?1",
-        rusqlite::params![month], |row| row.get(0)
+        "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id = ?1 AND entry_type = 'savings' AND strftime('%Y-%m', date) = ?2",
+        rusqlite::params![member_id, month], |row| row.get(0)
     ).unwrap_or(0.0);
 
     // Category breakdown for expenses
     let mut cat_stmt = conn.prepare(
         "SELECT category, SUM(amount) as total FROM budget_entries
-         WHERE entry_type = 'expense' AND strftime('%Y-%m', date) = ?1
+         WHERE member_id = ?1 AND entry_type = 'expense' AND strftime('%Y-%m', date) = ?2
          GROUP BY category ORDER BY total DESC"
     ).map_err(|e| e.to_string())?;
-    let cat_rows = cat_stmt.query_map(rusqlite::params![month], |row| {
+    let cat_rows = cat_stmt.query_map(rusqlite::params![member_id, month], |row| {
         Ok(engine::types::CategoryTotal {
             category: row.get(0)?,
             total: row.get(1)?,
@@ -1969,7 +1970,7 @@ pub fn budget_get_summary(month: String) -> Result<engine::types::BudgetSummary,
     })
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn budget_delete_entry(id: String) -> Result<(), String> {
     let engine = engine::get_engine();
     engine.db().conn().execute("DELETE FROM budget_entries WHERE id = ?1", rusqlite::params![id])
@@ -1979,7 +1980,7 @@ pub fn budget_delete_entry(id: String) -> Result<(), String> {
 
 // ── Budget Pulse Commands ──
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn budget_parse_natural(input: String) -> Result<serde_json::Value, String> {
     // Parse natural language like "spent $45 on groceries" or "got paid $2000"
     let lower = input.to_lowercase();
@@ -2034,38 +2035,39 @@ pub fn budget_parse_natural(input: String) -> Result<serde_json::Value, String> 
     }))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn budget_detect_patterns(member_id: Option<String>) -> Result<Vec<engine::types::BudgetPattern>, String> {
     let engine = engine::get_engine();
     engine.db().detect_budget_patterns(member_id.as_deref()).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn budget_can_afford(amount: f64, month: String) -> Result<bool, String> {
     let engine = engine::get_engine();
-    engine.db().can_afford(amount, &month).map_err(|e| e.to_string())
+    let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
+    engine.db().can_afford(&member_id, amount, &month).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn budget_create_goal(name: String, target_amount: f64, deadline: Option<String>, monthly_allocation: Option<f64>, member_id: Option<String>) -> Result<(), String> {
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
     engine.db().create_budget_goal(&id, member_id.as_deref(), &name, target_amount, deadline.as_deref(), monthly_allocation).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn budget_get_goals(member_id: Option<String>) -> Result<Vec<engine::types::BudgetGoal>, String> {
     let engine = engine::get_engine();
     engine.db().get_budget_goals(member_id.as_deref()).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn budget_update_goal(id: String, current_amount: f64) -> Result<(), String> {
     let engine = engine::get_engine();
     engine.db().update_budget_goal(&id, current_amount).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn budget_delete_goal(id: String) -> Result<(), String> {
     let engine = engine::get_engine();
     engine.db().delete_budget_goal(&id).map_err(|e| e.to_string())
@@ -2085,10 +2087,11 @@ pub fn budget_goal_status(member_id: Option<String>) -> Result<serde_json::Value
     }))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn budget_generate_report(month: String) -> Result<engine::types::MonthlyReport, String> {
     let engine = engine::get_engine();
-    engine.db().get_monthly_report(&month).map_err(|e| e.to_string())
+    let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
+    engine.db().get_monthly_report(&member_id, &month).map_err(|e| e.to_string())
 }
 
 // ── Content Feed ──
@@ -2341,13 +2344,14 @@ Be specific with ingredient names. Use standard grocery terms."
             Some("long") => Some((now + chrono::Duration::days(60)).format("%Y-%m-%d").to_string()),
             _ => None,
         };
+        let member_id = get_supabase_user_id();
         conn.execute(
-            "INSERT INTO kitchen_inventory (id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'fridge', ?7, ?7, ?7)",
-            rusqlite::params![id, item.name, item.quantity, item.unit, item.category, expiry, now.to_rfc3339()],
+            "INSERT INTO kitchen_inventory (id, member_id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'fridge', ?8, ?8, ?8)",
+            rusqlite::params![id, member_id, item.name, item.quantity, item.unit, item.category, expiry, now.to_rfc3339()],
         ).map_err(|e| e.to_string())?;
         added_items.push(engine::types::KitchenInventoryItem {
-            id, name: item.name.clone(), quantity: item.quantity, unit: item.unit.clone(),
+            id, member_id, name: item.name.clone(), quantity: item.quantity, unit: item.unit.clone(),
             category: item.category.clone(), expiry_date: expiry, location: Some("fridge".to_string()),
             last_restocked: Some(now.to_rfc3339()), created_at: now.to_rfc3339(), updated_at: now.to_rfc3339(),
         });
@@ -2419,16 +2423,17 @@ pub fn fridge_expiring_soon(days: Option<i64>) -> Result<Vec<engine::types::Kitc
     let conn = engine.db().conn();
     let d = days.unwrap_or(3);
     let future_date = (chrono::Utc::now() + chrono::Duration::days(d)).format("%Y-%m-%d").to_string();
+    let member_id = get_supabase_user_id();
 
     let mut stmt = conn.prepare(
-        "SELECT id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at
-         FROM kitchen_inventory WHERE expiry_date IS NOT NULL AND expiry_date <= ?1 ORDER BY expiry_date"
+        "SELECT id, member_id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at
+         FROM kitchen_inventory WHERE member_id = ?1 AND expiry_date IS NOT NULL AND expiry_date <= ?2 ORDER BY expiry_date"
     ).map_err(|e| e.to_string())?;
-    let rows = stmt.query_map(rusqlite::params![future_date], |row| {
+    let rows = stmt.query_map(rusqlite::params![member_id, future_date], |row| {
         Ok(engine::types::KitchenInventoryItem {
-            id: row.get(0)?, name: row.get(1)?, quantity: row.get(2)?, unit: row.get(3)?,
-            category: row.get(4)?, expiry_date: row.get(5)?, location: row.get(6)?,
-            last_restocked: row.get(7)?, created_at: row.get(8)?, updated_at: row.get(9)?,
+            id: row.get(0)?, member_id: row.get(1)?, name: row.get(2)?, quantity: row.get(3)?, unit: row.get(4)?,
+            category: row.get(5)?, expiry_date: row.get(6)?, location: row.get(7)?,
+            last_restocked: row.get(8)?, created_at: row.get(9)?, updated_at: row.get(10)?,
         })
     }).map_err(|e| e.to_string())?;
     let mut result = Vec::new();
@@ -5239,8 +5244,7 @@ pub async fn purchase_credits(user_id: String, pack: String) -> Result<String, S
 fn get_supabase_user_id() -> String {
     let engine = engine::get_engine();
     engine.db().get_config("supabase_user_id")
-        .unwrap_or(None)
-        .unwrap_or_default()
+        .ok().flatten().unwrap_or_default()
 }
 
 /// Store Supabase session credentials in engine config for cloud API calls.

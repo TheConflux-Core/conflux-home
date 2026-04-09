@@ -1083,6 +1083,65 @@ CREATE TABLE IF NOT EXISTS budget_goals (
 );
 CREATE INDEX IF NOT EXISTS idx_budget_goals_member ON budget_goals(member_id);
 
+-- Budget Settings (Zero-Based Budgeting Engine)
+CREATE TABLE IF NOT EXISTS budget_settings (
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL,
+    pay_frequency   TEXT NOT NULL DEFAULT 'semimonthly',
+    pay_dates       TEXT NOT NULL DEFAULT '[1,15]',
+    income_amount   REAL NOT NULL DEFAULT 0,
+    currency        TEXT NOT NULL DEFAULT 'USD',
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_budget_settings_user ON budget_settings(user_id);
+
+-- Budget Buckets (spending categories with goals)
+CREATE TABLE IF NOT EXISTS budget_buckets (
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL,
+    name            TEXT NOT NULL,
+    icon            TEXT,
+    monthly_goal    REAL NOT NULL DEFAULT 0,
+    color           TEXT,
+    is_active       INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_budget_buckets_user ON budget_buckets(user_id);
+
+-- Budget Allocations (per-pay-period bucket amounts)
+CREATE TABLE IF NOT EXISTS budget_allocations (
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL,
+    bucket_id       TEXT NOT NULL REFERENCES budget_buckets(id),
+    pay_period_id   TEXT NOT NULL,
+    amount          REAL NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_budget_allocations_user ON budget_allocations(user_id);
+CREATE INDEX IF NOT EXISTS idx_budget_allocations_bucket ON budget_allocations(bucket_id);
+
+-- Budget Transactions (actual spending/income)
+CREATE TABLE IF NOT EXISTS budget_transactions (
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL,
+    bucket_id       TEXT REFERENCES budget_buckets(id),
+    amount          REAL NOT NULL,
+    date            TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'pending',
+    description     TEXT,
+    merchant        TEXT,
+    category        TEXT,
+    receipt_url     TEXT,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_budget_transactions_user ON budget_transactions(user_id);
+CREATE INDEX IF NOT EXISTS idx_budget_transactions_bucket ON budget_transactions(bucket_id);
+CREATE INDEX IF NOT EXISTS idx_budget_transactions_date ON budget_transactions(date);
+
 -- ============================================================
 -- SMART KITCHEN — Meal Management System
 -- ============================================================
@@ -1167,6 +1226,7 @@ CREATE INDEX IF NOT EXISTS idx_grocery_checked ON grocery_items(is_checked);
 -- Kitchen inventory (future: what's in stock)
 CREATE TABLE IF NOT EXISTS kitchen_inventory (
     id              TEXT PRIMARY KEY,
+    member_id       TEXT REFERENCES family_members(id),
     name            TEXT NOT NULL,
     quantity        REAL,
     unit            TEXT,
@@ -1180,6 +1240,7 @@ CREATE TABLE IF NOT EXISTS kitchen_inventory (
 
 CREATE INDEX IF NOT EXISTS idx_inventory_location ON kitchen_inventory(location);
 CREATE INDEX IF NOT EXISTS idx_inventory_expiry ON kitchen_inventory(expiry_date);
+CREATE INDEX IF NOT EXISTS idx_inventory_member ON kitchen_inventory(member_id);
 
 -- Meal photos gallery (Hearth)
 CREATE TABLE IF NOT EXISTS meal_photos (

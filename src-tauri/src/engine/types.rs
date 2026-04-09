@@ -687,6 +687,60 @@ pub struct BudgetPattern {
     pub frequency: String,
 }
 
+// ── Budget Engine (Zero-Based Budgeting) ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BudgetSettingsRow {
+    pub id: String,
+    pub user_id: String,
+    pub pay_frequency: String,
+    pub pay_dates: String,
+    pub income_amount: f64,
+    pub currency: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BudgetBucketRow {
+    pub id: String,
+    pub user_id: String,
+    pub name: String,
+    pub icon: Option<String>,
+    pub monthly_goal: f64,
+    pub color: Option<String>,
+    pub is_active: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BudgetAllocationRow {
+    pub id: String,
+    pub user_id: String,
+    pub bucket_id: String,
+    pub pay_period_id: String,
+    pub amount: f64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BudgetTransactionRow {
+    pub id: String,
+    pub user_id: String,
+    pub bucket_id: Option<String>,
+    pub amount: f64,
+    pub date: String,
+    pub status: String,
+    pub description: Option<String>,
+    pub merchant: Option<String>,
+    pub category: Option<String>,
+    pub receipt_url: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MonthlyReport {
     pub month: String,
@@ -844,6 +898,7 @@ pub struct KitchenNudge {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KitchenInventoryItem {
     pub id: String,
+    pub member_id: String,
     pub name: String,
     pub quantity: Option<f64>,
     pub unit: Option<String>,
