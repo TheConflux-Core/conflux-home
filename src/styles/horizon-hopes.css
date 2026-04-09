@@ -5,11 +5,11 @@
 
 /* ── Color Palette ── */
 :root {
-  --horizon-bg-deep: #050a1a;
-  --horizon-bg-base: #0a1232;
-  --horizon-bg-raised: #0f1a4a;
-  --horizon-bg-card: rgba(15, 26, 74, 0.6);
-  --horizon-bg-glass: rgba(20, 35, 90, 0.3);
+  --horizon-bg-deep: rgba(5, 10, 26, 0.0);
+  --horizon-bg-base: rgba(10, 18, 50, 0.5);
+  --horizon-bg-raised: rgba(15, 26, 74, 0.4);
+  --horizon-bg-card: rgba(15, 26, 74, 0.35);
+  --horizon-bg-glass: rgba(20, 35, 90, 0.2);
   --horizon-blue-900: #1e1b4b;
   --horizon-blue-700: #312e81;
   --horizon-blue-500: #4f46e5;
@@ -20,8 +20,8 @@
   --horizon-text-bright: #eef2ff;
   --horizon-text-primary: #c7d2fe;
   --horizon-text-secondary: #818cf8;
-  --horizon-shadow-glow: 0 0 30px rgba(99, 102, 241, 0.3);
-  --horizon-shadow-card: 0 4px 24px rgba(5, 10, 26, 0.6);
+  --horizon-shadow-glow: 0 0 30px rgba(99, 102, 241, 0.2);
+  --horizon-shadow-card: 0 4px 24px rgba(5, 10, 26, 0.4);
   --horizon-radius: 16px;
   --horizon-radius-sm: 10px;
   --horizon-transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -29,11 +29,13 @@
 
 /* ── Base View ── */
 .horizon-view {
-  min-height: 100vh;
-  background: var(--horizon-bg-deep);
+  position: relative;
+  height: 100%;
   color: var(--horizon-text-primary);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  padding: 0 0 40px;
+  padding: 40px 48px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* ── Loading ── */
@@ -95,12 +97,12 @@
   inset: 0;
   background: linear-gradient(
     180deg,
-    #050a1a 0%,
-    #0a1640 25%,
-    #131e5c 50%,
-    #1e2d7a 70%,
-    #2a3f94 85%,
-    #3a52b0 100%
+    rgba(5, 10, 26, 0.0) 0%,
+    rgba(10, 22, 64, 0.15) 25%,
+    rgba(19, 30, 92, 0.2) 50%,
+    rgba(30, 45, 122, 0.25) 70%,
+    rgba(42, 63, 148, 0.15) 85%,
+    transparent 100%
   );
   z-index: 0;
 }
@@ -974,7 +976,7 @@
 }
 
 .horizon-view::-webkit-scrollbar-track {
-  background: var(--horizon-bg-deep);
+  background: rgba(5, 10, 26, 0.3);
 }
 
 .horizon-view::-webkit-scrollbar-thumb {

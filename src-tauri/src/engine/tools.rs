@@ -2079,13 +2079,14 @@ fn execute_kitchen_add_inventory(args: &Value) -> Result<ToolResult> {
 
     let id = uuid::Uuid::new_v4().to_string();
     let engine = super::get_engine();
+    let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
     let quantity = args.get("quantity").and_then(|v| v.as_f64());
     let unit = args.get("unit").and_then(|v| v.as_str());
     let category = None::<&str>;
     let expiry = args.get("expiry_date").and_then(|v| v.as_str());
     let location = args.get("location").and_then(|v| v.as_str());
 
-    match engine.db().add_inventory_item(&id, name, quantity, unit, category, expiry, location) {
+    match engine.db().add_inventory_item(&id, &member_id, name, quantity, unit, category, expiry, location) {
         Ok(()) => Ok(ToolResult {
             success: true,
             output: format!("Added {} to inventory{}{}",
@@ -2100,9 +2101,10 @@ fn execute_kitchen_add_inventory(args: &Value) -> Result<ToolResult> {
 
 fn execute_kitchen_get_inventory(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
+    let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
     let location = args.get("location").and_then(|v| v.as_str());
 
-    match engine.db().get_inventory(location) {
+    match engine.db().get_inventory(&member_id, location) {
         Ok(items) => {
             if items.is_empty() {
                 return Ok(ToolResult { success: true, output: "Inventory is empty.".into(), error: None });
@@ -2213,7 +2215,8 @@ fn execute_budget_get_summary(args: &Value) -> Result<ToolResult> {
     }
 
     let engine = super::get_engine();
-    match engine.db().get_budget_summary(month) {
+    let member_id = args.get("member_id").and_then(|v| v.as_str()).unwrap_or_default();
+    match engine.db().get_budget_summary(&member_id, month) {
         Ok(summary) => {
             let cat_lines: Vec<String> = summary.categories.iter()
                 .map(|c| format!("  {}: ${:.2}", c.category, c.total)).collect();
@@ -2596,16 +2599,18 @@ fn execute_weekly_summary(_args: &Value) -> Result<ToolResult> {
     let mut sections: Vec<String> = Vec::new();
 
     // 1. Budget summary
-    if let Ok(summary) = engine.db().get_budget_summary(&this_month) {
+    let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
+    if let Ok(summary) = engine.db().get_budget_summary(&member_id, &this_month) {
         sections.push(format!("💰 Budget ({}): Spent ${:.2} | Income ${:.2} | Net ${:.2}",
             this_month, summary.total_expenses, summary.total_income, summary.net));
     }
 
     // 2. Kitchen — meals + expiring inventory
+    let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
     if let Ok(meals) = engine.db().get_meals(None, None, false) {
         sections.push(format!("🍳 Kitchen: {} meals in collection", meals.len()));
     }
-    if let Ok(inventory) = engine.db().get_inventory(None) {
+    if let Ok(inventory) = engine.db().get_inventory(&member_id, None) {
         let expiring: Vec<_> = inventory.iter()
             .filter(|item| {
                 if let Some(ref exp) = item.expiry_date {
@@ -2665,7 +2670,8 @@ fn execute_can_afford(args: &Value) -> Result<ToolResult> {
     let now = chrono::Utc::now();
     let this_month = now.format("%Y-%m").to_string();
 
-    let summary = engine.db().get_budget_summary(&this_month)?;
+    let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
+    let summary = engine.db().get_budget_summary(&member_id, &this_month)?;
     let discretionary = summary.total_income - summary.total_expenses;
 
     let mut analysis = Vec::new();
@@ -2716,7 +2722,8 @@ fn execute_day_overview(_args: &Value) -> Result<ToolResult> {
     }
 
     // 2. Inventory expiring today or tomorrow
-    if let Ok(inventory) = engine.db().get_inventory(None) {
+    let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
+    if let Ok(inventory) = engine.db().get_inventory(&member_id, None) {
         let urgent: Vec<_> = inventory.iter()
             .filter(|item| {
                 if let Some(ref exp) = item.expiry_date {
