@@ -3541,12 +3541,189 @@ impl EngineDb {
         score -= (monthly - 300.0).max(0.0) / 10.0;
         score -= total_appliance_risk / (appliances.len() as f64).max(1.0) / 5.0;
         let health_score = score.max(0.0).min(100.0);
+
+        // ── Derive system status cards ──
+        let systems = Self::derive_systems(&profile, &overdue, &upcoming, &appliances);
+
         Ok(super::types::HomeDashboard {
             profile, upcoming_maintenance: upcoming, overdue_maintenance: overdue,
             appliances_needing_service: appliances, bill_trend, total_monthly_utilities: monthly,
-            health_score, ai_alerts: vec![],
+            health_score, systems, ai_alerts: vec![],
         })
     }
+
+    fn derive_systems(
+        profile: &Option<super::types::HomeProfile>,
+        overdue: &[super::types::HomeMaintenance],
+        upcoming: &[super::types::HomeMaintenance],
+        appliances: &[super::types::HomeAppliance],
+    ) -> Vec<super::types::HomeSystem> {
+        let mut systems = Vec::new();
+        let now = chrono::Utc::now().date_naive();
+
+        // Helper: count maintenance for category
+        let cat_overdue = |cat: &str| -> usize {
+            overdue.iter().filter(|m| m.category.to_lowercase().contains(cat)).count()
+        };
+        let cat_upcoming = |cat: &str| -> usize {
+            upcoming.iter().filter(|m| m.category.to_lowercase().contains(cat)).count()
+        };
+        let cat_next_due = |cat: &str| -> Option<String> {
+            upcoming.iter()
+                .filter(|m| m.category.to_lowercase().contains(cat))
+                .filter_map(|m| m.next_due.as_ref())
+                .min()
+                .cloned()
+        };
+
+        // 1. HVAC
+        {
+            let hvac_overdue = cat_overdue("hvac") + cat_overdue("heating") + cat_overdue("cooling");
+            let hvac_appliances: Vec<_> = appliances.iter()
+                .filter(|a| a.category.to_lowercase().contains("hvac") || a.category.to_lowercase().contains("heating") || a.category.to_lowercase().contains("cooling"))
+                .collect();
+            let hvac_type = profile.as_ref().and_then(|p| p.hvac_type.as_deref()).unwrap_or("Not configured");
+            let (status, detail) = if hvac_overdue > 0 {
+                ("critical", format!("{} overdue task{}, {}", hvac_overdue, if hvac_overdue == 1 {""} else {"s"}, hvac_type))
+            } else if let Some(due) = cat_next_due("hvac").or_else(|| cat_next_due("heating")).or_else(|| cat_next_due("cooling")) {
+                if let Ok(d) = chrono::NaiveDate::parse_from_str(&due, "%Y-%m-%d") {
+                    let days = (d - now).num_days();
+                    if days <= 14 {
+                        ("warning", format!("Filter due in {} days", days))
+                    } else {
+                        ("healthy", format!("Next service in {} days", days))
+                    }
+                } else {
+                    ("healthy", hvac_type.to_string())
+                }
+            } else if !hvac_appliances.is_empty() {
+                ("healthy", format!("{} appliance{} registered", hvac_appliances.len(), if hvac_appliances.len() == 1 {""} else {"s"}))
+            } else {
+                ("healthy", hvac_type.to_string())
+            };
+            systems.push(super::types::HomeSystem {
+                name: "HVAC".into(), icon: "❄️".into(), status: status.into(), detail,
+            });
+        }
+
+        // 2. Plumbing
+        {
+            let plumb_overdue = cat_overdue("plumbing") + cat_overdue("water");
+            let water_heater = profile.as_ref().and_then(|p| p.water_heater_type.as_deref());
+            let water_appliances: Vec<_> = appliances.iter()
+                .filter(|a| a.category.to_lowercase().contains("plumb") || a.category.to_lowercase().contains("water"))
+                .collect();
+            let (status, detail) = if plumb_overdue > 0 {
+                ("critical", format!("{} overdue task{}", plumb_overdue, if plumb_overdue == 1 {""} else {"s"}))
+            } else if let Some(due) = cat_next_due("plumbing").or_else(|| cat_next_due("water")) {
+                if let Ok(d) = chrono::NaiveDate::parse_from_str(&due, "%Y-%m-%d") {
+                    let days = (d - now).num_days();
+                    if days <= 14 {
+                        ("warning", format!("Due in {} days", days))
+                    } else {
+                        ("healthy", format!("Next in {} days", days))
+                    }
+                } else {
+                    ("healthy", water_heater.unwrap_or("No tasks scheduled").into())
+                }
+            } else {
+                ("healthy", water_heater.unwrap_or(if water_appliances.is_empty() {"No tasks scheduled"} else {"On track"}).into())
+            };
+            systems.push(super::types::HomeSystem {
+                name: "Plumbing".into(), icon: "🚿".into(), status: status.into(), detail,
+            });
+        }
+
+        // 3. Electrical
+        {
+            let elec_overdue = cat_overdue("electrical") + cat_overdue("electric");
+            let elec_appliances: Vec<_> = appliances.iter()
+                .filter(|a| a.category.to_lowercase().contains("electr"))
+                .collect();
+            let (status, detail) = if elec_overdue > 0 {
+                ("critical", format!("{} overdue task{}", elec_overdue, if elec_overdue == 1 {""} else {"s"}))
+            } else if let Some(due) = cat_next_due("electrical").or_else(|| cat_next_due("electric")) {
+                if let Ok(d) = chrono::NaiveDate::parse_from_str(&due, "%Y-%m-%d") {
+                    let days = (d - now).num_days();
+                    if days <= 14 {
+                        ("warning", format!("Due in {} days", days))
+                    } else {
+                        ("healthy", format!("Next in {} days", days))
+                    }
+                } else {
+                    ("healthy", "No issues".into())
+                }
+            } else {
+                ("healthy", if elec_appliances.is_empty() {"No issues"} else {"On track"}.into())
+            };
+            systems.push(super::types::HomeSystem {
+                name: "Electrical".into(), icon: "⚡".into(), status: status.into(), detail,
+            });
+        }
+
+        // 4. Roof & Exterior
+        {
+            let roof_overdue = cat_overdue("roof") + cat_overdue("exterior") + cat_overdue("gutter");
+            let roof_type = profile.as_ref().and_then(|p| p.roof_type.as_deref());
+            let (status, detail) = if roof_overdue > 0 {
+                ("critical", format!("{} overdue task{}", roof_overdue, if roof_overdue == 1 {""} else {"s"}))
+            } else if let Some(due) = cat_next_due("roof").or_else(|| cat_next_due("exterior")).or_else(|| cat_next_due("gutter")) {
+                if let Ok(d) = chrono::NaiveDate::parse_from_str(&due, "%Y-%m-%d") {
+                    let days = (d - now).num_days();
+                    if days <= 14 {
+                        ("warning", format!("Due in {} days", days))
+                    } else {
+                        ("healthy", format!("Next in {} days", days))
+                    }
+                } else {
+                    ("healthy", roof_type.unwrap_or("No issues").into())
+                }
+            } else {
+                ("healthy", roof_type.unwrap_or("No issues").into())
+            };
+            systems.push(super::types::HomeSystem {
+                name: "Roof & Exterior".into(), icon: "🏠".into(), status: status.into(), detail,
+            });
+        }
+
+        // 5. Appliances
+        {
+            let warranty_risk: Vec<_> = appliances.iter()
+                .filter(|a| {
+                    if let Some(exp) = &a.warranty_expiry {
+                        if let Ok(d) = chrono::NaiveDate::parse_from_str(exp, "%Y-%m-%d") {
+                            return (d - now).num_days() <= 30;
+                        }
+                    }
+                    false
+                })
+                .collect();
+            let at_risk: Vec<_> = appliances.iter()
+                .filter(|a| {
+                    if let (Some(lifespan), Some(installed)) = (a.expected_lifespan_years, a.installed_date.as_ref()) {
+                        if let Ok(date) = chrono::NaiveDate::parse_from_str(installed, "%Y-%m-%d") {
+                            let age = (now - date).num_days() as f64 / 365.25;
+                            return (age / lifespan) >= 0.9;
+                        }
+                    }
+                    false
+                })
+                .collect();
+            let (status, detail) = if !at_risk.is_empty() {
+                ("critical", format!("{} appliance{} at end of life", at_risk.len(), if at_risk.len() == 1 {""} else {"s"}))
+            } else if !warranty_risk.is_empty() {
+                ("warning", format!("{} warranty expiring soon", warranty_risk.len()))
+            } else {
+                ("healthy", format!("{} registered", appliances.len()))
+            };
+            systems.push(super::types::HomeSystem {
+                name: "Appliances".into(), icon: "🔧".into(), status: status.into(), detail,
+            });
+        }
+
+        systems
+    }
+
     pub fn delete_home_bill(&self, id: &str) -> Result<()> {
         self.conn().execute("DELETE FROM home_bills WHERE id = ?", [id])?;
         Ok(())

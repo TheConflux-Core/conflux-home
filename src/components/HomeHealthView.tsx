@@ -1,7 +1,7 @@
 // Conflux Home — Foundation View
 // Your Home's Nerve Center: diagnosis, predictions, seasonal care, warranties, AI chat
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useHomeHealth } from '../hooks/useHomeHealth';
 import { useHomeDiagnosis, usePredictions, useSeasonalTasks, useWarrantyAlerts, useHomeChat } from '../hooks/foundation-hooks';
 import { FoundationHero, FoundationDiagnosisCard, FoundationPredictionsGrid, FoundationSeasonalCalendar, FoundationChat, FoundationVault } from './foundation';
@@ -22,6 +22,7 @@ export default function HomeHealthView() {
   const [vaultLoaded, setVaultLoaded] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth() + 1);
   const [recentDiagnoses, setRecentDiagnoses] = useState<string[]>([]);
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
 
   // Load dashboard on mount
   useEffect(() => { load(); }, [load]);
@@ -59,6 +60,25 @@ export default function HomeHealthView() {
     setCurrentMonth(m);
   }, []);
 
+  // Bill trend sparkline path
+  const billTrend = dashboard?.bill_trend ?? [];
+  const sparklineSvg = useMemo(() => {
+    if (billTrend.length < 2) return null;
+    const w = 80, h = 24;
+    const vals = billTrend.map(b => b.total);
+    const min = Math.min(...vals);
+    const max = Math.max(...vals);
+    const range = max - min || 1;
+    const points = vals.map((v, i) => {
+      const x = (i / (vals.length - 1)) * w;
+      const y = h - ((v - min) / range) * h;
+      return `${x},${y}`;
+    });
+    const path = `M${points.join(' L')}`;
+    const areaPath = `${path} L${w},${h} L0,${h} Z`;
+    return { path, areaPath, w, h };
+  }, [billTrend]);
+
   if (loading) {
     return (
       <div className="foundation-view">
@@ -75,8 +95,8 @@ export default function HomeHealthView() {
   const overdueCount = dashboard?.overdue_maintenance?.length ?? 0;
   const upcomingCount = dashboard?.upcoming_maintenance?.length ?? 0;
   const appliancesAtRisk = dashboard?.appliances_needing_service?.length ?? 0;
-  const systems: Array<{ name: string; icon: string; status: 'healthy' | 'warning' | 'critical'; detail: string }> = [];
-  const alertsCount = 0;
+  const systems = dashboard?.systems ?? [];
+  const alertsCount = (dashboard?.ai_alerts?.length ?? 0) + overdueCount;
 
   return (
     <div className="foundation-view">
@@ -86,7 +106,7 @@ export default function HomeHealthView() {
           {(['overview', 'diagnose', 'calendar', 'vault', 'chat'] as const).map(t => (
             <button
               key={t}
-              className={`foundation-tab ${tab === t ? 'active' : ''}`}
+              className={`foundation-tab ${tab === t ? 'foundation-tab--active' : ''}`}
               onClick={() => setTab(t)}
             >
               {t === 'overview' ? '📊 Overview' : t === 'diagnose' ? '🩺 Diagnose' : t === 'calendar' ? '📅 Calendar' : t === 'vault' ? '🛡️ Vault' : '💬 Chat'}
@@ -97,7 +117,34 @@ export default function HomeHealthView() {
 
       {/* ── Overview Tab ── */}
       {tab === 'overview' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Nudge Banner */}
+          {!nudgeDismissed && overdueCount > 0 && (
+            <div className="foundation-nudge foundation-nudge--critical">
+              <span className="foundation-nudge-icon">🚨</span>
+              <div className="foundation-nudge-body">
+                <p className="foundation-nudge-title">{overdueCount} overdue maintenance {overdueCount === 1 ? 'task' : 'tasks'}</p>
+                <p className="foundation-nudge-detail">
+                  {dashboard?.overdue_maintenance.slice(0, 2).map(m => m.task).join(' · ')}
+                  {overdueCount > 2 && ` + ${overdueCount - 2} more`}
+                </p>
+              </div>
+              <button className="foundation-nudge-dismiss" onClick={() => setNudgeDismissed(true)}>✕</button>
+            </div>
+          )}
+          {!nudgeDismissed && overdueCount === 0 && appliancesAtRisk > 0 && (
+            <div className="foundation-nudge foundation-nudge--warning">
+              <span className="foundation-nudge-icon">⚠️</span>
+              <div className="foundation-nudge-body">
+                <p className="foundation-nudge-title">{appliancesAtRisk} appliance{appliancesAtRisk === 1 ? '' : 's'} need attention</p>
+                <p className="foundation-nudge-detail">
+                  {dashboard?.appliances_needing_service.slice(0, 2).map(a => a.name).join(' · ')}
+                </p>
+              </div>
+              <button className="foundation-nudge-dismiss" onClick={() => setNudgeDismissed(true)}>✕</button>
+            </div>
+          )}
+
           <FoundationHero
             healthScore={healthScore}
             systems={systems}
@@ -106,29 +153,81 @@ export default function HomeHealthView() {
 
           <FoundationPredictionsGrid predictions={predictions} />
 
-          {/* Quick Stats Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div className="budget-card" style={{ borderLeft: '3px solid #3b82f6' }}>
-              <span className="budget-card-emoji">💰</span>
-              <span className="budget-card-label">Monthly Utilities</span>
-              <span className="budget-card-value" style={{ color: '#3b82f6' }}>${totalMonthly.toFixed(2)}</span>
+          {/* Stat Cards */}
+          <div className="foundation-stat-grid">
+            <div className="foundation-stat-card foundation-stat-card--blue">
+              <span className="foundation-stat-card-emoji">💰</span>
+              <span className="foundation-stat-card-label">Monthly Utilities</span>
+              <span className="foundation-stat-card-value">${totalMonthly.toFixed(2)}</span>
+              {sparklineSvg && (
+                <svg
+                  width={sparklineSvg.w}
+                  height={sparklineSvg.h}
+                  viewBox={`0 0 ${sparklineSvg.w} ${sparklineSvg.h}`}
+                  style={{ marginTop: 8, display: 'block', opacity: 0.6 }}
+                >
+                  <defs>
+                    <linearGradient id="sparkline-grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
+                      <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <path d={sparklineSvg.areaPath} fill="url(#sparkline-grad)" />
+                  <path d={sparklineSvg.path} fill="none" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              )}
             </div>
-            <div className="budget-card" style={{ borderLeft: '3px solid #ef4444' }}>
-              <span className="budget-card-emoji">🔴</span>
-              <span className="budget-card-label">Overdue</span>
-              <span className="budget-card-value" style={{ color: '#ef4444' }}>{overdueCount}</span>
+            <div className="foundation-stat-card foundation-stat-card--red">
+              <span className="foundation-stat-card-emoji">🔴</span>
+              <span className="foundation-stat-card-label">Overdue</span>
+              <span className="foundation-stat-card-value">{overdueCount}</span>
             </div>
-            <div className="budget-card" style={{ borderLeft: '3px solid #f59e0b' }}>
-              <span className="budget-card-emoji">🔔</span>
-              <span className="budget-card-label">Upcoming</span>
-              <span className="budget-card-value" style={{ color: '#f59e0b' }}>{upcomingCount}</span>
+            <div className="foundation-stat-card foundation-stat-card--amber">
+              <span className="foundation-stat-card-emoji">🔔</span>
+              <span className="foundation-stat-card-label">Upcoming</span>
+              <span className="foundation-stat-card-value">{upcomingCount}</span>
             </div>
-            <div className="budget-card" style={{ borderLeft: '3px solid #8b5cf6' }}>
-              <span className="budget-card-emoji">⚠️</span>
-              <span className="budget-card-label">Appliances at Risk</span>
-              <span className="budget-card-value" style={{ color: '#8b5cf6' }}>{appliancesAtRisk}</span>
+            <div className="foundation-stat-card foundation-stat-card--purple">
+              <span className="foundation-stat-card-emoji">⚠️</span>
+              <span className="foundation-stat-card-label">At Risk</span>
+              <span className="foundation-stat-card-value">{appliancesAtRisk}</span>
             </div>
           </div>
+
+          {/* Upcoming Maintenance Preview */}
+          {(dashboard?.overdue_maintenance?.length ?? 0) + (dashboard?.upcoming_maintenance?.length ?? 0) > 0 && (
+            <div>
+              <h3 style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--foundation-text-muted)', margin: '0 0 10px' }}>
+                📋 Maintenance Schedule
+              </h3>
+              <div className="foundation-maintenance-list">
+                {[...(dashboard?.overdue_maintenance ?? []).map(m => ({ ...m, _kind: 'overdue' as const })),
+                  ...(dashboard?.upcoming_maintenance ?? []).slice(0, 3).map(m => ({ ...m, _kind: 'upcoming' as const }))]
+                .slice(0, 5)
+                .map((m, i) => {
+                  const now = new Date();
+                  let dueLabel = 'Scheduled';
+                  let dueClass = 'foundation-maintenance-item-due--ok';
+                  if (m._kind === 'overdue') {
+                    dueLabel = 'Overdue';
+                    dueClass = 'foundation-maintenance-item-due--overdue';
+                  } else if (m.next_due) {
+                    const d = new Date(m.next_due);
+                    const days = Math.ceil((d.getTime() - now.getTime()) / 86400000);
+                    if (days <= 7) { dueLabel = `${days}d`; dueClass = 'foundation-maintenance-item-due--soon'; }
+                    else if (days <= 30) { dueLabel = `${days}d`; }
+                    else { dueLabel = `${days}d`; }
+                  }
+                  return (
+                    <div key={m.id} className="foundation-maintenance-item">
+                      <span className="foundation-maintenance-item-label">{m.task}</span>
+                      <span className={`foundation-maintenance-item-due ${dueClass}`}>{dueLabel}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

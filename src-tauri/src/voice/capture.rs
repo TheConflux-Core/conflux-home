@@ -52,6 +52,34 @@ pub fn input_device_available() -> bool {
     }
 }
 
+/// Get microphone status for diagnostics (useful on Windows).
+pub fn microphone_status() -> serde_json::Value {
+    let host = cpal::default_host();
+    let default_available = host.default_input_device().is_some();
+    let devices = list_input_devices().unwrap_or_default();
+
+    #[cfg(target_os = "windows")]
+    let guidance = if !default_available {
+        "No microphone detected. Check: Settings → Privacy & Security → Microphone → Turn ON 'Microphone access' and 'Let desktop apps access your microphone'. Restart this app after changing."
+    } else {
+        "Microphone available."
+    };
+
+    #[cfg(not(target_os = "windows"))]
+    let guidance = if !default_available {
+        "No microphone detected. Check your system audio input settings."
+    } else {
+        "Microphone available."
+    };
+
+    serde_json::json!({
+        "available": default_available,
+        "device_count": devices.len(),
+        "devices": devices,
+        "guidance": guidance,
+    })
+}
+
 /// Start recording from the default input device.
 /// Captures audio at 16kHz mono f32.
 pub fn start_recording(window: Window) -> Result<String, String> {
@@ -81,7 +109,20 @@ pub fn start_recording(window: Window) -> Result<String, String> {
     let host = cpal::default_host();
     let device = host
         .default_input_device()
-        .ok_or_else(|| "No input device available. Check your microphone.".to_string())?;
+        .ok_or_else(|| {
+            #[cfg(target_os = "windows")]
+            return format!(
+                "No microphone found on Windows. To fix:\n\
+                 1. Open Windows Settings (Win+I)\n\
+                 2. Go to Privacy & Security → Microphone\n\
+                 3. Turn ON 'Microphone access'\n\
+                 4. Turn ON 'Let desktop apps access your microphone'\n\
+                 5. Restart this app\n\
+                 Note: This app captures audio directly (not through the browser)."
+            );
+            #[cfg(not(target_os = "windows"))]
+            return "No input device available. Check your microphone.".to_string();
+        })?;
 
     let device_name = device.name().unwrap_or_else(|_| "unknown".to_string());
 

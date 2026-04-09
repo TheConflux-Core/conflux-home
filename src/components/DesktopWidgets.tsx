@@ -13,7 +13,7 @@ const WIDGETS: WidgetDef[] = [
   { id: 'budget', icon: '💰', label: 'Budget', preview: 'Weekly spend summary', color: '#10b981' },
   { id: 'kitchen', icon: '🍳', label: 'Kitchen', preview: "Tonight's meal plan", color: '#f59e0b' },
   { id: 'life', icon: '🧠', label: 'Life Autopilot', preview: 'Active reminders', color: '#6366f1' },
-  { id: 'home', icon: '🔧', label: 'Home Health', preview: 'Upcoming bills', color: '#ec4899' },
+  { id: 'home', icon: '🔧', label: 'Home Health', preview: 'Systems check', color: '#3b82f6' },
   { id: 'dreams', icon: '🎯', label: 'Dreams', preview: 'Current milestones', color: '#8b5cf6' },
   { id: 'agents', icon: '🧩', label: 'Agents', preview: 'Active agents', color: '#3b82f6' },
   { id: 'games', icon: '🎮', label: 'Games', preview: 'Play and compete', color: '#f43f5e' },

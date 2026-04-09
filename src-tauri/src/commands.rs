@@ -5151,6 +5151,12 @@ pub mod voice_cmds {
             "buffer_capacity_samples": buffer_capacity,
         }))
     }
+
+    /// Check microphone availability and return diagnostic info (especially useful on Windows).
+    #[tauri::command]
+    pub fn voice_check_microphone() -> Result<serde_json::Value, String> {
+        Ok(capture::microphone_status())
+    }
 }
 
 // Re-export voice commands — desktop uses real impl, Android gets stubs
@@ -5186,6 +5192,11 @@ pub fn voice_get_status() -> Result<serde_json::Value, String> {
 #[tauri::command]
 pub fn voice_list_devices() -> Result<Vec<String>, String> {
     Ok(vec![])
+}
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn voice_check_microphone() -> Result<serde_json::Value, String> {
+    Ok(serde_json::json!({ "available": false, "guidance": "Voice input is not available on Android." }))
 }
 #[cfg(target_os = "android")]
 #[tauri::command]

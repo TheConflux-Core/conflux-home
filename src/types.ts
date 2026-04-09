@@ -778,6 +778,13 @@ export interface BillTrendPoint {
   total: number;
 }
 
+export interface HomeSystem {
+  name: string;
+  icon: string;
+  status: 'healthy' | 'warning' | 'critical';
+  detail: string;
+}
+
 export interface HomeDashboard {
   profile: HomeProfile | null;
   upcoming_maintenance: HomeMaintenance[];
@@ -786,6 +793,7 @@ export interface HomeDashboard {
   bill_trend: BillTrendPoint[];
   total_monthly_utilities: number;
   health_score: number;
+  systems: HomeSystem[];
   ai_alerts: string[];
 }
 

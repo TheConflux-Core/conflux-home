@@ -1167,6 +1167,14 @@ pub struct HomeAppliance {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HomeSystem {
+    pub name: String,
+    pub icon: String,
+    pub status: String, // "healthy" | "warning" | "critical"
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HomeDashboard {
     pub profile: Option<HomeProfile>,
     pub upcoming_maintenance: Vec<HomeMaintenance>,
@@ -1175,6 +1183,7 @@ pub struct HomeDashboard {
     pub bill_trend: Vec<BillTrendPoint>,
     pub total_monthly_utilities: f64,
     pub health_score: f64,
+    pub systems: Vec<HomeSystem>,
     pub ai_alerts: Vec<String>,
 }
 

@@ -5,12 +5,13 @@
 
 /* --- Global Styles --- */
 .stellar-view {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+  position: relative;
+  height: 100%;
   color: #e2e8f0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   overflow-x: hidden;
-  position: relative;
+  overflow-y: auto;
+  padding: 40px 48px;
 }
 
 /* --- Starfield Background --- */

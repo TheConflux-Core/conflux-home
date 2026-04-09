@@ -51,13 +51,14 @@ export function useAgentStatus(userId: string, memberId?: string | null) {
     const month = new Date().toISOString().slice(0, 7);
 
     // Fire all queries in parallel
-    const [kitchenItems, budgetData, budgetPatterns, orbitTasks, dreamList, feedUnread] = await Promise.all([
+    const [kitchenItems, budgetData, budgetPatterns, orbitTasks, dreamList, feedUnread, homeDashboard] = await Promise.all([
       safeInvoke(invoke<any[]>('kitchen_get_inventory', { location: null, member_id: mid }), []),
       safeInvoke(invoke<any>('budget_get_summary', { month }), null),
       safeInvoke(invoke<any[]>('budget_detect_patterns', { member_id: mid }), []),
       safeInvoke(invoke<any[]>('life_get_tasks', { user_id: userId, status: 'pending' }), []),
       safeInvoke(invoke<any[]>('dream_get_all', { user_id: userId, status: null }), []),
       safeInvoke(invoke<any[]>('feed_get_items', { user_id: userId, member_id: mid, content_type: null, unread_only: true }), []),
+      safeInvoke(invoke<any>('home_get_dashboard'), null),
     ]);
 
     const statuses: AgentStatusInfo[] = [];
@@ -181,6 +182,54 @@ export function useAgentStatus(userId: string, memberId?: string | null) {
         statusText: `${unreadCount} unread item${unreadCount > 1 ? 's' : ''}`,
         badgeText: `${unreadCount}`,
         badgeType: unreadCount > 3 ? 'attention' : 'default',
+      });
+    }
+
+    // Foundation (Home Health)
+    if (homeDashboard) {
+      const overdueCount = (homeDashboard.overdue_maintenance || []).length;
+      const appliancesAtRisk = (homeDashboard.appliances_needing_service || []).length;
+      const healthScore = homeDashboard.health_score ?? 0;
+
+      if (overdueCount > 0) {
+        statuses.push({
+          agentId: 'foundation',
+          emoji: '🔧',
+          name: 'Foundation',
+          statusText: `${overdueCount} overdue maintenance${overdueCount > 1 ? ' items' : ''}`,
+          badgeText: `${overdueCount}`,
+          badgeType: 'attention',
+          details: `Health score: ${healthScore}/100 · ${overdueCount} overdue · ${appliancesAtRisk} appliances at risk`,
+          actionable: true,
+        });
+      } else if (appliancesAtRisk > 0) {
+        statuses.push({
+          agentId: 'foundation',
+          emoji: '🔧',
+          name: 'Foundation',
+          statusText: `${appliancesAtRisk} appliance${appliancesAtRisk > 1 ? 's' : ''} need attention`,
+          badgeText: `${appliancesAtRisk}`,
+          badgeType: 'warning',
+          details: `Health score: ${healthScore}/100`,
+          actionable: true,
+        });
+      } else {
+        statuses.push({
+          agentId: 'foundation',
+          emoji: '🔧',
+          name: 'Foundation',
+          statusText: `Health score: ${healthScore}/100`,
+          details: `All systems on track`,
+        });
+      }
+    } else {
+      statuses.push({
+        agentId: 'foundation',
+        emoji: '🔧',
+        name: 'Foundation',
+        statusText: 'Ready to monitor your home',
+        badgeType: 'default',
+        actionable: true,
       });
     }
 
