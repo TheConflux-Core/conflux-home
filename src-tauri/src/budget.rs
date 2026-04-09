@@ -1,8 +1,7 @@
 // Budget Matrix — Tauri Commands for Zero-Based Budgeting
-// Integration with Supabase REST API (cloud-side tables)
+// Uses local SQLite engine (consistent with Kitchen/Dreams)
 
 use serde::{Deserialize, Serialize};
-use anyhow::Result;
 use super::engine;
 
 // ── Budget Settings ─────────────────────────────────────────
@@ -11,8 +10,8 @@ use super::engine;
 pub struct BudgetSettings {
     pub id: String,
     pub user_id: String,
-    pub pay_frequency: String,  // 'weekly' | 'biweekly' | 'semimonthly' | 'monthly'
-    pub pay_dates: serde_json::Value,  // JSON array (e.g., [1, 15] or ["2026-04-04", "2026-04-18"])
+    pub pay_frequency: String,
+    pub pay_dates: serde_json::Value,
     pub income_amount: f64,
     pub currency: String,
     pub created_at: String,
@@ -27,78 +26,52 @@ pub struct UpdateSettingsRequest {
     pub currency: Option<String>,
 }
 
-#[tauri::command]
-pub async fn budget_get_settings(member_id: Option<String>) -> Result<Option<BudgetSettings>, String> {
-    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| panic!("No user ID available")));
-    
-    let resp = supabase_get("budget_settings", &format!("user_id=eq.{}", user_id))
-        .map_err(|e| format!("Failed to build request: {}", e))?
-        .send()
-        .await
-        .map_err(|e| format!("Network error: {}", e))?;
+#[tauri::command(rename_all = "snake_case")]
+pub fn budget_get_settings(member_id: Option<String>) -> Result<Option<BudgetSettings>, String> {
+    let user_id = member_id.unwrap_or_default();
+    if user_id.is_empty() { return Ok(None); }
 
-    if resp.status() == 404 {
-        return Ok(None);
+    let engine = engine::get_engine();
+    match engine.db().get_budget_settings(&user_id) {
+        Ok(Some(row)) => Ok(Some(BudgetSettings {
+            id: row.id,
+            user_id: row.user_id,
+            pay_frequency: row.pay_frequency,
+            pay_dates: serde_json::from_str(&row.pay_dates).unwrap_or(serde_json::json!([1, 15])),
+            income_amount: row.income_amount,
+            currency: row.currency,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+        })),
+        Ok(None) => Ok(None),
+        Err(e) => Err(e.to_string()),
     }
-
-    let settings: Vec<BudgetSettings> = resp
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
-
-    Ok(settings.into_iter().next())
 }
 
-#[tauri::command]
-pub async fn budget_update_settings(req: UpdateSettingsRequest, member_id: Option<String>) -> Result<BudgetSettings, String> {
-    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| panic!("No user ID available")));
+#[tauri::command(rename_all = "snake_case")]
+pub fn budget_update_settings(req: UpdateSettingsRequest, member_id: Option<String>) -> Result<BudgetSettings, String> {
+    let user_id = member_id.unwrap_or_default();
+    if user_id.is_empty() { return Err("No user ID provided".to_string()); }
+
+    let engine = engine::get_engine();
     let currency = req.currency.unwrap_or_else(|| "USD".to_string());
+    let id = uuid::Uuid::new_v4().to_string();
+    let pay_dates_str = req.pay_dates.to_string();
 
-    let body = serde_json::json!({
-        "user_id": user_id,
-        "pay_frequency": req.pay_frequency,
-        "pay_dates": req.pay_dates,
-        "income_amount": req.income_amount,
-        "currency": currency,
-        "updated_at": chrono::Utc::now().to_rfc3339()
-    });
+    engine.db().upsert_budget_settings(&id, &user_id, &req.pay_frequency, &pay_dates_str, req.income_amount, &currency)
+        .map_err(|e| e.to_string())?;
 
-    // Try PATCH first (update), fall back to POST (insert)
-    let resp = supabase_patch(
-        "budget_settings",
-        &format!("user_id=eq.{}", user_id)
-    )
-    .map_err(|e| format!("Failed to build request: {}", e))?
-    .json(&body)
-    .send()
-    .await
-    .map_err(|e| format!("Network error: {}", e))?;
-
-    if resp.status() == 404 || resp.status() == 409 {
-        // Insert new settings
-        let insert_resp = supabase_post("budget_settings")
-            .map_err(|e| format!("Failed to build insert request: {}", e))?
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| format!("Network error: {}", e))?;
-
-        let settings: Vec<BudgetSettings> = insert_resp
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse insert response: {}", e))?;
-
-        return settings.into_iter().next()
-            .ok_or_else(|| "Failed to create budget settings".to_string());
+    // Return the updated settings
+    match engine.db().get_budget_settings(&user_id) {
+        Ok(Some(row)) => Ok(BudgetSettings {
+            id: row.id, user_id: row.user_id, pay_frequency: row.pay_frequency,
+            pay_dates: serde_json::from_str(&row.pay_dates).unwrap_or(serde_json::json!([1, 15])),
+            income_amount: row.income_amount, currency: row.currency,
+            created_at: row.created_at, updated_at: row.updated_at,
+        }),
+        Ok(None) => Err("Failed to retrieve settings after update".to_string()),
+        Err(e) => Err(e.to_string()),
     }
-
-    let settings: Vec<BudgetSettings> = resp
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse update response: {}", e))?;
-
-    settings.into_iter().next()
-        .ok_or_else(|| "Failed to update budget settings".to_string())
 }
 
 // ── Budget Buckets ──────────────────────────────────────────
@@ -125,101 +98,70 @@ pub struct UpdateBucketRequest {
     pub is_active: Option<bool>,
 }
 
-#[tauri::command]
-pub async fn budget_get_buckets(member_id: Option<String>) -> Result<Vec<BudgetBucket>, String> {
-    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| panic!("No user ID available")));
-    
-    let resp = supabase_get("budget_buckets", &format!("user_id=eq.{}&order=created_at.desc", user_id))
-        .map_err(|e| format!("Failed to build request: {}", e))?
-        .send()
-        .await
-        .map_err(|e| format!("Network error: {}", e))?;
-
-    let buckets: Vec<BudgetBucket> = resp
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
-
-    Ok(buckets)
+fn bucket_row_to_bucket(row: engine::types::BudgetBucketRow) -> BudgetBucket {
+    BudgetBucket {
+        id: row.id, user_id: row.user_id, name: row.name,
+        icon: row.icon, monthly_goal: row.monthly_goal, color: row.color,
+        is_active: row.is_active, created_at: row.created_at, updated_at: row.updated_at,
+    }
 }
 
-#[tauri::command]
-pub async fn budget_create_bucket(req: UpdateBucketRequest, member_id: Option<String>) -> Result<BudgetBucket, String> {
-    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| panic!("No user ID available")));
-    
-    let body = serde_json::json!({
-        "user_id": user_id,
-        "name": req.name,
-        "icon": req.icon,
-        "monthly_goal": req.monthly_goal,
-        "color": req.color,
-        "is_active": req.is_active.unwrap_or(true),
-        "created_at": chrono::Utc::now().to_rfc3339(),
-        "updated_at": chrono::Utc::now().to_rfc3339()
-    });
+#[tauri::command(rename_all = "snake_case")]
+pub fn budget_get_buckets(member_id: Option<String>) -> Result<Vec<BudgetBucket>, String> {
+    let user_id = member_id.unwrap_or_default();
+    if user_id.is_empty() { return Ok(vec![]); }
 
-    let resp = supabase_post("budget_buckets")
-        .map_err(|e| format!("Failed to build request: {}", e))?
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| format!("Network error: {}", e))?;
-
-    let buckets: Vec<BudgetBucket> = resp
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
-
-    buckets.into_iter().next()
-        .ok_or_else(|| "Failed to create bucket".to_string())
+    let engine = engine::get_engine();
+    engine.db().get_budget_buckets(&user_id)
+        .map(|rows| rows.into_iter().map(bucket_row_to_bucket).collect())
+        .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-pub async fn budget_update_bucket(id: String, req: UpdateBucketRequest, member_id: Option<String>) -> Result<BudgetBucket, String> {
-    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| panic!("No user ID available")));
-    
-    let mut body = serde_json::Map::new();
-    body.insert("name".to_string(), serde_json::Value::String(req.name));
-    
-    if let Some(icon) = req.icon {
-        body.insert("icon".to_string(), serde_json::Value::String(icon));
-    }
-    
-    body.insert("monthly_goal".to_string(), serde_json::Value::Number(
-        serde_json::Number::from_f64(req.monthly_goal).unwrap()
-    ));
-    
-    if let Some(color) = req.color {
-        body.insert("color".to_string(), serde_json::Value::String(color));
-    }
-    
-    if let Some(is_active) = req.is_active {
-        body.insert("is_active".to_string(), serde_json::Value::Bool(is_active));
-    }
-    
-    body.insert("updated_at".to_string(), serde_json::Value::String(
-        chrono::Utc::now().to_rfc3339()
-    ));
+#[tauri::command(rename_all = "snake_case")]
+pub fn budget_create_bucket(req: UpdateBucketRequest, member_id: Option<String>) -> Result<BudgetBucket, String> {
+    let user_id = member_id.unwrap_or_default();
+    if user_id.is_empty() { return Err("No user ID provided".to_string()); }
 
-    let body = serde_json::Value::Object(body);
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    engine.db().create_budget_bucket(&id, &user_id, &req.name, req.icon.as_deref(), req.monthly_goal, req.color.as_deref())
+        .map_err(|e| e.to_string())?;
 
-    let resp = supabase_patch(
-        "budget_buckets",
-        &format!("id=eq.{}&user_id=eq.{}", id, user_id)
-    )
-    .map_err(|e| format!("Failed to build request: {}", e))?
-    .json(&body)
-    .send()
-    .await
-    .map_err(|e| format!("Network error: {}", e))?;
+    // Return the created bucket
+    let buckets = engine.db().get_budget_buckets(&user_id).map_err(|e| e.to_string())?;
+    buckets.into_iter()
+        .find(|b| b.id == id)
+        .map(bucket_row_to_bucket)
+        .ok_or_else(|| "Failed to retrieve created bucket".to_string())
+}
 
-    let buckets: Vec<BudgetBucket> = resp
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
+#[tauri::command(rename_all = "snake_case")]
+pub fn budget_update_bucket(id: String, req: UpdateBucketRequest, _member_id: Option<String>) -> Result<BudgetBucket, String> {
+    let engine = engine::get_engine();
+    let conn = engine.db().conn();
+    let now = chrono::Utc::now().to_rfc3339();
 
-    buckets.into_iter().next()
-        .ok_or_else(|| "Failed to update bucket".to_string())
+    conn.execute(
+        "UPDATE budget_buckets SET name=?1, icon=?2, monthly_goal=?3, color=?4, is_active=?5, updated_at=?6 WHERE id=?7",
+        rusqlite::params![req.name, req.icon, req.monthly_goal, req.color,
+                          if req.is_active.unwrap_or(true) { 1i64 } else { 0i64 }, now, id]
+    ).map_err(|e| e.to_string())?;
+
+    // Return updated bucket
+    let mut stmt = conn.prepare(
+        "SELECT id, user_id, name, icon, monthly_goal, color, is_active, created_at, updated_at FROM budget_buckets WHERE id=?1"
+    ).map_err(|e| e.to_string())?;
+
+    let row = stmt.query_row(rusqlite::params![id], |row| {
+        Ok(BudgetBucket {
+            id: row.get(0)?, user_id: row.get(1)?, name: row.get(2)?,
+            icon: row.get(3)?, monthly_goal: row.get(4)?, color: row.get(5)?,
+            is_active: row.get::<_, i64>(6)? != 0,
+            created_at: row.get(7)?, updated_at: row.get(8)?,
+        })
+    }).map_err(|e| e.to_string())?;
+
+    Ok(row)
 }
 
 // ── Budget Transactions ────────────────────────────────────
@@ -228,10 +170,10 @@ pub async fn budget_update_bucket(id: String, req: UpdateBucketRequest, member_i
 pub struct BudgetTransaction {
     pub id: String,
     pub user_id: String,
-    pub bucket_id: String,
-    pub amount: f64,  // Negative for expenses, positive for income
+    pub bucket_id: Option<String>,
+    pub amount: f64,
     pub date: String,
-    pub status: String,  // 'pending' | 'confirmed' | 'reconciled' | 'disputed'
+    pub status: String,
     pub description: Option<String>,
     pub merchant: Option<String>,
     pub category: Option<String>,
@@ -252,74 +194,66 @@ pub struct LogTransactionRequest {
     pub receipt_url: Option<String>,
 }
 
-#[tauri::command]
-pub async fn budget_log_transaction(req: LogTransactionRequest, member_id: Option<String>) -> Result<BudgetTransaction, String> {
-    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| panic!("No user ID available")));
-    
-    let body = serde_json::json!({
-        "user_id": user_id,
-        "bucket_id": req.bucket_id,
-        "amount": req.amount,
-        "date": req.date,
-        "status": req.status.unwrap_or_else(|| "confirmed".to_string()),
-        "description": req.description,
-        "merchant": req.merchant,
-        "category": req.category,
-        "receipt_url": req.receipt_url,
-        "created_at": chrono::Utc::now().to_rfc3339(),
-        "updated_at": chrono::Utc::now().to_rfc3339()
-    });
+#[tauri::command(rename_all = "snake_case")]
+pub fn budget_log_transaction(req: LogTransactionRequest, member_id: Option<String>) -> Result<BudgetTransaction, String> {
+    let user_id = member_id.unwrap_or_default();
+    if user_id.is_empty() { return Err("No user ID provided".to_string()); }
 
-    let resp = supabase_post("budget_transactions")
-        .map_err(|e| format!("Failed to build request: {}", e))?
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| format!("Network error: {}", e))?;
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    let status = req.status.unwrap_or_else(|| "confirmed".to_string());
+    let bucket_id = if req.bucket_id.is_empty() { None } else { Some(req.bucket_id.as_str()) };
 
-    let transactions: Vec<BudgetTransaction> = resp
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
+    engine.db().create_budget_transaction(
+        &id, &user_id, bucket_id, req.amount, &req.date, &status,
+        req.description.as_deref(), req.merchant.as_deref(),
+        req.category.as_deref(), req.receipt_url.as_deref()
+    ).map_err(|e| e.to_string())?;
 
-    transactions.into_iter().next()
-        .ok_or_else(|| "Failed to log transaction".to_string())
+    // Return the created transaction
+    let transactions = engine.db().get_budget_transactions(&user_id).map_err(|e| e.to_string())?;
+    transactions.into_iter()
+        .find(|t| t.id == id)
+        .map(|t| BudgetTransaction {
+            id: t.id, user_id: t.user_id, bucket_id: t.bucket_id,
+            amount: t.amount, date: t.date, status: t.status,
+            description: t.description, merchant: t.merchant,
+            category: t.category, receipt_url: t.receipt_url,
+            created_at: t.created_at, updated_at: t.updated_at,
+        })
+        .ok_or_else(|| "Failed to retrieve created transaction".to_string())
 }
 
-#[tauri::command]
-pub async fn budget_get_transactions(
+#[tauri::command(rename_all = "snake_case")]
+pub fn budget_get_transactions(
     bucket_id: Option<String>,
-    month: Option<String>,
+    _month: Option<String>,
     member_id: Option<String>,
 ) -> Result<Vec<BudgetTransaction>, String> {
-    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| panic!("No user ID available")));
-    let mut filters = vec![format!("user_id=eq.{}", user_id)];
-    
-    if let Some(bid) = bucket_id {
-        filters.push(format!("bucket_id=eq.{}", bid));
-    }
-    
-    if let Some(m) = month {
-        filters.push(format!("date=gte.{}-01", m));
-        if let Some(end) = next_month(&m) {
-            filters.push(format!("date=lt.{}-01", end));
-        }
-    }
+    let user_id = member_id.unwrap_or_default();
+    if user_id.is_empty() { return Ok(vec![]); }
 
-    let query = format!("order=date.desc&{}", filters.join("&"));
-    
-    let resp = supabase_get("budget_transactions", &query)
-        .map_err(|e| format!("Failed to build request: {}", e))?
-        .send()
-        .await
-        .map_err(|e| format!("Network error: {}", e))?;
+    let engine = engine::get_engine();
+    let all = engine.db().get_budget_transactions(&user_id).map_err(|e| e.to_string())?;
 
-    let transactions: Vec<BudgetTransaction> = resp
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
+    let filtered: Vec<BudgetTransaction> = all.into_iter()
+        .filter(|t| {
+            if let Some(ref bid) = bucket_id {
+                t.bucket_id.as_ref() == Some(bid)
+            } else {
+                true
+            }
+        })
+        .map(|t| BudgetTransaction {
+            id: t.id, user_id: t.user_id, bucket_id: t.bucket_id,
+            amount: t.amount, date: t.date, status: t.status,
+            description: t.description, merchant: t.merchant,
+            category: t.category, receipt_url: t.receipt_url,
+            created_at: t.created_at, updated_at: t.updated_at,
+        })
+        .collect();
 
-    Ok(transactions)
+    Ok(filtered)
 }
 
 // ── Budget Allocations ─────────────────────────────────────
@@ -342,165 +276,55 @@ pub struct UpdateAllocationRequest {
     pub amount: f64,
 }
 
-#[tauri::command]
-pub async fn budget_update_allocation(req: UpdateAllocationRequest, member_id: Option<String>) -> Result<BudgetAllocation, String> {
-    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| panic!("No user ID available")));
-    
-    let body = serde_json::json!({
-        "user_id": user_id,
-        "bucket_id": req.bucket_id,
-        "pay_period_id": req.pay_period_id,
-        "amount": req.amount,
-        "created_at": chrono::Utc::now().to_rfc3339(),
-        "updated_at": chrono::Utc::now().to_rfc3339()
-    });
+#[tauri::command(rename_all = "snake_case")]
+pub fn budget_update_allocation(req: UpdateAllocationRequest, member_id: Option<String>) -> Result<BudgetAllocation, String> {
+    let user_id = member_id.unwrap_or_default();
+    if user_id.is_empty() { return Err("No user ID provided".to_string()); }
 
-    // Upsert allocation (try update, then insert)
-    let query = format!("bucket_id=eq.{}&pay_period_id=eq.{}&user_id=eq.{}",
-        req.bucket_id, req.pay_period_id, user_id);
-    
-    let resp = supabase_patch("budget_allocations", &query)
-        .map_err(|e| format!("Failed to build request: {}", e))?
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| format!("Network error: {}", e))?;
+    let engine = engine::get_engine();
+    let conn = engine.db().conn();
+    let id = uuid::Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
 
-    if resp.status() == 404 || resp.status() == 409 {
-        // Insert new allocation
-        let insert_resp = supabase_post("budget_allocations")
-            .map_err(|e| format!("Failed to build insert request: {}", e))?
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| format!("Network error: {}", e))?;
+    // Upsert: try update first, then insert
+    let updated = conn.execute(
+        "UPDATE budget_allocations SET amount=?1, updated_at=?2 WHERE user_id=?3 AND bucket_id=?4 AND pay_period_id=?5",
+        rusqlite::params![req.amount, now, user_id, req.bucket_id, req.pay_period_id]
+    ).map_err(|e| e.to_string())?;
 
-        let allocations: Vec<BudgetAllocation> = insert_resp
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse insert response: {}", e))?;
-
-        return allocations.into_iter().next()
-            .ok_or_else(|| "Failed to create allocation".to_string());
+    if updated == 0 {
+        conn.execute(
+            "INSERT INTO budget_allocations (id, user_id, bucket_id, pay_period_id, amount, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![id, user_id, req.bucket_id, req.pay_period_id, req.amount, now, now]
+        ).map_err(|e| e.to_string())?;
     }
 
-    let allocations: Vec<BudgetAllocation> = resp
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
-
-    allocations.into_iter().next()
-        .ok_or_else(|| "Failed to update allocation".to_string())
+    // Return the allocation
+    let allocations = engine.db().get_budget_allocations(&user_id).map_err(|e| e.to_string())?;
+    allocations.into_iter()
+        .find(|a| a.bucket_id == req.bucket_id && a.pay_period_id == req.pay_period_id)
+        .map(|a| BudgetAllocation {
+            id: a.id, user_id: a.user_id, bucket_id: a.bucket_id,
+            pay_period_id: a.pay_period_id, amount: a.amount,
+            created_at: a.created_at, updated_at: a.updated_at,
+        })
+        .ok_or_else(|| "Failed to retrieve allocation".to_string())
 }
 
-#[tauri::command]
-pub async fn budget_get_allocations(
-    pay_period_id: Option<String>,
+#[tauri::command(rename_all = "snake_case")]
+pub fn budget_get_allocations(
+    _pay_period_id: Option<String>,
     member_id: Option<String>,
 ) -> Result<Vec<BudgetAllocation>, String> {
-    let user_id = member_id.unwrap_or_else(|| get_user_id().unwrap_or_else(|_| panic!("No user ID available")));
-    let mut filters = vec![format!("user_id=eq.{}", user_id)];
-    
-    if let Some(ppid) = pay_period_id {
-        filters.push(format!("pay_period_id=eq.{}", ppid));
-    }
+    let user_id = member_id.unwrap_or_default();
+    if user_id.is_empty() { return Ok(vec![]); }
 
-    let query = format!("order=created_at.desc&{}", filters.join("&"));
-    
-    let resp = supabase_get("budget_allocations", &query)
-        .map_err(|e| format!("Failed to build request: {}", e))?
-        .send()
-        .await
-        .map_err(|e| format!("Network error: {}", e))?;
-
-    let allocations: Vec<BudgetAllocation> = resp
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
-
-    Ok(allocations)
-}
-
-// ── Helper Functions ───────────────────────────────────────
-
-fn get_user_id() -> Result<String, String> {
     let engine = engine::get_engine();
-    let user_id = engine.db().get_config("supabase_user_id")
-        .map_err(|e| format!("Failed to read user config: {}", e))?
-        .ok_or_else(|| "User not authenticated".to_string())?;
-    
-    Ok(user_id)
-}
-
-fn supabase_get(table: &str, query: &str) -> Result<reqwest::RequestBuilder, String> {
-    let url = get_supabase_url()?;
-    let key = get_supabase_key()?;
-    let token = get_supabase_token()?;
-    let full_url = format!("{}/rest/v1/{}?{}", url, table, query);
-
-    Ok(reqwest::Client::new()
-        .get(&full_url)
-        .header("apikey", &key)
-        .header("Authorization", format!("Bearer {}", token))
-        .header("Prefer", "return=representation"))
-}
-
-fn supabase_post(table: &str) -> Result<reqwest::RequestBuilder, String> {
-    let url = get_supabase_url()?;
-    let key = get_supabase_key()?;
-    let token = get_supabase_token()?;
-    let full_url = format!("{}/rest/v1/{}", url, table);
-
-    Ok(reqwest::Client::new()
-        .post(&full_url)
-        .header("apikey", &key)
-        .header("Authorization", format!("Bearer {}", token))
-        .header("Content-Type", "application/json")
-        .header("Prefer", "return=representation"))
-}
-
-fn supabase_patch(table: &str, query: &str) -> Result<reqwest::RequestBuilder, String> {
-    let url = get_supabase_url()?;
-    let key = get_supabase_key()?;
-    let token = get_supabase_token()?;
-    let full_url = format!("{}/rest/v1/{}?{}", url, table, query);
-
-    Ok(reqwest::Client::new()
-        .patch(&full_url)
-        .header("apikey", &key)
-        .header("Authorization", format!("Bearer {}", token))
-        .header("Content-Type", "application/json")
-        .header("Prefer", "return=representation"))
-}
-
-fn get_supabase_url() -> Result<String, String> {
-    // Hardcoded for local dev - TODO: Move to secure engine config
-    Ok("https://zcvhozqrssotirabdlzr.supabase.co".to_string())
-}
-
-fn get_supabase_key() -> Result<String, String> {
-    // Hardcoded for local dev - TODO: Move to secure engine config
-    Ok("sb_publishable_dUyLMKkEtUyiNWYUgnqxjw_Zs9ylHck".to_string())
-}
-
-fn get_supabase_token() -> Result<String, String> {
-    // For local dev, we'll use the hardcoded anon key as the bearer token
-    // In production, this should pull the user's actual JWT from the session
-    Ok("sb_publishable_dUyLMKkEtUyiNWYUgnqxjw_Zs9ylHck".to_string())
-}
-
-fn next_month(yyyy_mm: &str) -> Option<String> {
-    let parts: Vec<&str> = yyyy_mm.split('-').collect();
-    if parts.len() != 2 {
-        return None;
-    }
-    
-    let year: i32 = parts[0].parse().ok()?;
-    let month: u32 = parts[1].parse().ok()?;
-    
-    if month == 12 {
-        Some(format!("{}-01", year + 1))
-    } else {
-        Some(format!("{}-{:02}", year, month + 1))
-    }
+    engine.db().get_budget_allocations(&user_id)
+        .map(|rows| rows.into_iter().map(|a| BudgetAllocation {
+            id: a.id, user_id: a.user_id, bucket_id: a.bucket_id,
+            pay_period_id: a.pay_period_id, amount: a.amount,
+            created_at: a.created_at, updated_at: a.updated_at,
+        }).collect())
+        .map_err(|e| e.to_string())
 }

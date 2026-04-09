@@ -5,6 +5,7 @@ import { playTourBlip, playHeartbeat, playWelcomeChime } from '../lib/sound';
 import { NeuralBrainScene } from './NeuralBrainScene';
 import { COMMANDS } from '../lib/neuralBrain';
 import ConfluxOrbit from './ConfluxOrbit';
+import { useAuth } from '../hooks/useAuth';
 import '../styles/animations.css';
 
 // ── Types ──
@@ -157,6 +158,7 @@ function ProgressBar({ step }: { step: number }) {
  * @param onComplete - Callback with selected apps when flow completes
  */
 export default function Onboarding({ onComplete }: OnboardingProps) {
+  const { user } = useAuth();
   const [step, setStep] = useState(0);
   const [animating, setAnimating] = useState(false);
 
@@ -307,42 +309,72 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           const categories = ['groceries', 'rent', 'utilities', 'transportation', 'entertainment'];
           if (isHighIncome) categories.push('Premium Pantry');
           
-          // Save budget data with income and categories
-          await invoke('save_budget_data', {
-            req: {
-              income: parsedIncome,
-              categories: categories,
-            },
-          });
+          console.log('[Onboarding] Saving budget data for user:', user?.id);
           
-          // Add groceries expense entry with suggested limit
+          // Create BudgetSettings (the source of truth for BudgetView)
+          await invoke('budget_update_settings', {
+            req: {
+              pay_frequency: 'semimonthly',
+              pay_dates: [1, 15],
+              income_amount: parsedIncome,
+              currency: 'USD',
+            },
+            member_id: user?.id || null,
+          }).catch(err => console.error('[Onboarding] budget_update_settings failed:', err));
+          
+          // Create BudgetBuckets for each category
+          const bucketColors: Record<string, string> = {
+            groceries: '#10b981', rent: '#f59e0b', utilities: '#3b82f6',
+            transportation: '#8b5cf6', entertainment: '#ec4899', savings: '#06b6d4',
+          };
+          const bucketIcons: Record<string, string> = {
+            groceries: '🛒', rent: '🏠', utilities: '⚡',
+            transportation: '🚗', entertainment: '🎬', savings: '💰',
+          };
+          for (const cat of categories) {
+            const monthlyGoal = cat === 'groceries' ? groceriesLimit
+              : cat === 'savings' ? monthlySavings
+              : 0;
+            await invoke('budget_create_bucket', {
+              req: {
+                name: cat.charAt(0).toUpperCase() + cat.slice(1),
+                icon: bucketIcons[cat] || '📦',
+                monthly_goal: monthlyGoal,
+                color: bucketColors[cat] || '#6b7280',
+              },
+              member_id: user?.id || null,
+            }).catch(err => console.error('[Onboarding] budget_create_bucket failed:', err));
+          }
+          
+          // Also save legacy budget_entries for cross-app tools
+          await invoke('save_budget_data', {
+            income: parsedIncome,
+            categories: categories,
+            member_id: user?.id || null,
+          }).catch(err => console.error('[Onboarding] save_budget_data failed:', err));
+          
           const today = new Date().toISOString().split('T')[0];
           await invoke('budget_add_entry', {
-            req: {
-              member_id: null,
-              entry_type: 'expense',
-              category: 'groceries',
-              amount: groceriesLimit,
-              description: 'Suggested groceries budget (cross-app intelligence)',
-              recurring: true,
-              frequency: 'monthly',
-              date: today,
-            },
-          });
+            member_id: user?.id || null,
+            entry_type: 'expense',
+            category: 'groceries',
+            amount: groceriesLimit,
+            description: 'Suggested groceries budget (cross-app intelligence)',
+            recurring: true,
+            frequency: 'monthly',
+            date: today,
+          }).catch(err => console.error('[Onboarding] budget_add_entry failed:', err));
           
-          // Add monthly savings projection entry
           await invoke('budget_add_entry', {
-            req: {
-              member_id: null,
-              entry_type: 'savings',
-              category: 'savings',
-              amount: monthlySavings,
-              description: 'Monthly savings projection (cross-app intelligence)',
-              recurring: true,
-              frequency: 'monthly',
-              date: today,
-            },
-          });
+            member_id: user?.id || null,
+            entry_type: 'savings',
+            category: 'savings',
+            amount: monthlySavings,
+            description: 'Monthly savings projection (cross-app intelligence)',
+            recurring: true,
+            frequency: 'monthly',
+            date: today,
+          }).catch(err => console.error('[Onboarding] budget_add_entry failed:', err));
           
           break;
         }
@@ -368,8 +400,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 expiry_date: null,
                 location: 'pantry',
               },
-              member_id: null,
-            });
+              member_id: user?.id || null,
+            }).catch(err => console.error('[Onboarding] kitchen_add_inventory failed:', err));
           }
           break;
         }
@@ -377,12 +409,12 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           const dreamId = crypto.randomUUID?.() || `dream-${Date.now()}`;
           await invoke('dream_add', {
             id: dreamId,
-            memberId: null,
+            member_id: user?.id || null,
             title: userAnswer || 'My First Dream',
             description: 'A starter goal to get things rolling!',
             category: 'personal',
-            targetDate: null,
-          });
+            target_date: null,
+          }).catch(err => console.error('[Onboarding] dream_add failed:', err));
           // Cross-app intelligence: break dream into a Savings sub-task in Budget (create a goal)
           const dreamTitle = userAnswer || 'My First Dream';
           const monthlyAllocation = Math.round(income * 0.10); // 10% of income towards this dream
@@ -391,18 +423,18 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             target_amount: 0, // unknown target
             deadline: null,
             monthly_allocation: monthlyAllocation,
-            member_id: null,
-          });
+            member_id: user?.id || null,
+          }).catch(err => console.error('[Onboarding] budget_create_goal failed:', err));
           break;
         }
         case 'life': {
           await invoke('life_add_habit', {
-            userId: 'default',
+            user_id: user?.id || 'default',
             name: userAnswer || 'Morning Routine',
             category: 'wellness',
             frequency: 'daily',
-            targetCount: 1,
-          });
+            target_count: 1,
+          }).catch(err => console.error('[Onboarding] life_add_habit failed:', err));
           break;
         }
         default:

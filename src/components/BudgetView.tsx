@@ -1,9 +1,10 @@
 // Conflux Home — Budget View (The Matrix v2 - Clean)
 // Zero-based budgeting with a "Spreadsheet-on-Steroids" UI.
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useBudget } from '../hooks/useBudget';
 import { useBudgetEngine } from '../hooks/useBudgetEngine';
+import { useAuth } from '../hooks/useAuth';
 import PulseParticles from './PulseParticles';
 import BudgetConfigModal from './BudgetConfigModal';
 import { TransactionLogModal } from './TransactionLogModal';
@@ -15,6 +16,7 @@ function formatMoney(n: number): string {
 }
 
 export default function BudgetView() {
+  const { user: authUser } = useAuth();
   const { period, prevPeriod, nextPeriod } = useBudget();
   const { 
     settings, 
@@ -27,6 +29,17 @@ export default function BudgetView() {
     refreshData,
     loading 
   } = useBudgetEngine();
+
+  // Debug: Force reload on mount to ensure we see manual DB entries
+  useEffect(() => {
+    console.log('[BudgetView] Mounting - user:', authUser?.id, 'settings:', settings, 'buckets:', buckets.length);
+    refreshData();
+  }, [refreshData, authUser?.id]);
+
+  // Debug: Log when data changes
+  useEffect(() => {
+    console.log('[BudgetView] Data updated - settings:', JSON.stringify(settings), 'buckets:', buckets.length, 'loading:', loading);
+  }, [settings, buckets, loading]);
   
   const [activeBucket, setActiveBucket] = useState<string | null>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
