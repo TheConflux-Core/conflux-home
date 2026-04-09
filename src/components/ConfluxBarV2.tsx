@@ -9,6 +9,7 @@ const AGENT_TO_VIEW: Record<string, View> = {
   orbit: 'life',
   horizon: 'dreams',
   current: 'feed',
+  foundation: 'home',
 };
 
 const VIEW_BADGE_LABEL: Record<string, string> = {
@@ -17,6 +18,7 @@ const VIEW_BADGE_LABEL: Record<string, string> = {
   life: 'pending tasks',
   dreams: 'active goals',
   feed: 'unread items',
+  home: 'overdue items',
 };
 
 const VIEW_BADGE_EMOJI: Record<string, string> = {
@@ -25,6 +27,7 @@ const VIEW_BADGE_EMOJI: Record<string, string> = {
   life: '🧠',
   dreams: '🎯',
   feed: '📰',
+  home: '🔧',
 };
 
 interface ConfluxBarV2Props {
@@ -99,7 +102,7 @@ const CATEGORIES = [
 ];
 
 // The 5 intelligence agents get badges on the dock
-const INTELLIGENCE_VIEWS: View[] = ['kitchen', 'budget', 'life', 'dreams', 'feed'];
+const INTELLIGENCE_VIEWS: View[] = ['kitchen', 'budget', 'life', 'dreams', 'feed', 'home'];
 
 export default function ConfluxBarV2({
   currentView,

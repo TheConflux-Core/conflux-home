@@ -46,8 +46,22 @@ const FoundationHero: React.FC<FoundationHeroProps> = ({ healthScore, systems, a
       }} />
 
       {/* Score ring */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-        <svg width="170" height="170" viewBox="0 0 170 170">
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20, position: 'relative' }}>
+        {/* Dark blurred backdrop circle */}
+        <div style={{
+          position: 'absolute',
+          top: '50%', left: '50%',
+          transform: 'translate(-50%, -55%)',
+          width: 180, height: 180,
+          borderRadius: '50%',
+          background: 'rgba(2, 10, 20, 0.7)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          boxShadow: `0 0 60px rgba(0,0,0,0.4), 0 0 30px ${scoreColor}15`,
+          border: `1px solid ${scoreColor}20`,
+          zIndex: 0,
+        }} />
+        <svg width="170" height="170" viewBox="0 0 170 170" style={{ position: 'relative', zIndex: 1 }}>
           <circle
             cx="85" cy="85" r={radius}
             fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="10"
@@ -79,31 +93,47 @@ const FoundationHero: React.FC<FoundationHeroProps> = ({ healthScore, systems, a
       <div style={{
         display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10,
       }}>
-        {systems.map((sys, i) => (
-          <div key={i} className="foundation-system-card" style={{
-            padding: 12, borderRadius: 10,
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.08)',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 20 }}>{sys.icon}</span>
-              <span style={{ fontWeight: 600, fontSize: 13 }}>{sys.name}</span>
-            </div>
-            <span
-              className="foundation-system-status"
-              style={{
+        {systems.map((sys, i) => {
+          const borderColor = sys.status === 'healthy' ? '#10b981' : sys.status === 'warning' ? '#f59e0b' : '#ef4444';
+          const statusBg = sys.status === 'healthy' ? 'rgba(16,185,129,0.12)' : sys.status === 'warning' ? 'rgba(245,158,11,0.12)' : 'rgba(239,68,68,0.12)';
+          const statusColor = borderColor;
+          return (
+            <div key={i} style={{
+              padding: 14, borderRadius: 12,
+              background: 'rgba(255,255,255,0.04)',
+              border: `1px solid rgba(255,255,255,0.07)`,
+              borderLeft: `3px solid ${borderColor}`,
+              transition: 'all 0.25s ease',
+              backdropFilter: 'blur(8px)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 20 }}>{sys.icon}</span>
+                  <span style={{ fontWeight: 600, fontSize: 13, color: 'rgba(255,255,255,0.92)' }}>{sys.name}</span>
+                </div>
+                <div style={{
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: borderColor,
+                  boxShadow: sys.status === 'critical'
+                    ? `0 0 8px ${borderColor}, 0 0 16px ${borderColor}50`
+                    : `0 0 6px ${borderColor}80`,
+                  animation: sys.status === 'critical' ? 'foundation-pulse-red 1.5s infinite' : 'none',
+                }} />
+              </div>
+              <span style={{
                 display: 'inline-block', fontSize: 11, fontWeight: 600,
                 padding: '2px 8px', borderRadius: 100,
-                ...getStatusStyle(sys.status),
-              }}
-            >
-              {sys.status}
-            </span>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 6 }}>
-              {sys.detail}
+                background: statusBg, color: statusColor,
+                textTransform: 'capitalize',
+              }}>
+                {sys.status}
+              </span>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 6, lineHeight: 1.4 }}>
+                {sys.detail}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Alert beacon */}

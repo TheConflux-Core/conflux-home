@@ -442,6 +442,8 @@ pub fn run() {
             commands::voice_cmds::voice_set_config,
             #[cfg(not(target_os = "android"))]
             commands::voice_cmds::debug_audio_buffer_state,
+            #[cfg(not(target_os = "android"))]
+            commands::voice_cmds::voice_check_microphone,
             // New ElevenLabs streaming commands (desktop only)
             #[cfg(not(target_os = "android"))]
             engine::commands::voice_commands::voice_start_stream,
