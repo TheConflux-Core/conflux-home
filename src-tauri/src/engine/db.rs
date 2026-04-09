@@ -1811,22 +1811,22 @@ impl EngineDb {
 
     // ── Budget Summary ──
 
-    pub fn get_budget_summary(&self, month: &str) -> Result<super::types::BudgetSummary> {
+    pub fn get_budget_summary(&self, member_id: &str, month: &str) -> Result<super::types::BudgetSummary> {
         let conn = self.conn();
 
         let total_income: f64 = conn.query_row(
-            "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE entry_type = 'income' AND strftime('%Y-%m', date) = ?1",
-            params![month], |row| row.get(0)
+            "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id = ?1 AND entry_type = \'income\' AND strftime(\'%Y-%m\', date) = ?2",
+            params![member_id, month], |row| row.get(0)
         ).unwrap_or(0.0);
 
         let total_expenses: f64 = conn.query_row(
-            "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE entry_type = 'expense' AND strftime('%Y-%m', date) = ?1",
-            params![month], |row| row.get(0)
+            "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id = ?1 AND entry_type = \'expense\' AND strftime(\'%Y-%m\', date) = ?2",
+            params![member_id, month], |row| row.get(0)
         ).unwrap_or(0.0);
 
         let total_savings: f64 = conn.query_row(
-            "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE entry_type = 'savings' AND strftime('%Y-%m', date) = ?1",
-            params![month], |row| row.get(0)
+            "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id = ?1 AND entry_type = \'savings\' AND strftime(\'%Y-%m\', date) = ?2",
+            params![member_id, month], |row| row.get(0)
         ).unwrap_or(0.0);
 
         let mut cat_stmt = conn.prepare(
@@ -1910,6 +1910,120 @@ impl EngineDb {
         Ok(())
     }
 
+    // ── Budget Engine (Zero-Based Budgeting) ──
+
+    pub fn get_budget_settings(&self, user_id: &str) -> Result<Option<super::types::BudgetSettingsRow>> {
+        let conn = self.conn();
+        let result = conn.query_row(
+            "SELECT id, user_id, pay_frequency, pay_dates, income_amount, currency, created_at, updated_at FROM budget_settings WHERE user_id = ?1 LIMIT 1",
+            params![user_id], |row| {
+                Ok(super::types::BudgetSettingsRow {
+                    id: row.get(0)?, user_id: row.get(1)?, pay_frequency: row.get(2)?,
+                    pay_dates: row.get(3)?, income_amount: row.get(4)?, currency: row.get(5)?,
+                    created_at: row.get(6)?, updated_at: row.get(7)?,
+                })
+            }
+        );
+        match result {
+            Ok(s) => Ok(Some(s)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn upsert_budget_settings(&self, id: &str, user_id: &str, pay_frequency: &str,
+        pay_dates: &str, income_amount: f64, currency: &str) -> Result<()> {
+        let conn = self.conn();
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT INTO budget_settings (id, user_id, pay_frequency, pay_dates, income_amount, currency, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+             ON CONFLICT(id) DO UPDATE SET pay_frequency=?3, pay_dates=?4, income_amount=?5, currency=?6, updated_at=?8",
+            params![id, user_id, pay_frequency, pay_dates, income_amount, currency, now, now]
+        )?;
+        Ok(())
+    }
+
+    pub fn get_budget_buckets(&self, user_id: &str) -> Result<Vec<super::types::BudgetBucketRow>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, user_id, name, icon, monthly_goal, color, is_active, created_at, updated_at
+             FROM budget_buckets WHERE user_id = ?1 AND is_active = 1 ORDER BY created_at ASC"
+        )?;
+        let rows = stmt.query_map(params![user_id], |row| {
+            Ok(super::types::BudgetBucketRow {
+                id: row.get(0)?, user_id: row.get(1)?, name: row.get(2)?,
+                icon: row.get(3)?, monthly_goal: row.get(4)?, color: row.get(5)?,
+                is_active: row.get::<_, i64>(6)? != 0, created_at: row.get(7)?, updated_at: row.get(8)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+
+    pub fn create_budget_bucket(&self, id: &str, user_id: &str, name: &str, icon: Option<&str>,
+        monthly_goal: f64, color: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT INTO budget_buckets (id, user_id, name, icon, monthly_goal, color, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![id, user_id, name, icon, monthly_goal, color, now, now]
+        )?;
+        Ok(())
+    }
+
+    pub fn get_budget_allocations(&self, user_id: &str) -> Result<Vec<super::types::BudgetAllocationRow>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, user_id, bucket_id, pay_period_id, amount, created_at, updated_at
+             FROM budget_allocations WHERE user_id = ?1 ORDER BY created_at ASC"
+        )?;
+        let rows = stmt.query_map(params![user_id], |row| {
+            Ok(super::types::BudgetAllocationRow {
+                id: row.get(0)?, user_id: row.get(1)?, bucket_id: row.get(2)?,
+                pay_period_id: row.get(3)?, amount: row.get(4)?,
+                created_at: row.get(5)?, updated_at: row.get(6)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+
+    pub fn get_budget_transactions(&self, user_id: &str) -> Result<Vec<super::types::BudgetTransactionRow>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT id, user_id, bucket_id, amount, date, status, description, merchant, category, receipt_url, created_at, updated_at
+             FROM budget_transactions WHERE user_id = ?1 ORDER BY date DESC"
+        )?;
+        let rows = stmt.query_map(params![user_id], |row| {
+            Ok(super::types::BudgetTransactionRow {
+                id: row.get(0)?, user_id: row.get(1)?, bucket_id: row.get(2)?,
+                amount: row.get(3)?, date: row.get(4)?, status: row.get(5)?,
+                description: row.get(6)?, merchant: row.get(7)?, category: row.get(8)?,
+                receipt_url: row.get(9)?, created_at: row.get(10)?, updated_at: row.get(11)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for r in rows { result.push(r?); }
+        Ok(result)
+    }
+
+    pub fn create_budget_transaction(&self, id: &str, user_id: &str, bucket_id: Option<&str>,
+        amount: f64, date: &str, status: &str, description: Option<&str>,
+        merchant: Option<&str>, category: Option<&str>, receipt_url: Option<&str>) -> Result<()> {
+        let conn = self.conn();
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT INTO budget_transactions (id, user_id, bucket_id, amount, date, status, description, merchant, category, receipt_url, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            params![id, user_id, bucket_id, amount, date, status, description, merchant, category, receipt_url, now, now]
+        )?;
+        Ok(())
+    }
+
     // Cross-App Synthesis functions
 
     /// Get budget entries for cross-app insights
@@ -1942,10 +2056,10 @@ impl EngineDb {
     pub fn get_kitchen_inventory(&self, member_id: &str) -> Result<Vec<super::types::KitchenInventoryItem>> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
-            "SELECT id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at 
-             FROM kitchen_inventory ORDER BY location, name"
+            "SELECT id, member_id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at 
+             FROM kitchen_inventory WHERE member_id = ?1 ORDER BY location, name"
         )?;
-        let rows = stmt.query_map([], Self::map_inventory)?;
+        let rows = stmt.query_map(params![member_id], Self::map_inventory)?;
         let mut result = Vec::new();
         for r in rows { result.push(r?); }
         Ok(result)
@@ -2001,21 +2115,21 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn can_afford(&self, amount: f64, month: &str) -> Result<bool> {
+    pub fn can_afford(&self, member_id: &str, amount: f64, month: &str) -> Result<bool> {
         let conn = self.conn();
         let income: f64 = conn.query_row(
-            "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE entry_type = 'income' AND strftime('%Y-%m', date) = ?1",
-            params![month], |row| row.get(0)
+            "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id = ?1 AND entry_type = \'income\' AND strftime(\'%Y-%m\', date) = ?2",
+            params![member_id, month], |row| row.get(0)
         ).unwrap_or(0.0);
         let expenses: f64 = conn.query_row(
-            "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE entry_type = 'expense' AND strftime('%Y-%m', date) = ?1",
-            params![month], |row| row.get(0)
+            "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id = ?1 AND entry_type = \'expense\' AND strftime(\'%Y-%m\', date) = ?2",
+            params![member_id, month], |row| row.get(0)
         ).unwrap_or(0.0);
         Ok(income - expenses >= amount)
     }
 
-    pub fn get_monthly_report(&self, month: &str) -> Result<super::types::MonthlyReport> {
-        let summary = self.get_budget_summary(month)?;
+    pub fn get_monthly_report(&self, member_id: &str, month: &str) -> Result<super::types::MonthlyReport> {
+        let summary = self.get_budget_summary(member_id, month)?;
         let patterns = self.detect_budget_patterns(None)?;
         let goals = self.get_budget_goals(None)?;
         // Last month comparison
@@ -2023,7 +2137,7 @@ impl EngineDb {
         let y: i32 = parts[0].parse().unwrap_or(2024);
         let m: u32 = parts[1].parse().unwrap_or(1);
         let prev = if m == 1 { format!("{}-12", y - 1) } else { format!("{}-{:02}", y, m - 1) };
-        let prev_summary = self.get_budget_summary(&prev).ok();
+        let prev_summary = self.get_budget_summary(member_id, &prev).ok();
         let comparison = prev_summary.map(|p| summary.net - p.net);
         Ok(super::types::MonthlyReport {
             month: month.to_string(),
@@ -2797,35 +2911,35 @@ impl EngineDb {
     // Kitchen Inventory
     // ============================================================
 
-    pub fn add_inventory_item(&self, id: &str, name: &str, quantity: Option<f64>, unit: Option<&str>,
+    pub fn add_inventory_item(&self, id: &str, member_id: &str, name: &str, quantity: Option<f64>, unit: Option<&str>,
                                category: Option<&str>, expiry: Option<&str>, location: Option<&str>) -> Result<()> {
         let conn = self.conn();
         let now = Self::now();
         conn.execute(
-            "INSERT INTO kitchen_inventory (id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8, ?8)",
-            params![id, name, quantity, unit, category, expiry, location, now],
+            "INSERT INTO kitchen_inventory (id, member_id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)",
+            params![id, member_id, name, quantity, unit, category, expiry, location, now],
         )?;
         Ok(())
     }
 
-    pub fn get_inventory(&self, location: Option<&str>) -> Result<Vec<super::types::KitchenInventoryItem>> {
+    pub fn get_inventory(&self, member_id: &str, location: Option<&str>) -> Result<Vec<super::types::KitchenInventoryItem>> {
         let conn = self.conn();
         if let Some(loc) = location {
             let mut stmt = conn.prepare(
-                "SELECT id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at
-                 FROM kitchen_inventory WHERE location = ?1 ORDER BY name"
+                "SELECT id, member_id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at
+                 FROM kitchen_inventory WHERE member_id = ?1 AND location = ?2 ORDER BY name"
             )?;
-            let rows = stmt.query_map(params![loc], Self::map_inventory)?;
+            let rows = stmt.query_map(params![member_id, loc], Self::map_inventory)?;
             let mut result = Vec::new();
             for r in rows { result.push(r?); }
             Ok(result)
         } else {
             let mut stmt = conn.prepare(
-                "SELECT id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at
-                 FROM kitchen_inventory ORDER BY location, name"
+                "SELECT id, member_id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at
+                 FROM kitchen_inventory WHERE member_id = ?1 ORDER BY location, name"
             )?;
-            let rows = stmt.query_map([], Self::map_inventory)?;
+            let rows = stmt.query_map(params![member_id], Self::map_inventory)?;
             let mut result = Vec::new();
             for r in rows { result.push(r?); }
             Ok(result)
@@ -2834,9 +2948,9 @@ impl EngineDb {
 
     fn map_inventory(row: &rusqlite::Row) -> rusqlite::Result<super::types::KitchenInventoryItem> {
         Ok(super::types::KitchenInventoryItem {
-            id: row.get(0)?, name: row.get(1)?, quantity: row.get(2)?, unit: row.get(3)?,
-            category: row.get(4)?, expiry_date: row.get(5)?, location: row.get(6)?,
-            last_restocked: row.get(7)?, created_at: row.get(8)?, updated_at: row.get(9)?,
+            id: row.get(0)?, member_id: row.get(1)?, name: row.get(2)?, quantity: row.get(3)?, unit: row.get(4)?,
+            category: row.get(5)?, expiry_date: row.get(6)?, location: row.get(7)?,
+            last_restocked: row.get(8)?, created_at: row.get(9)?, updated_at: row.get(10)?,
         })
     }
 

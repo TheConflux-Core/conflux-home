@@ -27,12 +27,14 @@ export function useBudget(memberId?: string) {
   const load = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('[useBudget] Loading data for member:', resolvedMemberId);
       const [e, s, g, p] = await Promise.all([
         invoke<BudgetEntry[]>('budget_get_entries', { member_id: resolvedMemberId, month: period }),
-        invoke<BudgetSummary>('budget_get_summary', { month: period }),
+        invoke<BudgetSummary>('budget_get_summary', { member_id: resolvedMemberId, month: period }),
         invoke<BudgetGoal[]>('budget_get_goals', { member_id: resolvedMemberId }),
         invoke<BudgetPattern[]>('budget_detect_patterns', { member_id: resolvedMemberId }),
       ]);
+      console.log('[useBudget] Loaded entries:', e.length);
       setEntries(e);
       setSummary(s);
       setGoals(g);
