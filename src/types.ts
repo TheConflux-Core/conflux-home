@@ -59,6 +59,8 @@ export const AGENT_COLORS: Record<string, string> = {
   spectra: '#4488ff',   // royal blue
   luma: '#44ddff',      // bright cyan
   catalyst: '#ffcc00',  // gold/yellow
+  aegis: '#6366f1',     // steel indigo
+  viper: '#22c55e',     // venom green
 };
 
 // ── Family Profiles ──
