@@ -4,7 +4,18 @@ import StudioTabs from './StudioTabs';
 import StudioPromptBar from './StudioPromptBar';
 import StudioOutput from './StudioOutput';
 import StudioHistory from './StudioHistory';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import '../styles-studio.css';
+
+function getDisplayUrl(gen: { output_url: string | null; output_path: string | null }): string | null {
+  // Prefer remote URL (images from Replicate)
+  if (gen.output_url?.startsWith('http')) return gen.output_url;
+  // For local files (voice), use Tauri's asset protocol
+  if (gen.output_path) return convertFileSrc(gen.output_path);
+  // Fallback file:// URL
+  if (gen.output_url?.startsWith('file://')) return gen.output_url.replace('file://', '');
+  return null;
+}
 
 export default function StudioView() {
   const {
@@ -51,10 +62,10 @@ export default function StudioView() {
             </div>
           ) : selectedGeneration ? (
             <div className="studio-output-content">
-              {selectedGeneration.module === 'image' && selectedGeneration.output_url && (
-                <img src={selectedGeneration.output_url} alt="Generated" className="studio-output-preview-img" />
+              {selectedGeneration.module === 'image' && getDisplayUrl(selectedGeneration) && (
+                <img src={getDisplayUrl(selectedGeneration)!} alt="Generated" className="studio-output-preview-img" />
               )}
-              {selectedGeneration.module === 'voice' && selectedGeneration.output_url && (
+              {selectedGeneration.module === 'voice' && getDisplayUrl(selectedGeneration) && (
                 <div className="studio-output-preview-audio">
                   <div className="studio-output-waveform">
                     {[...Array(20)].map((_, i) => (
@@ -65,7 +76,7 @@ export default function StudioView() {
                       />
                     ))}
                   </div>
-                  <audio controls src={selectedGeneration.output_url} className="studio-output-audio-player" />
+                  <audio controls src={getDisplayUrl(selectedGeneration)!} className="studio-output-audio-player" />
                 </div>
               )}
             </div>

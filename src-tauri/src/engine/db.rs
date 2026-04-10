@@ -4820,6 +4820,15 @@ pub fn studio_delete_generation(id: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn studio_link_vault_file(generation_id: &str, vault_file_id: &str) -> Result<()> {
+    let conn = get_conn();
+    conn.execute(
+        "UPDATE studio_generations SET vault_file_id = ?1 WHERE id = ?2",
+        params![vault_file_id, generation_id],
+    )?;
+    Ok(())
+}
+
 pub fn studio_upsert_prompt(prompt: &str, module: &str) -> Result<()> {
     let conn = get_conn();
     // Check if prompt already exists for this module

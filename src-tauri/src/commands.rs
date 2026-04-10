@@ -4645,11 +4645,26 @@ struct ReplicatePrediction {
 pub async fn studio_generate_image(generation_id: String, prompt: String, aspect_ratio: Option<String>) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
     let api_key = engine.db().get_config("studio_replicate_key")
-        .map_err(|e| e.to_string())?
-        .ok_or("Replicate API key not configured. Add it in Settings → Studio.")?;
+        .ok().flatten().filter(|k| !k.is_empty())
+        .or_else(|| std::env::var("REPLICATE_API_KEY").ok().filter(|k| !k.is_empty()))
+        .or_else(|| option_env!("REPLICATE_API_KEY").map(|s| s.to_string()).filter(|k| !k.is_empty()))
+        .unwrap_or_default();
 
     if api_key.is_empty() {
-        return Err("Replicate API key is empty. Add it in Settings → Studio.".to_string());
+        return Err("Replicate API key not configured.".to_string());
+    }
+
+    // Check credits before generating (image costs 3 credits)
+    let user_id = get_supabase_user_id();
+    let image_cost: i64 = 3;
+    if !user_id.is_empty() {
+        match cloud::check_cloud_balance(&user_id).await {
+            Ok(status) if status.balance < image_cost => {
+                return Err(format!("Insufficient credits: have {}, need {}. Upgrade for more.", status.balance, image_cost));
+            }
+            Err(e) => log::warn!("[Studio] Credit check failed (proceeding): {}", e),
+            _ => {}
+        }
     }
 
     // Update status to generating
@@ -4745,6 +4760,12 @@ pub async fn studio_generate_image(generation_id: String, prompt: String, aspect
                 let user_id = get_supabase_user_id();
                 let _ = engine::db::studio_update_usage(&user_id, &month, "image", 3);
 
+                // Charge cloud credits (fire and forget)
+                if !user_id.is_empty() {
+                    let uid = user_id.clone();
+                    let _ = cloud::charge_credits(&uid, image_cost, &generation_id).await;
+                }
+
                 return Ok(serde_json::json!({
                     "status": "complete",
                     "output_url": output_url,
@@ -4820,13 +4841,31 @@ pub async fn tts_speak(text: String, voice: Option<String>) -> Result<serde_json
 
 #[tauri::command]
 pub async fn studio_generate_voice(generation_id: String, text: String, voice_id: Option<String>) -> Result<serde_json::Value, String> {
-    let engine = engine::get_engine();
-    let api_key = engine.db().get_config("studio_elevenlabs_key")
-        .map_err(|e| e.to_string())?
-        .ok_or("ElevenLabs API key not configured. Add it in Settings → Studio.")?;
+    let api_key = {
+        let engine = engine::get_engine();
+        engine.db().get_config("studio_elevenlabs_key")
+            .ok().flatten().filter(|k| !k.is_empty())
+            .or_else(|| engine.db().get_config("elevenlabs_key").ok().flatten().filter(|k| !k.is_empty()))
+            .or_else(|| std::env::var("ELEVENLABS_API_KEY").ok().filter(|k| !k.is_empty()))
+            .or_else(|| option_env!("ELEVENLABS_API_KEY").map(|s| s.to_string()).filter(|k| !k.is_empty()))
+            .unwrap_or_default()
+    };
 
     if api_key.is_empty() {
-        return Err("ElevenLabs API key is empty. Add it in Settings → Studio.".to_string());
+        return Err("ElevenLabs API key not configured.".to_string());
+    }
+
+    // Check credits before generating (voice costs 2 credits)
+    let user_id = get_supabase_user_id();
+    let voice_cost: i64 = 2;
+    if !user_id.is_empty() {
+        match cloud::check_cloud_balance(&user_id).await {
+            Ok(status) if status.balance < voice_cost => {
+                return Err(format!("Insufficient credits: have {}, need {}. Upgrade for more.", status.balance, voice_cost));
+            }
+            Err(e) => log::warn!("[Studio] Credit check failed (proceeding): {}", e),
+            _ => {}
+        }
     }
 
     // Update status to generating
@@ -4835,7 +4874,7 @@ pub async fn studio_generate_voice(generation_id: String, text: String, voice_id
 
     let client = reqwest::Client::new();
 
-    // Default to Rachel voice if no voice_id specified
+    // Default to George voice if no voice_id specified
     let voice = voice_id.unwrap_or_else(|| "21m00Tcm4TlvDq8ikWAM".to_string());
 
     let response = client.post(format!("https://api.elevenlabs.io/v1/text-to-speech/{}", voice))
@@ -4880,12 +4919,15 @@ pub async fn studio_generate_voice(generation_id: String, text: String, voice_id
         "char_count": text.len()
     }).to_string();
 
+    // Convert path to file:// URL for frontend playback
+    let output_url = format!("file://{}", output_path);
+
     // Update generation record
     engine::db::studio_update_generation_status(
         &generation_id,
         "complete",
         Some(&output_path),
-        None,
+        Some(&output_url),
         Some(&metadata),
         2, // ~$0.02 cost
     ).map_err(|e| e.to_string())?;
@@ -4898,10 +4940,103 @@ pub async fn studio_generate_voice(generation_id: String, text: String, voice_id
     let user_id = get_supabase_user_id();
     let _ = engine::db::studio_update_usage(&user_id, &month, "voice", 2);
 
+    // Charge cloud credits (fire and forget)
+    if !user_id.is_empty() {
+        let uid = user_id.clone();
+        let _ = cloud::charge_credits(&uid, voice_cost, &generation_id).await;
+    }
+
     Ok(serde_json::json!({
         "status": "complete",
         "output_path": output_path,
+        "output_url": output_url,
         "metadata": metadata
+    }))
+}
+
+// ── Studio: Save to Vault ──
+
+#[tauri::command]
+pub async fn studio_save_to_vault(generation_id: String) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+
+    // Get the generation record
+    let gen = engine::db::studio_get_generation(&generation_id)
+        .map_err(|e| e.to_string())?
+        .ok_or("Generation not found")?;
+
+    if gen.status != "complete" {
+        return Err("Generation is not complete yet".to_string());
+    }
+
+    // Determine source: URL (images) or local path (voice)
+    let output_url = gen.output_url.as_deref().unwrap_or("");
+    let output_path = gen.output_path.as_deref();
+
+    // Create vault directory
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let vault_dir = format!("{}/.openclaw/studio/vault", home);
+    std::fs::create_dir_all(&vault_dir).map_err(|e| format!("Failed to create vault dir: {}", e))?;
+
+    // Determine file extension and content type
+    let (ext, file_type, mime_type) = match gen.module.as_str() {
+        "image" => ("png", "image", "image/png"),
+        "voice" => ("mp3", "audio", "audio/mpeg"),
+        _ => ("bin", "other", "application/octet-stream"),
+    };
+
+    let filename = format!("{}_{}.{}", gen.module, &generation_id[..8], ext);
+    let vault_path = format!("{}/{}", vault_dir, filename);
+
+    // Copy/download the file
+    if output_url.starts_with("http") {
+        // Download from URL (images from Replicate)
+        let client = reqwest::Client::new();
+        let bytes = client.get(output_url)
+            .send().await
+            .map_err(|e| format!("Download failed: {}", e))?
+            .bytes().await
+            .map_err(|e| format!("Read failed: {}", e))?;
+        std::fs::write(&vault_path, &bytes).map_err(|e| format!("Write failed: {}", e))?;
+    } else if let Some(src) = output_path {
+        // Copy local file (voice)
+        std::fs::copy(src, &vault_path).map_err(|e| format!("Copy failed: {}", e))?;
+    } else {
+        return Err("No output URL or path found for this generation".to_string());
+    }
+
+    let size_bytes = std::fs::metadata(&vault_path)
+        .map(|m| m.len() as i64)
+        .unwrap_or(0);
+
+    // Create vault file entry
+    let vault_id = uuid::Uuid::new_v4().to_string();
+    engine::db::vault_upsert_file(
+        &vault_id,
+        &vault_path,
+        &filename,
+        file_type,
+        Some(mime_type),
+        Some(ext),
+        size_bytes,
+        None,      // thumbnail_path
+        None,      // width
+        None,      // height
+        None,      // duration_secs
+        Some("studio"), // created_by
+        Some(&gen.prompt), // source_prompt
+        Some(&format!("Studio {} generation", gen.module)), // description
+    ).map_err(|e| e.to_string())?;
+
+    // Link vault file to generation
+    engine::db::studio_link_vault_file(&generation_id, &vault_id)
+        .map_err(|e| e.to_string())?;
+
+    Ok(serde_json::json!({
+        "vault_file_id": vault_id,
+        "path": vault_path,
+        "name": filename,
+        "size_bytes": size_bytes,
     }))
 }
 
