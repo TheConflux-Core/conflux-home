@@ -27,9 +27,14 @@ use std::sync::OnceLock;
 /// Global engine instance.
 static ENGINE: OnceLock<ConfluxEngine> = OnceLock::new();
 
-/// Get the global engine instance.
+/// Get the global engine instance. Panics if not initialized.
 pub fn get_engine() -> &'static ConfluxEngine {
     ENGINE.get().expect("Conflux Engine not initialized")
+}
+
+/// Get the global engine instance safely. Returns None if not initialized.
+pub fn try_get_engine() -> Option<&'static ConfluxEngine> {
+    ENGINE.get()
 }
 
 /// Initialize the global engine. Call once during app setup.

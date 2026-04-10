@@ -308,6 +308,9 @@ export default function App() {
         try {
           await invoke('voice_capture_stop');
           
+          // Transition to Thinking state while transcribing
+          window.dispatchEvent(new CustomEvent('conflux-thinking', { detail: { text: '(transcribing...)' } }));
+          
           // Transcribe using OpenAI Whisper
           console.log('[Voice] Transcribing with OpenAI Whisper...');
           const text = await invoke('voice_transcribe');
@@ -318,9 +321,11 @@ export default function App() {
             await handleVoiceInput(text);
           } else {
             console.log('[Voice] No speech detected.');
+            window.dispatchEvent(new CustomEvent('conflux-idle'));
           }
         } catch (err) {
           console.error('[Voice] Transcription/Chat failed:', err);
+          window.dispatchEvent(new CustomEvent('conflux-idle'));
         } finally {
           window.dispatchEvent(new CustomEvent('conflux-transcription-done'));
         }
