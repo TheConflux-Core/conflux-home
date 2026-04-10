@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import { ConfluxPresence, useConfluxController, attachTauriConfluxListeners } from './conflux';
 import type { ConfluxTauriListen } from './conflux';
 import { View } from '../types';
@@ -382,6 +382,18 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
   const [bezierOffset, setBezierOffset] = useState({ x: 0, y: 0 });
   const prevImmersiveViewRef = useRef(immersiveView);
 
+  // Drag-and-move: save/restore position from localStorage
+  const [dragOverride, setDragOverride] = useState<{ x: number; y: number } | null>(() => {
+    const saved = localStorage.getItem('conflux-fairy-pos');
+    if (saved) {
+      try {
+        const { rx, ry } = JSON.parse(saved);
+        return { x: rx * window.innerWidth, y: ry * window.innerHeight };
+      } catch { return null; }
+    }
+    return null;
+  });
+
   useEffect(() => {
     if (wizardMode) return; // Skip non-wizard bezier — wizard has its own
     if (immersiveView !== prevImmersiveViewRef.current && immersiveView) {
@@ -397,6 +409,22 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
     }
     prevImmersiveViewRef.current = immersiveView;
   }, [immersiveView, wizardMode]);
+
+  // Clear drag override when view changes (let spring animate to new position)
+  useEffect(() => {
+    setDragOverride(null);
+  }, [view, immersiveView, chatOpen, isPushToTalkActive]);
+
+  // Drag handler: save final position to localStorage
+  const handleDragEnd = useCallback((_e: any, info: { point: { x: number; y: number } }) => {
+    const finalX = info.point.x;
+    const finalY = info.point.y;
+    setDragOverride({ x: finalX, y: finalY });
+    localStorage.setItem('conflux-fairy-pos', JSON.stringify({
+      rx: finalX / window.innerWidth,
+      ry: finalY / window.innerHeight,
+    }));
+  }, []);
 
   // ─── Wizard Mode: Organic Bezier Movement ─────────────────────────
   // Layered on top of the base spring position so non-wizard transitions stay intact.
@@ -563,20 +591,31 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
       {/* Base position — spring-driven to target */}
       <motion.div
         initial={false}
-        animate={{ 
-          x: targetX + (wizardMode ? 0 : bezierOffset.x), 
-          y: targetY + (wizardMode ? 0 : bezierOffset.y), 
+        drag
+        dragMomentum={false}
+        dragElastic={0}
+        onDragEnd={handleDragEnd}
+        animate={dragOverride ? {
+          x: dragOverride.x,
+          y: dragOverride.y,
+          scale,
+          filter: builderModeFilter,
+        } : {
+          x: targetX + (wizardMode ? 0 : bezierOffset.x),
+          y: targetY + (wizardMode ? 0 : bezierOffset.y),
           scale,
           filter: builderModeFilter,
         }}
         transition={getTransitionConfig()}
         style={{
           position: 'fixed',
-          zIndex: isBuilderMode ? 110 : 100, // Higher z-index in builder mode
-          pointerEvents: 'none',
+          zIndex: isBuilderMode ? 110 : 100,
+          pointerEvents: 'auto',
           top: 0,
           left: 0,
+          cursor: 'grab',
         }}
+        whileDrag={{ cursor: 'grabbing' }}
       >
         {/* Wizard organic offset — wraps ConfluxPresence to layer bezier + oscillation on top of base spring */}
         <motion.div
