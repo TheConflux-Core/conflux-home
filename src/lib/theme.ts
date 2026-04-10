@@ -18,7 +18,7 @@ export const BASE_THEMES: ColorThemeDef[] = [
     id: 'conflux',
     name: 'Conflux',
     emoji: '⚡',
-    wallpaper: '/wallpapers/desktop-wallpaper.png',
+    wallpaper: '/wallpapers/desktop-wallpaper.webp',
     vars: {
       '--accent-primary': '#0071e3',
       '--accent-glow': 'rgba(0, 113, 227, 0.3)',
@@ -32,7 +32,7 @@ export const BASE_THEMES: ColorThemeDef[] = [
     id: 'aegis',
     name: 'Aegis',
     emoji: '🌌',
-    wallpaper: '/wallpapers/wallpaper-dark.png',
+    wallpaper: '/wallpapers/wallpaper-dark.webp',
     vars: {
       '--accent-primary': '#00d4ff',
       '--accent-glow': 'rgba(0, 212, 255, 0.3)',
