@@ -4939,11 +4939,10 @@ pub mod voice_cmds {
         }))
     }
 
-    /// Transcribe the current audio buffer using Whisper.
+    /// Transcribe the current audio buffer using Whisper (primary) or ElevenLabs (fallback).
     #[tauri::command]
     pub async fn voice_transcribe() -> Result<String, String> {
-        // Use OpenAI Whisper API for STT
-        println!("[STT] Transcribing with OpenAI Whisper...");
+        println!("[STT] Transcribing...");
         
         let audio = {
             let buf = AUDIO_BUFFER.lock().map_err(|e| e.to_string())?;
@@ -4954,18 +4953,74 @@ pub mod voice_cmds {
             return Err("No audio recorded.".to_string());
         }
 
-        // Convert f32 samples to WAV bytes for OpenAI
+        // Convert f32 samples to WAV bytes
         let wav_bytes = audio_to_wav_bytes(&audio);
 
+        // Try OpenAI Whisper first
         let openai_config = crate::voice::openai::OpenAIConfig::default();
-        if openai_config.api_key.is_empty() {
-            return Err("OPENAI_API_KEY not set".to_string());
+        if !openai_config.api_key.is_empty() {
+            println!("[STT] Trying OpenAI Whisper...");
+            match crate::voice::openai::transcribe_audio(wav_bytes.clone(), openai_config).await {
+                Ok(text) => return Ok(text),
+                Err(e) => println!("[STT] OpenAI failed: {}", e),
+            }
         }
 
-        match crate::voice::openai::transcribe_audio(wav_bytes, openai_config).await {
-            Ok(text) => Ok(text),
-            Err(e) => Err(format!("OpenAI STT Error: {}", e)),
+        // Fallback to ElevenLabs batch STT
+        println!("[STT] Falling back to ElevenLabs...");
+        let eleven_key = {
+            let engine = crate::engine::get_engine();
+            engine.db().get_config("elevenlabs_key").ok().flatten().filter(|k| !k.is_empty())
+                .or_else(|| engine.db().get_config("studio_elevenlabs_key").ok().flatten().filter(|k| !k.is_empty()))
+                .or_else(|| std::env::var("ELEVENLABS_API_KEY").ok().filter(|k| !k.is_empty()))
+                .or_else(|| option_env!("ELEVENLABS_API_KEY").map(|s| s.to_string()).filter(|k| !k.is_empty()))
+        };
+
+        match eleven_key {
+            Some(key) if !key.is_empty() => {
+                match elevenlabs_stt(&wav_bytes, &key).await {
+                    Ok(text) => Ok(text),
+                    Err(e) => Err(format!("All STT providers failed. ElevenLabs: {}", e)),
+                }
+            }
+            _ => Err("No STT API keys configured. Set OPENAI_API_KEY or ELEVENLABS_API_KEY.".to_string()),
         }
+    }
+
+    /// ElevenLabs batch speech-to-text.
+    async fn elevenlabs_stt(audio_data: &[u8], api_key: &str) -> Result<String, String> {
+        let client = reqwest::Client::new();
+
+        let part = reqwest::multipart::Part::bytes(audio_data.to_vec())
+            .file_name("audio.wav")
+            .mime_str("audio/wav")
+            .map_err(|e| e.to_string())?;
+
+        let form = reqwest::multipart::Form::new()
+            .text("model_id", "scribe_v1")
+            .part("file", part);
+
+        let response = client
+            .post("https://api.elevenlabs.io/v1/speech-to-text")
+            .header("xi-api-key", api_key)
+            .multipart(form)
+            .send()
+            .await
+            .map_err(|e| format!("Request failed: {}", e))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(format!("ElevenLabs STT Error {}: {}", status, body));
+        }
+
+        #[derive(serde::Deserialize)]
+        struct ScribeResponse {
+            text: String,
+        }
+
+        let result: ScribeResponse = response.json().await.map_err(|e| e.to_string())?;
+        Ok(result.text)
     }
 
     fn audio_to_wav_bytes(samples: &[f32]) -> Vec<u8> {

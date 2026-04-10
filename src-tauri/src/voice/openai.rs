@@ -18,7 +18,11 @@ pub struct OpenAIConfig {
 impl Default for OpenAIConfig {
     fn default() -> Self {
         Self {
-            api_key: std::env::var("OPENAI_API_KEY").unwrap_or_default(),
+            api_key: std::env::var("OPENAI_API_KEY")
+                .ok()
+                .filter(|k| !k.is_empty())
+                .or_else(|| option_env!("OPENAI_API_KEY").map(|s| s.to_string()).filter(|k| !k.is_empty()))
+                .unwrap_or_default(),
             model_tts: "tts-1".to_string(),
             voice: "nova".to_string(), // Friendly, clear voice
             model_stt: "whisper-1".to_string(),
