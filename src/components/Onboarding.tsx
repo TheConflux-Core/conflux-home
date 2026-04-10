@@ -243,9 +243,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     playWelcomeChime();
   }, []);
 
-  // Step 1: Speak the Ice Breaker prompt via TTS
+  // Step 2: Speak the Ice Breaker prompt via TTS (when user sees the question)
   useEffect(() => {
-    if (step === 1) {
+    if (step === 2) {
       speakPrompt();
     }
   }, [step, speakPrompt]);
@@ -770,6 +770,12 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         <textarea
           value={iceBreakerInput}
           onChange={e => setIceBreakerInput(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey && iceBreakerInput.trim()) {
+              e.preventDefault();
+              nextStep();
+            }
+          }}
           placeholder="What do you need help with?"
           rows={3}
           style={{
