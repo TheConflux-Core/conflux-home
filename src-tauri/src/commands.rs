@@ -1635,7 +1635,7 @@ pub struct AddInventoryRequest {
     pub location: Option<String>,
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn kitchen_add_inventory(req: AddInventoryRequest, member_id: Option<String>) -> Result<(), String> {
     let user_id = member_id.unwrap_or_else(|| get_supabase_user_id());
     let engine = engine::get_engine();
@@ -2706,7 +2706,7 @@ pub fn life_delete_task(user_id: String, task_id: String) -> Result<(), String> 
     engine.db().delete_life_task(&user_id, &task_id).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn life_add_habit(user_id: String, name: String, category: Option<String>, frequency: Option<String>, target_count: Option<i64>) -> Result<(), String> {
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
@@ -3320,7 +3320,7 @@ pub fn home_get_year_summary() -> Result<serde_json::Value, String> {
 
 // ── Dream Builder ──
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn dream_add(id: String, member_id: Option<String>, title: String, description: Option<String>, category: String, target_date: Option<String>) -> Result<(), String> {
     let engine = engine::get_engine();
     engine.db().add_dream(&id, member_id.as_deref(), &title, description.as_deref(), &category, target_date.as_deref()).map_err(|e| e.to_string())
