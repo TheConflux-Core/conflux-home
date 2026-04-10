@@ -110,7 +110,7 @@ function ProgressBar({ step }: { step: number }) {
       padding: '20px 0 0',
       flexShrink: 0,
     }}>
-      {[0, 1, 2, 3].map(i => {
+      {[0, 1, 2, 3, 4].map(i => {
         const isActive = i === step;
         const isDone = i < step;
         return (
@@ -506,7 +506,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     if (step === 0 && userName.trim().length > 0) {
       localStorage.setItem('conflux-name', userName.trim());
     }
-    if (step === 2) {
+    if (step === 3) {
       const appsArr = Array.from(selectedApps);
       localStorage.setItem('conflux-setup-apps', JSON.stringify(appsArr));
     }
@@ -629,7 +629,102 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     </motion.div>
   );
 
-  // Render Step 1: Ice Breaker
+
+  // Render Step 1: Meet Your Family — Introduce the agent team
+  const renderFamilyStep = () => {
+    const CORE_AGENTS = [
+      { id: 'conflux', name: 'Conflux', emoji: '🧠', tagline: 'Your co-founder who never sleeps.', color: '#00d4ff' },
+      { id: 'prism', name: 'Prism', emoji: '🔮', tagline: 'I keep the machine running.', color: '#a855f7' },
+      { id: 'forge', name: 'Forge', emoji: '⚒️', tagline: 'Give me a spec, I build it.', color: '#f97316' },
+      { id: 'helix', name: 'Helix', emoji: '🧬', tagline: 'Research at the speed of thought.', color: '#06b6d4' },
+      { id: 'pulse', name: 'Pulse', emoji: '💚', tagline: 'Your financial heartbeat.', color: '#10b981' },
+      { id: 'quanta', name: 'Quanta', emoji: '🔬', tagline: 'I verify. Always.', color: '#eab308' },
+      { id: 'vector', name: 'Vector', emoji: '📊', tagline: 'Show me the numbers.', color: '#ef4444' },
+      { id: 'spectra', name: 'Spectra', emoji: '🌈', tagline: 'Any problem is just small tasks.', color: '#ec4899' },
+      { id: 'luma', name: 'Luma', emoji: '🚀', tagline: 'Ship it.', color: '#8b5cf6' },
+    ];
+
+    return (
+      <motion.div
+        key="step-family"
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -30 }}
+        transition={{ duration: 0.5 }}
+        style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          maxWidth: 800, width: '100%', textAlign: 'center',
+        }}
+      >
+        <motion.h1
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          style={{
+            fontSize: '2rem', fontWeight: 700,
+            background: 'linear-gradient(135deg, #00d4ff, #a855f7, #ec4899)',
+            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+            marginBottom: 8,
+          }}
+        >
+          Meet Your Family
+        </motion.h1>
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', marginBottom: 32, maxWidth: 500 }}
+        >
+          {userName ? `${userName}, meet` : 'Meet'} the agents who will power your Conflux Home. Each one has a specialty. Together, they're unstoppable.
+        </motion.p>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 16,
+          width: '100%',
+          maxWidth: 700,
+        }}>
+          {CORE_AGENTS.map((agent, i) => (
+            <motion.div
+              key={agent.id}
+              initial={{ opacity: 0, scale: 0.8, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ delay: 0.5 + i * 0.12, duration: 0.4, type: 'spring', stiffness: 200 }}
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: `1px solid ${agent.color}22`,
+                borderRadius: 16,
+                padding: '20px 12px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'default',
+                transition: 'all 0.3s ease',
+              }}
+              whileHover={{ scale: 1.05, background: `${agent.color}11`, borderColor: `${agent.color}44` }}
+            >
+              <div style={{
+                fontSize: 36,
+                filter: `drop-shadow(0 0 8px ${agent.color}66)`,
+              }}>
+                {agent.emoji}
+              </div>
+              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: agent.color }}>
+                {agent.name}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', lineHeight: 1.3 }}>
+                {agent.tagline}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </motion.div>
+    );
+  };
+
+  // Render Step 2: Ice Breaker
   const renderIceBreakerStep = () => (
     <motion.div
       initial={{ opacity: 0, x: 30 }}
@@ -1116,10 +1211,12 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       case 0:
         return renderHeartbeatStep();
       case 1:
-        return renderIceBreakerStep();
+        return renderFamilyStep();
       case 2:
-        return renderChecklistStep();
+        return renderIceBreakerStep();
       case 3:
+        return renderChecklistStep();
+      case 4:
         return renderSetupStep();
       default:
         return null;
@@ -1153,7 +1250,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       background: 'var(--bg-primary)',
     }}>
       {/* Progress Bar */}
-      {step < 3 && <ProgressBar step={step} />}
+      {step < 4 && <ProgressBar step={step} />}
 
       {/* Content Area */}
       <div style={{
@@ -1225,22 +1322,22 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   onClick={nextStep}
                   disabled={
                     (step === 0 && userName.trim().length === 0) ||
-                    (step === 2 && selectedApps.size === 0)
+                    (step === 3 && selectedApps.size === 0)
                   }
                   style={{
                     width: 'auto',
                     padding: '10px 28px',
                     opacity: (
                       (step === 0 && userName.trim().length === 0) ||
-                      (step === 2 && selectedApps.size === 0)
+                      (step === 3 && selectedApps.size === 0)
                     ) ? 0.5 : 1,
                     cursor: (
                       (step === 0 && userName.trim().length === 0) ||
-                      (step === 2 && selectedApps.size === 0)
+                      (step === 3 && selectedApps.size === 0)
                     ) ? 'not-allowed' : 'pointer',
                   }}
                 >
-                  {step === 0 ? 'Get Started' : step === 2 ? 'Enter Conflux' : ''}
+                  {step === 0 ? 'Get Started' : step === 3 ? 'Enter Conflux' : ''}
                 </button>
               )}
             </div>

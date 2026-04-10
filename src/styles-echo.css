@@ -8,7 +8,7 @@
 .echo-hub,
 :root {
   /* Palette */
-  --echo-bg: #0D0A1A;
+  --echo-bg: transparent;
   --echo-surface: rgba(30, 27, 75, 0.5);
   --echo-surface-hover: rgba(30, 27, 75, 0.7);
   --echo-border: rgba(99, 102, 241, 0.2);
@@ -113,7 +113,8 @@
 .echo-hub {
   min-height: 100vh;
   min-height: 100dvh;
-  background: var(--echo-bg);
+  background: transparent;
+  padding: 40px 48px;
   color: var(--echo-text-primary);
   padding: var(--echo-gap-xl);
   overflow-y: auto;
@@ -248,7 +249,9 @@
 /* ── Daily Prompt (Write Card) ──────────────────────────── */
 
 .echo-daily-prompt {
-  background: var(--echo-glass-bg);
+  background: rgba(2, 10, 20, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: var(--echo-glass-blur);
   border: 1px solid var(--echo-border);
   border-left: 3px solid var(--echo-amber);
@@ -434,7 +437,9 @@
 }
 
 .echo-entry {
-  background: var(--echo-glass-bg);
+  background: rgba(2, 10, 20, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: var(--echo-glass-blur);
   border: 1px solid var(--echo-border);
   border-radius: var(--echo-radius);
@@ -451,7 +456,9 @@
 }
 
 .echo-entry-expanded {
-  background: var(--echo-glass-bg);
+  background: rgba(2, 10, 20, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: var(--echo-glass-blur);
   border: 1px solid var(--echo-border-bright);
   border-radius: var(--echo-radius);
@@ -578,7 +585,9 @@
 }
 
 .echo-stat-pill {
-  background: var(--echo-glass-bg);
+  background: rgba(2, 10, 20, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: var(--echo-glass-blur);
   border: 1px solid var(--echo-border);
   border-radius: var(--echo-radius);
@@ -618,7 +627,9 @@
 }
 
 .echo-pattern-card {
-  background: var(--echo-glass-bg);
+  background: rgba(2, 10, 20, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: var(--echo-glass-blur);
   border: 1px solid var(--echo-border);
   border-radius: var(--echo-radius);

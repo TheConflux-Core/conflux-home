@@ -4,10 +4,10 @@
    ============================================================ */
 
 :root {
-  --studio-bg: #0a0a0f;
-  --studio-surface: rgba(15, 10, 30, 0.85);
-  --studio-surface-hover: rgba(25, 18, 50, 0.9);
-  --studio-border: rgba(139, 92, 246, 0.15);
+  --studio-bg: transparent;
+  --studio-surface: rgba(2, 10, 20, 0.6);
+  --studio-surface-hover: rgba(2, 10, 20, 0.75);
+  --studio-border: rgba(139, 92, 246, 0.1);
   --studio-border-hover: rgba(6, 182, 212, 0.4);
   --studio-accent-purple: #a855f7;
   --studio-accent-cyan: #06b6d4;
