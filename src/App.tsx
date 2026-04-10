@@ -643,12 +643,9 @@ const [activeSnake, setActiveSnake] = useState(false);
 
     setIsOnboarded(true);
 
-    // Gate: WelcomeOverlay (first-time) or GuidedTour (returning user)
-    const alreadyWelcomed = localStorage.getItem('conflux-welcomed') === 'true';
-    if (!alreadyWelcomed) {
-      setShowWelcome(true);
-    } else if (shouldAutoStartTour()) {
-      // Delay so desktop renders and tour targets exist in the DOM
+    // Onboarding IS the welcome — skip WelcomeOverlay, go straight to tour
+    localStorage.setItem('conflux-welcomed', 'true');
+    if (shouldAutoStartTour()) {
       setTimeout(() => setShowTour(true), 1500);
     }
   }, [user]);
