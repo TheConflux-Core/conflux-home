@@ -242,44 +242,6 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
             )}
           </div>
         </div>
-
-        {/* RECENT USAGE Section */}
-        <div className="intel-section">
-          <div className="intel-section-title">RECENT USAGE</div>
-          <div className="intel-section-content">
-            {allLoading ? (
-                <div className="intel-activity-item">Loading usage history...</div>
-            ) : entries.length > 0 ? (
-                entries.slice(0, 8).map((entry) => (
-                    <div key={entry.id} className="intel-activity-item">
-                        <span className="intel-activity-dot" style={{ background: STATUS_COLORS[entry.status === 'success' ? 'working' : 'error'] }} />
-                        <span>{entry.model}: {entry.tokens_used} tokens</span>
-                        <span className="intel-activity-time">{entry.credits_charged?.toLocaleString() || '0'} cr, {timeAgo(entry.created_at)}</span>
-                    </div>
-                ))
-            ) : (
-                <div className="intel-activity-item">No recent usage.</div>
-            )}
-          </div>
-        </div>
-
-        {/* USAGE BREAKDOWN Section */}
-        <div className="intel-section">
-            <div className="intel-section-title">USAGE BREAKDOWN</div>
-            <div className="intel-section-content">
-                {allLoading ? (
-                    <div className="intel-activity-item">Loading usage stats...</div>
-                ) : stats?.by_model && stats.by_model.length > 0 ? (
-                    stats.by_model.slice(0, 4).map((modelStats) => (
-                        <div key={modelStats.model} className="intel-activity-item">
-                            <span>{modelStats.model}: {modelStats.call_count} calls, {modelStats.total_credits.toLocaleString()} cr</span>
-                        </div>
-                    ))
-                ) : (
-                    <div className="intel-activity-item">No usage breakdown available.</div>
-                )}
-            </div>
-        </div>
       </div>
     </div>
   );
