@@ -133,10 +133,16 @@ export function useStudio() {
     }, 3000);
   }, [prompt, isGenerating, activeModule, loadHistory]);
 
-  const saveToVault = useCallback(async (_generation: StudioGeneration): Promise<void> => {
-    // Placeholder — will call vault save command later
-    console.log('Save to Vault:', _generation);
-  }, []);
+  const saveToVault = useCallback(async (generation: StudioGeneration): Promise<void> => {
+    try {
+      const result = await invoke('studio_save_to_vault', { generationId: generation.id });
+      console.log('Saved to vault:', result);
+      // Reload history to show vault_file_id link
+      await loadHistory();
+    } catch (e) {
+      console.error('Failed to save to vault:', e);
+    }
+  }, [loadHistory]);
 
   const remix = useCallback((generation: StudioGeneration) => {
     setPrompt(`Remix of: ${generation.prompt}`);

@@ -459,6 +459,7 @@ pub fn run() {
             commands::studio_get_api_keys_status,
             commands::studio_generate_image,
             commands::studio_generate_voice,
+            commands::studio_save_to_vault,
             commands::tts_speak,
             // Voice Input (desktop only — see cfg below)
             #[cfg(not(target_os = "android"))]
