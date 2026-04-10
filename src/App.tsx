@@ -82,20 +82,20 @@ import './styles/tour.css';
 // Background images for immersive views
 const VIEW_BACKGROUNDS: Record<string, string> = {
   kitchen: '', // Transparent — Kitchen renders its own component backgrounds
-  budget: '/backgrounds/budget-bg.png',
-  life: '/backgrounds/life-bg.png',
-  home: '/backgrounds/home-bg.png',
-  dreams: '/backgrounds/dreams-bg.png',
-  agents: '/backgrounds/agents-bg.png',
-  games: '/backgrounds/games-bg.png',
-  feed: '/backgrounds/feed-bg.png',
-  marketplace: '/backgrounds/marketplace-bg.png',
-  echo: '/backgrounds/echo-bg.png',
-  vault: '/backgrounds/vault-bg.png',
-  studio: '/backgrounds/studio-bg.png',
-  settings: '/backgrounds/settings-bg.png',
-  dashboard: '/backgrounds/dashboard-bg.png',
-  'api-dashboard': '/backgrounds/dashboard-bg.png', // Re-using an existing dashboard background
+  budget: '/backgrounds/budget-bg.webp',
+  life: '/backgrounds/life-bg.webp',
+  home: '/backgrounds/home-bg.webp',
+  dreams: '/backgrounds/dreams-bg.webp',
+  agents: '/backgrounds/agents-bg.webp',
+  games: '/backgrounds/games-bg.webp',
+  feed: '/backgrounds/feed-bg.webp',
+  marketplace: '/backgrounds/marketplace-bg.webp',
+  echo: '/backgrounds/echo-bg.webp',
+  vault: '/backgrounds/vault-bg.webp',
+  studio: '/backgrounds/studio-bg.webp',
+  settings: '/backgrounds/settings-bg.webp',
+  dashboard: '/backgrounds/dashboard-bg.webp',
+  'api-dashboard': '/backgrounds/dashboard-bg.webp', // Re-using an existing dashboard background
 };
 
 // Default wallpapers — uses color theme if set
@@ -109,7 +109,7 @@ function getDefaultWallpaper(): string {
   // Fallback
   const isDark = document.body.classList.contains('dark') ||
     window.matchMedia('(prefers-color-scheme: dark)').matches;
-  return isDark ? '/wallpapers/wallpaper-dark.png' : '/wallpapers/desktop-wallpaper.png';
+  return isDark ? '/wallpapers/wallpaper-dark.webp' : '/wallpapers/desktop-wallpaper.webp';
 }
 
 // ── Main App ──
@@ -905,7 +905,7 @@ const [activeSnake, setActiveSnake] = useState(false);
       {immersiveView && (
         <ImmersiveView
           view={immersiveView}
-          backgroundUrl={VIEW_BACKGROUNDS[immersiveView] || '/backgrounds/dashboard-bg.png'}
+          backgroundUrl={VIEW_BACKGROUNDS[immersiveView] || '/backgrounds/dashboard-bg.webp'}
           onClose={() => setImmersiveView(null)}
         >
           {immersiveView === 'kitchen' && <KitchenView />}

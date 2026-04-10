@@ -4776,7 +4776,9 @@ pub async fn tts_speak(text: String, voice: Option<String>) -> Result<serde_json
     let api_key = engine.db().get_config("elevenlabs_key")
         .ok().flatten().filter(|k| !k.is_empty())
         .or_else(|| engine.db().get_config("studio_elevenlabs_key").ok().flatten().filter(|k| !k.is_empty()))
-        .unwrap_or_else(|| std::env::var("ELEVENLABS_API_KEY").unwrap_or_default());
+        .or_else(|| std::env::var("ELEVENLABS_API_KEY").ok().filter(|k| !k.is_empty()))
+        .or_else(|| option_env!("ELEVENLABS_API_KEY").map(|s| s.to_string()).filter(|k| !k.is_empty()))
+        .unwrap_or_default();
 
     if api_key.is_empty() {
         return Err("ElevenLabs API key not configured.".to_string());
