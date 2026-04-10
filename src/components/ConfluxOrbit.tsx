@@ -38,7 +38,7 @@ const MAGNETIC_ZONES: Record<string, { x: number; y: number; scale?: number }> =
   vault: { x: 0.05, y: 0.5, scale: 0.7 },    // Left-center for Vault
   studio: { x: 0.05, y: 0.5, scale: 0.7 },   // Left-center for Studio
   settings: { x: 0.95, y: 0.5, scale: 0.7 }, // Right-center for Settings
-  dashboard: { x: 0.95, y: 0.9, scale: 1 },  // Bottom-right for Dashboard
+  dashboard: { x: 0.5, y: 0.93, scale: 0.85 },  // Bottom-center for Dashboard
   agents: { x: 0.05, y: 0.5, scale: 0.7 },   // Left-center for Agents
   'api-dashboard': { x: 0.05, y: 0.5, scale: 0.7 },
 };

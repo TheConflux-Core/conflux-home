@@ -1083,12 +1083,7 @@ const [activeSnake, setActiveSnake] = useState(false);
         isPushToTalkActive={isPushToTalkActive}
       />
 
-      {/* Global AI Input — sits above the dock */}
-      <GlobalAIInput
-        userId={user.id}
-        onRoute={handleIntentRoute}
-        onOpenChat={onOpenGlobalChat}
-      />
+      {/* Global AI Input removed from desktop — chat panel handles AI input */}
 
       {useBarV2 ? (
         <ConfluxBarV2
