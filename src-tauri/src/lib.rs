@@ -14,6 +14,17 @@ use tauri::{Manager, Emitter};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     dotenvy::dotenv().ok();
+
+    // On Android, catch panics and log them instead of crashing
+    #[cfg(target_os = "android")]
+    {
+        let default_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            log::error!("[PANIC] {}", info);
+            // Still call default hook for backtrace
+            default_hook(info);
+        }));
+    }
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
@@ -26,34 +37,33 @@ pub fn run() {
     }
 
     let mut builder = builder
-        .plugin(tauri_plugin_deep_link::init());
-
-    // Single-instance plugin only works on desktop (not Android/iOS)
-    #[cfg(desktop)]
-    {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            log::info!("Second instance detected with args: {:?}", args);
-            // On Windows/Linux, deep link URL arrives as a CLI argument
-            for arg in args {
-                if arg.starts_with("conflux://") {
-                    log::info!("Forwarding deep link URL: {}", arg);
-                    // Emit to the frontend so it can handle the auth callback
-                    if let Some(win) = app.get_webview_window("main") {
-                        let _ = win.emit("deep-link://new-url", vec![arg.as_str()]);
-                    }
-                }
-            }
-        }));
-    }
-
-    builder
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(
             tauri_plugin_log::Builder::default()
                 .level(log::LevelFilter::Info)
                 .build(),
-        )
+        );
+
+    // Single-instance plugin only works on desktop (not Android/iOS)
+    #[cfg(desktop)]
+    {
+        builder = builder
+            .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+                log::info!("Second instance detected with args: {:?}", args);
+                for arg in args {
+                    if arg.starts_with("conflux://") {
+                        log::info!("Forwarding deep link URL: {}", arg);
+                        if let Some(win) = app.get_webview_window("main") {
+                            let _ = win.emit("deep-link://new-url", vec![arg.as_str()]);
+                        }
+                    }
+                }
+            }))
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .plugin(tauri_plugin_process::init());
+    }
+
+    builder
         .setup(|app| {
             let app_data_dir = match app.path().app_data_dir() {
                 Ok(dir) => dir,
