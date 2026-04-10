@@ -17,8 +17,15 @@ pub fn run() {
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_fs::init());
+
+    // Notification plugin only on desktop (needs Android permissions we don't have)
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_notification::init());
+    }
+
+    let mut builder = builder
         .plugin(tauri_plugin_deep_link::init());
 
     // Single-instance plugin only works on desktop (not Android/iOS)
@@ -48,17 +55,31 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
-            let app_data_dir = app.path().app_data_dir()
-                .expect("Failed to get app data directory");
+            let app_data_dir = match app.path().app_data_dir() {
+                Ok(dir) => dir,
+                Err(e) => {
+                    log::error!("[Setup] Failed to get app data directory: {}", e);
+                    // On Android, try a fallback path
+                    let fallback = std::path::PathBuf::from("/data/data/com.conflux.home/files");
+                    if fallback.exists() {
+                        fallback
+                    } else {
+                        log::error!("[Setup] No valid app data directory found");
+                        return Ok(());
+                    }
+                }
+            };
 
-            std::fs::create_dir_all(&app_data_dir)
-                .expect("Failed to create app data directory");
+            if let Err(e) = std::fs::create_dir_all(&app_data_dir) {
+                log::error!("[Setup] Failed to create app data directory: {}", e);
+                return Ok(());
+            }
 
             let db_path = app_data_dir.join("conflux.db");
-            engine::init_engine(&db_path)
-                .expect("Failed to initialize Conflux Engine");
-
-            log::info!("Conflux Engine initialized at {:?}", db_path);
+            match engine::init_engine(&db_path) {
+                Ok(_) => log::info!("Conflux Engine initialized at {:?}", db_path),
+                Err(e) => log::error!("[Setup] Failed to initialize engine: {} — app will run without engine", e),
+            }
 
             // Background cron scheduler — ticks every 60s
             tauri::async_runtime::spawn(async move {
