@@ -113,7 +113,7 @@
 .echo-hub {
   min-height: 100vh;
   min-height: 100dvh;
-  background: transparent;
+  background: #080c14;
   padding: 40px 48px;
   color: var(--echo-text-primary);
   padding: var(--echo-gap-xl);
@@ -123,7 +123,7 @@
   position: relative;
 }
 
-/* Subtle wave/ripple background effect */
+/* Immersive wave/ripple background effect */
 .echo-hub::before {
   content: '';
   position: fixed;
@@ -131,9 +131,10 @@
   pointer-events: none;
   z-index: 0;
   background:
-    radial-gradient(ellipse at 20% 30%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 70%, rgba(245, 158, 11, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 50%, rgba(99, 102, 241, 0.04) 0%, transparent 70%);
+    radial-gradient(ellipse 80% 70% at 15% 25%, rgba(99, 102, 241, 0.22) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 80% at 85% 75%, rgba(245, 158, 11, 0.15) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 50% at 50% 50%, rgba(99, 102, 241, 0.1) 0%, transparent 80%),
+    radial-gradient(ellipse 100% 40% at 30% 95%, rgba(30, 27, 75, 0.3) 0%, transparent 70%);
   background-size: 200% 200%;
   animation: wave-motion 20s ease-in-out infinite;
 }
