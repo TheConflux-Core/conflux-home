@@ -4874,8 +4874,8 @@ pub async fn studio_generate_voice(generation_id: String, text: String, voice_id
 
     let client = reqwest::Client::new();
 
-    // Default to George voice if no voice_id specified
-    let voice = voice_id.unwrap_or_else(|| "21m00Tcm4TlvDq8ikWAM".to_string());
+    // Default to George voice (British male) if no voice_id specified
+    let voice = voice_id.unwrap_or_else(|| "JBFqnCBsd6RMkjVDRZzb".to_string());
 
     let response = client.post(format!("https://api.elevenlabs.io/v1/text-to-speech/{}", voice))
         .header("xi-api-key", &api_key)
@@ -4952,6 +4952,100 @@ pub async fn studio_generate_voice(generation_id: String, text: String, voice_id
         "output_url": output_url,
         "metadata": metadata
     }))
+}
+
+// ── Studio: Wallpaper Generation (Replicate FLUX) ──
+
+#[tauri::command]
+pub async fn studio_generate_wallpaper(app_name: String) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let api_key = engine.db().get_config("studio_replicate_key")
+        .map_err(|e| e.to_string())?
+        .or_else(|| std::env::var("REPLICATE_API_KEY").ok())
+        .or_else(|| option_env!("REPLICATE_API_KEY").map(|s| s.to_string()))
+        .ok_or("No Replicate API key available")?;
+
+    if api_key.is_empty() {
+        return Err("Replicate API key is empty".to_string());
+    }
+
+    let prompt = match app_name.as_str() {
+        "studio" => "Abstract digital art workspace with floating holographic canvases, soft purple and magenta neon glow, dark navy background, ultra wide 16:9 cinematic wallpaper, minimalist, no text, no UI",
+        "vault" => "Sleek underground data vault with crystalline structures, glowing blue and teal light from geometric pods, dark navy background, ultra wide 16:9 cinematic wallpaper, minimalist, no text, no UI",
+        "echo" => "Ethereal sound waves rippling through cosmic void, electric blue and white aurora formations, dark space background, ultra wide 16:9 cinematic wallpaper, minimalist, no text, no UI",
+        _ => return Err(format!("Unknown app: {}", app_name)),
+    };
+
+    let client = reqwest::Client::new();
+
+    // Start prediction with FLUX 1.1 Pro
+    let start = client.post("https://api.replicate.com/v1/models/black-forest-labs/flux-1.1-pro/predictions")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!({
+            "input": {
+                "prompt": prompt,
+                "aspect_ratio": "16:9",
+                "output_format": "webp",
+                "output_quality": 90
+            }
+        }))
+        .send().await.map_err(|e| format!("Request failed: {}", e))?;
+
+    if !start.status().is_success() {
+        let status = start.status();
+        let body = start.text().await.unwrap_or_default();
+        return Err(format!("Replicate error {}: {}", status, body));
+    }
+
+    let start_json: serde_json::Value = start.json().await.map_err(|e| format!("Parse failed: {}", e))?;
+    let get_url = start_json["urls"]["get"].as_str().ok_or("No get URL")?.to_string();
+
+    // Poll for completion (up to 3 minutes)
+    for _ in 0..60 {
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        let poll = client.get(&get_url)
+            .header("Authorization", format!("Bearer {}", api_key))
+            .send().await.map_err(|e| format!("Poll failed: {}", e))?;
+        let status_json: serde_json::Value = poll.json().await.map_err(|e| format!("Parse poll failed: {}", e))?;
+
+        match status_json["status"].as_str() {
+            Some("succeeded") => {
+                let output = &status_json["output"];
+                let url = output.as_str()
+                    .or_else(|| output.as_array().and_then(|a| a[0].as_str()))
+                    .ok_or("No output URL")?;
+
+                // Download and save
+                let bytes = client.get(url).send().await
+                    .map_err(|e| format!("Download failed: {}", e))?
+                    .bytes().await
+                    .map_err(|e| format!("Read failed: {}", e))?;
+
+                let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+                let wallpaper_dir = format!("{}/.openclaw/studio/wallpapers", home);
+                std::fs::create_dir_all(&wallpaper_dir).map_err(|e| format!("Create dir failed: {}", e))?;
+
+                let filename = format!("{}_wallpaper.webp", app_name);
+                let path = format!("{}/{}", wallpaper_dir, filename);
+                std::fs::write(&path, &bytes).map_err(|e| format!("Write failed: {}", e))?;
+
+                log::info!("[Studio] Wallpaper saved: {}", path);
+
+                return Ok(serde_json::json!({
+                    "path": path,
+                    "filename": filename,
+                    "app_name": app_name,
+                }));
+            }
+            Some("failed") => {
+                return Err(format!("Generation failed: {}", status_json["error"]));
+            }
+            _ => continue,
+        }
+    }
+
+    Err("Generation timed out after 180 seconds".to_string())
 }
 
 // ── Studio: Save to Vault ──
@@ -5449,6 +5543,13 @@ fn get_supabase_user_id() -> String {
     engine.db().get_config("supabase_user_id")
         .ok().flatten().unwrap_or_default()
 }
+
+#[tauri::command]
+pub fn get_studio_user_id() -> Result<String, String> {
+    Ok(get_supabase_user_id())
+}
+
+
 
 /// Store Supabase session credentials in engine config for cloud API calls.
 /// Called by the frontend after login so the Rust backend can make authenticated Supabase requests.
