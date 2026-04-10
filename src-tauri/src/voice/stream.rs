@@ -22,7 +22,14 @@ pub struct StreamConfig {
 impl Default for StreamConfig {
     fn default() -> Self {
         Self {
-            api_key: std::env::var("ELEVENLABS_API_KEY").unwrap_or_default(),
+            api_key: {
+                let engine = crate::engine::get_engine();
+                engine.db().get_config("elevenlabs_key").ok().flatten().filter(|k| !k.is_empty())
+                    .or_else(|| engine.db().get_config("studio_elevenlabs_key").ok().flatten().filter(|k| !k.is_empty()))
+                    .or_else(|| std::env::var("ELEVENLABS_API_KEY").ok().filter(|k| !k.is_empty()))
+                    .or_else(|| option_env!("ELEVENLABS_API_KEY").map(|s| s.to_string()).filter(|k| !k.is_empty()))
+                    .unwrap_or_default()
+            },
             sample_rate: 16000,
             model_id: Some("scribe_v1".to_string()),
             include_interim: true,

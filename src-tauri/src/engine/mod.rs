@@ -51,11 +51,15 @@ pub fn init_engine(db_path: &Path) -> Result<()> {
         }
     }
     if engine.db.get_config("studio_elevenlabs_key").ok().flatten().is_none() {
-        if let Ok(key) = std::env::var("ELEVENLABS_API_KEY") {
-            if !key.is_empty() {
-                engine.db.set_config("studio_elevenlabs_key", &key).ok();
-                log::info!("[Engine] ElevenLabs API key loaded from env");
-            }
+        // Try runtime env var first, then compile-time embedded key
+        let key = std::env::var("ELEVENLABS_API_KEY")
+            .ok()
+            .filter(|k| !k.is_empty())
+            .or_else(|| option_env!("ELEVENLABS_API_KEY").map(|s| s.to_string()))
+            .filter(|k| !k.is_empty());
+        if let Some(key) = key {
+            engine.db.set_config("studio_elevenlabs_key", &key).ok();
+            log::info!("[Engine] ElevenLabs API key loaded");
         }
     }
 

@@ -20,7 +20,14 @@ pub struct TTSConfig {
 impl Default for TTSConfig {
     fn default() -> Self {
         Self {
-            api_key: std::env::var("ELEVENLABS_API_KEY").unwrap_or_default(),
+            api_key: {
+                let engine = crate::engine::get_engine();
+                engine.db().get_config("elevenlabs_key").ok().flatten().filter(|k| !k.is_empty())
+                    .or_else(|| engine.db().get_config("studio_elevenlabs_key").ok().flatten().filter(|k| !k.is_empty()))
+                    .or_else(|| std::env::var("ELEVENLABS_API_KEY").ok().filter(|k| !k.is_empty()))
+                    .or_else(|| option_env!("ELEVENLABS_API_KEY").map(|s| s.to_string()).filter(|k| !k.is_empty()))
+                    .unwrap_or_default()
+            },
             voice_id: "JBFqnCBsd6RMkjVDRZzb".to_string(), // "George" (Free tier compatible)
             model_id: "eleven_turbo_v2_5".to_string(), // Free tier compatible model
             latency: "low".to_string(),
