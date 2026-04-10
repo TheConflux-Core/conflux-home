@@ -4,7 +4,7 @@
    ============================================================ */
 
 :root {
-  --vault-bg: #0a0812;
+  --vault-bg: transparent;
   --vault-surface: rgba(20, 15, 35, 0.8);
   --vault-surface-hover: rgba(30, 22, 50, 0.9);
   --vault-border: rgba(128, 90, 213, 0.15);
@@ -29,7 +29,8 @@
 .vault-container {
   display: flex;
   height: 100%;
-  background: var(--vault-bg);
+  background: transparent;
+  padding: 40px 48px;
   color: var(--vault-text);
   overflow: hidden;
 }
