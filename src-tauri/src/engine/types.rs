@@ -1449,3 +1449,72 @@ pub struct OrbitInsight {
     pub priority: String,           // "high", "medium", "low"
     pub created_at: String,
 }
+
+// ── Echo Counselor Types ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EchoCounselorMessage {
+    pub id: String,
+    pub session_id: String,
+    pub role: String,
+    pub content: String,
+    pub timestamp: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EchoCounselorSession {
+    pub id: String,
+    pub started_at: String,
+    pub ended_at: Option<String>,
+    pub status: String,
+    pub message_count: i64,
+    pub summary: Option<String>,
+    pub counselor_reflection: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EchoCrisisFlag {
+    pub id: String,
+    pub session_id: Option<String>,
+    pub entry_id: Option<String>,
+    pub severity: String,
+    pub detected_text: String,
+    pub response_given: String,
+    pub resources_provided: Vec<String>,
+    pub resolved: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EchoGratitudeEntry {
+    pub id: String,
+    pub items: String,
+    pub context: Option<String>,
+    pub session_id: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EchoGroundingExercise {
+    pub id: String,
+    pub r#type: String,
+    pub title: String,
+    pub description: String,
+    pub duration_min: i64,
+    pub prescribed_by: String,
+    pub completed: bool,
+    pub completed_at: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EchoStartSessionRequest {
+    pub opening: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EchoSendMessageRequest {
+    pub session_id: String,
+    pub content: String,
+}
