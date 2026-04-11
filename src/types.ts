@@ -522,6 +522,105 @@ export const ECHO_MOOD_CONFIG: Record<EchoMood, { emoji: string; label: string; 
   terrible: { emoji: '😢', label: 'Terrible', color: '#ef4444' },
 };
 
+// ── Echo Counseling Types ──
+
+export type EchoSessionStatus = 'active' | 'paused' | 'completed';
+
+export interface EchoCounselorMessage {
+  id: string;
+  session_id: string;
+  role: 'counselor' | 'user' | 'system';
+  content: string;
+  timestamp: string;
+}
+
+export interface EchoCounselorSession {
+  id: string;
+  started_at: string;
+  ended_at: string | null;
+  status: EchoSessionStatus;
+  message_count: number;
+  summary: string | null;         // AI-generated summary after completion
+  counselor_reflection: string | null; // Mirror's private journal entry about this session
+  created_at: string;
+}
+
+export interface EchoCrisisFlag {
+  id: string;
+  session_id: string | null;
+  entry_id: string | null;
+  severity: 'low' | 'moderate' | 'high' | 'critical';
+  detected_text: string;
+  response_given: string;
+  resources_provided: string[];
+  resolved: boolean;
+  created_at: string;
+}
+
+export interface EchoGratitudeEntry {
+  id: string;
+  items: string[];            // 3 things
+  context: string | null;     // optional free-text
+  session_id: string | null;  // if prescribed by counselor
+  created_at: string;
+}
+
+export interface EchoGroundingExercise {
+  id: string;
+  type: 'breathing' | 'body_scan' | 'grounding_54321' | 'gratitude' | 'free_write';
+  title: string;
+  description: string;
+  duration_min: number;
+  prescribed_by: 'counselor' | 'user';
+  completed: boolean;
+  completed_at: string | null;
+  created_at: string;
+}
+
+export interface EchoCounselorState {
+  current_session: EchoCounselorSession | null;
+  recent_sessions: EchoCounselorSession[];
+  total_sessions: number;
+  current_streak: number;
+  longest_streak: number;
+  last_check_in: string | null;
+  pending_exercises: EchoGroundingExercise[];
+  crisis_flags: EchoCrisisFlag[];
+  unread_reflection: boolean;  // counselor wrote a new journal entry user hasn't seen
+}
+
+export interface EchoStartSessionRequest {
+  opening?: string; // user can provide an opening thought, or let counselor start
+}
+
+export interface EchoSendMessageRequest {
+  session_id: string;
+  content: string;
+}
+
+export interface EchoCrisisResources {
+  name: string;
+  phone: string;
+  description: string;
+  available: string; // "24/7", "9 AM - 9 PM", etc.
+}
+
+export const ECHO_CRISIS_RESOURCES: EchoCrisisResources[] = [
+  { name: '988 Suicide & Crisis Lifeline', phone: '988', description: 'Free, confidential support for people in distress', available: '24/7' },
+  { name: 'Crisis Text Line', phone: 'Text HOME to 741741', description: 'Text-based crisis support', available: '24/7' },
+  { name: 'SAMHSA National Helpline', phone: '1-800-662-4357', description: 'Treatment referral and information service', available: '24/7' },
+  { name: 'National Domestic Violence Hotline', phone: '1-800-799-7233', description: 'Confidential support for domestic violence', available: '24/7' },
+];
+
+// Crisis detection types
+export type CrisisLevel = 'none' | 'low' | 'moderate' | 'high' | 'critical';
+
+export interface CrisisDetectionResult {
+  level: CrisisLevel;
+  matchedText: string | null;
+  suggestedResponse: string | null;
+}
+
 // ── Content Feed ──
 
 export interface ContentFeedItem {

@@ -5771,3 +5771,85 @@ fn synthesize_combined_patterns(
     }
     None
 }
+
+// ═════════════════════════════════════════════════════════════════
+// ECHO COUNSELOR COMMANDS (MIRROR)
+// ═════════════════════════════════════════════════════════════════
+
+use crate::engine::echo_counselor::{
+    EchoCounselorState,
+    EchoCounselorSession,
+    EchoCounselorMessage,
+    EchoCrisisFlag,
+    EchoGratitudeEntry,
+    EchoGroundingExercise,
+    EchoStartSessionRequest,
+    EchoSendMessageRequest,
+};
+
+use super::engine::echo_counselor as echo_counselor;
+
+#[tauri::command]
+pub fn echo_counselor_get_state() -> Result<EchoCounselorState, String> {
+    echo_counselor::get_state().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn echo_counselor_start_session(req: EchoStartSessionRequest) -> Result<EchoCounselorSession, String> {
+    echo_counselor::start_session(req).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn echo_counselor_get_messages(session_id: String) -> Result<Vec<EchoCounselorMessage>, String> {
+    echo_counselor::get_messages(&session_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn echo_counselor_send_message(req: EchoSendMessageRequest) -> Result<EchoCounselorMessage, String> {
+    echo_counselor::send_message(&req.session_id, &req.content).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn echo_counselor_end_session(session_id: String) -> Result<(), String> {
+    echo_counselor::end_session(&session_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn echo_counselor_flag_crisis(
+    session_id: String,
+    content: String,
+    severity: String,
+    detected_text: String,
+) -> Result<EchoCrisisFlag, String> {
+    echo_counselor::flag_crisis(&session_id, &content, &severity, &detected_text).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn echo_counselor_write_gratitude(items: Vec<String>, context: Option<String>) -> Result<(), String> {
+    echo_counselor::write_gratitude(items, context).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn echo_counselor_get_gratitude(limit: Option<i64>) -> Result<Vec<EchoGratitudeEntry>, String> {
+    echo_counselor::get_gratitude(limit).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn echo_counselor_get_exercises() -> Result<Vec<EchoGroundingExercise>, String> {
+    echo_counselor::get_exercises().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn echo_counselor_complete_exercise(exercise_id: String) -> Result<(), String> {
+    echo_counselor::complete_exercise(&exercise_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn echo_counselor_get_reflections(limit: Option<i64>) -> Result<Vec<EchoCounselorSession>, String> {
+    echo_counselor::get_reflections(limit).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn echo_counselor_mark_reflection_read(session_id: String) -> Result<(), String> {
+    echo_counselor::mark_reflection_read(&session_id).map_err(|e| e.to_string())
+}
