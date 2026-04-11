@@ -14,6 +14,7 @@ pub mod orbit_prompts;
 pub mod cloud;
 pub mod state_events;
 pub mod state_manager;
+pub mod echo_counselor;
 pub mod commands {
     pub mod voice_commands;
 }
