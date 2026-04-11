@@ -20,7 +20,7 @@ const AGENT_COLORS: Record<string, string> = {
   horizon: '#3b82f6',
   current: '#f1f5f9',
   story: '#991b1b',
-  mirror: '#14b8a6',
+  echo: '#14b8a6',
   foundation: '#6b7280',
   catalyst: '#a855f7',
   vector: '#ef4444',
@@ -36,7 +36,7 @@ const AGENT_APP_MAP: Record<string, string> = {
   horizon: 'dreams',
   current: 'feed',
   story: 'games',
-  mirror: 'diary',
+  echo: 'diary',
   foundation: 'home',
 };
 

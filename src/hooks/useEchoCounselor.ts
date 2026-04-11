@@ -12,6 +12,8 @@ import type {
   EchoGroundingExercise,
   EchoStartSessionRequest,
   EchoSendMessageRequest,
+  EchoWeeklyLetter,
+  EchoEveningReminderSettings,
   CrisisLevel,
 } from '../types';
 import { detectCrisis, getContextualOpening, getRandomOpening, COUNSELOR_SYSTEM_PROMPT } from '../lib/echo-counselor-prompts';
@@ -214,6 +216,43 @@ export function useEchoCounselor() {
     });
   }, [state]);
 
+  // ── Weekly Mirror Letter ──────────────────────────────────
+  const generateWeeklyLetter = useCallback(async () => {
+    try {
+      return await invoke<EchoWeeklyLetter>('echo_counselor_generate_weekly_letter');
+    } catch (e) {
+      console.error('Failed to generate weekly letter:', e);
+      return null;
+    }
+  }, []);
+
+  const getWeeklyLetter = useCallback(async () => {
+    try {
+      return await invoke<EchoWeeklyLetter | null>('echo_counselor_get_weekly_letter');
+    } catch (e) {
+      console.error('Failed to get weekly letter:', e);
+      return null;
+    }
+  }, []);
+
+  const getWeeklyLetterHistory = useCallback(async (limit?: number) => {
+    try {
+      return await invoke<EchoWeeklyLetter[]>('echo_counselor_get_weekly_letter_history', { limit: limit ?? 4 });
+    } catch (e) {
+      console.error('Failed to get weekly letter history:', e);
+      return [];
+    }
+  }, []);
+
+  // ── Evening Reminder ──────────────────────────────────────
+  const setEveningReminder = useCallback(async (settings: EchoEveningReminderSettings) => {
+    try {
+      await invoke<string>('echo_counselor_set_evening_reminder', { req: settings });
+    } catch (e) {
+      console.error('Failed to set evening reminder:', e);
+    }
+  }, []);
+
   return {
     state,
     messages,
@@ -232,6 +271,10 @@ export function useEchoCounselor() {
     markReflectionRead,
     dismissCrisis,
     getOpening,
+    generateWeeklyLetter,
+    getWeeklyLetter,
+    getWeeklyLetterHistory,
+    setEveningReminder,
     refresh: loadState,
   };
 }

@@ -424,6 +424,10 @@ pub fn run() {
             commands::echo_counselor_complete_exercise,
             commands::echo_counselor_get_reflections,
             commands::echo_counselor_mark_reflection_read,
+            commands::echo_counselor_generate_weekly_letter,
+            commands::echo_counselor_get_weekly_letter,
+            commands::echo_counselor_get_weekly_letter_history,
+            commands::echo_counselor_set_evening_reminder,
             // Current — Intelligence Briefing
             commands::current_daily_briefing,
             commands::current_detect_ripples,
