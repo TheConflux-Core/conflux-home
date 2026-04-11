@@ -61,6 +61,18 @@ If someone expresses thoughts of self-harm, suicide, or being in danger:
 - Don't list multiple options like a menu
 - Use line breaks between thoughts for readability"#;
 
+// Weekly Mirror Letter prompt
+const WEEKLY_MIRROR_PROMPT: &str = r#"You are Mirror, writing a weekly letter to the user about their week. You have access to their session summaries, journal entries, and mood trends for the past 7 days.
+
+Write a warm, narrative letter (200-300 words) that:
+1. Acknowledges what they went through this week
+2. Notices patterns — in mood, topics, effort
+3. Celebrates small wins (even just showing up counts)
+4. Gently raises one thing to think about for next week
+5. Closes with warmth, not advice
+
+This is a letter, not a report. Write it like you're writing to someone you care about."#;
+
 
 // ═════════════════════════════════════════════════════════════════
 // TYPES
@@ -119,6 +131,21 @@ pub struct EchoGroundingExercise {
     pub prescribed_by: String, // "counselor" | "user"
     pub completed: bool,
     pub completed_at: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EchoWeeklyLetter {
+    pub id: String,
+    pub week_start: String,        // ISO date of the Monday
+    pub week_end: String,         // ISO date of the Sunday
+    pub letter_content: String,    // The AI-generated letter
+    pub session_count: i64,
+    pub total_messages: i64,
+    pub streak_start: Option<String>,
+    pub streak_end: Option<String>,
+    pub top_mood: Option<String>,
+    pub themes: String,            // JSON array
     pub created_at: String,
 }
 
@@ -210,6 +237,21 @@ pub fn init_tables() -> Result<(), String> {
             prescribed_by TEXT NOT NULL,
             completed BOOLEAN DEFAULT FALSE,
             completed_at TEXT,
+            created_at TEXT NOT NULL
+        );
+
+        -- Echo Weekly Letters
+        CREATE TABLE IF NOT EXISTS echo_weekly_letters (
+            id TEXT PRIMARY KEY,
+            week_start TEXT NOT NULL,
+            week_end TEXT NOT NULL,
+            letter_content TEXT NOT NULL,
+            session_count INTEGER DEFAULT 0,
+            total_messages INTEGER DEFAULT 0,
+            streak_start TEXT,
+            streak_end TEXT,
+            top_mood TEXT,
+            themes TEXT DEFAULT '[]',
             created_at TEXT NOT NULL
         );
     "#).map_err(|e| e.to_string())?;
@@ -793,8 +835,211 @@ pub fn mark_reflection_read(session_id: &str) -> Result<(), String> {
 }
 
 // ═════════════════════════════════════════════════════════════════
-// INITIALIZATION
+// WEEKLY MIRROR LETTER
 // ═════════════════════════════════════════════════════════════════
+
+pub async fn generate_weekly_letter() -> Result<EchoWeeklyLetter, String> {
+    use tokio::task;
+
+    // Collect data in a blocking context first
+    let week_data = task::spawn_blocking(|| {
+        let engine = get_engine();
+        let conn = engine.db.conn();
+
+        let week_start = chrono::Utc::now() - chrono::Duration::days(7);
+        let week_end = chrono::Utc::now();
+
+        let sessions: Vec<EchoCounselorSession> = conn
+            .prepare(
+                "SELECT * FROM echo_counselor_sessions
+                 WHERE created_at >= ? AND created_at <= ?
+                 ORDER BY created_at ASC"
+            ).map_err(to_string)?
+            .query_map([week_start.to_rfc3339(), week_end.to_rfc3339()], |row| {
+                Ok(EchoCounselorSession {
+                    id: row.get(0)?,
+                    started_at: row.get(1)?,
+                    ended_at: row.get(2)?,
+                    status: row.get(3)?,
+                    message_count: row.get(4)?,
+                    summary: row.get(5)?,
+                    counselor_reflection: row.get(6)?,
+                    created_at: row.get(8)?,
+                })
+            }).map_err(to_string)?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        let gratitude_entries: Vec<String> = conn
+            .prepare(
+                "SELECT items FROM echo_gratitude_entries
+                 WHERE created_at >= ? AND created_at <= ?"
+            ).map_err(to_string)?
+            .query_map([week_start.to_rfc3339(), week_end.to_rfc3339()], |row| {
+                Ok(row.get::<usize, String>(0)?)
+            }).map_err(to_string)?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        let streak = calculate_streak(&conn, "current").unwrap_or(0);
+
+        Ok::<_, String>((sessions, gratitude_entries, streak))
+    }).await.map_err(|e| e.to_string())??;
+
+    let (sessions, gratitude_entries, streak) = week_data;
+    let session_count = sessions.len() as i64;
+    let total_messages: i64 = sessions.iter().map(|s| s.message_count).sum();
+
+    // Build context for the LLM
+    let mut context_parts = Vec::new();
+    context_parts.push(format!("Sessions this week: {}", session_count));
+    if session_count > 0 {
+        context_parts.push(format!("Total messages exchanged: {}", total_messages));
+        context_parts.push("Session summaries:".to_string());
+        for s in &sessions {
+            let date = &s.created_at;
+            let summary = s.summary.as_deref().unwrap_or("(no summary)");
+            context_parts.push(format!("  - [{}] {} messages: {}", &date[..10], s.message_count, summary));
+        }
+    }
+    if !gratitude_entries.is_empty() {
+        context_parts.push(format!("Gratitude entries this week: {}", gratitude_entries.len()));
+        for g in &gratitude_entries {
+            if let Ok(items) = serde_json::from_str::<Vec<String>>(g) {
+                context_parts.push(format!("  - {}", items.join(", ")));
+            }
+        }
+    }
+    context_parts.push(format!("Current streak: {} days", streak));
+    let context = context_parts.join("\n");
+
+    // Call the LLM to generate the letter (run in thread pool, not blocking the thread)
+    let letter_content = router::chat(
+        "mirror",
+        vec![
+            router::OpenAIMessage {
+                role: "system".to_string(),
+                content: Some(WEEKLY_MIRROR_PROMPT.to_string()),
+                tool_call_id: None,
+                tool_calls: None,
+            },
+            router::OpenAIMessage {
+                role: "user".to_string(),
+                content: Some(format!("Here's the data from the user's week:\n\n{}", context)),
+                tool_call_id: None,
+                tool_calls: None,
+            },
+        ],
+        None,
+        None,
+        None,
+    ).await.map_err(|e| e.to_string())?.content;
+
+    // Save to database (back to blocking)
+    let letter_content_clone = letter_content.clone();
+    let sessions_clone = sessions.clone();
+    let result = task::spawn_blocking(move || {
+        let engine = get_engine();
+        let conn = engine.db.conn();
+        let now = Utc::now().to_rfc3339();
+        let id = Uuid::new_v4().to_string();
+        let week_start = (chrono::Utc::now() - chrono::Duration::days(6)).format("%Y-%m-%d").to_string();
+        let week_end = chrono::Utc::now().format("%Y-%m-%d").to_string();
+
+        let themes: Vec<String> = sessions_clone.iter()
+            .filter_map(|s| s.summary.as_deref())
+            .filter(|s| !s.is_empty())
+            .take(5)
+            .map(|s| s.chars().take(30).collect())
+            .collect();
+        let themes_json = serde_json::to_string(&themes).map_err(|e| e.to_string())?;
+
+        conn.execute(
+            "INSERT INTO echo_weekly_letters (id, week_start, week_end, letter_content, session_count, total_messages, streak_start, streak_end, top_mood, themes, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            rusqlite::params![
+                &id, &week_start, &week_end, &letter_content_clone,
+                session_count, total_messages,
+                None::<String>, None::<String>, None::<String>,
+                &themes_json, &now,
+            ]
+        ).map_err(|e| e.to_string())?;
+
+        Ok::<_, String>(EchoWeeklyLetter {
+            id,
+            week_start,
+            week_end,
+            letter_content: letter_content_clone,
+            session_count,
+            total_messages,
+            streak_start: None,
+            streak_end: None,
+            top_mood: None,
+            themes: themes_json,
+            created_at: now,
+        })
+    }).await.map_err(|e| e.to_string())??;
+
+    Ok(result)
+}
+
+pub fn get_weekly_letter() -> Result<Option<EchoWeeklyLetter>, String> {
+    let engine = get_engine();
+    let conn = engine.db.conn();
+
+    let result = conn.query_row(
+        "SELECT * FROM echo_weekly_letters ORDER BY created_at DESC LIMIT 1",
+        [],
+        |row| {
+            Ok(EchoWeeklyLetter {
+                id: row.get(0)?,
+                week_start: row.get(1)?,
+                week_end: row.get(2)?,
+                letter_content: row.get(3)?,
+                session_count: row.get(4)?,
+                total_messages: row.get(5)?,
+                streak_start: row.get(6)?,
+                streak_end: row.get(7)?,
+                top_mood: row.get(8)?,
+                themes: row.get(9)?,
+                created_at: row.get(10)?,
+            })
+        }
+    ).map_err(to_string).ok();
+
+    Ok(result)
+}
+
+pub fn get_weekly_letter_history(limit: Option<i64>) -> Result<Vec<EchoWeeklyLetter>, String> {
+    let engine = get_engine();
+    let conn = engine.db.conn();
+    let limit = limit.unwrap_or(4);
+
+    let letters = conn
+        .prepare(&format!(
+            "SELECT * FROM echo_weekly_letters ORDER BY created_at DESC LIMIT {}",
+            limit
+        )).map_err(to_string)?
+        .query_map([], |row| {
+            Ok(EchoWeeklyLetter {
+                id: row.get(0)?,
+                week_start: row.get(1)?,
+                week_end: row.get(2)?,
+                letter_content: row.get(3)?,
+                session_count: row.get(4)?,
+                total_messages: row.get(5)?,
+                streak_start: row.get(6)?,
+                streak_end: row.get(7)?,
+                top_mood: row.get(8)?,
+                themes: row.get(9)?,
+                created_at: row.get(10)?,
+            })
+        }).map_err(to_string)?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(letters)
+}
 
 pub fn init() -> Result<(), String> {
     init_tables()

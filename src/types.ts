@@ -541,7 +541,7 @@ export interface EchoCounselorSession {
   status: EchoSessionStatus;
   message_count: number;
   summary: string | null;         // AI-generated summary after completion
-  counselor_reflection: string | null; // Mirror's private journal entry about this session
+  counselor_reflection: string | null; // Echo's private journal entry about this session
   created_at: string;
 }
 
@@ -596,6 +596,26 @@ export interface EchoStartSessionRequest {
 export interface EchoSendMessageRequest {
   session_id: string;
   content: string;
+}
+
+export interface EchoWeeklyLetter {
+  id: string;
+  week_start: string;
+  week_end: string;
+  letter_content: string;
+  session_count: number;
+  total_messages: number;
+  streak_start: string | null;
+  streak_end: string | null;
+  top_mood: string | null;
+  themes: string; // JSON array
+  created_at: string;
+}
+
+export interface EchoEveningReminderSettings {
+  enabled: boolean;
+  hour: number; // 0-23
+  minute: number; // 0-59
 }
 
 export interface EchoCrisisResources {

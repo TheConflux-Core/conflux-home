@@ -5783,6 +5783,7 @@ use crate::engine::echo_counselor::{
     EchoCrisisFlag,
     EchoGratitudeEntry,
     EchoGroundingExercise,
+    EchoWeeklyLetter,
     EchoStartSessionRequest,
     EchoSendMessageRequest,
 };
@@ -5852,4 +5853,60 @@ pub fn echo_counselor_get_reflections(limit: Option<i64>) -> Result<Vec<EchoCoun
 #[tauri::command]
 pub fn echo_counselor_mark_reflection_read(session_id: String) -> Result<(), String> {
     echo_counselor::mark_reflection_read(&session_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn echo_counselor_generate_weekly_letter() -> Result<EchoWeeklyLetter, String> {
+    echo_counselor::generate_weekly_letter().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn echo_counselor_get_weekly_letter() -> Result<Option<EchoWeeklyLetter>, String> {
+    echo_counselor::get_weekly_letter().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn echo_counselor_get_weekly_letter_history(limit: Option<i64>) -> Result<Vec<EchoWeeklyLetter>, String> {
+    echo_counselor::get_weekly_letter_history(limit).map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetEveningReminderRequest {
+    pub enabled: bool,
+    pub hour: Option<i32>,   // 0-23, default 20 (8 PM)
+    pub minute: Option<i32>, // 0-59, default 0
+}
+
+#[tauri::command]
+pub fn echo_counselor_set_evening_reminder(req: SetEveningReminderRequest) -> Result<String, String> {
+    let engine = engine::get_engine();
+
+    // Find and remove existing evening reminder (by name)
+    let existing: Vec<engine::types::CronJob> = engine.get_cron_jobs(false)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .filter(|j| j.name == "mirror-evening-ritual")
+        .collect();
+
+    for job in existing {
+        engine.delete_cron_job(&job.id).map_err(|e| e.to_string())?;
+    }
+
+    if !req.enabled {
+        return Ok("Evening reminder disabled".to_string());
+    }
+
+    let hour = req.hour.unwrap_or(20);
+    let minute = req.minute.unwrap_or(0);
+    let schedule = format!("{} {} * * *", minute, hour); // e.g. "0 20 * * *" = 8 PM daily
+
+    let task_message = "Evening ritual check-in for Mirror counseling sessions. If there is an active or recent session, do nothing and respond briefly. If no session has occurred today, send a gentle reminder to the user via the desktop notification system to check in with Mirror tonight.".to_string();
+
+    engine.create_cron_job(
+        "mirror-evening-ritual",
+        "mirror",
+        &schedule,
+        "America/Denver",
+        &task_message,
+    ).map_err(|e| e.to_string())
 }
