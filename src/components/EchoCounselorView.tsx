@@ -1,15 +1,16 @@
 // Conflux Home — Echo Counselor View
-// Mirror: Your reflective wellness companion
+// Echo: Your reflective wellness companion
 // NOT a therapist. A warm, present, insightful conversation partner.
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEchoCounselor } from '../hooks/useEchoCounselor';
-import type { EchoCounselorMessage, EchoCrisisFlag, EchoCounselorSession } from '../types';
+import { useVoiceInput } from '../hooks/useVoiceInput';
+import type { EchoCounselorMessage, EchoCrisisFlag, EchoCounselorSession, EchoWeeklyLetter } from '../types';
 import { ECHO_CRISIS_RESOURCES } from '../types';
 import '../styles-echo-counselor.css';
 
-type ViewMode = 'session' | 'journal' | 'tools';
+type ViewMode = 'session' | 'journal' | 'tools' | 'letter';
 
 export default function EchoCounselorView() {
   const {
@@ -24,6 +25,11 @@ export default function EchoCounselorView() {
     getCounselorJournal,
     dismissCrisis,
     getOpening,
+    generateWeeklyLetter,
+    getWeeklyLetter,
+    getWeeklyLetterHistory,
+    setEveningReminder,
+    writeGratitude,
     refresh,
   } = useEchoCounselor();
 
@@ -31,6 +37,20 @@ export default function EchoCounselorView() {
   const [input, setInput] = useState('');
   const [journal, setJournal] = useState<EchoCounselorSession[]>([]);
   const [showCrisisResources, setShowCrisisResources] = useState(false);
+
+  // Voice input — streams transcript into the textarea
+  const [voiceText, setVoiceText] = useState('');
+  const voice = useVoiceInput({
+    onTranscription: (text) => setVoiceText(text),
+  });
+
+  // Merge voice transcript into input when it arrives
+  useEffect(() => {
+    if (voiceText) {
+      setInput(prev => prev ? prev + ' ' + voiceText : voiceText);
+      setVoiceText('');
+    }
+  }, [voiceText]);
 
   // Load journal on first render
   useEffect(() => {
@@ -94,7 +114,7 @@ export default function EchoCounselorView() {
   if (loading) {
     return (
       <div className="echo-counselor-view">
-        <div className="echo-loading">Loading Mirror...</div>
+        <div className="echo-loading">Loading Echo...</div>
       </div>
     );
   }
@@ -112,7 +132,7 @@ export default function EchoCounselorView() {
           >
             <div className="echo-crisis-icon">💜</div>
             <div className="echo-crisis-text">
-              <strong>Mirror is concerned.</strong> The counselor detected signs of distress.
+              <strong>Echo is concerned.</strong> The counselor detected signs of distress.
             </div>
             <button className="echo-crisis-view-resources" onClick={() => setShowCrisisResources(true)}>
               View Resources
@@ -162,7 +182,7 @@ export default function EchoCounselorView() {
       {/* Header */}
       <div className="echo-counselor-header">
         <h1 className="echo-counselor-title">
-          <span className="echo-counselor-emoji">🪞</span> Mirror
+          <span className="echo-counselor-emoji">🤗</span> Echo
         </h1>
         <p className="echo-counselor-subtitle">Your reflective wellness companion</p>
 
@@ -186,6 +206,12 @@ export default function EchoCounselorView() {
           >
             🛠️ Tools
           </button>
+          <button
+            className={`echo-counselor-tab ${view === 'letter' ? 'active' : ''}`}
+            onClick={() => handleViewChange('letter')}
+          >
+            💌 Letter
+          </button>
         </div>
       </div>
 
@@ -195,10 +221,10 @@ export default function EchoCounselorView() {
           {/* No Active Session */}
           {!state?.current_session && (
             <div className="echo-counselor-no-session">
-              <div className="echo-counselor-empty-icon">🪞</div>
+              <div className="echo-counselor-empty-icon">🤗</div>
               <h3>Ready to talk?</h3>
               <p>
-                Mirror is here to listen — without judgment, without a timer, without anything to prove.
+                Echo is here to listen — without judgment, without a timer, without anything to prove.
               </p>
               <button className="echo-counselor-start-btn" onClick={handleStartSession}>
                 Start a Session
@@ -213,8 +239,8 @@ export default function EchoCounselorView() {
               <div className="echo-counselor-chat">
                 {messages.length === 0 && (
                   <div className="echo-counselor-empty-chat">
-                    <div className="echo-counselor-emoji-large">🪞</div>
-                    <p>Mirror has started the session...</p>
+                    <div className="echo-counselor-emoji-large">🤗</div>
+                    <p>Echo has started the session...</p>
                   </div>
                 )}
                 {messages.map(msg => (
@@ -230,7 +256,7 @@ export default function EchoCounselorView() {
                       ))}
                     </div>
                     <div className="echo-counselor-msg-meta">
-                      {msg.role === 'user' ? 'You' : 'Mirror'} · {formatTime(msg.timestamp)}
+                      {msg.role === 'user' ? 'You' : 'Echo'} · {formatTime(msg.timestamp)}
                     </div>
                   </motion.div>
                 ))}
@@ -240,7 +266,7 @@ export default function EchoCounselorView() {
               <div className="echo-counselor-input-area">
                 <textarea
                   className="echo-counselor-textarea"
-                  placeholder="Talk to Mirror..."
+                  placeholder="Talk to Echo..."
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => {
@@ -256,6 +282,14 @@ export default function EchoCounselorView() {
                     Session {state.current_session.id.slice(0, 8)} · {messages.length} messages
                   </div>
                   <div className="echo-counselor-buttons">
+                    <button
+                      className="echo-counselor-mic-btn"
+                      onClick={voice.toggleListening}
+                      disabled={sending}
+                      title={voice.isListening ? 'Stop recording' : 'Voice input'}
+                    >
+                      {voice.isListening ? '⏹️' : voice.isTranscribing ? '⏳' : '🎤'}
+                    </button>
                     <button
                       className="echo-counselor-end-btn"
                       onClick={handleCloseSession}
@@ -281,9 +315,9 @@ export default function EchoCounselorView() {
       {view === 'journal' && (
         <div className="echo-counselor-main">
           <div className="echo-counselor-journal-intro">
-            <h3>Mirror's Private Journal</h3>
+            <h3>Echo's Private Journal</h3>
             <p>
-              Mirror writes reflections after each session. You're reading the counselor's private thoughts
+              Echo writes reflections after each session. You're reading the counselor's private thoughts
               about your time together — the topics you discussed, the patterns noticed, the things worth
               revisiting next time.
             </p>
@@ -291,7 +325,7 @@ export default function EchoCounselorView() {
 
           {journal.length === 0 ? (
             <div className="echo-counselor-journal-empty">
-              <p>No sessions yet. Start talking to Mirror and they'll write reflections here.</p>
+              <p>No sessions yet. Start talking to Echo and they'll write reflections here.</p>
             </div>
           ) : (
             <div className="echo-counselor-journal-entries">
@@ -332,8 +366,8 @@ export default function EchoCounselorView() {
         <div className="echo-counselor-main">
           <div className="echo-counselor-tools-section">
             <h3>🙏 Gratitude Practice</h3>
-            <p>Write three things you're grateful for. Mirror may suggest this during sessions.</p>
-            <GratitudeWidget />
+            <p>Write three things you're grateful for. Echo may suggest this during sessions.</p>
+            <GratitudeWidget writeGratitude={writeGratitude} />
           </div>
 
           <div className="echo-counselor-tools-section">
@@ -341,6 +375,23 @@ export default function EchoCounselorView() {
             <p>Quick exercises to bring you back to the present moment.</p>
             <GroundingExercises />
           </div>
+
+          <div className="echo-counselor-tools-section">
+            <h3>🌙 Evening Ritual</h3>
+            <p>A gentle reminder to check in with Echo before bed.</p>
+            <EveningReminderWidget setEveningReminder={setEveningReminder} />
+          </div>
+        </div>
+      )}
+
+      {/* ═══ LETTER VIEW ═══ */}
+      {view === 'letter' && (
+        <div className="echo-counselor-main">
+          <WeeklyLetterView
+            generateWeeklyLetter={generateWeeklyLetter}
+            getWeeklyLetter={getWeeklyLetter}
+            getWeeklyLetterHistory={getWeeklyLetterHistory}
+          />
         </div>
       )}
     </div>
@@ -349,7 +400,7 @@ export default function EchoCounselorView() {
 
 // ── Subcomponents ───────────────────────────────────────────────
 
-function GratitudeWidget() {
+function GratitudeWidget({ writeGratitude }: { writeGratitude: (items: string[], context?: string) => Promise<void> }) {
   const [item1, setItem1] = useState('');
   const [item2, setItem2] = useState('');
   const [item3, setItem3] = useState('');
@@ -360,7 +411,7 @@ function GratitudeWidget() {
     const items = [item1, item2, item3].filter(Boolean);
     if (items.length < 3) return;
 
-    // Call backend: echo_counselor_write_gratitude
+    await writeGratitude(items, context || undefined);
     setSaved(true);
     setTimeout(() => {
       setItem1('');
@@ -447,6 +498,173 @@ function GroundingExercises() {
           <div className="echo-grounding-duration">{ex.duration}</div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function EveningReminderWidget({ setEveningReminder }: { setEveningReminder: (s: { enabled: boolean; hour: number; minute: number }) => Promise<void> }) {
+  const [enabled, setEnabled] = useState(false);
+  const [hour, setHour] = useState(20);
+  const [minute, setMinute] = useState(0);
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = async () => {
+    await setEveningReminder({ enabled, hour, minute });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const formatTime = (h: number, m: number) => {
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    const mm = m.toString().padStart(2, '0');
+    return `${h12}:${mm} ${ampm}`;
+  };
+
+  return (
+    <div className="echo-evening-widget">
+      <div className="echo-evening-toggle">
+        <label>
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={e => setEnabled(e.target.checked)}
+          />
+          Enable evening reminder
+        </label>
+      </div>
+      {enabled && (
+        <div className="echo-evening-time">
+          <div className="echo-evening-time-label">Reminder time</div>
+          <div className="echo-evening-time-pickers">
+            <select value={hour} onChange={e => setHour(Number(e.target.value))}>
+              {Array.from({ length: 24 }, (_, i) => (
+                <option key={i} value={i}>{i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : `${i - 12} PM`}</option>
+              ))}
+            </select>
+            <span>:</span>
+            <select value={minute} onChange={e => setMinute(Number(e.target.value))}>
+              {[0, 15, 30, 45].map(m => (
+                <option key={m} value={m}>{m.toString().padStart(2, '0')}</option>
+              ))}
+            </select>
+          </div>
+          <div className="echo-evening-preview">Every day at {formatTime(hour, minute)}</div>
+        </div>
+      )}
+      <button className={`echo-evening-save ${saved ? 'saved' : ''}`} onClick={handleSave}>
+        {saved ? '✓ Saved!' : 'Save Reminder'}
+      </button>
+    </div>
+  );
+}
+
+function WeeklyLetterView({
+  generateWeeklyLetter,
+  getWeeklyLetter,
+  getWeeklyLetterHistory,
+}: {
+  generateWeeklyLetter: () => Promise<EchoWeeklyLetter | null>;
+  getWeeklyLetter: () => Promise<EchoWeeklyLetter | null>;
+  getWeeklyLetterHistory: (limit?: number) => Promise<EchoWeeklyLetter[]>;
+}) {
+  const [currentLetter, setCurrentLetter] = useState<EchoWeeklyLetter | null>(null);
+  const [letterHistory, setLetterHistory] = useState<EchoWeeklyLetter[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [activeTab, setActiveTab] = useState<'current' | 'past'>('current');
+
+  useEffect(() => {
+    loadLetters();
+  }, []);
+
+  const loadLetters = async () => {
+    setLoading(true);
+    const [letter, history] = await Promise.all([
+      getWeeklyLetter(),
+      getWeeklyLetterHistory(4),
+    ]);
+    setCurrentLetter(letter);
+    setLetterHistory(history);
+    setLoading(false);
+  };
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    const letter = await generateWeeklyLetter();
+    if (letter) {
+      setCurrentLetter(letter);
+      await loadLetters();
+    }
+    setGenerating(false);
+  };
+
+  const formatWeek = (start: string, end: string) => {
+    const s = new Date(start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const e = new Date(end).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `${s} – ${e}`;
+  };
+
+  if (loading) {
+    return <div className="echo-letter-loading">Loading...</div>;
+  }
+
+  return (
+    <div className="echo-letter-view">
+      <div className="echo-letter-tabs">
+        <button className={activeTab === 'current' ? 'active' : ''} onClick={() => setActiveTab('current')}>This Week</button>
+        <button className={activeTab === 'past' ? 'active' : ''} onClick={() => setActiveTab('past')}>Past Letters</button>
+      </div>
+
+      {activeTab === 'current' && (
+        <div className="echo-letter-current">
+          {!currentLetter ? (
+            <div className="echo-letter-empty">
+              <p>Your first Weekly Echo Letter will be ready after your first session this week.</p>
+              <p className="echo-letter-hint">Once you have sessions, come back here and Echo will write you a personal summary.</p>
+            </div>
+          ) : (
+            <div className="echo-letter-content">
+              <div className="echo-letter-header">
+                <h3>Your Week in Echo</h3>
+                <div className="echo-letter-week">{formatWeek(currentLetter.week_start, currentLetter.week_end)}</div>
+                <div className="echo-letter-stats">
+                  {currentLetter.session_count} session{currentLetter.session_count !== 1 ? 's' : ''} · {currentLetter.total_messages} messages
+                </div>
+              </div>
+              <div className="echo-letter-body">
+                {currentLetter.letter_content.split('\n').map((line, i) => (
+                  <p key={i}>{line}</p>
+                ))}
+              </div>
+            </div>
+          )}
+          <button
+            className={`echo-letter-generate ${generating ? 'generating' : ''}`}
+            onClick={handleGenerate}
+            disabled={generating}
+          >
+            {generating ? '✨ Echo is writing...' : currentLetter ? '✨ Regenerate Letter' : '✨ Generate My Letter'}
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'past' && (
+        <div className="echo-letter-past">
+          {letterHistory.length === 0 ? (
+            <p className="echo-letter-empty">No past letters yet.</p>
+          ) : (
+            letterHistory.map(letter => (
+              <div key={letter.id} className="echo-letter-past-item">
+                <div className="echo-letter-past-week">{formatWeek(letter.week_start, letter.week_end)}</div>
+                <div className="echo-letter-past-preview">
+                  {letter.letter_content.slice(0, 120)}...
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }
