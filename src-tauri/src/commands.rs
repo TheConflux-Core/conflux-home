@@ -1262,7 +1262,7 @@ pub async fn story_generate_next_chapter(game_id: String, choice_id: String) -> 
         tool_calls: None,
     }];
 
-    let response = cloud::cloud_chat(None, messages, Some(2000), None, None)
+    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(2000), None, None)
         .await
         .map_err(|e| format!("AI generation failed: {}", e))?;
 
@@ -1548,7 +1548,7 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
         tool_calls: None,
     }];
 
-    let response = cloud::cloud_chat(None, messages, Some(2000), None, None)
+    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(2000), None, None)
         .await
         .map_err(|e| format!("AI failed: {}", e))?;
 
@@ -2265,7 +2265,7 @@ Make the content genuinely useful and interesting. Not generic filler."
         tool_calls: None,
     }];
 
-    let response = cloud::cloud_chat(None, messages, Some(1500), None, None)
+    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(1500), None, None)
         .await
         .map_err(|e| format!("AI failed: {}", e))?;
 
@@ -2347,7 +2347,7 @@ Be specific with ingredient names. Use standard grocery terms."
         tool_calls: None,
     }];
 
-    let response = cloud::cloud_chat(None, messages, Some(1500), None, None)
+    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(1500), None, None)
         .await
         .map_err(|e| format!("AI failed: {}", e))?;
 
@@ -2574,7 +2574,7 @@ Be thorough but concise. Extract EVERY date and action item mentioned."
         tool_calls: None,
     }];
 
-    let response = cloud::cloud_chat(None, messages, Some(2000), None, None)
+    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(2000), None, None)
         .await
         .map_err(|e| format!("AI failed: {}", e))?;
 
@@ -2717,7 +2717,7 @@ Provide a helpful, specific answer based on the information above. If you don't 
         tool_calls: None,
     }];
 
-    let response = cloud::cloud_chat(None, messages, Some(1000), None, None)
+    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(1000), None, None)
         .await
         .map_err(|e| format!("AI failed: {}", e))?;
 
@@ -2951,7 +2951,7 @@ pub async fn home_get_insights() -> Result<Vec<engine::types::HomeInsight>, Stri
     }
     let prompt = format!("You are a home health AI. Based on this data, provide 3-5 specific actionable insights.\n\n{}\n\nRespond as JSON array (no markdown):\n[{{\"title\":\"...\",\"description\":\"...\",\"estimated_impact\":\"$X/month\",\"priority\":\"normal\",\"category\":\"efficiency|maintenance|financial|safety\"}}]", parts.join("\n"));
     let messages = vec![OpenAIMessage { role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None }];
-    let response = cloud::cloud_chat(None, messages, Some(2000), None, None).await.map_err(|e| format!("AI failed: {}", e))?;
+    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(2000), None, None).await.map_err(|e| format!("AI failed: {}", e))?;
     let content = response.content.trim();
     let json_str = content.strip_prefix("```json").unwrap_or(content).strip_prefix("```").unwrap_or(content).strip_suffix("```").unwrap_or(content).trim();
     serde_json::from_str(json_str).map_err(|e| format!("Parse error: {}", e))
@@ -3433,7 +3433,7 @@ pub async fn dream_ai_plan(user_id: String, dream_id: String, title: String, des
         description.as_deref().unwrap_or("No description"), target_date.as_deref().unwrap_or("No deadline")
     );
     let messages = vec![OpenAIMessage { role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None }];
-    let response = cloud::cloud_chat(None, messages, Some(2000), None, None).await.map_err(|e| format!("AI failed: {}", e))?;
+    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(2000), None, None).await.map_err(|e| format!("AI failed: {}", e))?;
     let content = response.content.trim();
     let json_str = content.strip_prefix("```json").unwrap_or(content).strip_prefix("```").unwrap_or(content).strip_suffix("```").unwrap_or(content).trim();
     let plan: serde_json::Value = serde_json::from_str(json_str).map_err(|e| format!("Parse error: {}", e))?;
@@ -3558,7 +3558,7 @@ Respond in this EXACT JSON format (no markdown, no code fences):
         tool_calls: None,
     }];
 
-    let response = cloud::cloud_chat(None, messages, Some(2000), None, None)
+    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(2000), None, None)
         .await
         .map_err(|e| format!("AI failed: {}", e))?;
 
@@ -3724,7 +3724,7 @@ Make items genuinely insightful, not generic filler."
     let messages = vec![OpenAIMessage {
         role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None,
     }];
-    let response = cloud::cloud_chat(None, messages, Some(2000), None, None)
+    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(2000), None, None)
         .await.map_err(|e| format!("AI failed: {}", e))?;
 
     let content = response.content.trim();
@@ -3769,7 +3769,7 @@ Confidence should be honest — most weak signals are 0.3-0.7. Be specific, not 
     let messages = vec![OpenAIMessage {
         role: "user".to_string(), content: Some(prompt.to_string()), tool_call_id: None, tool_calls: None,
     }];
-    let response = cloud::cloud_chat(None, messages, Some(2000), None, None)
+    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(2000), None, None)
         .await.map_err(|e| format!("AI failed: {}", e))?;
 
     let content = response.content.trim();
@@ -3854,7 +3854,7 @@ Respond as JSON (no markdown):
     let messages = vec![OpenAIMessage {
         role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None,
     }];
-    let response = cloud::cloud_chat(None, messages, Some(1000), None, None)
+    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(1000), None, None)
         .await.map_err(|e| format!("AI failed: {}", e))?;
 
     let content = response.content.trim();
@@ -3923,7 +3923,7 @@ Use confidence_level: high, medium, or low. Be honest."
     let messages = vec![OpenAIMessage {
         role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None,
     }];
-    let response = cloud::cloud_chat(None, messages, Some(1500), None, None)
+    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(1500), None, None)
         .await.map_err(|e| format!("AI failed: {}", e))?;
 
     let content = response.content.trim();
@@ -4025,7 +4025,7 @@ Be specific and actionable. Don't just describe — interpret."
     let messages = vec![OpenAIMessage {
         role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None,
     }];
-    let response = cloud::cloud_chat(None, messages, Some(1500), None, None)
+    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(1500), None, None)
         .await.map_err(|e| format!("AI failed: {}", e))?;
 
     let content = response.content.trim();
@@ -4098,7 +4098,7 @@ Create a comprehensive synthesis. Respond as JSON (no markdown):
     let messages = vec![OpenAIMessage {
         role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None,
     }];
-    let response = cloud::cloud_chat(None, messages, Some(2000), None, None)
+    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(2000), None, None)
         .await.map_err(|e| format!("AI failed: {}", e))?;
 
     let content = response.content.trim();
@@ -4238,7 +4238,7 @@ Return ONLY the JSON object, no explanation."#,
         tool_calls: None,
     }];
 
-    let response = cloud::cloud_chat(None, messages, Some(500), None, None)
+    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(500), None, None)
         .await.map_err(|e| format!("AI parse failed: {}", e))?;
 
     let content = response.content.trim();

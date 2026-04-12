@@ -829,7 +829,7 @@ impl ConfluxEngine {
             tool_calls: None,
         }];
 
-        cloud::cloud_chat(None, messages, Some(50), None, None).await
+        cloud::cloud_chat(Some("simple_chat"), messages, Some(50), None, None).await
     }
 
     // ── Quota ──
