@@ -87,24 +87,28 @@ pub fn start_recording(window: Window) -> Result<String, String> {
         return Err("Already recording".to_string());
     }
 
-    // Start ElevenLabs streaming STT in the background
-    let window_clone = window.clone();
-    std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let config = StreamConfig::default();
-            match start_stream(config, window_clone).await {
-                Ok(sender) => {
-                    let mut tx = ELEVENLABS_SENDER.lock().unwrap();
-                    *tx = Some(sender);
-                    log::info!("[STT] ElevenLabs streaming started");
+    // Only start ElevenLabs streaming STT if an API key is configured
+    let config = StreamConfig::default();
+    if !config.api_key.is_empty() {
+        let window_clone = window.clone();
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                match start_stream(config, window_clone).await {
+                    Ok(sender) => {
+                        let mut tx = ELEVENLABS_SENDER.lock().unwrap();
+                        *tx = Some(sender);
+                        log::info!("[STT] ElevenLabs streaming started");
+                    }
+                    Err(e) => {
+                        log::warn!("[STT] ElevenLabs stream skipped: {}", e);
+                    }
                 }
-                Err(e) => {
-                    log::error!("[STT] Failed to start ElevenLabs stream: {}", e);
-                }
-            }
+            });
         });
-    });
+    } else {
+        log::info!("[STT] No ElevenLabs API key - skipping streaming STT");
+    }
 
     let host = cpal::default_host();
     let device = host
