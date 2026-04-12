@@ -193,12 +193,12 @@ export default function KitchenView() {
                   setAiPrompt('');
                   setSelectedMeal(result.meal);
                   await reloadMeals();
-                  await loadHomeMenu();
+                  loadHomeMenu(); // fire-and-forget refresh of Chef's Specials
                 } catch (e) {
                   console.error('[KitchenView] AI add failed:', e);
                 } finally {
                   setAiLoading(false);
-                  setMealsLoaded(true);
+                  setMealsLoaded(true); // always unblock UI, even if home menu fails
                 }
               }}
               onOpenLibrary={() => setTab('library')}
