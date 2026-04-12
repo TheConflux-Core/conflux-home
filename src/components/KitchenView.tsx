@@ -183,15 +183,17 @@ export default function KitchenView() {
             <KitchenEmptyState
               onAddMeal={(desc) => {
                 setAiPrompt(desc);
-                // Use a wrapping function so handleAIAdd reads the new state after set
-                setTimeout(() => {
-                  setAiPrompt(desc);
-                  setAiLoading(true);
-                  addWithAI(desc).then(result => {
-                    setAiPrompt('');
-                    setSelectedMeal(result.meal);
-                  }).catch(e => console.error('AI add failed:', e)).finally(() => setAiLoading(false));
-                }, 0);
+                setAiLoading(true);
+                setMealsLoaded(false);
+                addWithAI(desc).then(result => {
+                  setAiPrompt('');
+                  setSelectedMeal(result.meal);
+                  reloadMeals();
+                  loadHomeMenu();
+                }).catch(e => {
+                  console.error('AI add failed:', e);
+                  setMealsLoaded(true);
+                }).finally(() => setAiLoading(false));
               }}
               onOpenLibrary={() => setTab('library')}
               isLoading={aiLoading}
