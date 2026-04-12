@@ -31,9 +31,9 @@ impl Default for OpenAIConfig {
 }
 
 /// Stream TTS audio from OpenAI and emit events to the Fairy.
-pub async fn stream_tts(text: &str, config: OpenAIConfig, window: Window) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn stream_tts(text: &str, config: OpenAIConfig, window: Window) -> anyhow::Result<()> {
     if config.api_key.is_empty() {
-        return Err(Box::from("OPENAI_API_KEY is not set"));
+        return Err(anyhow::anyhow!("OPENAI_API_KEY is not set"));
     }
 
     let client = Client::new();
@@ -57,7 +57,7 @@ pub async fn stream_tts(text: &str, config: OpenAIConfig, window: Window) -> Res
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        return Err(Box::from(format!("OpenAI TTS API Error {}: {}", status, body)));
+        return Err(anyhow::anyhow!("OpenAI TTS API Error {}: {}", status, body));
     }
 
     let bytes = response.bytes().await?;
