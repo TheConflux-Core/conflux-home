@@ -181,19 +181,22 @@ export default function KitchenView() {
           {/* Empty state — first run experience */}
           {mealsLoaded && meals.length === 0 ? (
             <KitchenEmptyState
-              onAddMeal={(desc) => {
+              onAddMeal={async (desc) => {
                 setAiPrompt(desc);
                 setAiLoading(true);
                 setMealsLoaded(false);
-                addWithAI(desc).then(result => {
+                try {
+                  const result = await addWithAI(desc);
                   setAiPrompt('');
                   setSelectedMeal(result.meal);
-                  reloadMeals();
-                  loadHomeMenu();
-                }).catch(e => {
-                  console.error('AI add failed:', e);
+                  await reloadMeals();
+                  await loadHomeMenu();
+                } catch (e) {
+                  console.error('[KitchenView] AI add failed:', e);
+                } finally {
+                  setAiLoading(false);
                   setMealsLoaded(true);
-                }).finally(() => setAiLoading(false));
+                }
               }}
               onOpenLibrary={() => setTab('library')}
               isLoading={aiLoading}
