@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { useCredits, useUsageStats, useUsageHistory } from '../hooks/useCredits';
 import { useAuth } from '../hooks/useAuth';
+import PulseKnob from './PulseKnob';
 
 import { View, Agent } from '../types';
 
@@ -152,11 +154,38 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
   const { stats, loading: statsLoading } = useUsageStats(7);
   const { entries, loading: historyLoading } = useUsageHistory(10);
 
-  const allLoading = creditsLoading || statsLoading || historyLoading;
+  // Heartbeat interval — default 30m (1_800_000 ms)
+  const [heartbeatInterval, setHeartbeatInterval] = useState(1_800_000);
+  const [lastBeat, setLastBeat] = useState(Date.now());
 
+  const allLoading = creditsLoading || statsLoading || historyLoading;
   const activeAgents = agents.filter(a => a.status !== 'offline');
   const workingCount = agents.filter(a => a.status === 'working' || a.status === 'thinking').length;
   const onlinePct = agents.length > 0 ? Math.round((activeAgents.length / agents.length) * 100) : 0;
+
+  // Load persisted interval from Rust backend
+  useEffect(() => {
+    invoke<number>('engine_get_heartbeat_interval')
+      .then(ms => { if (ms > 0) setHeartbeatInterval(ms); })
+      .catch(() => {});
+  }, []);
+
+  // Demo beat timer (replaced by real Rust scheduler in production)
+  useEffect(() => {
+    if (heartbeatInterval === 0) return;
+    const id = setInterval(() => setLastBeat(Date.now()), heartbeatInterval);
+    return () => clearInterval(id);
+  }, [heartbeatInterval]);
+
+  const handleHeartbeatChange = useCallback(async (ms: number) => {
+    setHeartbeatInterval(ms);
+    setLastBeat(Date.now());
+    try {
+      await invoke('engine_set_heartbeat_interval', { ms });
+    } catch (err) {
+      console.error('[IntelDashboard] Failed to save heartbeat interval:', err);
+    }
+  }, []);
 
   return (
     <div className="intel-dashboard" data-tour-id="intel">
@@ -169,6 +198,15 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
       </div>
 
       <div className="intel-body">
+        {/* Pulse Knob — heartbeat interval control */}
+        <div className="intel-section">
+          <PulseKnob
+            value={heartbeatInterval}
+            onChange={handleHeartbeatChange}
+            lastBeat={lastBeat}
+          />
+        </div>
+
         {/* Ring Gauges — overview */}
         <div className="intel-section">
           <div className="intel-section-title">SYSTEM OVERVIEW</div>
