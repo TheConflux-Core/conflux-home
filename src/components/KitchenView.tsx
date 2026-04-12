@@ -130,16 +130,19 @@ export default function KitchenView() {
     const text = description ?? aiPrompt;
     if (!text.trim() || aiLoading) return;
     setAiLoading(true);
+    setMealsLoaded(false);
     try {
       const result = await addWithAI(text);
       if (!description) setAiPrompt('');
       setSelectedMeal(result.meal);
+      await reloadMeals();
     } catch (e) {
       console.error('AI add failed:', e);
     } finally {
       setAiLoading(false);
+      setMealsLoaded(true);
     }
-  }, [aiPrompt, aiLoading, addWithAI]);
+  }, [aiPrompt, aiLoading, addWithAI, reloadMeals]);
 
   const handleNudgeAction = useCallback((nudge: { nudge_type: string }) => {
     if (nudge.nudge_type === 'cook') setTab('library');
