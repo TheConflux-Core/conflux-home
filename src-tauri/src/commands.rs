@@ -1559,6 +1559,20 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
         .strip_suffix("```").unwrap_or(content)
         .trim();
 
+    // Pre-parse to extract tags as a separate step (handles both array and string)
+    let doc: serde_json::Value = serde_json::from_str(json_str)
+        .map_err(|e| format!("Invalid JSON: {}", e))?;
+
+    let tags_str = doc.get("tags").and_then(|v| match v {
+        serde_json::Value::Null => None,
+        serde_json::Value::String(s) => Some(s.clone()),
+        serde_json::Value::Array(arr) => {
+            let strings: Vec<String> = arr.iter().filter_map(|v| v.as_str().map(String::from)).collect();
+            Some(serde_json::to_string(&strings).unwrap_or_else(|_| "[]".to_string()))
+        }
+        _ => None,
+    });
+
     #[derive(serde::Deserialize)]
     struct AIMeal {
         name: String,
@@ -1570,7 +1584,6 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
         servings: Option<i64>,
         difficulty: Option<String>,
         instructions: Option<String>,
-        tags: Option<String>,
         ingredients: Vec<AIIngredient>,
     }
 
@@ -1584,15 +1597,15 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
         notes: Option<String>,
     }
 
-    let ai_meal: AIMeal = serde_json::from_str(json_str)
-        .map_err(|e| format!("Failed to parse AI response: {}. Raw: {}", e, json_str))?;
+    let ai_meal: AIMeal = serde_json::from_value(doc)
+        .map_err(|e| format!("Failed to parse AI response: {}", e))?;
 
     let meal_id = uuid::Uuid::new_v4().to_string();
     let _meal = engine.db().create_meal(
         &meal_id, &ai_meal.name, ai_meal.description.as_deref(), ai_meal.cuisine.as_deref(),
         ai_meal.category.as_deref(), None, ai_meal.prep_time_min, ai_meal.cook_time_min,
         ai_meal.servings.unwrap_or(4), &ai_meal.difficulty.unwrap_or("normal".to_string()),
-        ai_meal.instructions.as_deref(), ai_meal.tags.as_deref(), "ai-generated",
+        ai_meal.instructions.as_deref(), tags_str.as_deref(), "ai-generated",
     ).map_err(|e| e.to_string())?;
 
     // Add ingredients
