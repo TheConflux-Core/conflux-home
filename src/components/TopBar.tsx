@@ -20,8 +20,56 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom, cu
   const [colorTheme, setColorTheme] = useState(() => getSavedColorTheme());
   const [showThemes, setShowThemes] = useState(false);
   const [showConnectivity, setShowConnectivity] = useState(false);
+  const [notifUnread, setNotifUnread] = useState(() => {
+    const stored = localStorage.getItem('conflux-notif-unread');
+    return stored ? Math.min(parseInt(stored, 10), 99) : 0;
+  });
+  const [showNotifMenu, setShowNotifMenu] = useState(false);
+  const [recentNotifs, setRecentNotifs] = useState<{title: string; body: string}[]>([]);
   const { balance, loading: creditsLoading } = useCredits();
   const themeRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  // Persist unread count to localStorage
+  useEffect(() => {
+    localStorage.setItem('conflux-notif-unread', String(notifUnread));
+  }, [notifUnread]);
+
+  // Track unread desktop notifications
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{title: string; body: string}>;
+      const notif = { title: ce.detail?.title ?? '', body: ce.detail?.body ?? '' };
+      setNotifUnread(n => Math.min(n + 1, 99));
+      setRecentNotifs(prev => {
+        const next = [notif, ...prev].slice(0, 5);
+        localStorage.setItem('conflux-recent-notifs', JSON.stringify(next));
+        return next;
+      });
+    };
+    window.addEventListener('conflux:agent-notification', handler as EventListener);
+    return () => window.removeEventListener('conflux:agent-notification', handler as EventListener);
+  }, []);
+
+  // Load persisted recent notifications
+  useEffect(() => {
+    const stored = localStorage.getItem('conflux-recent-notifs');
+    if (stored) {
+      try { setRecentNotifs(JSON.parse(stored)); } catch {}
+    }
+  }, []);
+
+  // Close notification menu on outside click
+  useEffect(() => {
+    if (!showNotifMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setShowNotifMenu(false);
+      }
+    };
+    const timer = setTimeout(() => document.addEventListener('mousedown', handler), 50);
+    return () => { clearTimeout(timer); document.removeEventListener('mousedown', handler); };
+  }, [showNotifMenu]);
 
   useEffect(() => {
     const updateClock = () => {
@@ -266,6 +314,102 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom, cu
         >
           ⚙️
         </button>
+
+        {/* Notification Bell */}
+        <div ref={notifRef} style={{ position: 'relative' }}>
+          <button
+            className="topbar-notif-btn"
+            onClick={() => setShowNotifMenu(!showNotifMenu)}
+            title="Notifications"
+            style={{ background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', padding: '4px 6px', position: 'relative', lineHeight: 1 }}
+          >
+            🔔
+            {notifUnread > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: -2,
+                right: -4,
+                minWidth: 14,
+                height: 14,
+                padding: '0 3px',
+                borderRadius: 999,
+                fontSize: 8,
+                fontWeight: 700,
+                color: '#fff',
+                background: '#ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                lineHeight: 1,
+                border: '2px solid var(--bg-primary, #080812)',
+              }}>
+                {notifUnread > 99 ? '99+' : notifUnread}
+              </span>
+            )}
+          </button>
+
+          {showNotifMenu && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              right: 0,
+              marginTop: 8,
+              marginRight: -4,
+              zIndex: 200,
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: 14,
+              padding: 8,
+              minWidth: 300,
+              maxWidth: 340,
+              boxShadow: '0 12px 40px rgba(0,0,0,0.4)',
+              backdropFilter: 'blur(20px)',
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 10px 10px',
+                borderBottom: '1px solid var(--border)',
+                marginBottom: 6,
+              }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>Notifications</span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => { setNotifUnread(0); setRecentNotifs([]); localStorage.removeItem('conflux-notif-unread'); localStorage.removeItem('conflux-recent-notifs'); }}
+                    style={{ fontSize: 10, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', borderRadius: 4 }}
+                  >
+                    Clear all
+                  </button>
+                  <button
+                    onClick={() => { setShowNotifMenu(false); onNavigate?.('settings'); }}
+                    style={{ fontSize: 10, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', borderRadius: 4 }}
+                  >
+                    Settings →
+                  </button>
+                </div>
+              </div>
+
+              {recentNotifs.length === 0 ? (
+                <div style={{ padding: '16px 10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                  No recent notifications
+                </div>
+              ) : (
+                recentNotifs.map((n, i) => (
+                  <div key={i} style={{
+                    padding: '8px 10px',
+                    borderRadius: 8,
+                    marginBottom: 2,
+                    background: i === 0 ? 'rgba(255,255,255,0.04)' : 'transparent',
+                  }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{n.title}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{n.body}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
         <span className="topbar-clock">{clock}</span>
       </div>
     </div>

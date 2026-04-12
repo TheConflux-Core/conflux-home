@@ -903,11 +903,28 @@ pub struct NotificationRequest {
 }
 
 #[tauri::command]
-pub fn engine_send_notification(req: NotificationRequest) -> Result<(), String> {
+pub fn engine_send_notification(app_handle: tauri::AppHandle, req: NotificationRequest) -> Result<(), String> {
     let engine = engine::get_engine();
+    // Emit internal event for logging/UI reactivity + frontend badge update
     engine.db().emit_event("agent_notification", None, None,
         Some(&serde_json::json!({"title": req.title, "body": req.body}).to_string()))
         .map_err(|e| e.to_string())?;
+
+    // Fire real OS desktop notification via tauri_plugin_notification
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_notification::NotificationExt;
+        let _ = app_handle.notification()
+            .builder()
+            .title(&req.title)
+            .body(&req.body)
+            .show();
+    }
+    #[cfg(not(desktop))]
+    {
+        let _ = req;
+    }
+
     Ok(())
 }
 

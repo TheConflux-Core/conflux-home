@@ -420,6 +420,23 @@ body {
   transform: rotate(45deg);
 }
 
+/* === TOPBAR NOTIFICATION BELL === */
+.topbar-notif-btn {
+  position: relative;
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+  line-height: 1;
+}
+
+.topbar-notif-btn:hover {
+  background: var(--bg-hover);
+}
+
 /* === DESKTOP AREA === */
 .desktop-area {
   flex: 1;
