@@ -375,7 +375,6 @@ export default function App() {
         if (chatResponse.content) {
           await invoke('voice_synthesize', { 
             text: chatResponse.content, 
-            window: null 
           });
         }
       } catch (err) {
