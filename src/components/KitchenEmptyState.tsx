@@ -2,7 +2,6 @@
 // Shown when meals.length === 0
 
 import { useState, useCallback } from 'react';
-import { MicButton } from './voice';
 
 interface Props {
   onAddMeal: (description: string) => void;
@@ -33,15 +32,6 @@ export default function KitchenEmptyState({ onAddMeal, onOpenLibrary, isLoading 
     setInput('');
   }, [input, isLoading, onAddMeal]);
 
-  const handleMicTranscript = useCallback((text: string) => {
-    setInput(text);
-    // Auto-submit after voice transcription
-    if (text.trim()) {
-      onAddMeal(text.trim());
-      setInput('');
-    }
-  }, [onAddMeal]);
-
   return (
     <div className="kitchen-empty-state">
       {/* Background effects */}
@@ -71,23 +61,15 @@ export default function KitchenEmptyState({ onAddMeal, onOpenLibrary, isLoading 
 
           <form className="kitchen-empty-form" onSubmit={handleSubmit}>
             <div className="kitchen-empty-input-row">
-              <div className="input-with-mic">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  placeholder={`e.g., "${hint}"`}
-                  className="kitchen-empty-input"
-                  disabled={isLoading}
-                  autoFocus
-                />
-                <MicButton
-                  onTranscription={handleMicTranscript}
-                  variant="inline"
-                  size="sm"
-                  className="mic-button-inline"
-                />
-              </div>
+              <input
+                type="text"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                placeholder={`e.g., "${hint}"`}
+                className="kitchen-empty-input"
+                disabled={isLoading}
+                autoFocus
+              />
             </div>
 
             <div className="kitchen-empty-actions">
