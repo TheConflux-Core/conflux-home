@@ -901,3 +901,46 @@
   0%, 100% { opacity: 0.3; }
   50% { opacity: 0.7; }
 }
+
+/* ══════════════════════════════════════
+   Intel Overview Row — Hero Layout
+   Knob centered, ring gauges flanking
+   ══════════════════════════════════════ */
+
+.intel-overview-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 8px 0 4px;
+}
+
+.intel-overview-gauge {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.intel-overview-knob {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* Extra breathing room around the knob */
+  padding: 0 8px;
+}
+
+.intel-overview-knob .intel-pulse-knob {
+  padding: 8px 0 4px;
+}
+
+@media (max-width: 480px) {
+  .intel-overview-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .intel-overview-knob {
+    order: -1;
+  }
+}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { useCredits, useUsageStats, useUsageHistory } from '../hooks/useCredits';
 import { useAuth } from '../hooks/useAuth';
 import PulseKnob from './PulseKnob';
@@ -170,12 +171,18 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
       .catch(() => {});
   }, []);
 
-  // Demo beat timer (replaced by real Rust scheduler in production)
+  // Listen for real beat events from Rust scheduler
   useEffect(() => {
-    if (heartbeatInterval === 0) return;
-    const id = setInterval(() => setLastBeat(Date.now()), heartbeatInterval);
-    return () => clearInterval(id);
-  }, [heartbeatInterval]);
+    let cancelled = false;
+    listen<null>('conflux:heartbeat-beat', () => {
+      if (cancelled) return;
+      setLastBeat(Date.now());
+    }).then(unlisten => {
+      if (cancelled) { unlisten(); return; }
+      return unlisten;
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const handleHeartbeatChange = useCallback(async (ms: number) => {
     setHeartbeatInterval(ms);
@@ -198,22 +205,23 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
       </div>
 
       <div className="intel-body">
-        {/* Pulse Knob — heartbeat interval control */}
-        <div className="intel-section">
-          <PulseKnob
-            value={heartbeatInterval}
-            onChange={handleHeartbeatChange}
-            lastBeat={lastBeat}
-          />
-        </div>
-
-        {/* Ring Gauges — overview */}
+        {/* System Overview — PulseKnob hero + flanking ring gauges */}
         <div className="intel-section">
           <div className="intel-section-title">SYSTEM OVERVIEW</div>
-          <div className="intel-rings">
-            <RingGauge value={activeAgents.length} max={Math.max(agents.length, 1)} color="#6366f1" label={`${activeAgents.length}`} sublabel="online" />
-            <RingGauge value={workingCount} max={Math.max(agents.length, 1)} color="#22c55e" label={`${workingCount}`} sublabel="working" />
-            <RingGauge value={onlinePct} max={100} color="#f59e0b" label={`${onlinePct}%`} sublabel="health" />
+          <div className="intel-overview-row">
+            <div className="intel-overview-gauge">
+              <RingGauge value={activeAgents.length} max={Math.max(agents.length, 1)} color="#6366f1" label={`${activeAgents.length}`} sublabel="online" />
+            </div>
+            <div className="intel-overview-knob">
+              <PulseKnob
+                value={heartbeatInterval}
+                onChange={handleHeartbeatChange}
+                lastBeat={lastBeat}
+              />
+            </div>
+            <div className="intel-overview-gauge">
+              <RingGauge value={onlinePct} max={100} color="#22c55e" label={`${onlinePct}%`} sublabel="health" />
+            </div>
           </div>
         </div>
 
