@@ -373,9 +373,15 @@ export default function App() {
         // Trigger TTS for the response
         const chatResponse = response as any;
         if (chatResponse.content) {
-          await invoke('voice_synthesize', { 
-            text: chatResponse.content, 
-          });
+          try {
+            await invoke('voice_synthesize', { 
+              text: chatResponse.content, 
+            });
+          } catch (ttsErr) {
+            // TTS failed — ensure fairy returns to idle so it doesn't get stuck
+            console.warn('[Voice] TTS failed:', ttsErr);
+            window.dispatchEvent(new CustomEvent('conflux-idle'));
+          }
         }
       } catch (err) {
         console.error('[Voice] Chat failed:', err);
