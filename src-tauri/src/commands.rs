@@ -763,10 +763,18 @@ pub fn engine_get_heartbeat_interval() -> Result<i64, String> {
 }
 
 #[tauri::command]
-pub fn engine_set_heartbeat_interval(ms: i64) -> Result<(), String> {
+pub fn engine_set_heartbeat_interval(ms: i64, app_handle: tauri::AppHandle) -> Result<(), String> {
     let engine = engine::get_engine();
     engine.db().set_config("heartbeat_interval_ms", &ms.to_string())
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    // Send to scheduler channel so it applies the new interval IMMEDIATELY (not on next tick)
+    if let Some(tx) = crate::HEARTBEAT_CMD_TX.get() {
+        let _ = tx.try_send(ms as u64);
+    }
+    // Emit event so frontend can sync animation immediately
+    let _ = app_handle.emit("conflux:heartbeat-interval-changed", ms);
+    Ok(())
 }
 
 

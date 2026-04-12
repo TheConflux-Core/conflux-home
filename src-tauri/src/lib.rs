@@ -10,6 +10,12 @@ mod stripe;
 use dotenvy;
 
 use tauri::{Manager, Emitter};
+use std::sync::Arc;
+use tokio::sync::mpsc;
+
+/// Scheduler command channel: sender端 for instant-interval-change from commands.
+/// Initialized in setup() when the scheduler starts.
+static HEARTBEAT_CMD_TX: std::sync::OnceLock<Arc<mpsc::Sender<u64>>> = std::sync::OnceLock::new();
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -91,44 +97,76 @@ pub fn run() {
                 Err(e) => log::error!("[Setup] Failed to initialize engine: {} — app will run without engine", e),
             }
 
-            // Background cron scheduler — ticks at configurable interval
-            let app_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                // Read interval from engine config (fallback 30 min if not set)
-                let get_interval = || -> u64 {
-                    engine::try_get_engine()
-                        .and_then(|e| e.db().get_config("heartbeat_interval_ms").ok().flatten())
-                        .and_then(|v| v.parse::<u64>().ok())
-                        .map(|ms| ms / 1000)
-                        .unwrap_or(1800)
-                };
+            // Prevent double-spawn in development (React StrictMode may remount)
+            use std::sync::atomic::{AtomicBool, Ordering};
+            static SCHEDULER_STARTED: AtomicBool = AtomicBool::new(false);
+            if SCHEDULER_STARTED.swap(true, Ordering::SeqCst) {
+                log::warn!("[Setup] CronScheduler already running, skipping duplicate spawn");
+            } else {
+                log::info!("[Setup] Starting CronScheduler");
+                let app_handle = app.handle().clone();
+                // Channel for instant-interval-change signals from commands
+                let (tx, mut rx) = mpsc::channel::<u64>(1);
+                HEARTBEAT_CMD_TX.get_or_init(|| Arc::new(tx));
+                tauri::async_runtime::spawn(async move {
+                    let mut current_interval_secs: u64 = 1800;
+                    loop {
+                        // Read interval from DB on every iteration (fallback when no channel cmd arrives)
+                        let (db_interval_secs, stored) = engine::try_get_engine()
+                            .and_then(|e| {
+                                let ms = e.db().get_config("heartbeat_interval_ms")
+                                    .ok().flatten()
+                                    .and_then(|v| v.parse::<u64>().ok());
+                                let stored = e.db().get_config("heartbeat_interval_ms")
+                                    .ok().flatten()
+                                    .unwrap_or_else(|| "MISSING".into());
+                                Some((ms.map(|m| m / 1000).unwrap_or(1800), stored))
+                            })
+                            .unwrap_or((1800, "NO_ENGINE".into()));
+                        // Use channel command if received, otherwise use DB value
+                        if db_interval_secs != current_interval_secs && db_interval_secs > 0 {
+                            current_interval_secs = db_interval_secs;
+                        }
 
-                let mut interval_secs = get_interval();
-                let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
-                loop {
-                    interval.tick().await;
-                    // If interval is 0 (disabled), skip ticking silently
-                    if interval_secs == 0 {
-                        continue;
-                    }
-                    match engine::try_get_engine() {
-                        Some(engine_ref) => {
-                            match engine_ref.tick_cron().await {
-                                Ok(count) if count > 0 => {
-                                    log::info!("[CronScheduler] Executed {} jobs", count);
-                                    // Emit beat event to frontend
-                                    let _ = app_handle.emit("conflux:heartbeat-beat", ());
+                        tokio::select! {
+                            // Listen for instant interval-change commands from engine_set_heartbeat_interval
+                            new_interval = rx.recv() => {
+                                match new_interval {
+                                    Some(0) => {
+                                        // OFF — skip sleeping, just re-poll DB next iteration
+                                        log::info!("[CronScheduler] Interval set to OFF (via channel)");
+                                        current_interval_secs = 0;
+                                    }
+                                    Some(interval) => {
+                                        current_interval_secs = interval / 1000;
+                                        log::info!("[CronScheduler] Interval changed to {}s (via channel)", current_interval_secs);
+                                    }
+                                    None => {
+                                        // Channel closed — shouldn't happen
+                                    }
                                 }
-                                Err(e) => log::error!("[CronScheduler] tick error: {}", e),
-                                _ => {}
+                            },
+                            // Normal tick timer
+                            _ = tokio::time::sleep(std::time::Duration::from_secs(if current_interval_secs == 0 { 60 } else { current_interval_secs })) => {
+                                if current_interval_secs == 0 {
+                                    // OFF mode — skip tick, loop will re-poll DB
+                                    continue;
+                                }
+                                match engine::try_get_engine() {
+                                    Some(engine_ref) => {
+                                        let count = engine_ref.tick_cron().await.unwrap_or(0);
+                                        log::info!("[CronScheduler] Tick — {} jobs, interval={}s stored={}", count, current_interval_secs, stored);
+                                        let _ = app_handle.emit("conflux:heartbeat-beat", ());
+                                    }
+                                    None => {
+                                        log::warn!("[CronScheduler] Engine unavailable, skipping tick");
+                                    }
+                                }
                             }
                         }
-                        None => {
-                            log::warn!("[CronScheduler] Engine not initialized, skipping tick");
-                        }
                     }
-                }
-            });
+                });
+            }
 
             // Register conflux:// protocol on Linux
             #[cfg(target_os = "linux")]
