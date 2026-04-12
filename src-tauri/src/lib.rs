@@ -92,19 +92,18 @@ pub fn run() {
             }
 
             // Background cron scheduler — ticks at configurable interval
+            let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 // Read interval from engine config (fallback 30 min if not set)
-                let interval_secs = match engine::try_get_engine() {
-                    Some(e) => {
-                        e.db().get_config("heartbeat_interval_ms")
-                            .ok()
-                            .flatten()
-                            .and_then(|v| v.parse::<u64>().ok())
-                            .map(|ms| ms / 1000)
-                            .unwrap_or(1800) // default 30 min
-                    }
-                    None => 1800,
+                let get_interval = || -> u64 {
+                    engine::try_get_engine()
+                        .and_then(|e| e.db().get_config("heartbeat_interval_ms").ok().flatten())
+                        .and_then(|v| v.parse::<u64>().ok())
+                        .map(|ms| ms / 1000)
+                        .unwrap_or(1800)
                 };
+
+                let mut interval_secs = get_interval();
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
                 loop {
                     interval.tick().await;
@@ -117,6 +116,8 @@ pub fn run() {
                             match engine_ref.tick_cron().await {
                                 Ok(count) if count > 0 => {
                                     log::info!("[CronScheduler] Executed {} jobs", count);
+                                    // Emit beat event to frontend
+                                    let _ = app_handle.emit("conflux:heartbeat-beat", ());
                                 }
                                 Err(e) => log::error!("[CronScheduler] tick error: {}", e),
                                 _ => {}
