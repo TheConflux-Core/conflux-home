@@ -1,7 +1,6 @@
 // Conflux Home — Kitchen View (Hearth Overhaul)
 import { invoke } from '@tauri-apps/api/core';
-// Home menu, meal library, weekly planner, smart grocery, pantry heatmap.
-
+import { listen } from '@tauri-apps/api/event';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useMeals, useWeeklyPlan, useGroceryList } from '../hooks/useKitchen';
 import { useHomeMenu, useKitchenNudges, useKitchenDigest } from '../hooks/useHearth';
@@ -19,6 +18,7 @@ import CookingModeEnhanced from './CookingModeEnhanced';
 import RestaurantMenu from './RestaurantMenu';
 import BrowseCards from './BrowseCards';
 import { MicButton } from './voice';
+import KitchenEmptyState from './KitchenEmptyState';
 
 function getWeekStart(): string {
   const now = new Date();
@@ -72,6 +72,22 @@ export default function KitchenView() {
     loadDigest();
   }, [loadHomeMenu, loadNudges, loadDigest]);
 
+
+  // Listen for heartbeat beat events → refresh Kitchen data
+  useEffect(() => {
+    let ignore = false;
+    const unlistenPromise = listen<null>('conflux:heartbeat-beat', () => {
+      if (ignore) return;
+      loadHomeMenu();
+      loadNudges();
+      loadDigest();
+    });
+    return () => {
+      ignore = true;
+      unlistenPromise.then(fn => fn());
+    };
+  }, [loadHomeMenu, loadNudges, loadDigest]);
+
   // Load pantry inventory for Pantry tab
   const [pantryItems, setPantryItems] = useState<any[]>([]);
   useEffect(() => {
@@ -104,12 +120,13 @@ export default function KitchenView() {
     loadInventory();
   }, [user?.id]);
 
-  const handleAIAdd = useCallback(async () => {
-    if (!aiPrompt.trim() || aiLoading) return;
+  const handleAIAdd = useCallback(async (description?: string) => {
+    const text = description ?? aiPrompt;
+    if (!text.trim() || aiLoading) return;
     setAiLoading(true);
     try {
-      const result = await addWithAI(aiPrompt);
-      setAiPrompt('');
+      const result = await addWithAI(text);
+      if (!description) setAiPrompt('');
       setSelectedMeal(result.meal);
     } catch (e) {
       console.error('AI add failed:', e);
@@ -155,18 +172,40 @@ export default function KitchenView() {
       {/* ── HOME TAB ── */}
       {tab === 'home' && (
         <div className="kitchen-home">
-          {/* Restaurant Menu — Main Home View */}
-          <RestaurantMenu
-            chefsSpecials={homeMenu}
-            yourRegulars={meals.filter(m => m.is_favorite).slice(0, 6)}
-            onSelect={(id) => setCookingMealId(id)}
-            loading={menuLoading}
-          />
+          {/* Empty state — first run experience */}
+          {meals.length === 0 && !loading ? (
+            <KitchenEmptyState
+              onAddMeal={(desc) => {
+                setAiPrompt(desc);
+                // Use a wrapping function so handleAIAdd reads the new state after set
+                setTimeout(() => {
+                  setAiPrompt(desc);
+                  setAiLoading(true);
+                  addWithAI(desc).then(result => {
+                    setAiPrompt('');
+                    setSelectedMeal(result.meal);
+                  }).catch(e => console.error('AI add failed:', e)).finally(() => setAiLoading(false));
+                }, 0);
+              }}
+              onOpenLibrary={() => setTab('library')}
+              isLoading={aiLoading}
+            />
+          ) : (
+            <>
+              {/* Restaurant Menu — Main Home View */}
+              <RestaurantMenu
+                chefsSpecials={homeMenu}
+                yourRegulars={meals.filter(m => m.is_favorite).slice(0, 6)}
+                onSelect={(id) => setCookingMealId(id)}
+                loading={menuLoading}
+              />
 
-          <KitchenNudges nudges={nudges} onAction={handleNudgeAction} />
+              <KitchenNudges nudges={nudges} onAction={handleNudgeAction} />
 
-          {digest && !digestLoading && (
-            <KitchenDigestCard digest={digest} />
+              {digest && !digestLoading && (
+                <KitchenDigestCard digest={digest} />
+              )}
+            </>
           )}
         </div>
       )}
@@ -197,7 +236,7 @@ export default function KitchenView() {
                   className="mic-button-inline"
                 />
               </div>
-              <button className="btn-primary" onClick={handleAIAdd} disabled={aiLoading || !aiPrompt.trim()}>
+              <button className="btn-primary" onClick={() => handleAIAdd()} disabled={aiLoading || !aiPrompt.trim()}>
                 {aiLoading ? '✨ Creating...' : 'Add'}
               </button>
             </div>
