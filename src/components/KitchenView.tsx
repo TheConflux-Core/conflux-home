@@ -187,21 +187,29 @@ export default function KitchenView() {
           {mealsLoaded && meals.length === 0 ? (
             <KitchenEmptyState
               onAddMeal={async (desc) => {
+                console.log('[KitchenView] onAddMeal START');
                 setAiPrompt(desc);
                 setAiLoading(true);
+                console.log('[KitchenView] state set, starting transition');
                 startAiTransition(async () => {
+                  console.log('[KitchenView] transition running, calling addWithAI');
                   try {
                     const result = await addWithAI(desc);
+                    console.log('[KitchenView] addWithAI done, updating state');
                     setAiPrompt('');
                     setSelectedMeal(result.meal);
+                    console.log('[KitchenView] meal state set, reloading');
                     await reloadMeals();
-                    loadHomeMenu(); // fire-and-forget refresh of Chef's Specials
+                    console.log('[KitchenView] reloadMeals done');
+                    loadHomeMenu();
                   } catch (e) {
                     console.error('[KitchenView] AI add failed:', e);
                   } finally {
+                    console.log('[KitchenView] finally block, clearing aiLoading');
                     setAiLoading(false);
                   }
                 });
+                console.log('[KitchenView] onAddMeal END - transition started');
               }}
               onOpenLibrary={() => setTab('library')}
               isLoading={aiLoading}
