@@ -52,7 +52,7 @@ export default function KitchenView() {
   const weekStart = useMemo(getWeekStart, []);
 
   // Existing kitchen hooks
-  const { meals, loading, addWithAI, toggleFavorite } = useMeals(
+  const { meals, loading, addWithAI, toggleFavorite, reload: reloadMeals } = useMeals(
     filterCat === 'all' ? undefined : filterCat,
     filterCuisine === 'all' ? undefined : filterCuisine,
     showFavorites,
@@ -64,6 +64,12 @@ export default function KitchenView() {
   const { menu: homeMenu, loading: menuLoading, load: loadHomeMenu } = useHomeMenu();
   const { nudges, load: loadNudges } = useKitchenNudges();
   const { digest, loading: digestLoading, load: loadDigest } = useKitchenDigest(weekStart);
+
+  // Track whether initial meals load has completed (for empty state detection)
+  const [mealsLoaded, setMealsLoaded] = useState(false);
+  useEffect(() => {
+    if (!loading) setMealsLoaded(true);
+  }, [loading]);
 
   // Load home data on mount and when switching to home tab
   useEffect(() => {
@@ -173,7 +179,7 @@ export default function KitchenView() {
       {tab === 'home' && (
         <div className="kitchen-home">
           {/* Empty state — first run experience */}
-          {meals.length === 0 && !loading ? (
+          {mealsLoaded && meals.length === 0 ? (
             <KitchenEmptyState
               onAddMeal={(desc) => {
                 setAiPrompt(desc);
