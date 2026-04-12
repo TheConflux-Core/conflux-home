@@ -1060,19 +1060,19 @@
   left: 50%;
   width: 40px;
   height: 60px;
-  background: radial-gradient(ellipse at center, rgba(245, 158, 11, 0.25) 0%, transparent 70%);
+  background: radial-gradient(ellipse at center, rgba(245, 158, 11, 1.0) 0%, transparent 70%);
   border-radius: 50%;
   animation: steam-rise 3s ease-in-out infinite;
   transform: translateX(-50%);
-  filter: blur(4px);
+  filter: blur(6px);
 }
 
 .kitchen-empty-steam.steam-2 {
   left: 35%;
   animation-delay: 0.8s;
   width: 30px;
-  background: radial-gradient(ellipse at center, rgba(245, 158, 11, 0.18) 0%, transparent 70%);
-  filter: blur(3px);
+  background: radial-gradient(ellipse at center, rgba(245, 158, 11, 0.85) 0%, transparent 70%);
+  filter: blur(5px);
 }
 
 
@@ -1080,8 +1080,8 @@
   left: 65%;
   animation-delay: 1.6s;
   width: 35px;
-  background: radial-gradient(ellipse at center, rgba(245, 158, 11, 0.20) 0%, transparent 70%);
-  filter: blur(3px);
+  background: radial-gradient(ellipse at center, rgba(245, 158, 11, 0.90) 0%, transparent 70%);
+  filter: blur(5px);
 }
 
 @keyframes steam-rise {
