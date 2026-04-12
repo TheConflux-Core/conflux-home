@@ -517,8 +517,8 @@ const [activeSnake, setActiveSnake] = useState(false);
     let sessionId = voiceSessionId;
     if (!sessionId) {
       sessionId = await invoke<string>('engine_create_session', {
-        agentId: selectedAgent.id,
-        userId: user!.id,
+        agent_id: selectedAgent.id,
+        user_id: user!.id,
         title: null,
       });
       setVoiceSessionId(sessionId);
