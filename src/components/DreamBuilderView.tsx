@@ -12,8 +12,12 @@ import {
   StarMilestone,
   StarFieldBackground,
 } from './horizon';
+import HorizonBoot from './HorizonBoot';
+import HorizonOnboarding, { hasCompletedHorizonOnboarding } from './HorizonOnboarding';
+import HorizonTour, { hasCompletedHorizonTour } from './HorizonTour';
 import { MicButton } from './voice';
 import type { Dream, DreamVelocity, DreamMilestone, DreamTask, DreamProgress } from '../types';
+import '../styles/horizon-onboarding.css';
 
 const CATEGORY_CONFIG: Record<string, { emoji: string; color: string; label: string }> = {
   housing:      { emoji: '🏠', color: '#3b82f6', label: 'Housing' },
@@ -52,6 +56,16 @@ export default function DreamBuilderView() {
   const [progressNote, setProgressNote] = useState('');
   const [progressPct, setProgressPct] = useState('5');
   const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
+
+  // Boot → Onboarding → Tour → Main view
+  // Persisted so boot doesn't replay on every navigation back to Dreams
+  const [bootDone, setBootDone] = useState(() => localStorage.getItem('horizon-boot-done') === 'true');
+  const hasOnboarded = hasCompletedHorizonOnboarding();
+  const hasTakenTour = hasCompletedHorizonTour();
+  const [showOnboarding, setShowOnboarding] = useState(!bootDone && !hasOnboarded);
+  const [showTour, setShowTour] = useState(!bootDone ? false : !hasTakenTour);
+  // Dreams that were just created — show glowing star animation
+  const [newlyLitDreams, setNewlyLitDreams] = useState<Set<string>>(new Set());
 
   // Load velocities for all dreams when dashboard changes
   useEffect(() => {
@@ -121,6 +135,32 @@ export default function DreamBuilderView() {
     : 0;
 
   const activeDreams = dashboard?.dreams.filter(d => d.status === 'active') ?? [];
+
+  // After onboarding completes, mark the current dreams as "newly lit" for star animation
+  const handleOnboardingComplete = useCallback(() => {
+    // Give dashboard a moment to load the new dream from onboarding
+    setTimeout(() => {
+      if (dashboard?.dreams) {
+        const newIds = new Set(dashboard.dreams.map(d => d.id));
+        setNewlyLitDreams(newIds);
+        // Remove "newly lit" status after 8 seconds
+        setTimeout(() => setNewlyLitDreams(new Set()), 8000);
+      }
+    }, 500);
+    setShowOnboarding(false);
+    if (!hasTakenTour) setShowTour(true);
+  }, [dashboard, hasTakenTour]);
+  if (!bootDone) {
+    return <HorizonBoot onComplete={() => { localStorage.setItem('horizon-boot-done', 'true'); setBootDone(true); }} />;
+  }
+
+  if (showOnboarding) {
+    return <HorizonOnboarding onComplete={handleOnboardingComplete} />;
+  }
+
+  if (showTour) {
+    return <HorizonTour onComplete={() => setShowTour(false)} />;
+  }
 
   if (loading) return (
     <div className="stellar-view">
@@ -366,25 +406,35 @@ export default function DreamBuilderView() {
                   {showNewForm ? 'Cancel' : '+ New Constellation'}
                 </button>
                 <div className="stellar-dream-grid-inner">
-                  {activeDreams.map(dream => (
-                    <div
-                      key={dream.id}
-                      className="stellar-dream-card"
-                      onClick={() => setSelectedDream(dream)}
-                    >
-                      <div className="stellar-dream-card-emoji">
-                        {CATEGORY_CONFIG[dream.category]?.emoji || '✨'}
+                  {activeDreams.map(dream => {
+                    const isNewlyLit = newlyLitDreams.has(dream.id);
+                    const cat = CATEGORY_CONFIG[dream.category];
+                    return (
+                      <div
+                        key={dream.id}
+                        className={`stellar-dream-card ${isNewlyLit ? 'newly-lit' : ''}`}
+                        onClick={() => setSelectedDream(dream)}
+                      >
+                        {/* Glowing star overlay for newly-lit dreams */}
+                        {isNewlyLit && (
+                          <div className="stellar-dream-card-star-glow" />
+                        )}
+                        <div className="stellar-dream-card-content">
+                          <div className="stellar-dream-card-emoji">
+                            {cat?.emoji || '✨'}
+                          </div>
+                          <h3 className="stellar-dream-card-title">{dream.title}</h3>
+                          <div className="stellar-dream-card-progress">
+                            <div
+                              className="stellar-dream-card-progress-fill"
+                              style={{ width: `${dream.progress}%`, backgroundColor: cat?.color || undefined }}
+                            />
+                          </div>
+                          <span className="stellar-dream-card-pct">{dream.progress.toFixed(0)}%</span>
+                        </div>
                       </div>
-                      <h3 className="stellar-dream-card-title">{dream.title}</h3>
-                      <div className="stellar-dream-card-progress">
-                        <div
-                          className="stellar-dream-card-progress-fill"
-                          style={{ width: `${dream.progress}%` }}
-                        />
-                      </div>
-                      <span className="stellar-dream-card-pct">{dream.progress.toFixed(0)}%</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             )}
