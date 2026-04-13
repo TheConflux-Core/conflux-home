@@ -1,8 +1,7 @@
 // Conflux Home — Kitchen View (Hearth Overhaul)
 import { invoke } from '@tauri-apps/api/core';
-// Home menu, meal library, weekly planner, smart grocery, pantry heatmap.
-
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { listen } from '@tauri-apps/api/event';
+import { useState, useCallback, useEffect, useMemo, useTransition } from 'react';
 import { useMeals, useWeeklyPlan, useGroceryList } from '../hooks/useKitchen';
 import { useHomeMenu, useKitchenNudges, useKitchenDigest } from '../hooks/useHearth';
 import { useFridgeScanner } from '../hooks/useFridgeScanner';
@@ -19,6 +18,7 @@ import CookingModeEnhanced from './CookingModeEnhanced';
 import RestaurantMenu from './RestaurantMenu';
 import BrowseCards from './BrowseCards';
 import { MicButton } from './voice';
+import KitchenEmptyState from './KitchenEmptyState';
 
 function getWeekStart(): string {
   const now = new Date();
@@ -42,7 +42,9 @@ export default function KitchenView() {
   const [filterCuisine, setFilterCuisine] = useState<string>('all');
   const [showFavorites, setShowFavorites] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
+  // Track AI loading separate from meals loading (for transition)
   const [aiLoading, setAiLoading] = useState(false);
+  const [isPending, startAiTransition] = useTransition();
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
   const [cookingMealId, setCookingMealId] = useState<string | null>(null);
   // Cooking mode step tracking (placeholder — wire to real steps when available)
@@ -52,7 +54,7 @@ export default function KitchenView() {
   const weekStart = useMemo(getWeekStart, []);
 
   // Existing kitchen hooks
-  const { meals, loading, addWithAI, toggleFavorite } = useMeals(
+  const { meals, loading, addWithAI, toggleFavorite, reload: reloadMeals } = useMeals(
     filterCat === 'all' ? undefined : filterCat,
     filterCuisine === 'all' ? undefined : filterCuisine,
     showFavorites,
@@ -65,11 +67,33 @@ export default function KitchenView() {
   const { nudges, load: loadNudges } = useKitchenNudges();
   const { digest, loading: digestLoading, load: loadDigest } = useKitchenDigest(weekStart);
 
+  // Track whether initial meals load has completed (for empty state detection)
+  const [mealsLoaded, setMealsLoaded] = useState(false);
+  useEffect(() => {
+    if (!loading) setMealsLoaded(true);
+  }, [loading]);
+
   // Load home data on mount and when switching to home tab
   useEffect(() => {
     loadHomeMenu();
     loadNudges();
     loadDigest();
+  }, [loadHomeMenu, loadNudges, loadDigest]);
+
+
+  // Listen for heartbeat beat events → refresh Kitchen data
+  useEffect(() => {
+    let ignore = false;
+    const unlistenPromise = listen<null>('conflux:heartbeat-beat', () => {
+      if (ignore) return;
+      loadHomeMenu();
+      loadNudges();
+      loadDigest();
+    });
+    return () => {
+      ignore = true;
+      unlistenPromise.then(fn => fn());
+    };
   }, [loadHomeMenu, loadNudges, loadDigest]);
 
   // Load pantry inventory for Pantry tab
@@ -104,19 +128,23 @@ export default function KitchenView() {
     loadInventory();
   }, [user?.id]);
 
-  const handleAIAdd = useCallback(async () => {
-    if (!aiPrompt.trim() || aiLoading) return;
+  const handleAIAdd = useCallback(async (description?: string) => {
+    const text = description ?? aiPrompt;
+    if (!text.trim() || aiLoading) return;
     setAiLoading(true);
-    try {
-      const result = await addWithAI(aiPrompt);
-      setAiPrompt('');
-      setSelectedMeal(result.meal);
-    } catch (e) {
-      console.error('AI add failed:', e);
-    } finally {
-      setAiLoading(false);
-    }
-  }, [aiPrompt, aiLoading, addWithAI]);
+    startAiTransition(async () => {
+      try {
+        const result = await addWithAI(text);
+        if (!description) setAiPrompt('');
+        setSelectedMeal(result.meal);
+        await reloadMeals();
+      } catch (e) {
+        console.error('AI add failed:', e);
+      } finally {
+        setAiLoading(false);
+      }
+    });
+  }, [aiPrompt, aiLoading, addWithAI, reloadMeals]);
 
   const handleNudgeAction = useCallback((nudge: { nudge_type: string }) => {
     if (nudge.nudge_type === 'cook') setTab('library');
@@ -155,18 +183,53 @@ export default function KitchenView() {
       {/* ── HOME TAB ── */}
       {tab === 'home' && (
         <div className="kitchen-home">
-          {/* Restaurant Menu — Main Home View */}
-          <RestaurantMenu
-            chefsSpecials={homeMenu}
-            yourRegulars={meals.filter(m => m.is_favorite).slice(0, 6)}
-            onSelect={(id) => setCookingMealId(id)}
-            loading={menuLoading}
-          />
+          {/* Empty state — first run experience */}
+          {mealsLoaded && meals.length === 0 ? (
+            <KitchenEmptyState
+              onAddMeal={async (desc) => {
+                console.log('[KitchenView] onAddMeal START');
+                setAiPrompt(desc);
+                setAiLoading(true);
+                console.log('[KitchenView] state set, starting transition');
+                startAiTransition(async () => {
+                  console.log('[KitchenView] transition running, calling addWithAI');
+                  try {
+                    const result = await addWithAI(desc);
+                    console.log('[KitchenView] addWithAI done, updating state');
+                    setAiPrompt('');
+                    setSelectedMeal(result.meal);
+                    console.log('[KitchenView] meal state set, reloading');
+                    await reloadMeals();
+                    console.log('[KitchenView] reloadMeals done');
+                    loadHomeMenu();
+                  } catch (e) {
+                    console.error('[KitchenView] AI add failed:', e);
+                  } finally {
+                    console.log('[KitchenView] finally block, clearing aiLoading');
+                    setAiLoading(false);
+                  }
+                });
+                console.log('[KitchenView] onAddMeal END - transition started');
+              }}
+              onOpenLibrary={() => setTab('library')}
+              isLoading={aiLoading}
+            />
+          ) : (
+            <>
+              {/* Restaurant Menu — Main Home View */}
+              <RestaurantMenu
+                chefsSpecials={homeMenu}
+                yourRegulars={meals.filter(m => m.is_favorite).slice(0, 6)}
+                onSelect={(id) => setCookingMealId(id)}
+                loading={menuLoading}
+              />
 
-          <KitchenNudges nudges={nudges} onAction={handleNudgeAction} />
+              <KitchenNudges nudges={nudges} onAction={handleNudgeAction} />
 
-          {digest && !digestLoading && (
-            <KitchenDigestCard digest={digest} />
+              {digest && !digestLoading && (
+                <KitchenDigestCard digest={digest} />
+              )}
+            </>
           )}
         </div>
       )}
@@ -197,7 +260,7 @@ export default function KitchenView() {
                   className="mic-button-inline"
                 />
               </div>
-              <button className="btn-primary" onClick={handleAIAdd} disabled={aiLoading || !aiPrompt.trim()}>
+              <button className="btn-primary" onClick={() => handleAIAdd()} disabled={aiLoading || !aiPrompt.trim()}>
                 {aiLoading ? '✨ Creating...' : 'Add'}
               </button>
             </div>
