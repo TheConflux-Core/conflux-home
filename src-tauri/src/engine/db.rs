@@ -167,13 +167,13 @@ impl EngineDb {
     /// Blocks the current thread until the lock is acquired.
     /// Requires a Tokio runtime context.
     pub fn conn_blocking(&self) -> tokio::sync::MutexGuard<'_, Connection> {
-        self.conn.blocking_lock()
+        tokio::task::block_in_place(|| self.conn.blocking_lock())
     }
 
     /// Backward-compatible alias for conn_blocking(). Will be removed once all callers are async.
     #[deprecated(note = "Use conn_async() in async contexts, conn_blocking() in sync")]
     pub fn conn(&self) -> tokio::sync::MutexGuard<'_, Connection> {
-        self.conn.blocking_lock()
+        tokio::task::block_in_place(|| self.conn.blocking_lock())
     }
 
     // ── Agent Queries ──
