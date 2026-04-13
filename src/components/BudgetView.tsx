@@ -1,4 +1,4 @@
-// Conflux Home — Budget View (The Matrix v2 - Clean)
+// Conflux Home — Budget View (The Matrix v2 - Clean + Onboarding)
 // Zero-based budgeting with a "Spreadsheet-on-Steroids" UI.
 
 import { useState, useMemo, useEffect } from 'react';
@@ -9,7 +9,9 @@ import PulseParticles from './PulseParticles';
 import BudgetConfigModal from './BudgetConfigModal';
 import { TransactionLogModal } from './TransactionLogModal';
 import { parseBudgetCommand } from '../hooks/useBudgetAI';
+import BudgetOnboarding from './BudgetOnboarding';
 import '../styles/budget-pulse.css';
+import '../styles/pulse-onboarding.css';
 
 function formatMoney(n: number): string {
   return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -30,6 +32,12 @@ export default function BudgetView() {
     loading 
   } = useBudgetEngine();
 
+  // Onboarding state — show tour on first open
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    return localStorage.getItem('budget-tour-completed') !== 'true';
+  });
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
+
   // Debug: Force reload on mount to ensure we see manual DB entries
   useEffect(() => {
     console.log('[BudgetView] Mounting - user:', authUser?.id, 'settings:', settings, 'buckets:', buckets.length);
@@ -46,6 +54,9 @@ export default function BudgetView() {
   const [isLogOpen, setIsLogOpen] = useState(false);
   const [nlpInput, setNlpInput] = useState('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success'>('idle');
+  
+  // Proactive nudge placeholder — shown when there's not much data yet
+  const showNudgePlaceholder = buckets.length < 3 || !settings?.income_amount;
 
   // Derived State for the Matrix
   const totalIncome = settings?.income_amount || 0;
@@ -101,6 +112,43 @@ export default function BudgetView() {
       <div className="matrix-bg-effects" />
       <PulseParticles />
 
+      {/* Onboarding Overlay + Guided Tour */}
+      {!onboardingComplete && (
+        <BudgetOnboarding
+          onComplete={() => {
+            setShowOnboarding(false);
+            setOnboardingComplete(true);
+          }}
+          onOpenConfig={() => setIsConfigOpen(true)}
+        />
+      )}
+
+      {/* Proactive Nudge Placeholder */}
+      {showNudgePlaceholder && !showOnboarding && (
+        <div className="pulse-proactive pulse-proactive-placeholder">
+          <span className="pulse-proactive-icon">💡</span>
+          <div className="pulse-proactive-content">
+            <div className="pulse-proactive-title">Pulse is watching...</div>
+            <div className="pulse-proactive-body">
+              Configure your pay schedule and add buckets to unlock proactive insights.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!showNudgePlaceholder && !showOnboarding && (
+        <div className="pulse-proactive">
+          <span className="pulse-proactive-icon">📊</span>
+          <div className="pulse-proactive-content">
+            <div className="pulse-proactive-title">Pulse Insight</div>
+            <div className="pulse-proactive-body">
+              You're tracking {buckets.length} buckets with ${(settings?.income_amount || 0).toLocaleString()} monthly income.
+              {surplus > 0 ? ` $${surplus.toLocaleString()} projected surplus.` : ` ${Math.abs(surplus).toLocaleString()} deficit.`}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── The Pulse: Financial Cockpit ── */}
       <div className="budget-cockpit">
         <div className="cockpit-gauge">
@@ -146,7 +194,7 @@ export default function BudgetView() {
           </div>
 
           {/* Data Rows */}
-          {buckets.map((bucket) => {
+          {buckets.map((bucket, index) => {
             const p1Alloc = getAllocation(bucket.id, 1);
             const p2Alloc = getAllocation(bucket.id, 2);
             const totalAlloc = p1Alloc + p2Alloc;
@@ -159,6 +207,7 @@ export default function BudgetView() {
               <div 
                 key={bucket.id} 
                 className={`grid-row data-row ${activeBucket === bucket.id ? 'active' : ''}`}
+                style={{ '--row-index': index } as React.CSSProperties}
                 onMouseEnter={() => setActiveBucket(bucket.id)}
                 onMouseLeave={() => setActiveBucket(null)}
               >
