@@ -1,8 +1,20 @@
 // Conflux Home — Budget Onboarding / Guided Tour
 // Phase 1: Setup (collect data) → Phase 2: Spotlight Tour (highlight real UI)
+//
+// LocalStorage contracts:
+//   budget-onboarding-completed  — set after data setup saves; permanently skips onboarding flow
+//   budget-tour-completed        — set after tour finishes; can be reset via Settings
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import TourSpotlight from './TourSpotlight';
+import TourTooltip from './TourTooltip';
+import { useTourState } from '../hooks/useTourState';
 import '../styles/pulse-onboarding.css';
+
+// ─── Storage Keys ───────────────────────────────────────────
+
+const ONBOARDING_DONE_KEY = 'budget-onboarding-completed';
+const TOUR_DONE_KEY = 'budget-tour-completed';
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -77,7 +89,7 @@ const TOUR_STEPS = [
   {
     id: 'log',
     title: 'Log Payments Fast',
-    body: 'Click LOG PAYMENT to record what you\'ve paid. Select a bucket, enter the amount, confirm — Pulse updates the grid instantly.',
+    body: "Click LOG PAYMENT to record what you've paid. Select a bucket, enter the amount, confirm — Pulse updates the grid instantly.",
     target: '.btn-primary',
   },
   {
@@ -88,11 +100,22 @@ const TOUR_STEPS = [
   },
   {
     id: 'nudge',
-    title: 'Pulse Doesn\'t Wait',
+    title: "Pulse Doesn't Wait",
     body: 'Pulse watches your patterns. Running low on savings? Overspending in dining? It nudges you before problems grow.',
     target: '.pulse-proactive',
   },
 ];
+
+// ─── Public Helpers ──────────────────────────────────────────
+
+export function hasCompletedBudgetOnboarding(): boolean {
+  return localStorage.getItem(ONBOARDING_DONE_KEY) === 'true';
+}
+
+export function resetBudgetTour(): void {
+  localStorage.removeItem(TOUR_DONE_KEY);
+  localStorage.removeItem(ONBOARDING_DONE_KEY);
+}
 
 // ─── Main Component ──────────────────────────────────────────
 
@@ -149,7 +172,7 @@ export default function BudgetOnboarding({ onComplete, onSaveConfig }: BudgetOnb
   }, []);
 
   const confirmPresetBucket = useCallback(() => {
-    const { pendingPreset, pendingAmount, config } = state;
+    const { pendingPreset, pendingAmount } = state;
     if (!pendingPreset || !pendingAmount) return;
     const bucket: SetupBucket = {
       id: `preset-${Date.now()}`,
@@ -171,7 +194,7 @@ export default function BudgetOnboarding({ onComplete, onSaveConfig }: BudgetOnb
   }, []);
 
   const handleFinishSetup = async () => {
-    const { config, isUpdate } = state;
+    const { config } = state;
     if (config.monthlyIncome <= 0) {
       setState(s => ({ ...s, error: 'Please enter your monthly income.' }));
       return;
@@ -182,7 +205,11 @@ export default function BudgetOnboarding({ onComplete, onSaveConfig }: BudgetOnb
     }
     setState(s => ({ ...s, isSaving: true, error: null }));
     try {
-      const result = await onSaveConfig(config, isUpdate);
+      // Check if this is an update (user already has data)
+      const hasExistingData = localStorage.getItem(ONBOARDING_DONE_KEY) === 'true';
+      const result = await onSaveConfig(config, !hasExistingData);
+      // Mark onboarding as permanently done — data has been saved
+      localStorage.setItem(ONBOARDING_DONE_KEY, 'true');
       setState(s => ({ ...s, step: 'tour', tourStep: 0, isUpdate: result.isUpdate }));
     } catch {
       setState(s => ({ ...s, isSaving: false, error: 'Failed to save. Try again.' }));
@@ -198,7 +225,7 @@ export default function BudgetOnboarding({ onComplete, onSaveConfig }: BudgetOnb
   };
 
   const handleComplete = () => {
-    localStorage.setItem('budget-tour-completed', 'true');
+    localStorage.setItem(TOUR_DONE_KEY, 'true');
     onComplete();
   };
 
@@ -229,8 +256,10 @@ export default function BudgetOnboarding({ onComplete, onSaveConfig }: BudgetOnb
     );
   }
 
+  // ─── Spotlight Tour (desktop-quality) ─────────────────────
   return (
-    <SpotlightTour
+    <BudgetSpotlightTour
+      steps={TOUR_STEPS}
       currentStep={state.tourStep}
       onNext={handleTourNext}
       onSkip={handleComplete}
@@ -238,138 +267,88 @@ export default function BudgetOnboarding({ onComplete, onSaveConfig }: BudgetOnb
   );
 }
 
-// ─── Spotlight Tour ────────────────────────────────────────
+// ─── Budget Spotlight Tour (SVG-mask approach, desktop-quality) ───
 
-interface SpotlightTourProps {
+interface BudgetSpotlightTourProps {
+  steps: typeof TOUR_STEPS;
   currentStep: number;
   onNext: () => void;
   onSkip: () => void;
 }
 
-function SpotlightTour({ currentStep, onNext, onSkip }: SpotlightTourProps) {
-  const [spotlightRect, setSpotlightRect] = useState<DOMRect | null>(null);
-  const [cardPos, setCardPos] = useState<{ top: number; left: number } | null>(null);
-  const step = TOUR_STEPS[currentStep];
+function BudgetSpotlightTour({ steps, currentStep, onNext, onSkip }: BudgetSpotlightTourProps) {
+  const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+  const [isActive, setIsActive] = useState(true);
+  const hasMovedRef = useRef(false);
 
-  // Position spotlight + card on step change
+  const step = steps[currentStep];
+  const isLast = currentStep === steps.length - 1;
+
+  // Find target element and track its rect
   useEffect(() => {
-    let raf1: number;
-    let raf2: number;
+    if (!isActive || !step) return;
 
-    const update = () => {
-      const el = document.querySelector(step.target);
-      if (!el) { setSpotlightRect(null); setCardPos(null); return; }
-
-      const rect = el.getBoundingClientRect();
-      const CARD_W = 360;
-      const GAP = 16;
-      const MARGIN = 24;
-      const vw = window.innerWidth;
-
-      setSpotlightRect(rect);
-
-      // Card: centered below spotlight, clamped to viewport
-      const rawLeft = rect.left + rect.width / 2 - CARD_W / 2;
-      const clampedLeft = Math.max(MARGIN, Math.min(rawLeft, vw - CARD_W - MARGIN));
-      setCardPos({ top: rect.bottom + GAP, left: clampedLeft });
-    };
-
-    raf1 = requestAnimationFrame(() => { raf2 = requestAnimationFrame(update); });
-    return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2); };
-  }, [currentStep, step.target]);
-
-  // Reposition on scroll/resize
-  useEffect(() => {
-    const handle = () => {
-      const el = document.querySelector(step.target);
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      setSpotlightRect(rect);
-      const CARD_W = 360;
-      const GAP = 16;
-      const MARGIN = 24;
-      const rawLeft = rect.left + rect.width / 2 - CARD_W / 2;
-      setCardPos({
-        top: rect.bottom + GAP,
-        left: Math.max(MARGIN, Math.min(rawLeft, window.innerWidth - CARD_W - MARGIN)),
+    const updateRect = () => {
+      // Small double-RAF to ensure DOM has settled after step change
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const el = document.querySelector(step.target);
+          if (el) {
+            setTargetRect(el.getBoundingClientRect());
+            hasMovedRef.current = false;
+          } else {
+            setTargetRect(null);
+          }
+        });
       });
     };
-    window.addEventListener('scroll', handle, true);
-    window.addEventListener('resize', handle);
-    return () => {
-      window.removeEventListener('scroll', handle, true);
-      window.removeEventListener('resize', handle);
-    };
-  }, [step.target]);
 
-  // Keyboard
+    const timer = setTimeout(updateRect, 80);
+    window.addEventListener('resize', updateRect);
+    window.addEventListener('scroll', updateRect, true);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', updateRect);
+      window.removeEventListener('scroll', updateRect, true);
+    };
+  }, [currentStep, step, isActive]);
+
+  // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onSkip();
+      if (e.key === 'Escape') { setIsActive(false); onSkip(); }
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNext(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [onNext, onSkip]);
 
-  if (!spotlightRect || !cardPos) return null;
-
-  const cardStyle: React.CSSProperties = {
-    position: 'fixed',
-    top: cardPos.top,
-    left: cardPos.left,
-    width: 360,
-    zIndex: 9998,
-  };
+  if (!isActive) return null;
 
   return (
-    <div className="pulse-tour-overlay">
-      {/* No dark scrim — just the glowing spotlight over the real UI */}
+    <div className="budget-tour-root">
+      {/* SVG spotlight with transparent cutout — matches desktop GuidedTour quality */}
+      <TourSpotlight targetRect={targetRect} padding={8} borderRadius={12} verticalOffset={-50} />
 
-      {/* ── Glowing spotlight border around target (raised up ~25px) ── */}
-      <div
-        className="pulse-tour-spotlight"
-        style={{
-          top: spotlightRect.top - 30,
-          left: spotlightRect.left - 6,
-          width: spotlightRect.width + 12,
-          height: spotlightRect.height + 12,
-        }}
+      {/* Tour tooltip — auto-positions above/below target */}
+      <TourTooltip
+        targetRect={targetRect}
+        title={step.title}
+        text={step.body}
+        step={currentStep}
+        total={steps.length}
+        onNext={onNext}
+        onSkip={() => { setIsActive(false); onSkip(); }}
+        isLast={isLast}
+        isFirst={currentStep === 0}
+        finishLabel="Enter Pulse"
       />
-
-      {/* ── Tour Card ── */}
-      <div className="pulse-tour-card" style={cardStyle}>
-        {/* Header row */}
-        <div className="pulse-tour-card-header">
-          <span className="pulse-tour-step-num">Step {currentStep + 1} of {TOUR_STEPS.length}</span>
-          <button className="pulse-tour-close" onClick={onSkip} aria-label="Close tour">✕</button>
-        </div>
-
-        {/* Progress */}
-        <div className="pulse-tour-progress">
-          {TOUR_STEPS.map((_, i) => (
-            <div
-              key={i}
-              className={`pulse-tour-dot ${i === currentStep ? 'active' : i < currentStep ? 'done' : ''}`}
-            />
-          ))}
-        </div>
-
-        <h3 className="pulse-tour-title">{step.title}</h3>
-        <p className="pulse-tour-body">{step.body}</p>
-
-        <div className="pulse-tour-footer">
-          <button className="pulse-tour-skip" onClick={onSkip}>Skip tour</button>
-          <button className="pulse-tour-next" onClick={onNext}>
-            {currentStep === TOUR_STEPS.length - 1 ? 'Start Using Pulse →' : 'Next →'}
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
 
-// ─── Boot Sequence ─────────────────────────────────────────
+// ─── Boot Sequence ─────────────────────────────────────────────
 
 function BootSequence() {
   const [phase, setPhase] = useState(0);
@@ -385,6 +364,12 @@ function BootSequence() {
 
   return (
     <div className={`pulse-boot boot-${phase}`}>
+      {/* Ambient floating particles */}
+      <div className="pulse-boot-particles" aria-hidden="true">
+        {Array.from({ length: 8 }, (_, i) => (
+          <div key={i} className={`pulse-boot-particle particle-${i + 1}`} />
+        ))}
+      </div>
       <div className="pulse-boot-content">
         {phase >= 1 && <div className="pulse-boot-logo">PULSE</div>}
         {phase >= 2 && (
@@ -406,7 +391,7 @@ function BootSequence() {
   );
 }
 
-// ─── Setup Modal ────────────────────────────────────────────
+// ─── Setup Modal ─────────────────────────────────────────────
 
 interface SetupModalProps {
   config: SetupConfig;
@@ -445,17 +430,212 @@ function SetupModal({
     if (e.key === 'Escape') onCancelPresetBucket();
   };
 
+  // Check how many buckets have been configured
+  const configuredCount = config.buckets.length;
+  const totalPresets = PRESET_BUCKETS.length;
+  const availablePresets = PRESET_BUCKETS.filter(
+    pb => !config.buckets.some(cb => cb.name === pb.name)
+  );
+
   return (
     <div className="pulse-setup-overlay">
+      {/* Ambient background glow */}
+      <div className="pulse-setup-bg-glow" aria-hidden="true" />
+
       <div className="pulse-setup-card">
-
-        {isUpdate && (
-          <div className="pulse-setup-update-banner">
-            Updating your existing Pulse configuration
+        {/* ── Header ── */}
+        <div className="pulse-setup-header">
+          <div className="pulse-setup-icon-row">
+            <div className="pulse-setup-icon">💚</div>
+            <div className="pulse-setup-icon-pulse" aria-hidden="true" />
           </div>
-        )}
+          <h2 className="pulse-setup-title">{isUpdate ? 'Update Pulse' : 'Set Up Pulse'}</h2>
+          <p className="pulse-setup-subtitle">
+            {isUpdate
+              ? 'Adjust your income, pay rhythm, or tracked buckets.'
+              : "Tell Pulse about your income and we'll build your financial grid."}
+          </p>
+          {isUpdate && (
+            <div className="pulse-setup-update-banner">
+              Updating your existing Pulse configuration
+            </div>
+          )}
+        </div>
 
-        {/* Preset amount popup */}
+        {/* ── Scrollable Content ── */}
+        <div className="pulse-setup-body">
+          {/* Step 01: Income */}
+          <div className="pulse-setup-section">
+            <label className="pulse-setup-label">
+              <span className="pulse-setup-step-num">01</span>
+              Monthly Income
+            </label>
+            <div className="pulse-setup-income-row">
+              <span className="pulse-setup-dollar">$</span>
+              <input
+                type="number"
+                className="pulse-setup-income-input"
+                placeholder="4,400"
+                value={config.monthlyIncome || ''}
+                onChange={e => onUpdateConfig({ monthlyIncome: parseFloat(e.target.value) || 0 })}
+                min="0"
+                autoFocus
+              />
+            </div>
+            <p className="pulse-setup-hint">Total take-home pay per month, after taxes.</p>
+          </div>
+
+          {/* Step 02: Pay Rhythm */}
+          <div className="pulse-setup-section">
+            <label className="pulse-setup-label">
+              <span className="pulse-setup-step-num">02</span>
+              Pay Rhythm
+            </label>
+            <div className="pulse-setup-rhythm-grid">
+              {[
+                { value: 'weekly', label: 'Weekly' },
+                { value: 'bi-weekly', label: 'Bi-weekly' },
+                { value: 'semi-monthly', label: 'Semi-monthly' },
+                { value: 'monthly', label: 'Monthly' },
+              ].map(({ value, label }) => (
+                <button
+                  key={value}
+                  className={`pulse-setup-rhythm-btn ${config.payFrequency === value ? 'active' : ''}`}
+                  onClick={() => onUpdateConfig({ payFrequency: value as SetupConfig['payFrequency'] })}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {config.payFrequency === 'bi-weekly' && (
+              <div className="pulse-setup-paydays">
+                <div className="pulse-setup-payday-group">
+                  <label>First Pay Day</label>
+                  <input
+                    type="number" min="1" max="31"
+                    value={config.payDates.p1}
+                    onChange={e => onUpdateConfig({ payDates: { ...config.payDates, p1: parseInt(e.target.value) || 1 } })}
+                  />
+                </div>
+                <span className="pulse-setup-payday-and">—</span>
+                <div className="pulse-setup-payday-group">
+                  <label>Second Pay Day</label>
+                  <input
+                    type="number" min="1" max="31"
+                    value={config.payDates.p2}
+                    onChange={e => onUpdateConfig({ payDates: { ...config.payDates, p2: parseInt(e.target.value) || 15 } })}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Step 03: Buckets */}
+          <div className="pulse-setup-section">
+            <label className="pulse-setup-label">
+              <span className="pulse-setup-step-num">03</span>
+              Spending Buckets
+              {configuredCount > 0 && (
+                <span className="pulse-setup-bucket-count">{configuredCount} added</span>
+              )}
+            </label>
+            <p className="pulse-setup-hint" style={{ marginBottom: 12 }}>
+              Click a category, enter the monthly amount.
+            </p>
+
+            {/* Bucket list */}
+            {config.buckets.length > 0 && (
+              <div className="pulse-setup-bucket-list">
+                {config.buckets.map(b => (
+                  <div key={b.id} className="pulse-setup-bucket-row">
+                    <span
+                      className="pulse-setup-bucket-dot"
+                      style={{ background: b.color }}
+                    />
+                    <span className="pulse-setup-bucket-icon">{b.icon}</span>
+                    <span className="pulse-setup-bucket-name">{b.name}</span>
+                    <span className="pulse-setup-bucket-goal">${b.monthly_goal.toLocaleString()}/mo</span>
+                    <button className="pulse-setup-bucket-remove" onClick={() => onRemoveBucket(b.id)} aria-label={`Remove ${b.name}`}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Preset grid */}
+            {availablePresets.length > 0 && (
+              <div className="pulse-setup-presets">
+                {availablePresets.map(pb => (
+                  <button
+                    key={pb.name}
+                    className="pulse-setup-preset-btn"
+                    style={{ '--preset-color': pb.color } as React.CSSProperties}
+                    onClick={() => onOpenPresetPopup(pb)}
+                  >
+                    <span>{pb.icon}</span>
+                    <span>{pb.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Custom bucket add */}
+            <div className="pulse-setup-add-bucket">
+              <input
+                type="text" placeholder="Bucket name (e.g. Netflix)"
+                value={newBucket.name}
+                onChange={e => onUpdateNewBucket({ ...newBucket, name: e.target.value })}
+                className="pulse-setup-bucket-name-input"
+              />
+              <div className="pulse-setup-bucket-goal-input-wrap">
+                <span>$</span>
+                <input
+                  type="number" placeholder="Monthly $"
+                  value={newBucket.goal}
+                  onChange={e => onUpdateNewBucket({ ...newBucket, goal: e.target.value })}
+                />
+              </div>
+              <button
+                className="pulse-setup-add-btn"
+                onClick={onAddBucket}
+                disabled={!newBucket.name.trim() || !newBucket.goal}
+                aria-label="Add bucket"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="pulse-setup-error" role="alert">
+              <span className="pulse-setup-error-icon">⚠️</span>
+              {error}
+            </div>
+          )}
+        </div>
+
+        {/* ── Fixed Footer — always visible, never clipped ── */}
+        <div className="pulse-setup-footer">
+          <button
+            className="pulse-setup-finish"
+            onClick={onFinish}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <span className="pulse-setup-saving">
+                <span className="pulse-setup-spinner" aria-hidden="true" />
+                Setting up Pulse...
+              </span>
+            ) : isUpdate ? (
+              'Save Changes →'
+            ) : (
+              'Launch Pulse →'
+            )}
+          </button>
+        </div>
+
+        {/* Preset amount popup — rendered above footer but inside card */}
         {pendingPreset && (
           <div className="pulse-preset-popup-overlay" onClick={onCancelPresetBucket}>
             <div className="pulse-preset-popup" onClick={e => e.stopPropagation()}>
@@ -492,146 +672,6 @@ function SetupModal({
             </div>
           </div>
         )}
-
-        {/* Header */}
-        <div className="pulse-setup-header">
-          <div className="pulse-setup-icon">💚</div>
-          <h2 className="pulse-setup-title">{isUpdate ? 'Update Pulse' : 'Set Up Pulse'}</h2>
-          <p className="pulse-setup-subtitle">
-            {isUpdate
-              ? 'Adjust your income, pay rhythm, or tracked buckets.'
-              : "Tell Pulse about your income and we'll build your financial grid."}
-          </p>
-        </div>
-
-        {/* Step 01: Income */}
-        <div className="pulse-setup-section">
-          <label className="pulse-setup-label">
-            <span className="pulse-setup-step-num">01</span>
-            Monthly Income
-          </label>
-          <div className="pulse-setup-income-row">
-            <span className="pulse-setup-dollar">$</span>
-            <input
-              type="number"
-              className="pulse-setup-income-input"
-              placeholder="4,400"
-              value={config.monthlyIncome || ''}
-              onChange={e => onUpdateConfig({ monthlyIncome: parseFloat(e.target.value) || 0 })}
-              min="0"
-              autoFocus
-            />
-          </div>
-          <p className="pulse-setup-hint">Total take-home pay per month, after taxes.</p>
-        </div>
-
-        {/* Step 02: Pay Rhythm */}
-        <div className="pulse-setup-section">
-          <label className="pulse-setup-label">
-            <span className="pulse-setup-step-num">02</span>
-            Pay Rhythm
-          </label>
-          <div className="pulse-setup-rhythm-grid">
-            {[
-              { value: 'weekly', label: 'Weekly' },
-              { value: 'bi-weekly', label: 'Bi-weekly' },
-              { value: 'semi-monthly', label: 'Semi-monthly' },
-              { value: 'monthly', label: 'Monthly' },
-            ].map(({ value, label }) => (
-              <button
-                key={value}
-                className={`pulse-setup-rhythm-btn ${config.payFrequency === value ? 'active' : ''}`}
-                onClick={() => onUpdateConfig({ payFrequency: value as SetupConfig['payFrequency'] })}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {config.payFrequency === 'bi-weekly' && (
-            <div className="pulse-setup-paydays">
-              <div className="pulse-setup-payday-group">
-                <label>First Pay Day</label>
-                <input
-                  type="number" min="1" max="31"
-                  value={config.payDates.p1}
-                  onChange={e => onUpdateConfig({ payDates: { ...config.payDates, p1: parseInt(e.target.value) || 1 } })}
-                />
-              </div>
-              <span className="pulse-setup-payday-and">—</span>
-              <div className="pulse-setup-payday-group">
-                <label>Second Pay Day</label>
-                <input
-                  type="number" min="1" max="31"
-                  value={config.payDates.p2}
-                  onChange={e => onUpdateConfig({ payDates: { ...config.payDates, p2: parseInt(e.target.value) || 15 } })}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Step 03: Buckets */}
-        <div className="pulse-setup-section">
-          <label className="pulse-setup-label">
-            <span className="pulse-setup-step-num">03</span>
-            Spending Buckets
-          </label>
-          <p className="pulse-setup-hint" style={{ marginBottom: 12 }}>
-            Click a category, enter the monthly amount.
-          </p>
-
-          {config.buckets.length > 0 && (
-            <div className="pulse-setup-bucket-list">
-              {config.buckets.map(b => (
-                <div key={b.id} className="pulse-setup-bucket-row">
-                  <span className="pulse-setup-bucket-icon">{b.icon}</span>
-                  <span className="pulse-setup-bucket-name">{b.name}</span>
-                  <span className="pulse-setup-bucket-goal">${b.monthly_goal.toLocaleString()}/mo</span>
-                  <button className="pulse-setup-bucket-remove" onClick={() => onRemoveBucket(b.id)}>✕</button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="pulse-setup-presets">
-            {PRESET_BUCKETS.filter(pb => !config.buckets.some(cb => cb.name === pb.name)).map(pb => (
-              <button
-                key={pb.name}
-                className="pulse-setup-preset-btn"
-                style={{ '--preset-color': pb.color } as React.CSSProperties}
-                onClick={() => onOpenPresetPopup(pb)}
-              >
-                <span>{pb.icon}</span>
-                <span>{pb.name}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="pulse-setup-add-bucket">
-            <input
-              type="text" placeholder="Bucket name (e.g. Netflix)"
-              value={newBucket.name}
-              onChange={e => onUpdateNewBucket({ ...newBucket, name: e.target.value })}
-              className="pulse-setup-bucket-name-input"
-            />
-            <div className="pulse-setup-bucket-goal-input-wrap">
-              <span>$</span>
-              <input
-                type="number" placeholder="Monthly $"
-                value={newBucket.goal}
-                onChange={e => onUpdateNewBucket({ ...newBucket, goal: e.target.value })}
-              />
-            </div>
-            <button className="pulse-setup-add-btn" onClick={onAddBucket} disabled={!newBucket.name.trim() || !newBucket.goal}>+</button>
-          </div>
-        </div>
-
-        {error && <div className="pulse-setup-error">{error}</div>}
-
-        <button className="pulse-setup-finish" onClick={onFinish} disabled={isSaving}>
-          {isSaving ? 'Setting up Pulse...' : isUpdate ? 'Save Changes →' : 'Launch Pulse →'}
-        </button>
       </div>
     </div>
   );

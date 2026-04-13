@@ -18,6 +18,7 @@ import CookingModeEnhanced from './CookingModeEnhanced';
 import RestaurantMenu from './RestaurantMenu';
 import BrowseCards from './BrowseCards';
 import { MicButton } from './voice';
+import KitchenOnboarding, { hasCompletedKitchenOnboarding } from './KitchenOnboarding';
 import KitchenEmptyState from './KitchenEmptyState';
 
 function getWeekStart(): string {
@@ -50,6 +51,10 @@ export default function KitchenView() {
   // Cooking mode step tracking (placeholder — wire to real steps when available)
   const [cookingSteps, setCookingSteps] = useState([]);
   const [cookingCurrentStep, setCookingCurrentStep] = useState(0);
+
+  // Onboarding state
+  const [showOnboarding, setShowOnboarding] = useState(() => !hasCompletedKitchenOnboarding());
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
 
   const weekStart = useMemo(getWeekStart, []);
 
@@ -158,23 +163,46 @@ export default function KitchenView() {
     <div className="kitchen-matrix">
       {/* Background effects */}
       <div className="matrix-bg-effects" />
+
+      {/* Onboarding Overlay + Guided Tour */}
+      {showOnboarding && !onboardingComplete && (
+        <KitchenOnboarding
+          onComplete={() => {
+            setOnboardingComplete(true);
+            setShowOnboarding(false);
+          }}
+          onSaveConfig={async (config) => {
+            console.log('[KitchenView] Onboarding config:', config);
+            // Save preferences to engine config
+            try {
+              await invoke('set_config', { key: 'kitchen_dietary_prefs', value: JSON.stringify(config.dietaryPreferences) });
+              await invoke('set_config', { key: 'kitchen_household_size', value: String(config.householdSize) });
+              await invoke('set_config', { key: 'kitchen_skill_level', value: config.skillLevel });
+              await invoke('set_config', { key: 'kitchen_favorite_cuisines', value: JSON.stringify(config.favoriteCuisines) });
+            } catch (e) {
+              console.error('[KitchenView] Failed to save onboarding config:', e);
+            }
+          }}
+        />
+      )}
+
       {/* Header */}
       <div className="kitchen-header">
         <h2 className="kitchen-title">🔥 Hearth</h2>
         <div className="kitchen-tabs">
-          <button className={`kitchen-tab ${tab === 'home' ? 'active' : ''}`} onClick={() => setTab('home')}>
+          <button data-tab="home" className={`kitchen-tab ${tab === 'home' ? 'active' : ''}`} onClick={() => setTab('home')}>
             🏠 Home
           </button>
-          <button className={`kitchen-tab ${tab === 'library' ? 'active' : ''}`} onClick={() => setTab('library')}>
+          <button data-tab="library" className={`kitchen-tab ${tab === 'library' ? 'active' : ''}`} onClick={() => setTab('library')}>
             📖 Library
           </button>
-          <button className={`kitchen-tab ${tab === 'plan' ? 'active' : ''}`} onClick={() => setTab('plan')}>
+          <button data-tab="plan" className={`kitchen-tab ${tab === 'plan' ? 'active' : ''}`} onClick={() => setTab('plan')}>
             📅 Week Plan
           </button>
-          <button className={`kitchen-tab ${tab === 'grocery' ? 'active' : ''}`} onClick={() => setTab('grocery')}>
+          <button data-tab="grocery" className={`kitchen-tab ${tab === 'grocery' ? 'active' : ''}`} onClick={() => setTab('grocery')}>
             🛒 Grocery
           </button>
-          <button className={`kitchen-tab ${tab === 'pantry' ? 'active' : ''}`} onClick={() => setTab('pantry')}>
+          <button data-tab="pantry" className={`kitchen-tab ${tab === 'pantry' ? 'active' : ''}`} onClick={() => setTab('pantry')}>
             🌡️ Pantry
           </button>
         </div>
