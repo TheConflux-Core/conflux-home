@@ -2675,26 +2675,26 @@ pub async fn life_get_dashboard() -> Result<engine::types::LifeAutopilotDashboar
 #[tauri::command]
 pub async fn life_get_documents(member_id: Option<String>, doc_type: Option<String>) -> Result<Vec<engine::types::LifeDocument>, String> {
     let engine = engine::get_engine();
-    engine.db().get_documents(member_id.as_deref(), doc_type.as_deref()).map_err(|e| e.to_string())
+    engine.db().get_documents(member_id.as_deref(), doc_type.as_deref()).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn life_get_reminders(days: Option<i64>) -> Result<Vec<engine::types::LifeReminder>, String> {
     let engine = engine::get_engine();
-    engine.db().get_upcoming_reminders(days.unwrap_or(30)).map_err(|e| e.to_string())
+    engine.db().get_upcoming_reminders(days.unwrap_or(30)).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn life_get_knowledge(member_id: Option<String>, category: Option<String>) -> Result<Vec<engine::types::LifeKnowledge>, String> {
     let engine = engine::get_engine();
-    engine.db().get_knowledge(member_id.as_deref(), category.as_deref()).map_err(|e| e.to_string())
+    engine.db().get_knowledge(member_id.as_deref(), category.as_deref()).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn life_add_reminder(member_id: Option<String>, title: String, description: Option<String>, due_date: String, priority: Option<String>) -> Result<(), String> {
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
-    engine.db().add_reminder(&id, member_id.as_deref(), None, "custom", &title, description.as_deref(), &due_date, priority.as_deref().unwrap_or("normal"))
+    engine.db().add_reminder(&id, member_id.as_deref(), None, "custom", &title, description.as_deref(), &due_date, priority.as_deref().unwrap_or("normal")).await
         .map_err(|e| e.to_string())
 }
 
@@ -2799,7 +2799,7 @@ pub async fn life_get_orbit_dashboard(user_id: String) -> Result<engine::types::
 pub async fn life_add_daily_focus(user_id: String, task_id: String, position: Option<i64>) -> Result<(), String> {
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
-    engine.db().add_daily_focus(&id, &user_id, &task_id, position.unwrap_or(0)).map_err(|e| e.to_string())
+    engine.db().add_daily_focus(&id, &user_id, &task_id, position.unwrap_or(0)).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
