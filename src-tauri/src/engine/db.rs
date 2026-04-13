@@ -3977,11 +3977,11 @@ impl EngineDb {
         };
         let mut result = Vec::new();
         if let Some(s) = status {
-            let mut stmt = conn.prepare("SELECT id, member_id, title, description, category, target_date, status, progress, ai_plan, ai_next_actions, created_at, updated_at FROM dreams WHERE member_id = ?1 AND status = ?2 ORDER BY created_at DESC")?;
+            let mut stmt = conn.prepare("SELECT id, member_id, title, description, category, target_date, status, progress, ai_plan, ai_next_actions, created_at, updated_at FROM dreams WHERE (member_id = ?1 OR member_id IS NULL) AND status = ?2 ORDER BY created_at DESC")?;
             let rows = stmt.query_map(params![member_id, s], mapper)?;
             for r in rows { result.push(r?); }
         } else {
-            let mut stmt = conn.prepare("SELECT id, member_id, title, description, category, target_date, status, progress, ai_plan, ai_next_actions, created_at, updated_at FROM dreams WHERE member_id = ?1 ORDER BY created_at DESC")?;
+            let mut stmt = conn.prepare("SELECT id, member_id, title, description, category, target_date, status, progress, ai_plan, ai_next_actions, created_at, updated_at FROM dreams WHERE (member_id = ?1 OR member_id IS NULL) ORDER BY created_at DESC")?;
             let rows = stmt.query_map(params![member_id], mapper)?;
             for r in rows { result.push(r?); }
         }

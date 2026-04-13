@@ -182,7 +182,8 @@ export default function HorizonOnboarding({ onComplete }: Props) {
         editedTitle || parsed.title,
         null,
         parsed.category,
-        parsed.targetDate
+        parsed.targetDate,
+        undefined  // member_id — use auth context user_id via hook
       );
     } catch (e) {
       console.error('Failed to create dream:', e);
