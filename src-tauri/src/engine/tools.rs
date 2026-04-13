@@ -176,6 +176,16 @@ pub async fn execute_tool_for_user(tool_name: &str, args: &Value, _user_id: &str
         "dream_list" => execute_dream_list(args),
         "dream_add_milestone" => execute_dream_add_milestone(args),
         "dream_add_task" => execute_dream_add_task(args),
+        "dream_get_dashboard" => execute_dream_get_dashboard(args),
+        "dream_complete_milestone" => execute_dream_complete_milestone(args),
+        "dream_get_tasks" => execute_dream_get_tasks(args),
+        "dream_complete_task" => execute_dream_complete_task(args),
+        "dream_add_progress" => execute_dream_add_progress(args),
+        "dream_delete" => execute_dream_delete(args),
+        "dream_get_velocity" => execute_dream_get_velocity(args),
+        "dream_get_timeline" => execute_dream_get_timeline(args),
+        "dream_update_progress" => execute_dream_update_progress(args),
+        "dream_active_overview" => execute_dream_active_overview(args),
         // Home Health tools
         "home_add_bill" => execute_home_add_bill(args),
         "home_get_bills" => execute_home_get_bills(args),
@@ -700,6 +710,138 @@ pub fn get_app_tool_definitions() -> Vec<Value> {
                     },
                     "required": ["dream_id", "title"]
                 }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "dream_get_dashboard",
+                "description": "Get the dreams dashboard — active dreams, milestones, upcoming tasks, recent progress.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "dream_complete_milestone",
+                "description": "Mark a milestone as completed.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string", "description": "Milestone ID to complete" }
+                    },
+                    "required": ["id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "dream_get_tasks",
+                "description": "Get all tasks for a dream, showing completed and pending items.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "dream_id": { "type": "string", "description": "Dream ID" }
+                    },
+                    "required": ["dream_id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "dream_complete_task",
+                "description": "Mark a dream task as completed.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string", "description": "Task ID to complete" }
+                    },
+                    "required": ["id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "dream_add_progress",
+                "description": "Log a progress update for a dream. Include a note about what happened.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "dream_id": { "type": "string", "description": "Dream ID" },
+                        "note": { "type": "string", "description": "Progress note" },
+                        "progress_change": { "type": "number", "description": "Progress delta (0.0 to 1.0)" },
+                        "ai_insight": { "type": "string", "description": "Optional AI insight" }
+                    },
+                    "required": ["dream_id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "dream_delete",
+                "description": "Delete a dream and all associated milestones, tasks, and progress.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string", "description": "Dream UUID" },
+                        "title": { "type": "string", "description": "Dream title (case-insensitive lookup)" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "dream_get_velocity",
+                "description": "Get dream momentum/velocity — how fast you're making progress, tasks per week, on-track status.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "dream_id": { "type": "string", "description": "Dream ID" }
+                    },
+                    "required": ["dream_id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "dream_get_timeline",
+                "description": "Get the full timeline of events for a dream — milestones, tasks, progress entries.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "dream_id": { "type": "string", "description": "Dream ID" }
+                    },
+                    "required": ["dream_id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "dream_update_progress",
+                "description": "Manually set a dream's progress percentage.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "dream_id": { "type": "string", "description": "Dream ID" },
+                        "progress_pct": { "type": "number", "description": "Progress percentage (0-100)" }
+                    },
+                    "required": ["dream_id", "progress_pct"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "dream_active_overview",
+                "description": "Get an overview of all active dreams with their velocity and momentum.",
+                "parameters": { "type": "object", "properties": {} }
             }
         }),
         // ── Kitchen Tools ──
@@ -3634,6 +3776,218 @@ fn execute_dream_add_task(args: &Value) -> Result<ToolResult> {
                 due_date.map(|d| format!(" (due: {})", d)).unwrap_or_default()),
             error: None,
         }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+// ── Dreams Tool Implementations: Extended ──
+
+fn execute_dream_get_dashboard(_args: &Value) -> Result<ToolResult> {
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_dream_dashboard("NULL"))) {
+        Ok(dash) => {
+            let mut lines = vec![
+                format!("✨ Dream Dashboard — {} active dreams", dash.active_dreams),
+                format!("  Milestones: {}/{} completed", dash.completed_milestones, dash.total_milestones),
+            ];
+            if !dash.dreams.is_empty() {
+                lines.push("\n  Dreams:".into());
+                for d in &dash.dreams {
+                    let pct = (d.progress * 100.0).round();
+                    lines.push(format!("    {} {} — {:.0}% {}", d.title,
+                        if d.status == "active" { "🟢" } else { "⚪" }, pct, d.category));
+                }
+            }
+            if !dash.upcoming_tasks.is_empty() {
+                lines.push("\n  Upcoming tasks:".into());
+                for t in dash.upcoming_tasks.iter().take(5) {
+                    lines.push(format!("    ☐ {} (due: {})", t.title, t.due_date.as_deref().unwrap_or("no date")));
+                }
+            }
+            Ok(ToolResult { success: true, output: lines.join("\n"), error: None })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_dream_complete_milestone(args: &Value) -> Result<ToolResult> {
+    let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    if id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("milestone id is required".into()) });
+    }
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().complete_milestone("NULL", id))) {
+        Ok(()) => Ok(ToolResult { success: true, output: "✅ Milestone completed!".into(), error: None }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_dream_get_tasks(args: &Value) -> Result<ToolResult> {
+    let dream_id = args.get("dream_id").and_then(|v| v.as_str()).unwrap_or("");
+    if dream_id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("dream_id is required".into()) });
+    }
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_dream_tasks(dream_id, "NULL"))) {
+        Ok(tasks) => {
+            if tasks.is_empty() {
+                return Ok(ToolResult { success: true, output: "No tasks for this dream yet.".into(), error: None });
+            }
+            let lines: Vec<String> = tasks.iter().map(|t| {
+                let status = if t.is_completed { "✅" } else { "☐" };
+                format!("{} {}{}", status, t.title,
+                    t.due_date.as_deref().map(|d| format!(" (due: {})", d)).unwrap_or_default())
+            }).collect();
+            Ok(ToolResult { success: true, output: format!("{} tasks:\n{}", tasks.len(), lines.join("\n")), error: None })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_dream_complete_task(args: &Value) -> Result<ToolResult> {
+    let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    if id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("task id is required".into()) });
+    }
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().complete_dream_task("NULL", id))) {
+        Ok(()) => Ok(ToolResult { success: true, output: "✅ Task completed!".into(), error: None }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_dream_add_progress(args: &Value) -> Result<ToolResult> {
+    let dream_id = args.get("dream_id").and_then(|v| v.as_str()).unwrap_or("");
+    if dream_id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("dream_id is required".into()) });
+    }
+    let id = uuid::Uuid::new_v4().to_string();
+    let engine = super::get_engine();
+    let note = args.get("note").and_then(|v| v.as_str());
+    let progress_change = args.get("progress_change").and_then(|v| v.as_f64());
+    let ai_insight = args.get("ai_insight").and_then(|v| v.as_str());
+
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().add_dream_progress(&id, dream_id, "NULL", note, progress_change, ai_insight))) {
+        Ok(()) => Ok(ToolResult {
+            success: true,
+            output: format!("📝 Progress logged for dream {}{}", dream_id,
+                note.map(|n| format!(": {}", n)).unwrap_or_default()),
+            error: None,
+        }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_dream_delete(args: &Value) -> Result<ToolResult> {
+    let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    let title = args.get("title").and_then(|v| v.as_str()).unwrap_or("");
+    if id.is_empty() && title.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("dream id or title is required".into()) });
+    }
+
+    let engine = super::get_engine();
+    let dream_id = if !id.is_empty() {
+        id.to_string()
+    } else {
+        let dreams = match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_dreams("NULL", None))) {
+            Ok(d) => d,
+            Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+        };
+        match dreams.iter().find(|d| d.title.to_lowercase() == title.to_lowercase()) {
+            Some(d) => d.id.clone(),
+            None => return Ok(ToolResult { success: false, output: String::new(), error: Some(format!("Dream '{}' not found", title)) }),
+        }
+    };
+
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().delete_dream("NULL", &dream_id))) {
+        Ok(()) => Ok(ToolResult { success: true, output: "Deleted dream.".into(), error: None }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_dream_get_velocity(args: &Value) -> Result<ToolResult> {
+    let dream_id = args.get("dream_id").and_then(|v| v.as_str()).unwrap_or("");
+    if dream_id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("dream_id is required".into()) });
+    }
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_dream_velocity(dream_id, "NULL"))) {
+        Ok(v) => {
+            let pct = (v.progress_pct * 100.0).round();
+            let bar_len = (pct / 10.0).min(10.0) as usize;
+            let bar = "█".repeat(bar_len) + &"░".repeat(10 - bar_len);
+            let on_track = v.pace == "ahead" || v.pace == "on_track";
+            let tasks_per_week = if v.tasks_total > 0 { v.tasks_completed as f64 / 4.0 } else { 0.0 };
+            Ok(ToolResult {
+                success: true,
+                output: format!("🚀 Dream Velocity:\n  Progress: {} {:.0}%\n  Milestones: {}/{}\n  Tasks: {}/{}\n  Pace: {}\n  On track: {}\n  Days remaining: {}",
+                    bar, pct, v.milestones_completed, v.milestones_total,
+                    v.tasks_completed, v.tasks_total, v.pace,
+                    if on_track { "✅ Yes" } else { "⚠️ Behind" },
+                    v.days_remaining.map(|d| d.to_string()).unwrap_or_else(|| "∞".into())),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_dream_get_timeline(args: &Value) -> Result<ToolResult> {
+    let dream_id = args.get("dream_id").and_then(|v| v.as_str()).unwrap_or("");
+    if dream_id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("dream_id is required".into()) });
+    }
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_dream_timeline(dream_id, "NULL"))) {
+        Ok(tl) => {
+            if tl.entries.is_empty() {
+                return Ok(ToolResult { success: true, output: "No timeline entries yet.".into(), error: None });
+            }
+            let lines: Vec<String> = tl.entries.iter().map(|e| {
+                let icon = match e.event_type.as_str() {
+                    "milestone" => "🏁",
+                    "task" => "✅",
+                    "progress" => "📝",
+                    _ => "•",
+                };
+                format!("  {} {} — {}", icon, e.date, e.title)
+            }).collect();
+            Ok(ToolResult { success: true, output: format!("📜 Dream Timeline ({} entries):\n{}", tl.entries.len(), lines.join("\n")), error: None })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_dream_update_progress(args: &Value) -> Result<ToolResult> {
+    let dream_id = args.get("dream_id").and_then(|v| v.as_str()).unwrap_or("");
+    if dream_id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("dream_id is required".into()) });
+    }
+    let pct = match args.get("progress_pct").and_then(|v| v.as_f64()) {
+        Some(p) => p.clamp(0.0, 100.0) / 100.0,
+        None => return Ok(ToolResult { success: false, output: String::new(), error: Some("progress_pct is required".into()) }),
+    };
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().set_dream_progress("NULL", dream_id, pct))) {
+        Ok(()) => Ok(ToolResult { success: true, output: format!("Progress set to {:.0}%.", pct * 100.0), error: None }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_dream_active_overview(_args: &Value) -> Result<ToolResult> {
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_active_dreams_with_velocity("NULL"))) {
+        Ok(pairs) => {
+            if pairs.is_empty() {
+                return Ok(ToolResult { success: true, output: "No active dreams. Use dream_add to create one.".into(), error: None });
+            }
+            let lines: Vec<String> = pairs.iter().map(|(dream, vel)| {
+                let pct = (dream.progress * 100.0).round();
+                let track = if vel.pace == "ahead" || vel.pace == "on_track" { "✅" } else { "⚠️" };
+                format!("  {} {} — {:.0}% (momentum: {:.0}%, {:.1} tasks/wk)", track, dream.title, pct, (vel.progress_pct * 100.0).round(), 0.0)
+            }).collect();
+            Ok(ToolResult { success: true, output: format!("✨ {} Active Dreams:\n{}", pairs.len(), lines.join("\n")), error: None })
+        }
         Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
     }
 }
