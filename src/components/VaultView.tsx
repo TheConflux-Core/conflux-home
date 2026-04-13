@@ -31,11 +31,11 @@ export default function VaultView() {
         const result = await invoke<VaultFile[]>('vault_get_favorites');
         setFiles(result);
       } else if (activeSection === 'all') {
-        const result = await invoke<VaultFile[]>('vault_get_files', { fileType: null, limit: 100, offset: 0 });
+        const result = await invoke<VaultFile[]>('vault_get_files', { file_type: null, limit: 100, offset: 0 });
         setFiles(result);
       } else {
         // file type filter
-        const result = await invoke<VaultFile[]>('vault_get_files', { fileType: activeSection, limit: 100, offset: 0 });
+        const result = await invoke<VaultFile[]>('vault_get_files', { file_type: activeSection, limit: 100, offset: 0 });
         setFiles(result);
       }
     } catch (e) {
@@ -91,14 +91,14 @@ export default function VaultView() {
   const handleCreateProject = async () => {
     const name = prompt('Project name:');
     if (!name) return;
-    await invoke('vault_create_project', { name, description: null, projectType: null });
+    await invoke('vault_create_project', { name, description: null, project_type: null });
     loadProjects();
   };
 
   const handleScan = async () => {
     // Scan the vault directory
     const home = '/home/calo/.conflux/vault';
-    await invoke('vault_scan_directory', { dirPath: home });
+    await invoke('vault_scan_directory', { dir_path: home });
     loadFiles();
     loadStats();
   };
