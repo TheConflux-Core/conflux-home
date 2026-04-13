@@ -186,6 +186,9 @@ pub async fn execute_tool_for_user(tool_name: &str, args: &Value, _user_id: &str
         "feed_list_items" => execute_feed_list_items(args),
         "feed_mark_read" => execute_feed_mark_read(args),
         "feed_toggle_bookmark" => execute_feed_toggle_bookmark(args),
+        "feed_get_ripples" => execute_feed_get_ripples(args),
+        "feed_signal_threads" => execute_feed_signal_threads(args),
+        "feed_get_questions" => execute_feed_get_questions(args),
         "dream_add" => execute_dream_add(args),
         "dream_list" => execute_dream_list(args),
         "dream_add_milestone" => execute_dream_add_milestone(args),
@@ -272,6 +275,29 @@ pub async fn execute_tool_for_user(tool_name: &str, args: &Value, _user_id: &str
         "conflux_weekly_summary" => execute_weekly_summary(args),
         "conflux_can_afford" => execute_can_afford(args),
         "conflux_day_overview" => execute_day_overview(args),
+        // Echo Journal tools
+        "echo_write_entry" => execute_echo_write_entry(args),
+        "echo_get_entries" => execute_echo_get_entries(args),
+        "echo_delete_entry" => execute_echo_delete_entry(args),
+        "echo_get_stats" => execute_echo_get_stats(args),
+        "echo_get_patterns" => execute_echo_get_patterns(args),
+        "echo_create_pattern" => execute_echo_create_pattern(args),
+        "echo_get_entries_by_date" => execute_echo_get_entries_by_date(args),
+        // Echo Counselor tools
+        "echo_counselor_get_state" => execute_echo_counselor_get_state(args),
+        "echo_counselor_start_session" => execute_echo_counselor_start_session(args),
+        "echo_counselor_get_messages" => execute_echo_counselor_get_messages(args),
+        "echo_counselor_end_session" => execute_echo_counselor_end_session(args),
+        "echo_counselor_flag_crisis" => execute_echo_counselor_flag_crisis(args),
+        "echo_counselor_write_gratitude" => execute_echo_counselor_write_gratitude(args),
+        "echo_counselor_get_gratitude" => execute_echo_counselor_get_gratitude(args),
+        "echo_counselor_get_exercises" => execute_echo_counselor_get_exercises(args),
+        "echo_counselor_complete_exercise" => execute_echo_counselor_complete_exercise(args),
+        "echo_counselor_get_reflections" => execute_echo_counselor_get_reflections(args),
+        "echo_counselor_mark_reflection_read" => execute_echo_counselor_mark_reflection_read(args),
+        "echo_counselor_get_weekly_letter" => execute_echo_counselor_get_weekly_letter(args),
+        "echo_counselor_get_weekly_letter_history" => execute_echo_counselor_get_weekly_letter_history(args),
+        "echo_counselor_set_evening_reminder" => execute_echo_counselor_set_evening_reminder(args),
         _ => Ok(ToolResult {
             success: false,
             output: String::new(),
@@ -856,6 +882,30 @@ pub fn get_app_tool_definitions() -> Vec<Value> {
                     },
                     "required": ["id"]
                 }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "feed_get_ripples",
+                "description": "Get detected ripple signals from the Radar — weak signals and emerging trends across your life data.",
+                "parameters": { "type": "object", "properties": { "limit": { "type": "integer", "description": "Max ripples to return (default: 20)" }, "category": { "type": "string", "description": "Filter by category: finance, dreams, creative, general" } } }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "feed_signal_threads",
+                "description": "Get active signal threads being tracked on the Radar.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "feed_get_questions",
+                "description": "Get previously asked questions and their answers from the Feed intelligence layer.",
+                "parameters": { "type": "object", "properties": { "limit": { "type": "integer", "description": "Max questions to return (default: 10)" } } }
             }
         }),
         // ── Dreams Tools ──
@@ -1955,6 +2005,280 @@ pub fn get_app_tool_definitions() -> Vec<Value> {
                 "name": "conflux_day_overview",
                 "description": "Get a quick overview of what matters today — tasks due, bills due, meal plan, expiring pantry items.",
                 "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        // ── Echo Journal Tools ──
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_write_entry",
+                "description": "Write a new journal entry to Echo.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "content": { "type": "string", "description": "Journal entry content (required)" },
+                        "mood": { "type": "string", "description": "Current mood (e.g., happy, anxious, calm, grateful)" },
+                        "tags": { "type": "array", "items": { "type": "string" }, "description": "Tags for categorization" },
+                        "is_voice": { "type": "boolean", "description": "Whether this was a voice entry" }
+                    },
+                    "required": ["content"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_get_entries",
+                "description": "Get journal entries from Echo, newest first.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "limit": { "type": "integer", "description": "Max entries to return" },
+                        "offset": { "type": "integer", "description": "Skip first N entries" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_delete_entry",
+                "description": "Delete a journal entry from Echo.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string", "description": "Entry ID (required)" }
+                    },
+                    "required": ["id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_get_stats",
+                "description": "Get Echo journal stats — streak, entries today, top mood, recent themes.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_get_patterns",
+                "description": "Get detected patterns from journal analysis.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_create_pattern",
+                "description": "Create a detected pattern from journal analysis.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "pattern_type": { "type": "string", "description": "Pattern type (required)" },
+                        "title": { "type": "string", "description": "Pattern title (required)" },
+                        "description": { "type": "string", "description": "Pattern description (required)" },
+                        "confidence": { "type": "number", "description": "Confidence 0.0-1.0 (default: 0.5)" },
+                        "data_json": { "type": "string", "description": "Optional JSON data" }
+                    },
+                    "required": ["pattern_type", "title", "description"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_get_entries_by_date",
+                "description": "Get journal entries for a specific date.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "date": { "type": "string", "description": "Date in YYYY-MM-DD format (required)" }
+                    },
+                    "required": ["date"]
+                }
+            }
+        }),
+        // ── Echo Counselor Tools ──
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_counselor_get_state",
+                "description": "Get the Echo Counselor current state — session counts, mood entries, crisis flags.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_counselor_start_session",
+                "description": "Start a new counselor session.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "opening": { "type": "string", "description": "Optional opening message" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_counselor_get_messages",
+                "description": "Get messages from a counselor session.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "session_id": { "type": "string", "description": "Session ID (required)" }
+                    },
+                    "required": ["session_id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_counselor_end_session",
+                "description": "End a counselor session.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "session_id": { "type": "string", "description": "Session ID (required)" }
+                    },
+                    "required": ["session_id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_counselor_flag_crisis",
+                "description": "Flag a crisis situation for immediate support resources.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "session_id": { "type": "string", "description": "Session ID" },
+                        "content": { "type": "string", "description": "Crisis content text (required)" },
+                        "severity": { "type": "string", "enum": ["low", "moderate", "high", "critical"], "description": "Severity level (default: moderate)" },
+                        "detected_text": { "type": "string", "description": "Text that triggered the flag" }
+                    },
+                    "required": ["content"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_counselor_write_gratitude",
+                "description": "Log a gratitude entry.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "items": { "type": "array", "items": { "type": "string" }, "description": "Gratitude items (required)" },
+                        "context": { "type": "string", "description": "Optional context" }
+                    },
+                    "required": ["items"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_counselor_get_gratitude",
+                "description": "Get gratitude journal entries.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "limit": { "type": "integer", "description": "Max entries to return" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_counselor_get_exercises",
+                "description": "Get available grounding exercises.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_counselor_complete_exercise",
+                "description": "Mark a grounding exercise as completed.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "exercise_id": { "type": "string", "description": "Exercise ID (required)" }
+                    },
+                    "required": ["exercise_id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_counselor_get_reflections",
+                "description": "Get past session reflections for review.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "limit": { "type": "integer", "description": "Max reflections to return" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_counselor_mark_reflection_read",
+                "description": "Mark a session reflection as read.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "session_id": { "type": "string", "description": "Session ID (required)" }
+                    },
+                    "required": ["session_id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_counselor_get_weekly_letter",
+                "description": "Get the current weekly letter from the counselor.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_counselor_get_weekly_letter_history",
+                "description": "Get past weekly letters.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "limit": { "type": "integer", "description": "Max letters to return" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "echo_counselor_set_evening_reminder",
+                "description": "Enable or disable the evening ritual reminder.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": { "type": "boolean", "description": "Enable or disable (default: true)" },
+                        "hour": { "type": "integer", "description": "Hour 0-23 (default: 20)" },
+                        "minute": { "type": "integer", "description": "Minute 0-59 (default: 0)" }
+                    }
+                }
             }
         }),
     ]
@@ -3237,8 +3561,7 @@ fn execute_vault_get_project_detail(args: &Value) -> Result<ToolResult> {
         Ok(Some(detail)) => {
             let desc = detail.project.description.as_deref().unwrap_or("no description");
             let lines: Vec<String> = detail.files.iter().map(|f| {
-                let ftype = f.file_type.as_deref().unwrap_or("file");
-                format!("  • {} [{}]", f.name, ftype)
+                format!("  • {} [{}]", f.name, f.file_type)
             }).collect();
             let ptype = detail.project.project_type.as_deref().unwrap_or("general");
             Ok(ToolResult {
@@ -4971,6 +5294,49 @@ fn execute_feed_toggle_bookmark(args: &Value) -> Result<ToolResult> {
     }
 }
 
+
+fn execute_feed_get_ripples(args: &Value) -> Result<ToolResult> {
+    let limit = args.get("limit").and_then(|v| v.as_i64()).unwrap_or(20);
+    let category = args.get("category").and_then(|v| v.as_str());
+    let engine = super::get_engine();
+    let db = engine.db();
+    let conn = db.conn();
+    let mut query = String::from("SELECT id, title, description, confidence, category, why_it_could_matter, sources_json, detected_at FROM ripples");
+    let mut conditions = Vec::new();
+    let mut params_vec: Vec<String> = Vec::new();
+    if let Some(cat) = category { conditions.push("category = ?".to_string()); params_vec.push(cat.to_string()); }
+    if !conditions.is_empty() { query.push_str(&format!(" WHERE {}", conditions.join(" AND "))); }
+    query.push_str(&format!(" ORDER BY detected_at DESC LIMIT {}", limit));
+    let mut stmt = match conn.prepare(&query) { Ok(s) => s, Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }) };
+    let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
+    let rows = match stmt.query_map(&params_refs[..], |row| { Ok(serde_json::json!({"id": row.get::<_, String>(0)?, "title": row.get::<_, String>(1)?, "description": row.get::<_, String>(2)?, "confidence": row.get::<_, f64>(3)?, "category": row.get::<_, String>(4)?, "why_it_could_matter": row.get::<_, String>(5)?, "sources": serde_json::from_str::<Vec<String>>(&row.get::<_, Option<String>>(6)?.unwrap_or_default()).unwrap_or_default(), "detected_at": row.get::<_, String>(7)? })) }) { Ok(r) => r, Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }) };
+    let mut ripples = Vec::new(); for r in rows { if let Ok(val) = r { ripples.push(val); } }
+    if ripples.is_empty() { return Ok(ToolResult { success: true, output: "No ripples detected yet.".into(), error: None }); }
+    let lines: Vec<String> = ripples.iter().map(|r| { let conf = (r["confidence"].as_f64().unwrap_or(0.0) * 100.0) as i64; let cat = r["category"].as_str().unwrap_or("general"); let emoji = match cat { "finance" => "\u{1f49a}", "dreams" => "\u{1f7e1}", "creative" => "\u{1f7e3}", _ => "\u{1f535}" }; format!("{} {} [{}% \u{2014} {}]: {}", emoji, r["title"].as_str().unwrap_or(""), conf, cat, r["description"].as_str().unwrap_or("")) }).collect();
+    Ok(ToolResult { success: true, output: format!("Ripple Radar ({} signals):\n{}", ripples.len(), lines.join("\n\n")), error: None })
+}
+
+fn execute_feed_signal_threads(_args: &Value) -> Result<ToolResult> {
+    let engine = super::get_engine(); let db = engine.db(); let conn = db.conn();
+    let mut stmt = match conn.prepare("SELECT id, topic, summary, prediction, prediction_confidence, entries_count, updated_at FROM signal_threads ORDER BY updated_at DESC") { Ok(s) => s, Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }) };
+    let rows = match stmt.query_map([], |row| { Ok(serde_json::json!({"id": row.get::<_, String>(0)?, "topic": row.get::<_, String>(1)?, "summary": row.get::<_, String>(2)?, "prediction": row.get::<_, Option<String>>(3)?, "prediction_confidence": row.get::<_, Option<f64>>(4)?, "entries_count": row.get::<_, i64>(5)?, "updated_at": row.get::<_, String>(6)? })) }) { Ok(r) => r, Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }) };
+    let mut threads = Vec::new(); for r in rows { if let Ok(val) = r { threads.push(val); } }
+    if threads.is_empty() { return Ok(ToolResult { success: true, output: "No signal threads tracked yet.".into(), error: None }); }
+    let lines: Vec<String> = threads.iter().map(|t| { let conf = t["prediction_confidence"].as_f64().map(|c| format!("{}%", (c * 100.0) as i64)).unwrap_or_else(|| "n/a".into()); format!("\u{2022} {} \u{2014} {} ({} entries, confidence: {})\n  Prediction: {}", t["topic"].as_str().unwrap_or(""), t["summary"].as_str().unwrap_or(""), t["entries_count"].as_i64().unwrap_or(0), conf, t["prediction"].as_str().unwrap_or("none")) }).collect();
+    Ok(ToolResult { success: true, output: format!("Signal Threads ({}):\n{}", threads.len(), lines.join("\n\n")), error: None })
+}
+
+fn execute_feed_get_questions(args: &Value) -> Result<ToolResult> {
+    let limit = args.get("limit").and_then(|v| v.as_i64()).unwrap_or(10);
+    let engine = super::get_engine(); let db = engine.db(); let conn = db.conn();
+    let mut stmt = match conn.prepare(&format!("SELECT id, question, answer, confidence_level, asked_at FROM questions ORDER BY asked_at DESC LIMIT {}", limit)) { Ok(s) => s, Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }) };
+    let rows = match stmt.query_map([], |row| { Ok(serde_json::json!({"id": row.get::<_, String>(0)?, "question": row.get::<_, String>(1)?, "answer": row.get::<_, String>(2)?, "confidence_level": row.get::<_, Option<String>>(3)?, "asked_at": row.get::<_, String>(4)? })) }) { Ok(r) => r, Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }) };
+    let mut questions = Vec::new(); for r in rows { if let Ok(val) = r { questions.push(val); } }
+    if questions.is_empty() { return Ok(ToolResult { success: true, output: "No questions asked yet.".into(), error: None }); }
+    let lines: Vec<String> = questions.iter().map(|q| { let answer_preview: String = q["answer"].as_str().unwrap_or("").chars().take(120).collect(); format!("Q: {}\nA: {}... (confidence: {})", q["question"].as_str().unwrap_or(""), answer_preview, q["confidence_level"].as_str().unwrap_or("n/a")) }).collect();
+    Ok(ToolResult { success: true, output: format!("Questions ({}):\n{}", questions.len(), lines.join("\n\n")), error: None })
+}
+
 // ── Dreams Tool Implementations ──
 
 fn execute_dream_add(args: &Value) -> Result<ToolResult> {
@@ -5272,6 +5638,397 @@ fn execute_dream_active_overview(_args: &Value) -> Result<ToolResult> {
             }).collect();
             Ok(ToolResult { success: true, output: format!("✨ {} Active Dreams:\n{}", pairs.len(), lines.join("\n")), error: None })
         }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+// ── Echo Journal Tool Implementations ──
+
+fn execute_echo_write_entry(args: &Value) -> Result<ToolResult> {
+    let content = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
+    if content.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("content is required".into()) });
+    }
+
+    let engine = super::get_engine();
+    let mood = args.get("mood").and_then(|v| v.as_str());
+    let tags: Option<Vec<String>> = args.get("tags").and_then(|v| v.as_array()).map(|arr| {
+        arr.iter().filter_map(|t| t.as_str().map(String::from)).collect()
+    });
+    let is_voice = args.get("is_voice").and_then(|v| v.as_bool()).unwrap_or(false);
+
+    let req = crate::commands::EchoWriteRequest {
+        content: content.to_string(),
+        mood: mood.map(String::from),
+        tags,
+        is_voice: Some(is_voice),
+    };
+
+    match engine.db().echo_create_entry(&req) {
+        Ok(entry) => Ok(ToolResult {
+            success: true,
+            output: format!("📝 Echo entry written ({} words, id: {})", entry.word_count, entry.id),
+            error: None,
+        }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_echo_get_entries(args: &Value) -> Result<ToolResult> {
+    let limit = args.get("limit").and_then(|v| v.as_i64());
+    let offset = args.get("offset").and_then(|v| v.as_i64());
+    let engine = super::get_engine();
+
+    match engine.db().echo_get_entries(limit, offset) {
+        Ok(entries) => {
+            if entries.is_empty() {
+                return Ok(ToolResult { success: true, output: "No echo entries yet.".into(), error: None });
+            }
+            let lines: Vec<String> = entries.iter().map(|e| {
+                let preview: String = e.content.chars().take(80).collect();
+                let mood = e.mood.as_deref().unwrap_or("—");
+                format!("• [{}] {} ({}) — {}", e.created_at, mood, e.word_count, preview)
+            }).collect();
+            Ok(ToolResult {
+                success: true,
+                output: format!("📓 Echo Entries ({}):\n{}", entries.len(), lines.join("\n")),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_echo_delete_entry(args: &Value) -> Result<ToolResult> {
+    let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    if id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("id is required".into()) });
+    }
+
+    let engine = super::get_engine();
+    match engine.db().echo_delete_entry(id) {
+        Ok(()) => Ok(ToolResult { success: true, output: format!("Deleted echo entry: {}", id), error: None }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_echo_get_stats(_args: &Value) -> Result<ToolResult> {
+    let engine = super::get_engine();
+    match engine.db().echo_get_stats() {
+        Ok(stats) => {
+            let top_mood = stats.top_mood.as_deref().unwrap_or("none");
+            Ok(ToolResult {
+                success: true,
+                output: format!("📊 Echo Stats:\n  Total entries: {}\n  Today: {}\n  Current streak: {} days\n  Avg words/entry: {:.0}\n  Top mood: {}\n  Recent themes: {}",
+                    stats.total_entries, stats.today_entries.len(), stats.current_streak,
+                    stats.avg_words_per_entry, top_mood,
+                    if stats.recent_themes.is_empty() { "none".into() } else { stats.recent_themes.join(", ") }),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_echo_get_patterns(_args: &Value) -> Result<ToolResult> {
+    let engine = super::get_engine();
+    match engine.db().echo_get_patterns() {
+        Ok(patterns) => {
+            if patterns.is_empty() {
+                return Ok(ToolResult { success: true, output: "No patterns detected yet.".into(), error: None });
+            }
+            let lines: Vec<String> = patterns.iter().map(|p| {
+                format!("• {} [{}] — {} (confidence: {:.0}%)", p.title, p.pattern_type, p.description, p.confidence * 100.0)
+            }).collect();
+            Ok(ToolResult {
+                success: true,
+                output: format!("🔮 Echo Patterns ({}):\n{}", patterns.len(), lines.join("\n")),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_echo_create_pattern(args: &Value) -> Result<ToolResult> {
+    let pattern_type = args.get("pattern_type").and_then(|v| v.as_str()).unwrap_or("");
+    let title = args.get("title").and_then(|v| v.as_str()).unwrap_or("");
+    let description = args.get("description").and_then(|v| v.as_str()).unwrap_or("");
+    if pattern_type.is_empty() || title.is_empty() || description.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("pattern_type, title, and description are required".into()) });
+    }
+
+    let confidence = args.get("confidence").and_then(|v| v.as_f64()).unwrap_or(0.5);
+    let data_json = args.get("data_json").and_then(|v| v.as_str());
+    let engine = super::get_engine();
+
+    match engine.db().echo_create_pattern(pattern_type, title, description, confidence, data_json) {
+        Ok(()) => Ok(ToolResult {
+            success: true,
+            output: format!("Created pattern: '{}' [{}]", title, pattern_type),
+            error: None,
+        }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_echo_get_entries_by_date(args: &Value) -> Result<ToolResult> {
+    let date = args.get("date").and_then(|v| v.as_str()).unwrap_or("");
+    if date.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("date is required (YYYY-MM-DD)".into()) });
+    }
+
+    let engine = super::get_engine();
+    match engine.db().echo_get_entries_by_date(date) {
+        Ok(entries) => {
+            if entries.is_empty() {
+                return Ok(ToolResult { success: true, output: format!("No echo entries for {}.", date), error: None });
+            }
+            let lines: Vec<String> = entries.iter().map(|e| {
+                let preview: String = e.content.chars().take(100).collect();
+                format!("• {} — {}", e.mood.as_deref().unwrap_or("—"), preview)
+            }).collect();
+            Ok(ToolResult {
+                success: true,
+                output: format!("📓 Echo Entries for {} ({}):\n{}", date, entries.len(), lines.join("\n")),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+// ── Echo Counselor Tool Implementations ──
+
+fn execute_echo_counselor_get_state(_args: &Value) -> Result<ToolResult> {
+    match crate::engine::echo_counselor::get_state() {
+        Ok(state) => {
+            let session_status = state.current_session.as_ref().map(|s| s.status.as_str()).unwrap_or("none");
+            Ok(ToolResult {
+                success: true,
+                output: format!("🧠 Echo Counselor:\n  Current session: {}\n  Total sessions: {}\n  Streak: {} days (best: {})\n  Pending exercises: {}\n  Crisis flags: {}\n  Unread reflections: {}",
+                    session_status, state.total_sessions, state.current_streak, state.longest_streak,
+                    state.pending_exercises.len(), state.crisis_flags.len(), state.unread_reflection),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_echo_counselor_start_session(args: &Value) -> Result<ToolResult> {
+    let opening = args.get("opening").and_then(|v| v.as_str());
+    let req = crate::engine::echo_counselor::EchoStartSessionRequest {
+        opening: opening.map(String::from),
+    };
+    match crate::engine::echo_counselor::start_session(req) {
+        Ok(session) => Ok(ToolResult {
+            success: true,
+            output: format!("Started counselor session: {} (status: {})", session.id, session.status),
+            error: None,
+        }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_echo_counselor_get_messages(args: &Value) -> Result<ToolResult> {
+    let session_id = args.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
+    if session_id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("session_id is required".into()) });
+    }
+
+    match crate::engine::echo_counselor::get_messages(session_id) {
+        Ok(messages) => {
+            if messages.is_empty() {
+                return Ok(ToolResult { success: true, output: "No messages in this session.".into(), error: None });
+            }
+            let lines: Vec<String> = messages.iter().map(|m| {
+                let prefix = if m.role == "user" { "👤" } else { "🧠" };
+                let preview: String = m.content.chars().take(100).collect();
+                format!("{} {}", prefix, preview)
+            }).collect();
+            Ok(ToolResult {
+                success: true,
+                output: format!("💬 Session Messages ({}):\n{}", messages.len(), lines.join("\n")),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_echo_counselor_end_session(args: &Value) -> Result<ToolResult> {
+    let session_id = args.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
+    if session_id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("session_id is required".into()) });
+    }
+
+    match crate::engine::echo_counselor::end_session(session_id) {
+        Ok(()) => Ok(ToolResult { success: true, output: format!("Ended counselor session: {}", session_id), error: None }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_echo_counselor_flag_crisis(args: &Value) -> Result<ToolResult> {
+    let session_id = args.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
+    let content = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
+    let severity = args.get("severity").and_then(|v| v.as_str()).unwrap_or("moderate");
+    let detected_text = args.get("detected_text").and_then(|v| v.as_str()).unwrap_or("");
+    if content.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("content is required".into()) });
+    }
+
+    match crate::engine::echo_counselor::flag_crisis(session_id, content, severity, detected_text) {
+        Ok(flag) => Ok(ToolResult {
+            success: true,
+            output: format!("🚨 Crisis flagged: severity={} (id: {})", flag.severity, flag.id),
+            error: None,
+        }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_echo_counselor_write_gratitude(args: &Value) -> Result<ToolResult> {
+    let items: Vec<String> = args.get("items").and_then(|v| v.as_array()).map(|arr| {
+        arr.iter().filter_map(|i| i.as_str().map(String::from)).collect()
+    }).unwrap_or_default();
+    if items.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("items is required (array of strings)".into()) });
+    }
+
+    let context = args.get("context").and_then(|v| v.as_str()).map(String::from);
+    match crate::engine::echo_counselor::write_gratitude(items, context) {
+        Ok(()) => Ok(ToolResult { success: true, output: "🙏 Gratitude logged.".into(), error: None }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_echo_counselor_get_gratitude(args: &Value) -> Result<ToolResult> {
+    let limit = args.get("limit").and_then(|v| v.as_i64());
+    match crate::engine::echo_counselor::get_gratitude(limit) {
+        Ok(entries) => {
+            if entries.is_empty() {
+                return Ok(ToolResult { success: true, output: "No gratitude entries yet.".into(), error: None });
+            }
+            let lines: Vec<String> = entries.iter().map(|g| {
+                format!("• [{}] {}", g.created_at, g.items)
+            }).collect();
+            Ok(ToolResult {
+                success: true,
+                output: format!("🙏 Gratitude ({}):\n{}", entries.len(), lines.join("\n")),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_echo_counselor_get_exercises(_args: &Value) -> Result<ToolResult> {
+    match crate::engine::echo_counselor::get_exercises() {
+        Ok(exercises) => {
+            if exercises.is_empty() {
+                return Ok(ToolResult { success: true, output: "No grounding exercises available.".into(), error: None });
+            }
+            let lines: Vec<String> = exercises.iter().map(|e| {
+                let status = if e.completed { "✅" } else { "⬜" };
+                format!("{} {} [{}] — {} ({} min)", status, e.title, e.r#type, e.description, e.duration_min)
+            }).collect();
+            Ok(ToolResult {
+                success: true,
+                output: format!("🧘 Grounding Exercises ({}):\n{}", exercises.len(), lines.join("\n")),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_echo_counselor_complete_exercise(args: &Value) -> Result<ToolResult> {
+    let exercise_id = args.get("exercise_id").and_then(|v| v.as_str()).unwrap_or("");
+    if exercise_id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("exercise_id is required".into()) });
+    }
+
+    match crate::engine::echo_counselor::complete_exercise(exercise_id) {
+        Ok(()) => Ok(ToolResult { success: true, output: format!("✅ Completed exercise: {}", exercise_id), error: None }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_echo_counselor_get_reflections(args: &Value) -> Result<ToolResult> {
+    let limit = args.get("limit").and_then(|v| v.as_i64());
+    match crate::engine::echo_counselor::get_reflections(limit) {
+        Ok(sessions) => {
+            if sessions.is_empty() {
+                return Ok(ToolResult { success: true, output: "No reflections yet.".into(), error: None });
+            }
+            let lines: Vec<String> = sessions.iter().map(|s| {
+                let summary = s.summary.as_deref().unwrap_or("no summary");
+                format!("• [{}] {} ({} messages)", s.created_at, summary, s.message_count)
+            }).collect();
+            Ok(ToolResult {
+                success: true,
+                output: format!("🪞 Reflections ({}):\n{}", sessions.len(), lines.join("\n")),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_echo_counselor_mark_reflection_read(args: &Value) -> Result<ToolResult> {
+    let session_id = args.get("session_id").and_then(|v| v.as_str()).unwrap_or("");
+    if session_id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("session_id is required".into()) });
+    }
+
+    match crate::engine::echo_counselor::mark_reflection_read(session_id) {
+        Ok(()) => Ok(ToolResult { success: true, output: format!("Marked reflection as read: {}", session_id), error: None }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_echo_counselor_get_weekly_letter(_args: &Value) -> Result<ToolResult> {
+    match crate::engine::echo_counselor::get_weekly_letter() {
+        Ok(Some(letter)) => Ok(ToolResult {
+            success: true,
+            output: format!("💌 Weekly Letter (week of {}):\n{}", letter.week_start, letter.letter_content),
+            error: None,
+        }),
+        Ok(None) => Ok(ToolResult { success: true, output: "No weekly letter generated yet.".into(), error: None }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_echo_counselor_get_weekly_letter_history(args: &Value) -> Result<ToolResult> {
+    let limit = args.get("limit").and_then(|v| v.as_i64());
+    match crate::engine::echo_counselor::get_weekly_letter_history(limit) {
+        Ok(letters) => {
+            if letters.is_empty() {
+                return Ok(ToolResult { success: true, output: "No weekly letter history.".into(), error: None });
+            }
+            let lines: Vec<String> = letters.iter().map(|l| {
+                let preview: String = l.letter_content.chars().take(80).collect();
+                format!("• Week of {}: {}...", l.week_start, preview)
+            }).collect();
+            Ok(ToolResult {
+                success: true,
+                output: format!("💌 Weekly Letters ({}):\n{}", letters.len(), lines.join("\n")),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_echo_counselor_set_evening_reminder(args: &Value) -> Result<ToolResult> {
+    let enabled = args.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
+    let hour = args.get("hour").and_then(|v| v.as_i64()).map(|h| h as i32);
+    let minute = args.get("minute").and_then(|v| v.as_i64()).map(|m| m as i32);
+
+    let req = crate::commands::SetEveningReminderRequest { enabled, hour, minute };
+    match crate::commands::echo_counselor_set_evening_reminder(req) {
+        Ok(msg) => Ok(ToolResult { success: true, output: msg, error: None }),
         Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
     }
 }
