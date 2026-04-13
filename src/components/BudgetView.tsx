@@ -9,9 +9,11 @@ import PulseParticles from './PulseParticles';
 import BudgetConfigModal from './BudgetConfigModal';
 import { TransactionLogModal } from './TransactionLogModal';
 import { parseBudgetCommand } from '../hooks/useBudgetAI';
-import BudgetOnboarding, { type SetupConfig, hasCompletedBudgetOnboarding } from './BudgetOnboarding';
+import PulseBoot from './PulseBoot';
+import PulseOnboarding, { hasCompletedPulseOnboarding } from './PulseOnboarding';
+import PulseTour, { hasCompletedPulseTour } from './PulseTour';
 import '../styles/budget-pulse.css';
-import '../styles/pulse-onboarding.css';
+import '../styles/pulse-onboarding-v2.css';
 
 function formatMoney(n: number): string {
   return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -32,11 +34,14 @@ export default function BudgetView() {
     loading 
   } = useBudgetEngine();
 
-  // Onboarding state — separate keys for data-onboarding (persistent) vs tour (resettable)
-  const [showOnboarding, setShowOnboarding] = useState(() => {
-    return !hasCompletedBudgetOnboarding();
-  });
+  // Boot → Onboarding → Tour state
+  const [bootDone, setBootDone] = useState(() => localStorage.getItem('pulse-boot-done') === 'true');
+  const hasOnboarded = hasCompletedPulseOnboarding();
+  const hasTakenTour = hasCompletedPulseTour();
+  const [showOnboarding, setShowOnboarding] = useState(!bootDone && !hasOnboarded);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
+  const [showTour, setShowTour] = useState(!bootDone ? false : !hasTakenTour);
+  const [tourComplete, setTourComplete] = useState(false);
 
   // Debug: Force reload on mount to ensure we see manual DB entries
   useEffect(() => {
@@ -108,56 +113,37 @@ export default function BudgetView() {
   };
 
   // Save config from onboarding setup flow
-  const handleSaveOnboardingConfig = async (config: SetupConfig, isUpdate?: boolean): Promise<{ isUpdate: boolean }> => {
-    // Map onboarding frequency labels to backend values
-    const freqMap: Record<string, string> = {
-      'weekly': 'weekly',
-      'bi-weekly': 'biweekly',
-      'semi-monthly': 'semi-monthly',
-      'monthly': 'monthly',
-    };
-
-    const hasExistingData = (settings?.income_amount ?? 0) > 0 || buckets.length > 0;
-    const reallyIsUpdate = isUpdate ?? hasExistingData;
-
-    // Only update settings if income changed or this is a fresh setup
-    if (!reallyIsUpdate || (config.monthlyIncome > 0 && (settings?.income_amount ?? 0) !== config.monthlyIncome)) {
-      await updateSettings({
-        pay_frequency: freqMap[config.payFrequency] || config.payFrequency,
-        pay_dates: [config.payDates.p1, config.payDates.p2],
-        income_amount: config.monthlyIncome,
-      });
-    }
-
-    // Deduplicate: only create buckets that don't already exist (by name)
-    const existingBucketNames = new Set(buckets.map(b => b.name.toLowerCase()));
-    for (const bucket of config.buckets) {
-      if (!existingBucketNames.has(bucket.name.toLowerCase())) {
-        await createBucket({
-          name: bucket.name,
-          icon: bucket.icon,
-          monthly_goal: bucket.monthly_goal,
-          color: bucket.color,
-        });
-      }
-    }
-
-    await refreshData();
-    return { isUpdate: reallyIsUpdate };
-  };
-
   return (
     <div className="budget-matrix-v2">
       <div className="matrix-bg-effects" />
       <PulseParticles />
 
-      {/* Onboarding Overlay + Guided Tour */}
-      {showOnboarding && !onboardingComplete && (
-        <BudgetOnboarding
+      {/* ── Boot Sequence ── */}
+      {!bootDone && (
+        <PulseBoot
+          onComplete={() => {
+            localStorage.setItem('pulse-boot-done', 'true');
+            setBootDone(true);
+          }}
+        />
+      )}
+
+      {/* ── Onboarding ── */}
+      {bootDone && showOnboarding && !onboardingComplete && (
+        <PulseOnboarding
           onComplete={() => {
             setOnboardingComplete(true);
+            setShowOnboarding(false);
           }}
-          onSaveConfig={handleSaveOnboardingConfig}
+        />
+      )}
+
+      {/* ── Guided Tour ── */}
+      {bootDone && !showOnboarding && showTour && !tourComplete && (
+        <PulseTour
+          onComplete={() => {
+            setTourComplete(true);
+          }}
         />
       )}
 
