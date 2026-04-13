@@ -23,7 +23,7 @@ export function useDreams() {
   useEffect(() => { load(); }, [load]);
 
   const addDream = useCallback(async (id: string, title: string, description: string | null, category: string, targetDate: string | null, member_id?: string) => {
-    await invoke('dream_add', { user_id, id, member_id: member_id ?? null, title, description, category, targetDate });
+    await invoke('dream_add', { user_id, id, member_id: member_id ?? null, title, description, category, target_date: targetDate });
     await load();
   }, [user_id, load]);
 

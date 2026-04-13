@@ -212,6 +212,14 @@ pub async fn execute_tool_for_user(tool_name: &str, args: &Value, _user_id: &str
         "budget_get_summary" => execute_budget_get_summary(args),
         "budget_create_goal" => execute_budget_create_goal(args),
         "budget_get_goals" => execute_budget_get_goals(args),
+        "budget_delete_entry" => execute_budget_delete_entry(args),
+        "budget_parse_natural" => execute_budget_parse_natural(args),
+        "budget_detect_patterns" => execute_budget_detect_patterns(args),
+        "budget_update_goal" => execute_budget_update_goal(args),
+        "budget_delete_goal" => execute_budget_delete_goal(args),
+        "budget_goal_status" => execute_budget_goal_status(args),
+        "budget_generate_report" => execute_budget_generate_report(args),
+        "budget_can_afford" => execute_budget_can_afford(args),
         // Cross-app intelligence tools
         "conflux_weekly_summary" => execute_weekly_summary(args),
         "conflux_can_afford" => execute_can_afford(args),
@@ -1055,6 +1063,109 @@ pub fn get_app_tool_definitions() -> Vec<Value> {
                 "name": "budget_get_goals",
                 "description": "Get all budget savings goals and their progress.",
                 "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "budget_delete_entry",
+                "description": "Delete a budget entry by its ID. Use budget_get_entries first to find the ID.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string", "description": "Budget entry UUID to delete" }
+                    },
+                    "required": ["id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "budget_parse_natural",
+                "description": "Parse natural language into a budget entry. E.g. 'spent $45 on groceries' → expense, $45, groceries. Use before budget_add_entry to confirm the parsed values.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "input": { "type": "string", "description": "Natural language budget description (e.g. 'spent $45 on groceries', 'got paid $2000')" }
+                    },
+                    "required": ["input"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "budget_detect_patterns",
+                "description": "Analyze spending history and detect recurring patterns, trends, and anomalies.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "budget_update_goal",
+                "description": "Update a savings goal's current progress amount. Use after depositing toward a goal.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string", "description": "Goal UUID" },
+                        "name": { "type": "string", "description": "Goal name (case-insensitive lookup)" },
+                        "current_amount": { "type": "number", "description": "New current amount saved" }
+                    },
+                    "required": ["current_amount"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "budget_delete_goal",
+                "description": "Delete a savings goal permanently.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string", "description": "Goal UUID" },
+                        "name": { "type": "string", "description": "Goal name (case-insensitive lookup)" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "budget_goal_status",
+                "description": "Get a summary of all savings goals with progress bars and overall completion percentage.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "budget_generate_report",
+                "description": "Generate a full monthly budget report with income, expenses, savings rate, top categories, and patterns.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "month": { "type": "string", "description": "Month in YYYY-MM format (e.g. '2026-04')" }
+                    },
+                    "required": ["month"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "budget_can_afford",
+                "description": "Check if you can afford a purchase based on this month's remaining budget. Shows income, expenses, and what's left.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "amount": { "type": "number", "description": "Amount to check" },
+                        "description": { "type": "string", "description": "What the purchase is for (e.g. 'new jacket')" }
+                    },
+                    "required": ["amount"]
+                }
             }
         }),
         // ── Home Health Tools ──
@@ -2957,6 +3068,256 @@ fn execute_budget_get_goals(_args: &Value) -> Result<ToolResult> {
                     g.deadline.as_deref().map(|d| format!(" by {}", d)).unwrap_or_default())
             }).collect();
             Ok(ToolResult { success: true, output: lines.join("\n"), error: None })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+// ── Budget Tool Implementations: Extended ──
+
+fn execute_budget_delete_entry(args: &Value) -> Result<ToolResult> {
+    let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    if id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("Entry id is required".into()) });
+    }
+
+    let engine = super::get_engine();
+    let conn = tokio::task::block_in_place(|| engine.db().conn_blocking());
+    match conn.execute("DELETE FROM budget_entries WHERE id = ?1", rusqlite::params![id]) {
+        Ok(rows) if rows > 0 => Ok(ToolResult { success: true, output: "Deleted budget entry.".into(), error: None }),
+        Ok(_) => Ok(ToolResult { success: false, output: String::new(), error: Some(format!("No entry found with id {}", id)) }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_budget_parse_natural(args: &Value) -> Result<ToolResult> {
+    let input = args.get("input").and_then(|v| v.as_str()).unwrap_or("");
+    if input.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("input text is required".into()) });
+    }
+
+    let lower = input.to_lowercase();
+    let mut entry_type = "expense";
+    let mut amount = 0.0f64;
+    let mut category = "other";
+
+    // Detect type
+    if lower.contains("income") || lower.contains("paid") || lower.contains("earned") || lower.contains("salary") || lower.contains("got paid") {
+        entry_type = "income";
+    } else if lower.contains("save") || lower.contains("invest") || lower.contains("savings") {
+        entry_type = "savings";
+    }
+
+    // Extract amount — find $ or number patterns
+    let re = regex::Regex::new(r"\$?([\d,]+\.?\d*)").unwrap();
+    if let Some(caps) = re.captures(&lower) {
+        let num_str = caps[1].replace(",", "");
+        amount = num_str.parse().unwrap_or(0.0);
+    }
+
+    // Detect category
+    let cat_map: &[(&str, &str)] = &[
+        ("grocery|groceries|food|eating", "groceries"),
+        ("rent|mortgage|housing", "housing"),
+        ("gas|fuel|car|transport|uber|lyft", "transportation"),
+        ("electric|water|utility|internet|phone|bill", "utilities"),
+        ("movie|entertainment|game|netflix|spotify", "entertainment"),
+        ("doctor|health|medical|pharmacy|medicine", "healthcare"),
+        ("clothes|clothing|shoes", "clothing"),
+        ("restaurant|dinner|lunch|coffee|starbucks", "dining"),
+        ("amazon|shopping|store", "shopping"),
+        ("salary|paycheck|freelance|income", "salary"),
+        ("save|invest|savings", "savings"),
+    ];
+    for (pattern, cat) in cat_map {
+        for word in pattern.split('|') {
+            if lower.contains(word) {
+                category = cat;
+                break;
+            }
+        }
+        if category != "other" { break; }
+    }
+
+    Ok(ToolResult {
+        success: true,
+        output: format!("Parsed: {} ${:.2} ({}) — \"{}\"", entry_type, amount, category, input),
+        error: None,
+    })
+}
+
+fn execute_budget_detect_patterns(_args: &Value) -> Result<ToolResult> {
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().detect_budget_patterns(None))) {
+        Ok(patterns) => {
+            if patterns.is_empty() {
+                return Ok(ToolResult { success: true, output: "No spending patterns detected yet. Need more transaction history.".into(), error: None });
+            }
+            let lines: Vec<String> = patterns.iter().map(|p| {
+                format!("📊 {} — {} ${:.2}/mo ({})", p.category, p.pattern_type, p.avg_amount, p.description)
+            }).collect();
+            Ok(ToolResult { success: true, output: format!("Detected {} patterns:\n{}", patterns.len(), lines.join("\n")), error: None })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_budget_update_goal(args: &Value) -> Result<ToolResult> {
+    let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
+    if id.is_empty() && name.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("Goal id or name is required".into()) });
+    }
+    let current_amount = match args.get("current_amount").and_then(|v| v.as_f64()) {
+        Some(a) => a,
+        None => return Ok(ToolResult { success: false, output: String::new(), error: Some("current_amount is required".into()) }),
+    };
+
+    let engine = super::get_engine();
+    let goal_id = if !id.is_empty() {
+        id.to_string()
+    } else {
+        let goals = match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_budget_goals(None))) {
+            Ok(g) => g,
+            Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+        };
+        match goals.iter().find(|g| g.name.to_lowercase() == name.to_lowercase()) {
+            Some(g) => g.id.clone(),
+            None => return Ok(ToolResult { success: false, output: String::new(), error: Some(format!("Goal '{}' not found", name)) }),
+        }
+    };
+
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().update_budget_goal(&goal_id, current_amount))) {
+        Ok(()) => Ok(ToolResult { success: true, output: format!("Updated goal to ${:.2}.", current_amount), error: None }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_budget_delete_goal(args: &Value) -> Result<ToolResult> {
+    let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
+    if id.is_empty() && name.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("Goal id or name is required".into()) });
+    }
+
+    let engine = super::get_engine();
+    let goal_id = if !id.is_empty() {
+        id.to_string()
+    } else {
+        let goals = match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_budget_goals(None))) {
+            Ok(g) => g,
+            Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+        };
+        match goals.iter().find(|g| g.name.to_lowercase() == name.to_lowercase()) {
+            Some(g) => g.id.clone(),
+            None => return Ok(ToolResult { success: false, output: String::new(), error: Some(format!("Goal '{}' not found", name)) }),
+        }
+    };
+
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().delete_budget_goal(&goal_id))) {
+        Ok(()) => Ok(ToolResult { success: true, output: "Deleted goal.".into(), error: None }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_budget_goal_status(_args: &Value) -> Result<ToolResult> {
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_budget_goals(None))) {
+        Ok(goals) => {
+            if goals.is_empty() {
+                return Ok(ToolResult { success: true, output: "No budget goals set yet. Use budget_create_goal to set one.".into(), error: None });
+            }
+            let total_target: f64 = goals.iter().map(|g| g.target_amount).sum();
+            let total_current: f64 = goals.iter().map(|g| g.current_amount).sum();
+            let overall_pct = if total_target > 0.0 { (total_current / total_target * 100.0).min(100.0) } else { 0.0 };
+
+            let mut lines: Vec<String> = goals.iter().map(|g| {
+                let pct = if g.target_amount > 0.0 { (g.current_amount / g.target_amount * 100.0).min(100.0) } else { 0.0 };
+                let bar_len = (pct / 10.0) as usize;
+                let bar = "█".repeat(bar_len) + &"░".repeat(10 - bar_len);
+                format!("  {} {} {:.0}% (${:.2} / ${:.2}){}",
+                    g.name, bar, pct, g.current_amount, g.target_amount,
+                    g.deadline.as_deref().map(|d| format!(" by {}", d)).unwrap_or_default())
+            }).collect();
+            lines.push(format!("\nOverall: ${:.2} / ${:.2} ({:.0}%)", total_current, total_target, overall_pct));
+            Ok(ToolResult { success: true, output: format!("🎯 Goal Status ({} goals):\n{}", goals.len(), lines.join("\n")), error: None })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_budget_generate_report(args: &Value) -> Result<ToolResult> {
+    let month = args.get("month").and_then(|v| v.as_str()).unwrap_or("");
+    if month.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("month is required (YYYY-MM)".into()) });
+    }
+
+    let engine = super::get_engine();
+    let member_id = tokio::task::block_in_place(|| engine.db().get_config("supabase_user_id")).unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
+
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_monthly_report(&member_id, month))) {
+        Ok(report) => {
+            let mut lines = vec![
+                format!("📊 Monthly Report — {}", report.month),
+                format!("  Income:   ${:.2}", report.total_income),
+                format!("  Expenses: ${:.2}", report.total_expenses),
+                format!("  Savings:  ${:.2}", report.total_savings),
+                format!("  Net:      ${:.2}", report.net),
+                format!("  Savings Rate: {:.1}%", report.savings_rate),
+            ];
+
+            if !report.top_categories.is_empty() {
+                lines.push("\n  Top Spending Categories:".into());
+                for cat in &report.top_categories {
+                    lines.push(format!("    {}: ${:.2}", cat.category, cat.total));
+                }
+            }
+
+            if !report.patterns.is_empty() {
+                lines.push("\n  Patterns Detected:".into());
+                for p in &report.patterns {
+                    lines.push(format!("    {} — {} (${:.2}/mo)", p.category, p.pattern_type, p.avg_amount));
+                }
+            }
+
+            if let Some(delta) = report.comparison_to_last_month {
+                let arrow = if delta > 0.0 { "↑" } else { "↓" };
+                lines.push(format!("\n  vs Last Month: {}{:.1}%", arrow, delta.abs()));
+            }
+
+            Ok(ToolResult { success: true, output: lines.join("\n"), error: None })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_budget_can_afford(args: &Value) -> Result<ToolResult> {
+    let amount = args.get("amount").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let description = args.get("description").and_then(|v| v.as_str()).unwrap_or("purchase");
+
+    if amount <= 0.0 {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("amount must be positive".into()) });
+    }
+
+    let engine = super::get_engine();
+    let now = chrono::Utc::now();
+    let this_month = now.format("%Y-%m").to_string();
+    let member_id = tokio::task::block_in_place(|| engine.db().get_config("supabase_user_id")).unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
+
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_budget_summary(&member_id, &this_month))) {
+        Ok(summary) => {
+            let remaining = summary.total_income - summary.total_expenses;
+            let can = remaining >= amount;
+            let after = remaining - amount;
+
+            let verdict = if can { "✅ Yes, you can afford it." } else { "❌ No, that would put you over budget." };
+
+            Ok(ToolResult {
+                success: true,
+                output: format!("💰 Can you afford ${:.2} for {}?\n  Monthly income: ${:.2}\n  Spent so far: ${:.2}\n  Remaining: ${:.2}\n  After purchase: ${:.2}\n\n  {}",
+                    amount, description, summary.total_income, summary.total_expenses, remaining, after, verdict),
+                error: None,
+            })
         }
         Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
     }
