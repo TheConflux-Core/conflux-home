@@ -3170,11 +3170,11 @@ impl EngineDb {
         Ok(result)
     }
     pub async fn get_life_dashboard(&self) -> Result<super::types::LifeAutopilotDashboard> {
-        let upcoming = self.get_upcoming_reminders(30)?;
+        let upcoming = self.get_upcoming_reminders(30).await?;
         let overdue = self.get_overdue_reminders()?;
-        let docs = self.get_documents(None, None)?;
+        let docs = self.get_documents(None, None).await?;
         let doc_count = docs.len() as i64;
-        let knowledge = self.get_knowledge(None, None)?;
+        let knowledge = self.get_knowledge(None, None).await?;
         Ok(super::types::LifeAutopilotDashboard {
             upcoming_reminders: upcoming,
             recent_documents: docs.into_iter().take(10).collect(),

@@ -2661,7 +2661,7 @@ Be thorough but concise. Extract EVERY date and action item mentioned."
     }
 
     // Get the full document back
-    let docs = engine.db().get_documents(None, None).map_err(|e| e.to_string())?;
+    let docs = engine.db().get_documents(None, None).await.map_err(|e| e.to_string())?;
     docs.into_iter().find(|d| d.id == doc_id)
         .ok_or_else(|| "Failed to load created document".to_string())
 }
@@ -2703,12 +2703,12 @@ pub async fn life_ask(question: String) -> Result<String, String> {
     let engine = engine::get_engine();
 
     // Gather context from all knowledge
-    let knowledge = engine.db().get_knowledge(None, None).map_err(|e| e.to_string())?;
+    let knowledge = engine.db().get_knowledge(None, None).await.map_err(|e| e.to_string())?;
     let knowledge_context: String = knowledge.iter()
         .map(|k| format!("{}: {} = {}", k.category, k.key, k.value))
         .collect::<Vec<_>>().join("\n");
 
-    let reminders = engine.db().get_upcoming_reminders(60).map_err(|e| e.to_string())?;
+    let reminders = engine.db().get_upcoming_reminders(60).await.map_err(|e| e.to_string())?;
     let reminders_context: String = reminders.iter()
         .map(|r| format!("[{}] {} (due: {}, priority: {})", r.reminder_type, r.title, r.due_date, r.priority))
         .collect::<Vec<_>>().join("\n");
