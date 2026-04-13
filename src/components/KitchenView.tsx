@@ -18,7 +18,9 @@ import CookingModeEnhanced from './CookingModeEnhanced';
 import RestaurantMenu from './RestaurantMenu';
 import BrowseCards from './BrowseCards';
 import { MicButton } from './voice';
-import KitchenOnboarding, { hasCompletedKitchenOnboarding } from './KitchenOnboarding';
+import KitchenBoot from './KitchenBoot';
+import HearthOnboarding, { hasCompletedHearthOnboarding } from './HearthOnboarding';
+import HearthTour, { hasCompletedHearthTour } from './HearthTour';
 import KitchenEmptyState from './KitchenEmptyState';
 
 function getWeekStart(): string {
@@ -52,9 +54,14 @@ export default function KitchenView() {
   const [cookingSteps, setCookingSteps] = useState([]);
   const [cookingCurrentStep, setCookingCurrentStep] = useState(0);
 
-  // Onboarding state
-  const [showOnboarding, setShowOnboarding] = useState(() => !hasCompletedKitchenOnboarding());
+  // Boot → Onboarding → Tour state
+  const [bootDone, setBootDone] = useState(() => localStorage.getItem('hearth-boot-done') === 'true');
+  const hasOnboarded = hasCompletedHearthOnboarding();
+  const hasTakenTour = hasCompletedHearthTour();
+  const [showOnboarding, setShowOnboarding] = useState(!bootDone && !hasOnboarded);
+  const [showTour, setShowTour] = useState(!bootDone ? false : !hasTakenTour);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
+  const [tourComplete, setTourComplete] = useState(false);
 
   const weekStart = useMemo(getWeekStart, []);
 
@@ -164,24 +171,31 @@ export default function KitchenView() {
       {/* Background effects */}
       <div className="matrix-bg-effects" />
 
-      {/* Onboarding Overlay + Guided Tour */}
-      {showOnboarding && !onboardingComplete && (
-        <KitchenOnboarding
+      {/* ── Boot Sequence ── */}
+      {!bootDone && (
+        <KitchenBoot
+          onComplete={() => {
+            localStorage.setItem('hearth-boot-done', 'true');
+            setBootDone(true);
+          }}
+        />
+      )}
+
+      {/* ── Onboarding ── */}
+      {bootDone && showOnboarding && !onboardingComplete && (
+        <HearthOnboarding
           onComplete={() => {
             setOnboardingComplete(true);
             setShowOnboarding(false);
           }}
-          onSaveConfig={async (config) => {
-            console.log('[KitchenView] Onboarding config:', config);
-            // Save preferences to engine config
-            try {
-              await invoke('set_config', { key: 'kitchen_dietary_prefs', value: JSON.stringify(config.dietaryPreferences) });
-              await invoke('set_config', { key: 'kitchen_household_size', value: String(config.householdSize) });
-              await invoke('set_config', { key: 'kitchen_skill_level', value: config.skillLevel });
-              await invoke('set_config', { key: 'kitchen_favorite_cuisines', value: JSON.stringify(config.favoriteCuisines) });
-            } catch (e) {
-              console.error('[KitchenView] Failed to save onboarding config:', e);
-            }
+        />
+      )}
+
+      {/* ── Guided Tour ── */}
+      {bootDone && !showOnboarding && showTour && !tourComplete && (
+        <HearthTour
+          onComplete={() => {
+            setTourComplete(true);
           }}
         />
       )}
