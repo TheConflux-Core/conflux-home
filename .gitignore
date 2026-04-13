@@ -7,3 +7,4 @@ dist/
 src-tauri/target/
 src-tauri/models/*.bin
 icons-generated/
+src-tauri/.env
