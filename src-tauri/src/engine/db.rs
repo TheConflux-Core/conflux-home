@@ -4,11 +4,14 @@
 use anyhow::{Context, Result};
 use rusqlite::{Connection, params};
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-/// The embedded database. Thread-safe via Mutex.
+/// The embedded database. Thread-safe via tokio::sync::Mutex.
+///
+/// All DB access goes through `conn_async()` (async) or `conn_blocking()` (sync bridge).
+/// The sync bridge uses `block_in_place` and should only be used during migration.
 pub struct EngineDb {
-    conn: Arc<Mutex<Connection>>,
+    conn: Arc<tokio::sync::Mutex<Connection>>,
 }
 
 impl EngineDb {
@@ -30,7 +33,7 @@ impl EngineDb {
         conn.execute_batch("PRAGMA foreign_keys = ON;")?;
 
         let db = EngineDb {
-            conn: Arc::new(Mutex::new(conn)),
+            conn: Arc::new(tokio::sync::Mutex::new(conn)),
         };
 
         db.migrate()?;
@@ -45,7 +48,7 @@ impl EngineDb {
         conn.execute_batch("PRAGMA foreign_keys = ON;")?;
 
         let db = EngineDb {
-            conn: Arc::new(Mutex::new(conn)),
+            conn: Arc::new(tokio::sync::Mutex::new(conn)),
         };
 
         db.migrate()?;
@@ -58,7 +61,7 @@ impl EngineDb {
     /// skipping "already exists" / "duplicate column" errors.
     fn migrate(&self) -> Result<()> {
         let schema = include_str!("../../schema.sql");
-        let conn = self.conn.lock().map_err(|_| anyhow::anyhow!("Database lock poisoned"))?;
+        let conn = self.conn.blocking_lock();
         
         // Try full batch first (fast path for fresh databases)
         match conn.execute_batch(schema) {
@@ -154,10 +157,23 @@ impl EngineDb {
         statements
     }
 
-    /// Get a reference to the underlying connection.
-    /// Holds the lock — use briefly.
-    pub fn conn(&self) -> std::sync::MutexGuard<'_, Connection> {
-        self.conn.lock().expect("Database lock poisoned")
+    /// Get the connection lock (async). Use in async contexts.
+    /// Holds the lock — scope tightly, drop before any .await.
+    pub async fn conn_async(&self) -> tokio::sync::MutexGuard<'_, Connection> {
+        self.conn.lock().await
+    }
+
+    /// Get the connection lock (sync bridge). Use ONLY during migration.
+    /// Blocks the current thread until the lock is acquired.
+    /// Requires a Tokio runtime context.
+    pub fn conn_blocking(&self) -> tokio::sync::MutexGuard<'_, Connection> {
+        self.conn.blocking_lock()
+    }
+
+    /// Backward-compatible alias for conn_blocking(). Will be removed once all callers are async.
+    #[deprecated(note = "Use conn_async() in async contexts, conn_blocking() in sync")]
+    pub fn conn(&self) -> tokio::sync::MutexGuard<'_, Connection> {
+        self.conn.blocking_lock()
     }
 
     // ── Agent Queries ──
@@ -1811,8 +1827,8 @@ impl EngineDb {
 
     // ── Budget Summary ──
 
-    pub fn get_budget_summary(&self, member_id: &str, month: &str) -> Result<super::types::BudgetSummary> {
-        let conn = self.conn();
+    pub async fn get_budget_summary(&self, member_id: &str, month: &str) -> Result<super::types::BudgetSummary> {
+        let conn = self.conn_async().await;
 
         let total_income: f64 = conn.query_row(
             "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id = ?1 AND entry_type = \'income\' AND strftime(\'%Y-%m\', date) = ?2",
@@ -1855,9 +1871,9 @@ impl EngineDb {
 
     // ── Budget Goals (Pulse) ──
 
-    pub fn create_budget_goal(&self, id: &str, member_id: Option<&str>, name: &str,
+    pub async fn create_budget_goal(&self, id: &str, member_id: Option<&str>, name: &str,
         target_amount: f64, deadline: Option<&str>, monthly_allocation: Option<f64>) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         conn.execute(
             "INSERT INTO budget_goals (id, member_id, name, target_amount, deadline, monthly_allocation) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![id, member_id, name, target_amount, deadline, monthly_allocation]
@@ -1865,8 +1881,8 @@ impl EngineDb {
         Ok(())
     }
 
-    pub fn get_budget_goals(&self, member_id: Option<&str>) -> Result<Vec<super::types::BudgetGoal>> {
-        let conn = self.conn();
+    pub async fn get_budget_goals(&self, member_id: Option<&str>) -> Result<Vec<super::types::BudgetGoal>> {
+        let conn = self.conn_async().await;
         let mut result = Vec::new();
         if let Some(mid) = member_id {
             let mut stmt = conn.prepare(
@@ -1898,22 +1914,22 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn update_budget_goal(&self, id: &str, current_amount: f64) -> Result<()> {
-        let conn = self.conn();
+    pub async fn update_budget_goal(&self, id: &str, current_amount: f64) -> Result<()> {
+        let conn = self.conn_async().await;
         conn.execute("UPDATE budget_goals SET current_amount = ?1 WHERE id = ?2", params![current_amount, id])?;
         Ok(())
     }
 
-    pub fn delete_budget_goal(&self, id: &str) -> Result<()> {
-        let conn = self.conn();
+    pub async fn delete_budget_goal(&self, id: &str) -> Result<()> {
+        let conn = self.conn_async().await;
         conn.execute("DELETE FROM budget_goals WHERE id = ?1", params![id])?;
         Ok(())
     }
 
     // ── Budget Engine (Zero-Based Budgeting) ──
 
-    pub fn get_budget_settings(&self, user_id: &str) -> Result<Option<super::types::BudgetSettingsRow>> {
-        let conn = self.conn();
+    pub async fn get_budget_settings(&self, user_id: &str) -> Result<Option<super::types::BudgetSettingsRow>> {
+        let conn = self.conn_async().await;
         let result = conn.query_row(
             "SELECT id, user_id, pay_frequency, pay_dates, income_amount, currency, created_at, updated_at FROM budget_settings WHERE user_id = ?1 LIMIT 1",
             params![user_id], |row| {
@@ -1931,9 +1947,9 @@ impl EngineDb {
         }
     }
 
-    pub fn upsert_budget_settings(&self, id: &str, user_id: &str, pay_frequency: &str,
+    pub async fn upsert_budget_settings(&self, id: &str, user_id: &str, pay_frequency: &str,
         pay_dates: &str, income_amount: f64, currency: &str) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
             "INSERT INTO budget_settings (id, user_id, pay_frequency, pay_dates, income_amount, currency, created_at, updated_at)
@@ -1944,8 +1960,8 @@ impl EngineDb {
         Ok(())
     }
 
-    pub fn get_budget_buckets(&self, user_id: &str) -> Result<Vec<super::types::BudgetBucketRow>> {
-        let conn = self.conn();
+    pub async fn get_budget_buckets(&self, user_id: &str) -> Result<Vec<super::types::BudgetBucketRow>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT id, user_id, name, icon, monthly_goal, color, is_active, created_at, updated_at
              FROM budget_buckets WHERE user_id = ?1 AND is_active = 1 ORDER BY created_at ASC"
@@ -1962,9 +1978,9 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn create_budget_bucket(&self, id: &str, user_id: &str, name: &str, icon: Option<&str>,
+    pub async fn create_budget_bucket(&self, id: &str, user_id: &str, name: &str, icon: Option<&str>,
         monthly_goal: f64, color: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
             "INSERT INTO budget_buckets (id, user_id, name, icon, monthly_goal, color, created_at, updated_at)
@@ -1974,8 +1990,8 @@ impl EngineDb {
         Ok(())
     }
 
-    pub fn get_budget_allocations(&self, user_id: &str) -> Result<Vec<super::types::BudgetAllocationRow>> {
-        let conn = self.conn();
+    pub async fn get_budget_allocations(&self, user_id: &str) -> Result<Vec<super::types::BudgetAllocationRow>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT id, user_id, bucket_id, pay_period_id, amount, created_at, updated_at
              FROM budget_allocations WHERE user_id = ?1 ORDER BY created_at ASC"
@@ -1992,8 +2008,8 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn get_budget_transactions(&self, user_id: &str) -> Result<Vec<super::types::BudgetTransactionRow>> {
-        let conn = self.conn();
+    pub async fn get_budget_transactions(&self, user_id: &str) -> Result<Vec<super::types::BudgetTransactionRow>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT id, user_id, bucket_id, amount, date, status, description, merchant, category, receipt_url, created_at, updated_at
              FROM budget_transactions WHERE user_id = ?1 ORDER BY date DESC"
@@ -2011,10 +2027,10 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn create_budget_transaction(&self, id: &str, user_id: &str, bucket_id: Option<&str>,
+    pub async fn create_budget_transaction(&self, id: &str, user_id: &str, bucket_id: Option<&str>,
         amount: f64, date: &str, status: &str, description: Option<&str>,
         merchant: Option<&str>, category: Option<&str>, receipt_url: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
             "INSERT INTO budget_transactions (id, user_id, bucket_id, amount, date, status, description, merchant, category, receipt_url, created_at, updated_at)
@@ -2027,8 +2043,8 @@ impl EngineDb {
     // Cross-App Synthesis functions
 
     /// Get budget entries for cross-app insights
-    pub fn get_budget_entries(&self, member_id: &str) -> Result<Vec<super::types::BudgetEntry>> {
-        let conn = self.conn();
+    pub async fn get_budget_entries(&self, member_id: &str) -> Result<Vec<super::types::BudgetEntry>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT id, member_id, entry_type, category, amount, description, recurring, frequency, date, created_at 
              FROM budget_entries WHERE member_id = ?1 ORDER BY date DESC"
@@ -2053,8 +2069,8 @@ impl EngineDb {
     }
 
     /// Get kitchen inventory for cross-app insights
-    pub fn get_kitchen_inventory(&self, member_id: &str) -> Result<Vec<super::types::KitchenInventoryItem>> {
-        let conn = self.conn();
+    pub async fn get_kitchen_inventory(&self, member_id: &str) -> Result<Vec<super::types::KitchenInventoryItem>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT id, member_id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at 
              FROM kitchen_inventory WHERE member_id = ?1 ORDER BY location, name"
@@ -2066,12 +2082,12 @@ impl EngineDb {
     }
 
     /// Get orbit-specific dream dashboard (wrapper for cross-app insights)
-    pub fn get_orbit_dream_dashboard(&self, member_id: &str) -> Result<super::types::DreamDashboard> {
-        self.get_dream_dashboard(member_id)
+    pub async fn get_orbit_dream_dashboard(&self, member_id: &str) -> Result<super::types::DreamDashboard> {
+        self.get_dream_dashboard(member_id).await
     }
 
-    pub fn detect_budget_patterns(&self, member_id: Option<&str>) -> Result<Vec<super::types::BudgetPattern>> {
-        let conn = self.conn();
+    pub async fn detect_budget_patterns(&self, member_id: Option<&str>) -> Result<Vec<super::types::BudgetPattern>> {
+        let conn = self.conn_async().await;
         let mut result = Vec::new();
         if let Some(mid) = member_id {
             let mut stmt = conn.prepare(
@@ -2115,8 +2131,8 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn can_afford(&self, member_id: &str, amount: f64, month: &str) -> Result<bool> {
-        let conn = self.conn();
+    pub async fn can_afford(&self, member_id: &str, amount: f64, month: &str) -> Result<bool> {
+        let conn = self.conn_async().await;
         let income: f64 = conn.query_row(
             "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id = ?1 AND entry_type = \'income\' AND strftime(\'%Y-%m\', date) = ?2",
             params![member_id, month], |row| row.get(0)
@@ -2128,16 +2144,16 @@ impl EngineDb {
         Ok(income - expenses >= amount)
     }
 
-    pub fn get_monthly_report(&self, member_id: &str, month: &str) -> Result<super::types::MonthlyReport> {
-        let summary = self.get_budget_summary(member_id, month)?;
-        let patterns = self.detect_budget_patterns(None)?;
-        let goals = self.get_budget_goals(None)?;
+    pub async fn get_monthly_report(&self, member_id: &str, month: &str) -> Result<super::types::MonthlyReport> {
+        let summary = self.get_budget_summary(member_id, month).await?;
+        let patterns = self.detect_budget_patterns(None).await?;
+        let goals = self.get_budget_goals(None).await?;
         // Last month comparison
         let parts: Vec<&str> = month.split('-').collect();
         let y: i32 = parts[0].parse().unwrap_or(2024);
         let m: u32 = parts[1].parse().unwrap_or(1);
         let prev = if m == 1 { format!("{}-12", y - 1) } else { format!("{}-{:02}", y, m - 1) };
-        let prev_summary = self.get_budget_summary(member_id, &prev).ok();
+        let prev_summary = self.get_budget_summary(member_id, &prev).await.ok();
         let comparison = prev_summary.map(|p| summary.net - p.net);
         Ok(super::types::MonthlyReport {
             month: month.to_string(),
@@ -2592,11 +2608,11 @@ impl EngineDb {
     // SMART KITCHEN — Meals
     // ============================================================
 
-    pub fn create_meal(&self, id: &str, name: &str, description: Option<&str>, cuisine: Option<&str>,
+    pub async fn create_meal(&self, id: &str, name: &str, description: Option<&str>, cuisine: Option<&str>,
                         category: Option<&str>, photo_url: Option<&str>, prep_time: Option<i64>,
                         cook_time: Option<i64>, servings: i64, difficulty: &str,
                         instructions: Option<&str>, tags: Option<&str>, source: &str) -> Result<super::types::Meal> {
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         let now = Self::now();
         conn.execute(
             "INSERT INTO meals (id, name, description, cuisine, category, photo_url, prep_time_min, cook_time_min, servings, difficulty, instructions, tags, source, created_at, updated_at)
@@ -2614,8 +2630,8 @@ impl EngineDb {
         })
     }
 
-    pub fn get_meals(&self, category: Option<&str>, cuisine: Option<&str>, favorites_only: bool) -> Result<Vec<super::types::Meal>> {
-        let conn = self.conn();
+    pub async fn get_meals(&self, category: Option<&str>, cuisine: Option<&str>, favorites_only: bool) -> Result<Vec<super::types::Meal>> {
+        let conn = self.conn_async().await;
         let mut conditions = Vec::new();
         let mut params_vec: Vec<String> = Vec::new();
 
@@ -2657,8 +2673,8 @@ impl EngineDb {
         })
     }
 
-    pub fn get_meal(&self, id: &str) -> Result<Option<super::types::Meal>> {
-        let conn = self.conn();
+    pub async fn get_meal(&self, id: &str) -> Result<Option<super::types::Meal>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT id, name, description, cuisine, category, photo_url, prep_time_min, cook_time_min, servings, difficulty, instructions, estimated_cost, cost_per_serving, calories, tags, source, is_favorite, last_made, times_made, created_at, updated_at
              FROM meals WHERE id = ?1"
@@ -2667,17 +2683,17 @@ impl EngineDb {
         Ok(rows.next().transpose()?)
     }
 
-    pub fn get_meal_with_ingredients(&self, id: &str) -> Result<Option<super::types::MealWithIngredients>> {
-        let meal = match self.get_meal(id)? {
+    pub async fn get_meal_with_ingredients(&self, id: &str) -> Result<Option<super::types::MealWithIngredients>> {
+        let meal = match self.get_meal(id).await? {
             Some(m) => m,
             None => return Ok(None),
         };
-        let ingredients = self.get_meal_ingredients(id)?;
+        let ingredients = self.get_meal_ingredients(id).await?;
         Ok(Some(super::types::MealWithIngredients { meal, ingredients }))
     }
 
-    pub fn toggle_favorite(&self, id: &str) -> Result<()> {
-        let conn = self.conn();
+    pub async fn toggle_favorite(&self, id: &str) -> Result<()> {
+        let conn = self.conn_async().await;
         conn.execute(
             "UPDATE meals SET is_favorite = CASE WHEN is_favorite = 1 THEN 0 ELSE 1 END, updated_at = ?2 WHERE id = ?1",
             params![id, Self::now()],
@@ -2685,8 +2701,8 @@ impl EngineDb {
         Ok(())
     }
 
-    pub fn update_meal_costs(&self, id: &str) -> Result<()> {
-        let conn = self.conn();
+    pub async fn update_meal_costs(&self, id: &str) -> Result<()> {
+        let conn = self.conn_async().await;
         let total: f64 = conn.query_row(
             "SELECT COALESCE(SUM(estimated_cost), 0) FROM meal_ingredients WHERE meal_id = ?1",
             params![id], |row| row.get(0)
@@ -2706,10 +2722,10 @@ impl EngineDb {
     // Meal Ingredients
     // ============================================================
 
-    pub fn add_meal_ingredient(&self, id: &str, meal_id: &str, name: &str, quantity: Option<f64>,
+    pub async fn add_meal_ingredient(&self, id: &str, meal_id: &str, name: &str, quantity: Option<f64>,
                                 unit: Option<&str>, estimated_cost: Option<f64>, category: Option<&str>,
                                 is_optional: bool, notes: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         let opt: i64 = if is_optional { 1 } else { 0 };
         let max_order: i64 = conn.query_row(
             "SELECT COALESCE(MAX(sort_order), 0) FROM meal_ingredients WHERE meal_id = ?1",
@@ -2720,12 +2736,12 @@ impl EngineDb {
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             params![id, meal_id, name, quantity, unit, estimated_cost, category, opt, notes, max_order + 1],
         )?;
-        self.update_meal_costs(meal_id)?;
+        self.update_meal_costs(meal_id).await?;
         Ok(())
     }
 
-    pub fn get_meal_ingredients(&self, meal_id: &str) -> Result<Vec<super::types::MealIngredient>> {
-        let conn = self.conn();
+    pub async fn get_meal_ingredients(&self, meal_id: &str) -> Result<Vec<super::types::MealIngredient>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT id, meal_id, name, quantity, unit, estimated_cost, category, is_optional, notes, sort_order
              FROM meal_ingredients WHERE meal_id = ?1 ORDER BY sort_order"
@@ -2746,9 +2762,9 @@ impl EngineDb {
     // Meal Plans (Weekly)
     // ============================================================
 
-    pub fn set_plan_entry(&self, id: &str, week_start: &str, day_of_week: i64,
+    pub async fn set_plan_entry(&self, id: &str, week_start: &str, day_of_week: i64,
                            meal_slot: &str, meal_id: Option<&str>, notes: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         // Upsert: delete existing entry for this slot, then insert
         conn.execute(
             "DELETE FROM meal_plans_v2 WHERE week_start = ?1 AND day_of_week = ?2 AND meal_slot = ?3",
@@ -2762,8 +2778,8 @@ impl EngineDb {
         Ok(())
     }
 
-    pub fn get_weekly_plan(&self, week_start: &str) -> Result<super::types::WeeklyPlan> {
-        let conn = self.conn();
+    pub async fn get_weekly_plan(&self, week_start: &str) -> Result<super::types::WeeklyPlan> {
+        let conn = self.conn_async().await;
         let day_names = vec!["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
         let mut stmt = conn.prepare(
@@ -2824,8 +2840,8 @@ impl EngineDb {
         Ok(super::types::WeeklyPlan { week_start: week_start.to_string(), days, total_estimated_cost: total_cost, meal_count })
     }
 
-    pub fn clear_week_plan(&self, week_start: &str) -> Result<()> {
-        let conn = self.conn();
+    pub async fn clear_week_plan(&self, week_start: &str) -> Result<()> {
+        let conn = self.conn_async().await;
         conn.execute("DELETE FROM meal_plans_v2 WHERE week_start = ?1", params![week_start])?;
         conn.execute("DELETE FROM grocery_items WHERE week_start = ?1", params![week_start])?;
         Ok(())
@@ -2835,8 +2851,8 @@ impl EngineDb {
     // Grocery List
     // ============================================================
 
-    pub fn generate_grocery_list(&self, week_start: &str) -> Result<Vec<super::types::GroceryItem>> {
-        let conn = self.conn();
+    pub async fn generate_grocery_list(&self, week_start: &str) -> Result<Vec<super::types::GroceryItem>> {
+        let conn = self.conn_async().await;
 
         // Clear existing grocery list for this week
         conn.execute("DELETE FROM grocery_items WHERE week_start = ?1", params![week_start])?;
@@ -2879,8 +2895,8 @@ impl EngineDb {
         Ok(items)
     }
 
-    pub fn get_grocery_list(&self, week_start: &str) -> Result<Vec<super::types::GroceryItem>> {
-        let conn = self.conn();
+    pub async fn get_grocery_list(&self, week_start: &str) -> Result<Vec<super::types::GroceryItem>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT id, member_id, name, quantity, unit, category, estimated_cost, is_checked, source_meal_id, week_start, created_at
              FROM grocery_items WHERE week_start = ?1 ORDER BY category, name"
@@ -2898,8 +2914,8 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn toggle_grocery_item(&self, id: &str) -> Result<()> {
-        let conn = self.conn();
+    pub async fn toggle_grocery_item(&self, id: &str) -> Result<()> {
+        let conn = self.conn_async().await;
         conn.execute(
             "UPDATE grocery_items SET is_checked = CASE WHEN is_checked = 1 THEN 0 ELSE 1 END WHERE id = ?1",
             params![id],
@@ -2911,9 +2927,9 @@ impl EngineDb {
     // Kitchen Inventory
     // ============================================================
 
-    pub fn add_inventory_item(&self, id: &str, member_id: &str, name: &str, quantity: Option<f64>, unit: Option<&str>,
+    pub async fn add_inventory_item(&self, id: &str, member_id: &str, name: &str, quantity: Option<f64>, unit: Option<&str>,
                                category: Option<&str>, expiry: Option<&str>, location: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         let now = Self::now();
         conn.execute(
             "INSERT INTO kitchen_inventory (id, member_id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at)
@@ -2923,8 +2939,8 @@ impl EngineDb {
         Ok(())
     }
 
-    pub fn get_inventory(&self, member_id: &str, location: Option<&str>) -> Result<Vec<super::types::KitchenInventoryItem>> {
-        let conn = self.conn();
+    pub async fn get_inventory(&self, member_id: &str, location: Option<&str>) -> Result<Vec<super::types::KitchenInventoryItem>> {
+        let conn = self.conn_async().await;
         if let Some(loc) = location {
             let mut stmt = conn.prepare(
                 "SELECT id, member_id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at
@@ -2956,8 +2972,8 @@ impl EngineDb {
 
     // ── Kitchen Hearth Extensions ──
 
-    pub fn add_meal_photo(&self, id: &str, meal_id: &str, photo_url: &str, caption: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+    pub async fn add_meal_photo(&self, id: &str, meal_id: &str, photo_url: &str, caption: Option<&str>) -> Result<()> {
+        let conn = self.conn_async().await;
         conn.execute(
             "INSERT INTO meal_photos (id, meal_id, photo_url, caption) VALUES (?1, ?2, ?3, ?4)",
             params![id, meal_id, photo_url, caption]
@@ -2965,8 +2981,8 @@ impl EngineDb {
         Ok(())
     }
 
-    pub fn get_meal_photos(&self, meal_id: &str) -> Result<Vec<super::types::MealPhoto>> {
-        let conn = self.conn();
+    pub async fn get_meal_photos(&self, meal_id: &str) -> Result<Vec<super::types::MealPhoto>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT id, meal_id, photo_url, caption, ai_tags, taken_at, created_at FROM meal_photos WHERE meal_id = ?1 ORDER BY created_at DESC"
         )?;
@@ -2981,8 +2997,8 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn get_pantry_heatmap(&self) -> Result<Vec<super::types::PantryHeatItem>> {
-        let conn = self.conn();
+    pub async fn get_pantry_heatmap(&self) -> Result<Vec<super::types::PantryHeatItem>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT name, expiry_date, location FROM kitchen_inventory WHERE expiry_date IS NOT NULL ORDER BY expiry_date ASC"
         )?;
@@ -3006,8 +3022,8 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn get_expiring_items(&self, days: i64) -> Result<Vec<super::types::KitchenInventoryItem>> {
-        let conn = self.conn();
+    pub async fn get_expiring_items(&self, days: i64) -> Result<Vec<super::types::KitchenInventoryItem>> {
+        let conn = self.conn_async().await;
         let future = chrono::Utc::now().checked_add_signed(chrono::Duration::days(days))
             .map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default();
         let mut stmt = conn.prepare(
@@ -3038,8 +3054,8 @@ impl EngineDb {
         )?;
         Ok(())
     }
-    pub fn get_documents(&self, member_id: Option<&str>, doc_type: Option<&str>) -> Result<Vec<super::types::LifeDocument>> {
-        let conn = self.conn();
+    pub async fn get_documents(&self, member_id: Option<&str>, doc_type: Option<&str>) -> Result<Vec<super::types::LifeDocument>> {
+        let conn = self.conn_async().await;
         let mapper = |row: &rusqlite::Row| -> rusqlite::Result<super::types::LifeDocument> {
             Ok(super::types::LifeDocument {
                 id: row.get(0)?, member_id: row.get(1)?, doc_type: row.get(2)?, title: row.get(3)?,
@@ -3075,8 +3091,8 @@ impl EngineDb {
         }
         Ok(result)
     }
-    pub fn add_reminder(&self, id: &str, member_id: Option<&str>, document_id: Option<&str>, reminder_type: &str, title: &str, description: Option<&str>, due_date: &str, priority: &str) -> Result<()> {
-        let conn = self.conn();
+    pub async fn add_reminder(&self, id: &str, member_id: Option<&str>, document_id: Option<&str>, reminder_type: &str, title: &str, description: Option<&str>, due_date: &str, priority: &str) -> Result<()> {
+        let conn = self.conn_async().await;
         let mid = member_id.map(String::from);
         let did = document_id.map(String::from);
         let desc = description.map(String::from);
@@ -3084,8 +3100,8 @@ impl EngineDb {
             params![id, mid, did, reminder_type, title, desc, due_date, priority])?;
         Ok(())
     }
-    pub fn get_upcoming_reminders(&self, days: i64) -> Result<Vec<super::types::LifeReminder>> {
-        let conn = self.conn();
+    pub async fn get_upcoming_reminders(&self, days: i64) -> Result<Vec<super::types::LifeReminder>> {
+        let conn = self.conn_async().await;
         let future = (chrono::Utc::now() + chrono::Duration::days(days)).format("%Y-%m-%d").to_string();
         let mut stmt = conn.prepare("SELECT id, member_id, document_id, reminder_type, title, description, due_date, priority, is_dismissed, is_completed, recurring, frequency, created_at FROM life_reminders WHERE is_dismissed = 0 AND is_completed = 0 AND due_date <= ?1 ORDER BY priority DESC, due_date")?;
         let rows = stmt.query_map(params![future], Self::map_reminder)?;
@@ -3118,8 +3134,8 @@ impl EngineDb {
             params![id, mid, category, key, value, now])?;
         Ok(())
     }
-    pub fn get_knowledge(&self, member_id: Option<&str>, category: Option<&str>) -> Result<Vec<super::types::LifeKnowledge>> {
-        let conn = self.conn();
+    pub async fn get_knowledge(&self, member_id: Option<&str>, category: Option<&str>) -> Result<Vec<super::types::LifeKnowledge>> {
+        let conn = self.conn_async().await;
         let mapper = |row: &rusqlite::Row| -> rusqlite::Result<super::types::LifeKnowledge> {
             Ok(super::types::LifeKnowledge {
                 id: row.get(0)?, member_id: row.get(1)?, category: row.get(2)?, key: row.get(3)?,
@@ -3153,7 +3169,7 @@ impl EngineDb {
         }
         Ok(result)
     }
-    pub fn get_life_dashboard(&self) -> Result<super::types::LifeAutopilotDashboard> {
+    pub async fn get_life_dashboard(&self) -> Result<super::types::LifeAutopilotDashboard> {
         let upcoming = self.get_upcoming_reminders(30)?;
         let overdue = self.get_overdue_reminders()?;
         let docs = self.get_documents(None, None)?;
@@ -3170,8 +3186,8 @@ impl EngineDb {
 
     // ── Life Autopilot: Orbit ──
 
-    pub fn add_life_task(&self, id: &str, member_id: &str, title: &str, category: Option<&str>, priority: &str, due_date: Option<&str>, energy_type: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+    pub async fn add_life_task(&self, id: &str, member_id: &str, title: &str, category: Option<&str>, priority: &str, due_date: Option<&str>, energy_type: Option<&str>) -> Result<()> {
+        let conn = self.conn_async().await;
         conn.execute(
             "INSERT INTO life_tasks (id, member_id, title, category, priority, due_date, energy_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![id, member_id, title, category, priority, due_date, energy_type]
@@ -3179,8 +3195,8 @@ impl EngineDb {
         Ok(())
     }
 
-    pub fn get_life_tasks(&self, member_id: &str, status: Option<&str>) -> Result<Vec<super::types::LifeTask>> {
-        let conn = self.conn();
+    pub async fn get_life_tasks(&self, member_id: &str, status: Option<&str>) -> Result<Vec<super::types::LifeTask>> {
+        let conn = self.conn_async().await;
         let mut result = Vec::new();
         if let Some(s) = status {
             let mut stmt = conn.prepare("SELECT id, title, category, priority, status, due_date, energy_type, completed_at, created_at FROM life_tasks WHERE member_id = ?1 AND status = ?2 ORDER BY priority DESC, due_date ASC")?;
@@ -3206,27 +3222,27 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn update_life_task_status(&self, member_id: &str, id: &str, status: &str) -> Result<()> {
-        let conn = self.conn();
+    pub async fn update_life_task_status(&self, member_id: &str, id: &str, status: &str) -> Result<()> {
+        let conn = self.conn_async().await;
         let completed = if status == "completed" { Some(chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()) } else { None };
         conn.execute("UPDATE life_tasks SET status = ?1, completed_at = ?2 WHERE id = ?3 AND member_id = ?4", params![status, completed, id, member_id])?;
         Ok(())
     }
 
-    pub fn delete_life_task(&self, member_id: &str, id: &str) -> Result<()> {
-        let conn = self.conn();
+    pub async fn delete_life_task(&self, member_id: &str, id: &str) -> Result<()> {
+        let conn = self.conn_async().await;
         conn.execute("DELETE FROM life_tasks WHERE id = ?1 AND member_id = ?2", params![id, member_id])?;
         Ok(())
     }
 
-    pub fn add_life_habit(&self, id: &str, member_id: &str, name: &str, category: Option<&str>, frequency: &str, target_count: i64) -> Result<()> {
-        let conn = self.conn();
+    pub async fn add_life_habit(&self, id: &str, member_id: &str, name: &str, category: Option<&str>, frequency: &str, target_count: i64) -> Result<()> {
+        let conn = self.conn_async().await;
         conn.execute("INSERT INTO life_habits (id, member_id, name, category, frequency, target_count) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", params![id, member_id, name, category, frequency, target_count])?;
         Ok(())
     }
 
-    pub fn get_life_habits(&self, member_id: &str, active_only: bool) -> Result<Vec<super::types::LifeHabit>> {
-        let conn = self.conn();
+    pub async fn get_life_habits(&self, member_id: &str, active_only: bool) -> Result<Vec<super::types::LifeHabit>> {
+        let conn = self.conn_async().await;
         let query = if active_only {
             "SELECT id, name, category, frequency, target_count, streak, best_streak, active, created_at FROM life_habits WHERE member_id = ?1 AND active = 1 ORDER BY name"
         } else {
@@ -3245,18 +3261,18 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn log_life_habit(&self, id: &str, habit_id: &str, member_id: &str, logged_date: &str, count: i64) -> Result<()> {
-        let conn = self.conn();
+    pub async fn log_life_habit(&self, id: &str, habit_id: &str, member_id: &str, logged_date: &str, count: i64) -> Result<()> {
+        let conn = self.conn_async().await;
         conn.execute("INSERT INTO life_habit_logs (id, habit_id, logged_date, count) VALUES (?1, ?2, ?3, ?4)", params![id, habit_id, logged_date, count])?;
         // Update streak
         conn.execute("UPDATE life_habits SET streak = streak + 1 WHERE id = ?1 AND member_id = ?2", params![habit_id, member_id])?;
         Ok(())
     }
 
-    pub fn get_orbit_dashboard(&self, member_id: &str) -> Result<super::types::OrbitDashboard> {
+    pub async fn get_orbit_dashboard(&self, member_id: &str) -> Result<super::types::OrbitDashboard> {
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
         // Today's focus — collect rows first, then batch-fetch tasks to avoid nested conn borrows
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         let mut focus_data: Vec<(String, String, Option<String>, i64, String)> = Vec::new();
         let mut task_ids: Vec<String> = Vec::new();
         {
@@ -3309,8 +3325,8 @@ impl EngineDb {
         }).collect();
         // Drop conn guard before calling methods that also lock the mutex
         drop(conn);
-        let tasks = self.get_life_tasks(member_id, Some("pending")).unwrap_or_default();
-        let habits = self.get_life_habits(member_id, true).unwrap_or_default();
+        let tasks = self.get_life_tasks(member_id, Some("pending")).await.unwrap_or_default();
+        let habits = self.get_life_habits(member_id, true).await.unwrap_or_default();
         let streak_total: i64 = habits.iter().map(|h| h.streak).sum();
         Ok(super::types::OrbitDashboard {
             today_focus: focus,
@@ -3322,9 +3338,9 @@ impl EngineDb {
         })
     }
 
-    pub fn add_daily_focus(&self, id: &str, member_id: &str, task_id: &str, position: i64) -> Result<()> {
+    pub async fn add_daily_focus(&self, id: &str, member_id: &str, task_id: &str, position: i64) -> Result<()> {
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         conn.execute("INSERT INTO life_daily_focus (id, member_id, focus_date, task_id, position) VALUES (?1, ?2, ?3, ?4, ?5)", params![id, member_id, today, task_id, position])?;
         Ok(())
     }
@@ -3350,10 +3366,10 @@ impl EngineDb {
     }
 
     // HOME HEALTH
-    pub fn upsert_home_profile(&self, id: &str, address: Option<&str>, year_built: Option<i64>, square_feet: Option<i64>,
+    pub async fn upsert_home_profile(&self, id: &str, address: Option<&str>, year_built: Option<i64>, square_feet: Option<i64>,
         hvac_type: Option<&str>, hvac_filter_size: Option<&str>, water_heater_type: Option<&str>,
         roof_type: Option<&str>, window_type: Option<&str>, insulation_type: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         let now = Self::now();
         conn.execute(
             "INSERT INTO home_profiles (id, address, year_built, square_feet, hvac_type, hvac_filter_size, water_heater_type, roof_type, window_type, insulation_type, created_at, updated_at)
@@ -3363,8 +3379,8 @@ impl EngineDb {
         )?;
         Ok(())
     }
-    pub fn get_home_profile(&self) -> Result<Option<super::types::HomeProfile>> {
-        let conn = self.conn();
+    pub async fn get_home_profile(&self) -> Result<Option<super::types::HomeProfile>> {
+        let conn = self.conn_async().await;
         let row = conn.query_row(
             "SELECT id, address, year_built, square_feet, hvac_type, hvac_filter_size, water_heater_type, roof_type, window_type, insulation_type, created_at, updated_at FROM home_profiles LIMIT 1",
             [], |row| Ok(super::types::HomeProfile {
@@ -3380,15 +3396,15 @@ impl EngineDb {
             Err(e) => Err(e.into()),
         }
     }
-    pub fn add_home_bill(&self, id: &str, bill_type: &str, amount: f64, usage: Option<f64>, billing_month: &str, notes: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+    pub async fn add_home_bill(&self, id: &str, bill_type: &str, amount: f64, usage: Option<f64>, billing_month: &str, notes: Option<&str>) -> Result<()> {
+        let conn = self.conn_async().await;
         let nts = notes.map(String::from);
         conn.execute("INSERT INTO home_bills (id, bill_type, amount, usage, billing_month, notes) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![id, bill_type, amount, usage, billing_month, nts])?;
         Ok(())
     }
-    pub fn get_home_bills(&self, bill_type: Option<&str>, limit: i64) -> Result<Vec<super::types::HomeBill>> {
-        let conn = self.conn();
+    pub async fn get_home_bills(&self, bill_type: Option<&str>, limit: i64) -> Result<Vec<super::types::HomeBill>> {
+        let conn = self.conn_async().await;
         let mapper = |row: &rusqlite::Row| -> rusqlite::Result<super::types::HomeBill> {
             Ok(super::types::HomeBill {
                 id: row.get(0)?, bill_type: row.get(1)?, amount: row.get(2)?, usage: row.get(3)?,
@@ -3428,8 +3444,8 @@ impl EngineDb {
         result.reverse();
         Ok(result)
     }
-    pub fn add_home_maintenance(&self, id: &str, task: &str, category: &str, last_completed: Option<&str>, interval_months: Option<i64>, priority: Option<&str>, estimated_cost: Option<f64>, notes: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+    pub async fn add_home_maintenance(&self, id: &str, task: &str, category: &str, last_completed: Option<&str>, interval_months: Option<i64>, priority: Option<&str>, estimated_cost: Option<f64>, notes: Option<&str>) -> Result<()> {
+        let conn = self.conn_async().await;
         let nts = notes.map(String::from);
         let pri = priority.unwrap_or("normal");
         let next_due = match (last_completed, interval_months) {
@@ -3444,8 +3460,8 @@ impl EngineDb {
             params![id, task, category, lc_owned, interval_months, next_due, pri, estimated_cost, nts])?;
         Ok(())
     }
-    pub fn get_home_maintenance(&self, category: Option<&str>) -> Result<Vec<super::types::HomeMaintenance>> {
-        let conn = self.conn();
+    pub async fn get_home_maintenance(&self, category: Option<&str>) -> Result<Vec<super::types::HomeMaintenance>> {
+        let conn = self.conn_async().await;
         let mapper = |row: &rusqlite::Row| -> rusqlite::Result<super::types::HomeMaintenance> {
             Ok(super::types::HomeMaintenance {
                 id: row.get(0)?, task: row.get(1)?, category: row.get(2)?, last_completed: row.get(3)?,
@@ -3465,8 +3481,8 @@ impl EngineDb {
         }
         Ok(result)
     }
-    pub fn get_upcoming_maintenance(&self, days: i64) -> Result<Vec<super::types::HomeMaintenance>> {
-        let conn = self.conn();
+    pub async fn get_upcoming_maintenance(&self, days: i64) -> Result<Vec<super::types::HomeMaintenance>> {
+        let conn = self.conn_async().await;
         let future = (chrono::Utc::now() + chrono::Duration::days(days)).format("%Y-%m-%d").to_string();
         let mut stmt = conn.prepare("SELECT id, task, category, last_completed, interval_months, next_due, priority, estimated_cost, notes, created_at FROM home_maintenance WHERE next_due IS NOT NULL AND next_due <= ?1 ORDER BY priority DESC, next_due")?;
         let rows = stmt.query_map(params![future], |row: &rusqlite::Row| -> rusqlite::Result<super::types::HomeMaintenance> {
@@ -3480,8 +3496,8 @@ impl EngineDb {
         for r in rows { result.push(r?); }
         Ok(result)
     }
-    pub fn get_overdue_maintenance(&self) -> Result<Vec<super::types::HomeMaintenance>> {
-        let conn = self.conn();
+    pub async fn get_overdue_maintenance(&self) -> Result<Vec<super::types::HomeMaintenance>> {
+        let conn = self.conn_async().await;
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
         let mut stmt = conn.prepare("SELECT id, task, category, last_completed, interval_months, next_due, priority, estimated_cost, notes, created_at FROM home_maintenance WHERE next_due IS NOT NULL AND next_due < ?1 ORDER BY next_due")?;
         let rows = stmt.query_map(params![today], |row: &rusqlite::Row| -> rusqlite::Result<super::types::HomeMaintenance> {
@@ -3495,18 +3511,18 @@ impl EngineDb {
         for r in rows { result.push(r?); }
         Ok(result)
     }
-    pub fn add_home_appliance(&self, id: &str, name: &str, category: &str, model: Option<&str>,
+    pub async fn add_home_appliance(&self, id: &str, name: &str, category: &str, model: Option<&str>,
         installed_date: Option<&str>, expected_lifespan_years: Option<f64>, warranty_expiry: Option<&str>,
         estimated_replacement_cost: Option<f64>, notes: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         let mdl = model.map(String::from);
         let nid = notes.map(String::from);
         conn.execute("INSERT INTO home_appliances (id, name, category, model, installed_date, expected_lifespan_years, warranty_expiry, estimated_replacement_cost, notes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![id, name, category, mdl, installed_date, expected_lifespan_years, warranty_expiry, estimated_replacement_cost, nid])?;
         Ok(())
     }
-    pub fn get_home_appliances(&self) -> Result<Vec<super::types::HomeAppliance>> {
-        let conn = self.conn();
+    pub async fn get_home_appliances(&self) -> Result<Vec<super::types::HomeAppliance>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare("SELECT id, name, category, model, installed_date, expected_lifespan_years, warranty_expiry, estimated_replacement_cost, notes, last_service, next_service, created_at FROM home_appliances ORDER BY category, name")?;
         let rows = stmt.query_map([], |row: &rusqlite::Row| -> rusqlite::Result<super::types::HomeAppliance> {
             Ok(super::types::HomeAppliance {
@@ -3520,11 +3536,11 @@ impl EngineDb {
         for r in rows { result.push(r?); }
         Ok(result)
     }
-    pub fn get_home_dashboard(&self) -> Result<super::types::HomeDashboard> {
-        let profile = self.get_home_profile().ok().flatten();
-        let upcoming = self.get_upcoming_maintenance(30).unwrap_or_default();
-        let overdue = self.get_overdue_maintenance().unwrap_or_default();
-        let appliances = self.get_home_appliances().unwrap_or_default();
+    pub async fn get_home_dashboard(&self) -> Result<super::types::HomeDashboard> {
+        let profile = self.get_home_profile().await.ok().flatten();
+        let upcoming = self.get_upcoming_maintenance(30).await.unwrap_or_default();
+        let overdue = self.get_overdue_maintenance().await.unwrap_or_default();
+        let appliances = self.get_home_appliances().await.unwrap_or_default();
         let bill_trend = self.get_bill_trends(6).unwrap_or_default();
         let monthly = bill_trend.last().map(|b| b.total).unwrap_or(0.0);
         let total_appliance_risk: f64 = appliances.iter().map(|a| {
@@ -3724,15 +3740,15 @@ impl EngineDb {
         systems
     }
 
-    pub fn delete_home_bill(&self, id: &str) -> Result<()> {
-        self.conn().execute("DELETE FROM home_bills WHERE id = ?", [id])?;
+    pub async fn delete_home_bill(&self, id: &str) -> Result<()> {
+        self.conn_async().await.execute("DELETE FROM home_bills WHERE id = ?", [id])?;
         Ok(())
     }
 
     // ── Home Health: Foundation AI ──
 
-    pub fn store_home_problem(&self, id: &str, symptom: &str, diagnosis_json: Option<&str>, system: Option<&str>, severity: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+    pub async fn store_home_problem(&self, id: &str, symptom: &str, diagnosis_json: Option<&str>, system: Option<&str>, severity: Option<&str>) -> Result<()> {
+        let conn = self.conn_async().await;
         conn.execute(
             "INSERT INTO home_problems (id, symptom, diagnosis_json, system, severity) VALUES (?1, ?2, ?3, ?4, ?5)",
             params![id, symptom, diagnosis_json, system, severity],
@@ -3740,8 +3756,8 @@ impl EngineDb {
         Ok(())
     }
 
-    pub fn get_home_problems(&self, resolved: Option<bool>) -> Result<Vec<serde_json::Value>> {
-        let conn = self.conn();
+    pub async fn get_home_problems(&self, resolved: Option<bool>) -> Result<Vec<serde_json::Value>> {
+        let conn = self.conn_async().await;
         let query = match resolved {
             Some(r) => {
                 let rv: i64 = if r { 1 } else { 0 };
@@ -3924,8 +3940,8 @@ impl EngineDb {
     }
 
     // DREAM BUILDER
-    pub fn add_dream(&self, id: &str, member_id: Option<&str>, title: &str, description: Option<&str>, category: &str, target_date: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+    pub async fn add_dream(&self, id: &str, member_id: Option<&str>, title: &str, description: Option<&str>, category: &str, target_date: Option<&str>) -> Result<()> {
+        let conn = self.conn_async().await;
         let now = Self::now();
         let mid = member_id.map(String::from);
         let desc = description.map(String::from);
@@ -3934,8 +3950,8 @@ impl EngineDb {
             params![id, mid, title, desc, category, td, now])?;
         Ok(())
     }
-    pub fn get_dreams(&self, member_id: &str, status: Option<&str>) -> Result<Vec<super::types::Dream>> {
-        let conn = self.conn();
+    pub async fn get_dreams(&self, member_id: &str, status: Option<&str>) -> Result<Vec<super::types::Dream>> {
+        let conn = self.conn_async().await;
         let mapper = |row: &rusqlite::Row| -> rusqlite::Result<super::types::Dream> {
             Ok(super::types::Dream {
                 id: row.get(0)?, member_id: row.get(1)?, title: row.get(2)?, description: row.get(3)?,
@@ -3955,16 +3971,16 @@ impl EngineDb {
         }
         Ok(result)
     }
-    pub fn add_milestone(&self, id: &str, dream_id: &str, member_id: &str, title: &str, description: Option<&str>, target_date: Option<&str>, sort_order: i64) -> Result<()> {
-        let conn = self.conn();
+    pub async fn add_milestone(&self, id: &str, dream_id: &str, member_id: &str, title: &str, description: Option<&str>, target_date: Option<&str>, sort_order: i64) -> Result<()> {
+        let conn = self.conn_async().await;
         let desc = description.map(String::from);
         let td = target_date.map(String::from);
         conn.execute("INSERT INTO dream_milestones (id, dream_id, member_id, title, description, target_date, sort_order) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![id, dream_id, member_id, title, desc, td, sort_order])?;
         Ok(())
     }
-    pub fn get_milestones(&self, dream_id: &str, member_id: &str) -> Result<Vec<super::types::DreamMilestone>> {
-        let conn = self.conn();
+    pub async fn get_milestones(&self, dream_id: &str, member_id: &str) -> Result<Vec<super::types::DreamMilestone>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare("SELECT id, dream_id, title, description, target_date, completed_at, is_completed, sort_order, created_at FROM dream_milestones WHERE dream_id = ?1 AND member_id = ?2 ORDER BY sort_order")?;
         let rows = stmt.query_map(params![dream_id, member_id], |row: &rusqlite::Row| -> rusqlite::Result<super::types::DreamMilestone> {
             Ok(super::types::DreamMilestone {
@@ -3977,14 +3993,14 @@ impl EngineDb {
         for r in rows { result.push(r?); }
         Ok(result)
     }
-    pub fn complete_milestone(&self, member_id: &str, id: &str) -> Result<()> {
-        let conn = self.conn();
+    pub async fn complete_milestone(&self, member_id: &str, id: &str) -> Result<()> {
+        let conn = self.conn_async().await;
         let now = Self::now();
         conn.execute("UPDATE dream_milestones SET is_completed = 1, completed_at = ?1 WHERE id = ?2 AND member_id = ?3", params![now, id, member_id])?;
         Ok(())
     }
-    pub fn add_dream_task(&self, id: &str, dream_id: &str, milestone_id: Option<&str>, member_id: &str, title: &str, description: Option<&str>, due_date: Option<&str>, frequency: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+    pub async fn add_dream_task(&self, id: &str, dream_id: &str, milestone_id: Option<&str>, member_id: &str, title: &str, description: Option<&str>, due_date: Option<&str>, frequency: Option<&str>) -> Result<()> {
+        let conn = self.conn_async().await;
         let mid = milestone_id.map(String::from);
         let desc = description.map(String::from);
         let dd = due_date.map(String::from);
@@ -3993,8 +4009,8 @@ impl EngineDb {
             params![id, dream_id, mid, member_id, title, desc, dd, freq])?;
         Ok(())
     }
-    pub fn get_dream_tasks(&self, dream_id: &str, member_id: &str) -> Result<Vec<super::types::DreamTask>> {
-        let conn = self.conn();
+    pub async fn get_dream_tasks(&self, dream_id: &str, member_id: &str) -> Result<Vec<super::types::DreamTask>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare("SELECT id, dream_id, milestone_id, title, description, due_date, completed_at, is_completed, frequency, created_at FROM dream_tasks WHERE dream_id = ?1 AND member_id = ?2 ORDER BY is_completed, due_date")?;
         let rows = stmt.query_map(params![dream_id, member_id], |row: &rusqlite::Row| -> rusqlite::Result<super::types::DreamTask> {
             Ok(super::types::DreamTask {
@@ -4007,8 +4023,8 @@ impl EngineDb {
         for r in rows { result.push(r?); }
         Ok(result)
     }
-    pub fn get_upcoming_dream_tasks(&self, dream_id: &str, member_id: &str, days: i64) -> Result<Vec<super::types::DreamTask>> {
-        let conn = self.conn();
+    pub async fn get_upcoming_dream_tasks(&self, dream_id: &str, member_id: &str, days: i64) -> Result<Vec<super::types::DreamTask>> {
+        let conn = self.conn_async().await;
         let future = (chrono::Utc::now() + chrono::Duration::days(days)).format("%Y-%m-%d").to_string();
         let mut stmt = conn.prepare("SELECT id, dream_id, milestone_id, title, description, due_date, completed_at, is_completed, frequency, created_at FROM dream_tasks WHERE dream_id = ?1 AND member_id = ?2 AND is_completed = 0 AND due_date IS NOT NULL AND due_date <= ?3 ORDER BY due_date")?;
         let rows = stmt.query_map(params![dream_id, member_id, future], |row: &rusqlite::Row| -> rusqlite::Result<super::types::DreamTask> {
@@ -4022,14 +4038,14 @@ impl EngineDb {
         for r in rows { result.push(r?); }
         Ok(result)
     }
-    pub fn complete_dream_task(&self, member_id: &str, id: &str) -> Result<()> {
-        let conn = self.conn();
+    pub async fn complete_dream_task(&self, member_id: &str, id: &str) -> Result<()> {
+        let conn = self.conn_async().await;
         let now = Self::now();
         conn.execute("UPDATE dream_tasks SET is_completed = 1, completed_at = ?1 WHERE id = ?2 AND member_id = ?3", params![now, id, member_id])?;
         Ok(())
     }
-    pub fn add_dream_progress(&self, id: &str, dream_id: &str, member_id: &str, note: Option<&str>, progress_change: Option<f64>, ai_insight: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+    pub async fn add_dream_progress(&self, id: &str, dream_id: &str, member_id: &str, note: Option<&str>, progress_change: Option<f64>, ai_insight: Option<&str>) -> Result<()> {
+        let conn = self.conn_async().await;
         let n = note.map(String::from);
         let ai = ai_insight.map(String::from);
         conn.execute("INSERT INTO dream_progress (id, dream_id, member_id, note, progress_change, ai_insight) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -4041,8 +4057,8 @@ impl EngineDb {
         }
         Ok(())
     }
-    pub fn get_dream_progress(&self, dream_id: &str, member_id: &str) -> Result<Vec<super::types::DreamProgress>> {
-        let conn = self.conn();
+    pub async fn get_dream_progress(&self, dream_id: &str, member_id: &str) -> Result<Vec<super::types::DreamProgress>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare("SELECT id, dream_id, note, progress_change, ai_insight, created_at FROM dream_progress WHERE dream_id = ?1 AND member_id = ?2 ORDER BY created_at DESC LIMIT 20")?;
         let rows = stmt.query_map(params![dream_id, member_id], |row: &rusqlite::Row| -> rusqlite::Result<super::types::DreamProgress> {
             Ok(super::types::DreamProgress {
@@ -4054,20 +4070,20 @@ impl EngineDb {
         for r in rows { result.push(r?); }
         Ok(result)
     }
-    pub fn get_dream_dashboard(&self, member_id: &str) -> Result<super::types::DreamDashboard> {
-        let all_dreams = self.get_dreams(member_id, None).unwrap_or_default();
+    pub async fn get_dream_dashboard(&self, member_id: &str) -> Result<super::types::DreamDashboard> {
+        let all_dreams = self.get_dreams(member_id, None).await.unwrap_or_default();
         let active: Vec<_> = all_dreams.iter().filter(|d| d.status == "active").cloned().collect();
         let mut total_ms = 0i64;
         let mut completed_ms = 0i64;
         let mut all_tasks = Vec::new();
         let mut all_progress = Vec::new();
         for d in &all_dreams {
-            let ms = self.get_milestones(&d.id, member_id).unwrap_or_default();
+            let ms = self.get_milestones(&d.id, member_id).await.unwrap_or_default();
             total_ms += ms.len() as i64;
             completed_ms += ms.iter().filter(|m| m.is_completed).count() as i64;
-            let tasks = self.get_upcoming_dream_tasks(&d.id, member_id, 30).unwrap_or_default();
+            let tasks = self.get_upcoming_dream_tasks(&d.id, member_id, 30).await.unwrap_or_default();
             all_tasks.extend(tasks);
-            let prog = self.get_dream_progress(&d.id, member_id).unwrap_or_default();
+            let prog = self.get_dream_progress(&d.id, member_id).await.unwrap_or_default();
             all_progress.extend(prog);
         }
         all_tasks.sort_by(|a, b| a.due_date.as_deref().unwrap_or("9999").cmp(&b.due_date.as_deref().unwrap_or("9999")));
@@ -4078,14 +4094,14 @@ impl EngineDb {
             recent_progress: all_progress.into_iter().take(10).collect(),
         })
     }
-    pub fn update_dream_ai_plan(&self, id: &str, ai_plan: &str, ai_next_actions: &str) -> Result<()> {
-        let conn = self.conn();
+    pub async fn update_dream_ai_plan(&self, id: &str, ai_plan: &str, ai_next_actions: &str) -> Result<()> {
+        let conn = self.conn_async().await;
         conn.execute("UPDATE dreams SET ai_plan = ?1, ai_next_actions = ?2, updated_at = ?3 WHERE id = ?4",
             params![ai_plan, ai_next_actions, Self::now(), id])?;
         Ok(())
     }
-    pub fn delete_dream(&self, member_id: &str, id: &str) -> Result<()> {
-        let conn = self.conn();
+    pub async fn delete_dream(&self, member_id: &str, id: &str) -> Result<()> {
+        let conn = self.conn_async().await;
         conn.execute("DELETE FROM dream_tasks WHERE dream_id = ?1 AND member_id = ?2", params![id, member_id])?;
         conn.execute("DELETE FROM dream_milestones WHERE dream_id = ?1 AND member_id = ?2", params![id, member_id])?;
         conn.execute("DELETE FROM dream_progress WHERE dream_id IN (SELECT id FROM dreams WHERE id = ?1 AND member_id = ?2)", params![id, member_id])?;
@@ -4095,8 +4111,8 @@ impl EngineDb {
 
     // ── Dreams: Horizon Extensions ──
 
-    pub fn get_dream_velocity(&self, dream_id: &str, member_id: &str) -> Result<super::types::DreamVelocity> {
-        let conn = self.conn();
+    pub async fn get_dream_velocity(&self, dream_id: &str, member_id: &str) -> Result<super::types::DreamVelocity> {
+        let conn = self.conn_async().await;
         let milestones_total: i64 = conn.query_row(
             "SELECT COUNT(*) FROM dream_milestones WHERE dream_id = ?1 AND member_id = ?2", params![dream_id, member_id], |r| r.get(0)
         ).unwrap_or(0);
@@ -4133,8 +4149,8 @@ impl EngineDb {
         })
     }
 
-    pub fn get_dream_timeline(&self, dream_id: &str, member_id: &str) -> Result<super::types::DreamTimeline> {
-        let conn = self.conn();
+    pub async fn get_dream_timeline(&self, dream_id: &str, member_id: &str) -> Result<super::types::DreamTimeline> {
+        let conn = self.conn_async().await;
         // Combine milestones into timeline
         let mut entries = Vec::new();
         let mut stmt = conn.prepare("SELECT title, is_completed, target_date, completed_at FROM dream_milestones WHERE dream_id = ?1 AND member_id = ?2 ORDER BY sort_order")?;
@@ -4158,17 +4174,17 @@ impl EngineDb {
         })
     }
 
-    pub fn set_dream_progress(&self, member_id: &str, dream_id: &str, progress_pct: f64) -> Result<()> {
-        let conn = self.conn();
+    pub async fn set_dream_progress(&self, member_id: &str, dream_id: &str, progress_pct: f64) -> Result<()> {
+        let conn = self.conn_async().await;
         conn.execute("UPDATE dreams SET progress = ?1 WHERE id = ?2 AND member_id = ?3", params![progress_pct, dream_id, member_id])?;
         Ok(())
     }
 
-    pub fn get_active_dreams_with_velocity(&self, member_id: &str) -> Result<Vec<(super::types::Dream, super::types::DreamVelocity)>> {
-        let dreams = self.get_dreams(member_id, Some("active"))?;
+    pub async fn get_active_dreams_with_velocity(&self, member_id: &str) -> Result<Vec<(super::types::Dream, super::types::DreamVelocity)>> {
+        let dreams = self.get_dreams(member_id, Some("active")).await?;
         let mut result = Vec::new();
         for dream in dreams {
-            let velocity = self.get_dream_velocity(&dream.id, member_id).unwrap_or(super::types::DreamVelocity {
+            let velocity = self.get_dream_velocity(&dream.id, member_id).await.unwrap_or(super::types::DreamVelocity {
                 dream_id: dream.id.clone(), milestones_completed: 0, milestones_total: 0,
                 tasks_completed: 0, tasks_total: 0, progress_pct: 0.0,
                 pace: "behind".to_string(), days_remaining: None, estimated_completion: None,
@@ -4448,8 +4464,8 @@ impl EngineDb {
 // VAULT — File Browser Methods
 // ============================================================
 
-fn get_conn() -> std::sync::MutexGuard<'static, Connection> {
-    super::get_engine().db.conn()
+fn get_conn() -> tokio::sync::MutexGuard<'static, Connection> {
+    super::get_engine().db.conn_blocking()
 }
 
 pub fn vault_upsert_file(

@@ -27,12 +27,12 @@ pub struct UpdateSettingsRequest {
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_get_settings(member_id: Option<String>) -> Result<Option<BudgetSettings>, String> {
+pub async fn budget_get_settings(member_id: Option<String>) -> Result<Option<BudgetSettings>, String> {
     let user_id = member_id.unwrap_or_default();
     if user_id.is_empty() { return Ok(None); }
 
     let engine = engine::get_engine();
-    match engine.db().get_budget_settings(&user_id) {
+    match engine.db().get_budget_settings(&user_id).await {
         Ok(Some(row)) => Ok(Some(BudgetSettings {
             id: row.id,
             user_id: row.user_id,
@@ -49,7 +49,7 @@ pub fn budget_get_settings(member_id: Option<String>) -> Result<Option<BudgetSet
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_update_settings(req: UpdateSettingsRequest, member_id: Option<String>) -> Result<BudgetSettings, String> {
+pub async fn budget_update_settings(req: UpdateSettingsRequest, member_id: Option<String>) -> Result<BudgetSettings, String> {
     let user_id = member_id.unwrap_or_default();
     if user_id.is_empty() { return Err("No user ID provided".to_string()); }
 
@@ -58,11 +58,11 @@ pub fn budget_update_settings(req: UpdateSettingsRequest, member_id: Option<Stri
     let id = uuid::Uuid::new_v4().to_string();
     let pay_dates_str = req.pay_dates.to_string();
 
-    engine.db().upsert_budget_settings(&id, &user_id, &req.pay_frequency, &pay_dates_str, req.income_amount, &currency)
+    engine.db().upsert_budget_settings(&id, &user_id, &req.pay_frequency, &pay_dates_str, req.income_amount, &currency).await
         .map_err(|e| e.to_string())?;
 
     // Return the updated settings
-    match engine.db().get_budget_settings(&user_id) {
+    match engine.db().get_budget_settings(&user_id).await {
         Ok(Some(row)) => Ok(BudgetSettings {
             id: row.id, user_id: row.user_id, pay_frequency: row.pay_frequency,
             pay_dates: serde_json::from_str(&row.pay_dates).unwrap_or(serde_json::json!([1, 15])),
@@ -107,28 +107,28 @@ fn bucket_row_to_bucket(row: engine::types::BudgetBucketRow) -> BudgetBucket {
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_get_buckets(member_id: Option<String>) -> Result<Vec<BudgetBucket>, String> {
+pub async fn budget_get_buckets(member_id: Option<String>) -> Result<Vec<BudgetBucket>, String> {
     let user_id = member_id.unwrap_or_default();
     if user_id.is_empty() { return Ok(vec![]); }
 
     let engine = engine::get_engine();
-    engine.db().get_budget_buckets(&user_id)
+    engine.db().get_budget_buckets(&user_id).await
         .map(|rows| rows.into_iter().map(bucket_row_to_bucket).collect())
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_create_bucket(req: UpdateBucketRequest, member_id: Option<String>) -> Result<BudgetBucket, String> {
+pub async fn budget_create_bucket(req: UpdateBucketRequest, member_id: Option<String>) -> Result<BudgetBucket, String> {
     let user_id = member_id.unwrap_or_default();
     if user_id.is_empty() { return Err("No user ID provided".to_string()); }
 
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
-    engine.db().create_budget_bucket(&id, &user_id, &req.name, req.icon.as_deref(), req.monthly_goal, req.color.as_deref())
+    engine.db().create_budget_bucket(&id, &user_id, &req.name, req.icon.as_deref(), req.monthly_goal, req.color.as_deref()).await
         .map_err(|e| e.to_string())?;
 
     // Return the created bucket
-    let buckets = engine.db().get_budget_buckets(&user_id).map_err(|e| e.to_string())?;
+    let buckets = engine.db().get_budget_buckets(&user_id).await.map_err(|e| e.to_string())?;
     buckets.into_iter()
         .find(|b| b.id == id)
         .map(bucket_row_to_bucket)
@@ -136,9 +136,9 @@ pub fn budget_create_bucket(req: UpdateBucketRequest, member_id: Option<String>)
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_update_bucket(id: String, req: UpdateBucketRequest, _member_id: Option<String>) -> Result<BudgetBucket, String> {
+pub async fn budget_update_bucket(id: String, req: UpdateBucketRequest, _member_id: Option<String>) -> Result<BudgetBucket, String> {
     let engine = engine::get_engine();
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_async().await;
     let now = chrono::Utc::now().to_rfc3339();
 
     conn.execute(
@@ -195,7 +195,7 @@ pub struct LogTransactionRequest {
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_log_transaction(req: LogTransactionRequest, member_id: Option<String>) -> Result<BudgetTransaction, String> {
+pub async fn budget_log_transaction(req: LogTransactionRequest, member_id: Option<String>) -> Result<BudgetTransaction, String> {
     let user_id = member_id.unwrap_or_default();
     if user_id.is_empty() { return Err("No user ID provided".to_string()); }
 
@@ -208,10 +208,10 @@ pub fn budget_log_transaction(req: LogTransactionRequest, member_id: Option<Stri
         &id, &user_id, bucket_id, req.amount, &req.date, &status,
         req.description.as_deref(), req.merchant.as_deref(),
         req.category.as_deref(), req.receipt_url.as_deref()
-    ).map_err(|e| e.to_string())?;
+    ).await.map_err(|e| e.to_string())?;
 
     // Return the created transaction
-    let transactions = engine.db().get_budget_transactions(&user_id).map_err(|e| e.to_string())?;
+    let transactions = engine.db().get_budget_transactions(&user_id).await.map_err(|e| e.to_string())?;
     transactions.into_iter()
         .find(|t| t.id == id)
         .map(|t| BudgetTransaction {
@@ -225,7 +225,7 @@ pub fn budget_log_transaction(req: LogTransactionRequest, member_id: Option<Stri
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_get_transactions(
+pub async fn budget_get_transactions(
     bucket_id: Option<String>,
     _month: Option<String>,
     member_id: Option<String>,
@@ -234,7 +234,7 @@ pub fn budget_get_transactions(
     if user_id.is_empty() { return Ok(vec![]); }
 
     let engine = engine::get_engine();
-    let all = engine.db().get_budget_transactions(&user_id).map_err(|e| e.to_string())?;
+    let all = engine.db().get_budget_transactions(&user_id).await.map_err(|e| e.to_string())?;
 
     let filtered: Vec<BudgetTransaction> = all.into_iter()
         .filter(|t| {
@@ -277,12 +277,12 @@ pub struct UpdateAllocationRequest {
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_update_allocation(req: UpdateAllocationRequest, member_id: Option<String>) -> Result<BudgetAllocation, String> {
+pub async fn budget_update_allocation(req: UpdateAllocationRequest, member_id: Option<String>) -> Result<BudgetAllocation, String> {
     let user_id = member_id.unwrap_or_default();
     if user_id.is_empty() { return Err("No user ID provided".to_string()); }
 
     let engine = engine::get_engine();
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_async().await;
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
@@ -300,7 +300,7 @@ pub fn budget_update_allocation(req: UpdateAllocationRequest, member_id: Option<
     }
 
     // Return the allocation
-    let allocations = engine.db().get_budget_allocations(&user_id).map_err(|e| e.to_string())?;
+    let allocations = engine.db().get_budget_allocations(&user_id).await.map_err(|e| e.to_string())?;
     allocations.into_iter()
         .find(|a| a.bucket_id == req.bucket_id && a.pay_period_id == req.pay_period_id)
         .map(|a| BudgetAllocation {
@@ -312,7 +312,7 @@ pub fn budget_update_allocation(req: UpdateAllocationRequest, member_id: Option<
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_get_allocations(
+pub async fn budget_get_allocations(
     _pay_period_id: Option<String>,
     member_id: Option<String>,
 ) -> Result<Vec<BudgetAllocation>, String> {
@@ -320,7 +320,7 @@ pub fn budget_get_allocations(
     if user_id.is_empty() { return Ok(vec![]); }
 
     let engine = engine::get_engine();
-    engine.db().get_budget_allocations(&user_id)
+    engine.db().get_budget_allocations(&user_id).await
         .map(|rows| rows.into_iter().map(|a| BudgetAllocation {
             id: a.id, user_id: a.user_id, bucket_id: a.bucket_id,
             pay_period_id: a.pay_period_id, amount: a.amount,
