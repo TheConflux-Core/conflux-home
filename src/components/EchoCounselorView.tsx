@@ -9,6 +9,10 @@ import { useVoiceInput } from '../hooks/useVoiceInput';
 import type { EchoCounselorMessage, EchoCrisisFlag, EchoCounselorSession, EchoWeeklyLetter } from '../types';
 import { ECHO_CRISIS_RESOURCES } from '../types';
 import '../styles-echo-counselor.css';
+import '../styles-echo-onboarding.css';
+import EchoBoot from './EchoBoot';
+import EchoOnboarding, { hasCompletedEchoOnboarding } from './EchoOnboarding';
+import EchoTour, { hasCompletedEchoTour } from './EchoTour';
 
 type ViewMode = 'session' | 'journal' | 'tools' | 'letter';
 
@@ -38,6 +42,16 @@ export default function EchoCounselorView() {
   const [journal, setJournal] = useState<EchoCounselorSession[]>([]);
   const [showCrisisResources, setShowCrisisResources] = useState(false);
 
+  // Boot → Onboarding → Tour → Main
+  const [bootDone, setBootDone] = useState(() => localStorage.getItem('echo-boot-done') === 'true');
+  const hasOnboarded = hasCompletedEchoOnboarding();
+  const hasTakenTour = hasCompletedEchoTour();
+  const [showOnboarding, setShowOnboarding] = useState(!bootDone && !hasOnboarded);
+  const [showTour, setShowTour] = useState(!bootDone ? false : !hasTakenTour);
+
+  // After onboarding starts session, switch to session tab
+  const switchToSession = useCallback(() => setView('session'), []);
+
   // Voice input — streams transcript into the textarea
   const [voiceText, setVoiceText] = useState('');
   const voice = useVoiceInput({
@@ -57,12 +71,11 @@ export default function EchoCounselorView() {
     getCounselorJournal().then(j => setJournal(j));
   }, [getCounselorJournal]);
 
-  // Auto-start a session if none exists and we have data
+  // Auto-start a session if none exists and we have data (only after onboarding complete)
   useEffect(() => {
-    if (!loading && state && !state.current_session && state.recent_sessions.length === 0) {
-      startSession();
-    }
-  }, [loading, state, startSession]);
+    if (!bootDone || showOnboarding || !loading || !state || state.current_session || state.recent_sessions.length > 0) return;
+    startSession();
+  }, [bootDone, showOnboarding, loading, state, startSession]);
 
   const handleSubmit = async () => {
     if (!input.trim() || !state?.current_session?.id) return;
@@ -117,6 +130,21 @@ export default function EchoCounselorView() {
         <div className="echo-loading">Loading Echo...</div>
       </div>
     );
+  }
+
+  // Boot sequence
+  if (!bootDone) {
+    return <EchoBoot onComplete={() => { localStorage.setItem('echo-boot-done', 'true'); setBootDone(true); }} />;
+  }
+
+  // Onboarding (starts first session internally)
+  if (showOnboarding) {
+    return <EchoOnboarding onComplete={() => setShowOnboarding(false)} onStartSession={switchToSession} />;
+  }
+
+  // Guided tour
+  if (showTour) {
+    return <EchoTour onComplete={() => setShowTour(false)} />;
   }
 
   return (
