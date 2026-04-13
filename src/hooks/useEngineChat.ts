@@ -70,7 +70,7 @@ interface StreamDonePayload {
   credit_source?: string;
 }
 
-export function useEngineChat(agentId: string | null, userId?: string): UseEngineChatResult {
+export function useEngineChat(agent_id: string | null, user_id?: string): UseEngineChatResult {
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [thinking, setThinking] = useState(false);
@@ -81,9 +81,9 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
   const assistantIdRef = useRef<string | null>(null);
   const unlistenFnsRef = useRef<(() => void)[]>([]);
   
-  // Use AuthContext user.id if no explicit userId provided
+  // Use AuthContext user.id if no explicit user_id provided
   const { user } = useAuthContext();
-  const authUserId = userId ?? user?.id;
+  const authUserId = user_id ?? user?.id;
 
   // Cleanup listeners on unmount
   useEffect(() => {
@@ -95,7 +95,7 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
 
   // When agent changes, load or create a session and its messages
   useEffect(() => {
-    if (!agentId) {
+    if (!agent_id) {
       setMessages([]);
       setSessionId(null);
       return;
@@ -107,14 +107,14 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
       try {
         // Try to get existing sessions for this agent
         const sessions = await invoke<EngineSession[]>('engine_get_sessions', { limit: 50 });
-        const agentSession = sessions.find(s => s.agent_id === agentId);
+        const agentSession = sessions.find(s => s.agent_id === agent_id);
 
         if (agentSession && !cancelled) {
           setSessionId(agentSession.id);
           await loadMessages(agentSession.id);
         } else if (!cancelled) {
           // Create new session
-          const session = await invoke<EngineSession>('engine_create_session', { agentId });
+          const session = await invoke<EngineSession>('engine_create_session', { agent_id: agent_id });
           setSessionId(session.id);
           setMessages([]);
         }
@@ -129,7 +129,7 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
         // Load cloud credits if authenticated
         if (authUserId) {
           try {
-            const balance = await invoke<{ total_available: number }>('get_credit_balance', { userId: authUserId });
+            const balance = await invoke<{ total_available: number }>('get_credit_balance', { user_id: authUserId });
             if (!cancelled) setCredits(balance.total_available ?? 0);
           } catch {
             // Cloud credits not available — engine falls back to local quota
@@ -147,7 +147,7 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
     setError(null);
 
     return () => { cancelled = true; };
-  }, [agentId, userId, user?.id]);
+  }, [agent_id, user_id, user?.id]);
 
   async function loadMessages(sid: string) {
     try {
@@ -156,7 +156,7 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
         .filter(m => m.role === 'user' || m.role === 'assistant')
         .map(m => ({
           id: m.id,
-          agentId: m.role === 'user' ? 'user' : (agentId ?? 'unknown'),
+          agent_id: m.role === 'user' ? 'user' : (agent_id ?? 'unknown'),
           content: m.content,
           timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
           type: m.role === 'user' ? 'user' as const : 'agent' as const,
@@ -173,12 +173,12 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
   }, []);
 
   const sendMessage = useCallback(async (content: string) => {
-    if (!agentId || !sessionId) return;
+    if (!agent_id || !sessionId) return;
 
     // Add user message to UI immediately
     const userMsg: AgentMessage = {
       id: nextId(),
-      agentId: 'user',
+      agent_id: 'user',
       content,
       timestamp: timestamp(),
       type: 'user',
@@ -190,7 +190,7 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
     assistantIdRef.current = assistantId;
     const assistantMsg: AgentMessage = {
       id: assistantId,
-      agentId,
+      agent_id,
       content: '',
       timestamp: timestamp(),
       type: 'agent',
@@ -251,7 +251,7 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
                 .filter(m => m.role === 'user' || m.role === 'assistant' || m.role === 'tool')
                 .map(m => ({
                   id: m.id,
-                  agentId: m.role === 'user' ? 'user' : m.role === 'tool' ? 'system' : (agentId ?? 'unknown'),
+                  agent_id: m.role === 'user' ? 'user' : m.role === 'tool' ? 'system' : (agent_id ?? 'unknown'),
                   content: m.role === 'tool' && m.tool_name
                     ? `🔧 **${m.tool_name}**\n${m.content}`
                     : m.content,
@@ -284,7 +284,7 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
       console.log('[useEngineChat] ══════════════════════════════════════════');
       console.log('[useEngineChat] 🚀 Starting sendMessage...');
       console.log('[useEngineChat] Session ID:', sessionId);
-      console.log('[useEngineChat] Agent ID:', agentId);
+      console.log('[useEngineChat] Agent ID:', agent_id);
       console.log('[useEngineChat] Message:', content);
       console.log('[useEngineChat] Syncing session before chat...');
       const syncResult = await syncSessionToEngine();
@@ -314,7 +314,7 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
       await invoke('engine_chat_stream', {
         req: {
           session_id: sessionId,
-          agent_id: agentId,
+          agent_id: agent_id,
           message: content,
           max_tokens: null,
         },
@@ -335,7 +335,7 @@ export function useEngineChat(agentId: string | null, userId?: string): UseEngin
         )
       );
     }
-  }, [agentId, sessionId]);
+  }, [agent_id, sessionId]);
 
   return {
     messages,
