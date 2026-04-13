@@ -9,7 +9,7 @@ import PulseParticles from './PulseParticles';
 import BudgetConfigModal from './BudgetConfigModal';
 import { TransactionLogModal } from './TransactionLogModal';
 import { parseBudgetCommand } from '../hooks/useBudgetAI';
-import BudgetOnboarding from './BudgetOnboarding';
+import BudgetOnboarding, { type SetupConfig } from './BudgetOnboarding';
 import '../styles/budget-pulse.css';
 import '../styles/pulse-onboarding.css';
 
@@ -107,6 +107,35 @@ export default function BudgetView() {
     setEditingCell(null);
   };
 
+  // Save config from onboarding setup flow
+  const handleSaveOnboardingConfig = async (config: SetupConfig) => {
+    // Map onboarding frequency labels to backend values
+    const freqMap: Record<string, string> = {
+      'weekly': 'weekly',
+      'bi-weekly': 'biweekly',
+      'semi-monthly': 'semi-monthly',
+      'monthly': 'monthly',
+    };
+
+    await updateSettings({
+      pay_frequency: freqMap[config.payFrequency] || config.payFrequency,
+      pay_dates: [config.payDates.p1, config.payDates.p2],
+      income_amount: config.monthlyIncome,
+    });
+
+    // Create each bucket (ignore preset IDs — they may conflict with DB auto-generated IDs)
+    for (const bucket of config.buckets) {
+      await createBucket({
+        name: bucket.name,
+        icon: bucket.icon,
+        monthly_goal: bucket.monthly_goal,
+        color: bucket.color,
+      });
+    }
+
+    await refreshData();
+  };
+
   return (
     <div className="budget-matrix-v2">
       <div className="matrix-bg-effects" />
@@ -119,7 +148,7 @@ export default function BudgetView() {
             setShowOnboarding(false);
             setOnboardingComplete(true);
           }}
-          onOpenConfig={() => setIsConfigOpen(true)}
+          onSaveConfig={handleSaveOnboardingConfig}
         />
       )}
 

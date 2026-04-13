@@ -1,219 +1,599 @@
 /* ═══════════════════════════════════════════════════════════════
-   PULSE ONBOARDING — Boot Sequence + Guided Tour Styles
+   PULSE ONBOARDING v2 — Setup + Tour (no spotlight)
    ═══════════════════════════════════════════════════════════════ */
 
 /* ── Boot Sequence ─────────────────────────────────────────── */
 
-.pulse-boot-sequence {
+.pulse-boot {
   position: fixed;
   inset: 0;
   background: #020a06;
-  z-index: 9999;
+  z-index: 9998;
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0;
-  transition: opacity 0.4s ease;
+  animation: boot-fade-in 0.4s ease both;
 }
 
-.boot-phase-1,
-.boot-phase-2,
-.boot-phase-3,
-.boot-phase-4,
-.boot-phase-5 {
-  opacity: 1;
-}
-
-.boot-text {
+.pulse-boot-content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 32px;
+  gap: 24px;
 }
 
-.boot-pulse-text {
+.pulse-boot-logo {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 3.5rem;
+  font-size: 3rem;
   font-weight: 800;
-  letter-spacing: 0.4em;
+  letter-spacing: 0.5em;
   color: #10b981;
   text-shadow:
-    0 0 20px rgba(16, 185, 129, 0.5),
-    0 0 40px rgba(16, 185, 129, 0.3),
+    0 0 20px rgba(16, 185, 129, 0.6),
+    0 0 40px rgba(16, 185, 129, 0.4),
     0 0 60px rgba(16, 185, 129, 0.2);
+  animation: boot-text-appear 0.5s ease both;
+  animation-delay: 0.1s;
   opacity: 0;
-  transform: translateY(10px);
-  transition: opacity 0.4s ease, transform 0.4s ease;
 }
 
-.boot-phase-1 .boot-pulse-text,
-.boot-phase-2 .boot-pulse-text,
-.boot-phase-3 .boot-pulse-text,
-.boot-phase-4 .boot-pulse-text,
-.boot-phase-5 .boot-pulse-text {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.boot-heart {
-  width: 80px;
-  height: 80px;
+.pulse-boot-heart {
+  animation: boot-heart-appear 0.5s ease both;
+  animation-delay: 0.3s;
   opacity: 0;
-  transition: opacity 0.3s ease;
 }
 
-.boot-phase-2 .boot-heart,
-.boot-phase-3 .boot-heart,
-.boot-phase-4 .boot-heart,
-.boot-phase-5 .boot-heart {
-  opacity: 1;
+.pulse-boot-heart-svg {
+  width: 72px;
+  height: 72px;
+  animation: pulse-breathe 1.8s ease-in-out infinite;
 }
 
-.boot-heart-svg {
-  width: 100%;
-  height: 100%;
-  animation: pulse-boot-breathe 1.5s ease-in-out infinite;
+.pulse-boot-heart-path {
+  stroke-dasharray: 300;
+  stroke-dashoffset: 300;
+  animation: heart-draw 0.9s ease forwards;
+  animation-delay: 0.3s;
 }
 
-.boot-heart-path {
-  animation: pulse-boot-draw 0.8s ease forwards;
+.pulse-boot-tagline {
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: #34d399;
+  text-transform: uppercase;
+  opacity: 0;
+  animation: boot-tagline-appear 0.5s ease forwards;
+  animation-delay: 0.6s;
 }
 
-.boot-phase-2 .boot-heart-path {
-  animation: pulse-boot-draw 0.8s ease forwards;
+@keyframes boot-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-@keyframes pulse-boot-breathe {
+@keyframes boot-text-appear {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes boot-heart-appear {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes boot-tagline-appear {
+  from { opacity: 0; }
+  to { opacity: 0.7; }
+}
+
+@keyframes pulse-breathe {
   0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
+  50% { transform: scale(1.08); }
 }
 
-@keyframes pulse-boot-draw {
-  from { stroke-dashoffset: 300; }
+@keyframes heart-draw {
   to { stroke-dashoffset: 0; }
 }
 
-/* Phase transitions — cockpit and grid materialize */
-.boot-phase-3 ~ * .budget-cockpit,
-.boot-phase-4 ~ * .budget-cockpit,
-.boot-phase-5 ~ * .budget-cockpit {
-  animation: materialize 0.5s ease forwards;
+/* ── Setup Modal Overlay ───────────────────────────────────── */
+
+.pulse-setup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 10, 6, 0.92);
+  backdrop-filter: blur(12px);
+  z-index: 9997;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: setup-fade-in 0.4s ease both;
+  animation-delay: 0.1s;
+  opacity: 0;
 }
 
-/* ── Tour Overlay ───────────────────────────────────────────── */
+@keyframes setup-fade-in {
+  to { opacity: 1; }
+}
+
+.pulse-setup-card {
+  background: linear-gradient(145deg, #041a0f 0%, #022c22 60%, #021a12 100%);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 24px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 36px;
+  box-shadow:
+    0 0 0 1px rgba(16, 185, 129, 0.08),
+    0 30px 80px rgba(0, 0, 0, 0.6),
+    0 0 60px rgba(16, 185, 129, 0.06);
+  animation: setup-card-appear 0.45s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+@keyframes setup-card-appear {
+  from { opacity: 0; transform: scale(0.93) translateY(20px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Scrollbar */
+.pulse-setup-card::-webkit-scrollbar { width: 5px; }
+.pulse-setup-card::-webkit-scrollbar-track { background: transparent; }
+.pulse-setup-card::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.25); border-radius: 3px; }
+
+/* Header */
+.pulse-setup-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.pulse-setup-icon {
+  font-size: 2.4rem;
+  margin-bottom: 12px;
+  display: block;
+  animation: pulse-breathe 2.5s ease-in-out infinite;
+}
+
+.pulse-setup-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 8px 0;
+  letter-spacing: -0.02em;
+}
+
+.pulse-setup-subtitle {
+  font-size: 0.9rem;
+  color: #6ee7b7;
+  margin: 0;
+  line-height: 1.5;
+  opacity: 0.8;
+}
+
+/* Sections */
+.pulse-setup-section {
+  margin-bottom: 28px;
+}
+
+.pulse-setup-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #34d399;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.pulse-setup-step-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  color: rgba(16, 185, 129, 0.5);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.pulse-setup-hint {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 6px 0 0 0;
+}
+
+/* Income input */
+.pulse-setup-income-row {
+  display: flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 14px;
+  padding: 0 20px;
+  gap: 8px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.pulse-setup-income-row:focus-within {
+  border-color: #10b981;
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.12);
+}
+
+.pulse-setup-dollar {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #10b981;
+  line-height: 1;
+}
+
+.pulse-setup-income-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 2rem;
+  font-weight: 800;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 18px 0;
+  outline: none;
+  width: 100%;
+}
+
+.pulse-setup-income-input::placeholder { color: rgba(255, 255, 255, 0.2); }
+
+/* Rhythm grid */
+.pulse-setup-rhythm-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.pulse-setup-rhythm-btn {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.5);
+  padding: 10px 6px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.pulse-setup-rhythm-btn:hover {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #a7f3d0;
+}
+
+.pulse-setup-rhythm-btn.active {
+  background: #10b981;
+  border-color: #10b981;
+  color: #022c22;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
+}
+
+/* Paydays */
+.pulse-setup-paydays {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.pulse-setup-payday-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pulse-setup-payday-group label {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.pulse-setup-payday-group input {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #fff;
+  padding: 8px 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9rem;
+  font-weight: 700;
+  width: 100%;
+  outline: none;
+}
+
+.pulse-setup-payday-group input:focus {
+  border-color: #10b981;
+}
+
+.pulse-setup-payday-and {
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 1.2rem;
+  margin-top: 16px;
+}
+
+/* Bucket list */
+.pulse-setup-bucket-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.pulse-setup-bucket-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  animation: slide-up-spring 0.3s ease both;
+}
+
+.pulse-setup-bucket-icon { font-size: 1.1rem; }
+.pulse-setup-bucket-name { flex: 1; font-size: 0.85rem; font-weight: 600; color: #d1fae5; }
+.pulse-setup-bucket-goal { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 700; color: #fff; }
+.pulse-setup-bucket-remove {
+  background: transparent; border: none; color: rgba(239, 68, 68, 0.5);
+  cursor: pointer; font-size: 0.8rem; padding: 4px; transition: color 0.2s;
+}
+.pulse-setup-bucket-remove:hover { color: #ef4444; }
+
+/* Presets */
+.pulse-setup-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.pulse-setup-preset-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #9ca3af;
+  padding: 7px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pulse-setup-preset-btn:hover {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #a7f3d0;
+}
+
+.pulse-setup-preset-btn span:first-child { font-size: 0.9rem; }
+
+/* Add bucket row */
+.pulse-setup-add-bucket {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.pulse-setup-bucket-name-input {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: #fff;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.pulse-setup-bucket-name-input:focus { border-color: rgba(16, 185, 129, 0.5); }
+.pulse-setup-bucket-name-input::placeholder { color: rgba(255, 255, 255, 0.25); }
+
+.pulse-setup-bucket-goal-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0 12px;
+  color: #10b981;
+  font-weight: 700;
+}
+
+.pulse-setup-bucket-goal-input-wrap input {
+  background: transparent;
+  border: none;
+  color: #fff;
+  padding: 10px 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  width: 80px;
+  outline: none;
+}
+
+.pulse-setup-bucket-goal-input-wrap input::placeholder { color: rgba(255, 255, 255, 0.25); }
+
+.pulse-setup-add-btn {
+  background: #10b981;
+  border: none;
+  color: #022c22;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pulse-setup-add-btn:hover:not(:disabled) {
+  background: #34d399;
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
+}
+
+.pulse-setup-add-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Error */
+.pulse-setup-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 10px;
+  padding: 12px 16px;
+  color: #fca5a5;
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+  animation: shake 0.4s ease both;
+}
+
+/* Finish button */
+.pulse-setup-finish {
+  width: 100%;
+  background: #10b981;
+  border: none;
+  color: #022c22;
+  padding: 16px;
+  border-radius: 14px;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+  margin-top: 8px;
+}
+
+.pulse-setup-finish:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 0 35px rgba(16, 185, 129, 0.35);
+  background: #34d399;
+}
+
+.pulse-setup-finish:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.pulse-setup-saving {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* ── Tour Overlay (Phase 2) ────────────────────────────────── */
 
 .pulse-tour-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9000;
+  z-index: 9996;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
   pointer-events: none;
+  padding: 32px;
+  animation: tour-appear 0.4s ease both;
 }
 
-/* Spotlight hole */
-.pulse-spotlight {
+@keyframes tour-appear {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.pulse-tour-scrim {
   position: fixed;
-  border-radius: 12px;
-  box-shadow:
-    0 0 0 9999px rgba(2, 13, 8, 0.85),
-    0 0 30px rgba(16, 185, 129, 0.3);
-  pointer-events: none;
-  z-index: 9001;
-  transition: all 0.3s ease;
-  border: 2px solid rgba(16, 185, 129, 0.5);
+  inset: 0;
+  background: rgba(2, 10, 6, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 9995;
 }
 
-/* Tour card base */
-.pulse-tour-card {
+.pulse-tour-floating-card {
+  position: relative;
+  z-index: 9997;
   background: linear-gradient(135deg, #041a0f 0%, #022c22 100%);
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  border: 1px solid rgba(16, 185, 129, 0.25);
   border-radius: 20px;
   padding: 28px;
-  z-index: 9002;
-  pointer-events: all;
+  max-width: 340px;
+  width: 100%;
   box-shadow:
-    0 25px 50px rgba(0, 0, 0, 0.5),
-    0 0 30px rgba(16, 185, 129, 0.1);
-  animation: tour-card-appear 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-  backdrop-filter: blur(20px);
+    0 0 0 1px rgba(16, 185, 129, 0.08),
+    0 20px 50px rgba(0, 0, 0, 0.5),
+    0 0 40px rgba(16, 185, 129, 0.06);
+  pointer-events: all;
+  animation: tour-card-slide 0.45s cubic-bezier(0.34, 1.3, 0.64, 1) both;
+  animation-delay: 0.1s;
 }
 
-@keyframes tour-card-appear {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(10px) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0) scale(1);
-  }
+@keyframes tour-card-slide {
+  from { opacity: 0; transform: translateY(20px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-.pulse-tour-card.center {
-  animation-name: tour-card-appear-center;
-}
-
-@keyframes tour-card-appear-center {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-  }
-}
-
-/* Progress dots */
+/* Progress */
 .pulse-tour-progress {
   display: flex;
-  gap: 6px;
-  margin-bottom: 16px;
+  gap: 5px;
+  margin-bottom: 14px;
 }
 
 .pulse-tour-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
-  transition: all 0.2s ease;
+  height: 4px;
+  flex: 1;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  transition: all 0.3s ease;
 }
 
 .pulse-tour-dot.active {
   background: #10b981;
   box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
-  transform: scale(1.2);
 }
 
 .pulse-tour-dot.done {
-  background: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.35);
 }
 
-.pulse-tour-step-num {
+.pulse-tour-step-label {
   font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.15em;
   color: #34d399;
   text-transform: uppercase;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
-.pulse-tour-title {
-  font-size: 1.2rem;
+.pulse-tour-heading {
+  font-size: 1.15rem;
   font-weight: 800;
   color: #fff;
   margin: 0 0 10px 0;
   letter-spacing: -0.01em;
 }
 
-.pulse-tour-body {
-  font-size: 0.9rem;
+.pulse-tour-text {
+  font-size: 0.875rem;
   line-height: 1.6;
   color: #a7f3d0;
   margin: 0 0 20px 0;
-  opacity: 0.9;
+  opacity: 0.85;
 }
 
-.pulse-tour-actions {
+.pulse-tour-card-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -223,163 +603,44 @@
 .pulse-tour-skip {
   background: transparent;
   border: none;
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.3);
   font-size: 0.8rem;
   cursor: pointer;
   padding: 8px;
-  transition: color 0.2s ease;
+  transition: color 0.2s;
 }
 
-.pulse-tour-skip:hover {
-  color: rgba(255, 255, 255, 0.6);
-}
+.pulse-tour-skip:hover { color: rgba(255, 255, 255, 0.6); }
 
-.pulse-tour-next {
+.pulse-tour-cta {
   background: #10b981;
   border: none;
   color: #022c22;
-  font-size: 0.85rem;
-  font-weight: 700;
   padding: 10px 20px;
   border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 0 15px rgba(16, 185, 129, 0.25);
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
 }
 
-.pulse-tour-next:hover {
+.pulse-tour-cta:hover {
   transform: translateY(-2px);
-  box-shadow: 0 0 25px rgba(16, 185, 129, 0.4);
+  box-shadow: 0 0 25px rgba(16, 185, 129, 0.35);
   background: #34d399;
 }
 
-/* Dismiss zone (outside spotlight) */
-.pulse-tour-dismiss-zone {
-  position: fixed;
-  inset: 0;
-  z-index: 9000;
-  cursor: pointer;
+/* ── Utility ────────────────────────────────────────────────── */
+
+@keyframes slide-up-spring {
+  0% { opacity: 0; transform: translateY(8px); }
+  60% { opacity: 1; transform: translateY(-3px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
-/* ── First-Use Empty State Helpers ─────────────────────────── */
-
-/* Shown before setup - dashed placeholder rows */
-.budget-placeholder-row {
-  display: grid;
-  grid-template-columns: 200px 1fr 1fr 1fr 1fr 240px;
-  gap: 16px;
-  align-items: center;
-  padding: 14px 20px;
-  border: 2px dashed rgba(16, 185, 129, 0.2);
-  border-radius: 12px;
-  opacity: 0.5;
-  transition: all 0.3s ease;
-}
-
-.budget-placeholder-row:hover {
-  border-color: rgba(16, 185, 129, 0.4);
-  opacity: 0.8;
-}
-
-.budget-placeholder-text {
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.3);
-  font-style: italic;
-}
-
-/* Setup prompt overlay on cockpit */
-.pulse-setup-prompt {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: rgba(2, 13, 8, 0.7);
-  backdrop-filter: blur(4px);
-  border-radius: 16px;
-  z-index: 10;
-  animation: fade-in-stagger 0.5s ease both;
-}
-
-.pulse-setup-text {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #34d399;
-  margin-bottom: 8px;
-}
-
-.pulse-setup-hint {
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-/* ── Proactive Nudge Placeholder ──────────────────────────── */
-
-.pulse-proactive {
-  margin-top: 24px;
-  padding: 20px;
-  background: rgba(16, 185, 129, 0.05);
-  border: 1px solid rgba(16, 185, 129, 0.15);
-  border-radius: 16px;
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-}
-
-.pulse-proactive-icon {
-  font-size: 1.4rem;
-  flex-shrink: 0;
-}
-
-.pulse-proactive-content {
-  flex: 1;
-}
-
-.pulse-proactive-title {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #34d399;
-  margin-bottom: 4px;
-}
-
-.pulse-proactive-body {
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.7);
-  line-height: 1.5;
-}
-
-.pulse-proactive-placeholder {
-  opacity: 0.4;
-  border-style: dashed;
-}
-
-/* ── Animation Helpers ─────────────────────────────────────── */
-
-@keyframes materialize {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Staggered grid row entrance */
-.data-row {
-  animation: fade-in-stagger 0.4s ease both;
-  animation-delay: calc(var(--row-index, 0) * 50ms);
-}
-
-@keyframes fade-in-stagger {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-5px); }
+  40%, 80% { transform: translateX(5px); }
 }

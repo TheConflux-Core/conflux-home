@@ -2751,6 +2751,7 @@ impl EngineDb {
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             params![id, meal_id, name, quantity, unit, estimated_cost, category, opt, notes, max_order + 1],
         )?;
+        drop(conn);
         self.update_meal_costs(meal_id).await?;
         Ok(())
     }
