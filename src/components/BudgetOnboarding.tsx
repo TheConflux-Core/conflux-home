@@ -1,7 +1,7 @@
 // Conflux Home — Budget Onboarding / Guided Tour
 // Phase 1: Setup (collect data) → Phase 2: Tour (teach with real data)
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import '../styles/pulse-onboarding.css';
 
 // ─── Types ───────────────────────────────────────────────────
@@ -26,7 +26,7 @@ export interface SetupConfig {
   buckets: SetupBucket[];
 }
 
-// ─── Phase 1: Setup Questions ───────────────────────────────
+// ─── Phase 1: Setup State ───────────────────────────────────
 
 interface SetupState {
   step: 'boot' | 'setup' | 'tour';
@@ -35,6 +35,9 @@ interface SetupState {
   newBucket: { name: string; goal: string; icon: string; color: string };
   isSaving: boolean;
   error: string | null;
+  // Preset amount popup
+  pendingPreset: Omit<SetupBucket, 'id'> | null;
+  pendingAmount: string;
 }
 
 const DEFAULT_CONFIG: SetupConfig = {
@@ -44,41 +47,51 @@ const DEFAULT_CONFIG: SetupConfig = {
   buckets: [],
 };
 
+// Specific utility presets — replaces generic "Utilities"
 const PRESET_BUCKETS: Omit<SetupBucket, 'id'>[] = [
   { name: 'Rent / Mortgage', icon: '🏠', monthly_goal: 0, color: '#10b981' },
   { name: 'Groceries', icon: '🛒', monthly_goal: 0, color: '#3b82f6' },
-  { name: 'Utilities', icon: '💡', monthly_goal: 0, color: '#f59e0b' },
+  { name: 'Electric', icon: '⚡', monthly_goal: 0, color: '#f59e0b' },
+  { name: 'Gas', icon: '🔥', monthly_goal: 0, color: '#ef4444' },
+  { name: 'Water', icon: '💧', monthly_goal: 0, color: '#06b6d4' },
+  { name: 'Internet', icon: '📶', monthly_goal: 0, color: '#8b5cf6' },
+  { name: 'Phone', icon: '📱', monthly_goal: 0, color: '#ec4899' },
   { name: 'Transportation', icon: '🚗', monthly_goal: 0, color: '#6366f1' },
-  { name: 'Savings', icon: '🏦', monthly_goal: 0, color: '#06b6d4' },
+  { name: 'Savings', icon: '🏦', monthly_goal: 0, color: '#0ea5e9' },
 ];
 
-// ─── Simplified 5-Step Tour (after setup) ───────────────────
+// ─── 5-Step Tour (floats to different positions) ────────────
 
 const TOUR_STEPS = [
   {
     id: 'cockpit',
     title: 'Your Financial Cockpit',
     body: 'Income, obligations, and projected surplus — all in one glance. Pulse updates this in real-time as you log payments.',
+    position: 'bottom-left',
   },
   {
     id: 'buckets',
     title: 'Every Dollar Has a Job',
     body: 'Each bucket is a spending category with a monthly target. Pulse divides that target across your pay periods so you know exactly what to set aside each paycheck.',
+    position: 'bottom-right',
   },
   {
     id: 'grid',
     title: 'Track Every Payment',
     body: 'The allocation grid shows what\'s been set aside vs. what\'s actually been paid. Green means secured. Yellow means still due.',
+    position: 'bottom-left',
   },
   {
     id: 'log',
     title: 'Log Payments Fast',
     body: 'Click LOG PAYMENT to record what you\'ve paid. Select a bucket, enter the amount, confirm — Pulse updates the grid instantly.',
+    position: 'bottom-right',
   },
   {
     id: 'nudge',
     title: 'Pulse Doesn\'t Wait',
     body: 'Pulse watches your patterns. Running low on savings? Overspending in dining? It nudges you before problems grow. Proactive, not reactive.',
+    position: 'bottom-center',
   },
 ];
 
@@ -92,6 +105,8 @@ export default function BudgetOnboarding({ onComplete, onSaveConfig }: BudgetOnb
     newBucket: { name: '', goal: '', icon: '💳', color: '#8b5cf6' },
     isSaving: false,
     error: null,
+    pendingPreset: null,
+    pendingAmount: '',
   });
 
   // Boot sequence → auto-advance to setup
@@ -127,6 +142,33 @@ export default function BudgetOnboarding({ onComplete, onSaveConfig }: BudgetOnb
       ...s,
       config: { ...s.config, buckets: s.config.buckets.filter(b => b.id !== id) },
     }));
+  }, []);
+
+  // Preset: open amount popup instead of adding directly
+  const openPresetPopup = useCallback((preset: Omit<SetupBucket, 'id'>) => {
+    setState(s => ({ ...s, pendingPreset: preset, pendingAmount: '' }));
+  }, []);
+
+  const confirmPresetBucket = useCallback(() => {
+    const { pendingPreset, pendingAmount, config } = state;
+    if (!pendingPreset || !pendingAmount) return;
+    const bucket: SetupBucket = {
+      id: `preset-${Date.now()}`,
+      name: pendingPreset.name,
+      icon: pendingPreset.icon,
+      monthly_goal: parseFloat(pendingAmount) || 0,
+      color: pendingPreset.color,
+    };
+    setState(s => ({
+      ...s,
+      config: { ...s.config, buckets: [...s.config.buckets, bucket] },
+      pendingPreset: null,
+      pendingAmount: '',
+    }));
+  }, [state]);
+
+  const cancelPresetBucket = useCallback(() => {
+    setState(s => ({ ...s, pendingPreset: null, pendingAmount: '' }));
   }, []);
 
   const handleFinishSetup = async () => {
@@ -174,20 +216,31 @@ export default function BudgetOnboarding({ onComplete, onSaveConfig }: BudgetOnb
         newBucket={state.newBucket}
         isSaving={state.isSaving}
         error={state.error}
+        pendingPreset={state.pendingPreset}
+        pendingAmount={state.pendingAmount}
         onUpdateConfig={updateConfig}
         onUpdateNewBucket={s => setState(prev => ({ ...prev, newBucket: s }))}
         onAddBucket={addBucket}
         onRemoveBucket={removeBucket}
+        onOpenPresetPopup={openPresetPopup}
+        onConfirmPresetBucket={confirmPresetBucket}
+        onCancelPresetBucket={cancelPresetBucket}
+        onPendingAmountChange={s => setState(prev => ({ ...prev, pendingAmount: s }))}
         onFinish={handleFinishSetup}
       />
     );
   }
 
-  // Tour step — dims UI, shows floating card
+  // Tour — positions card based on step
+  const tourPosition = TOUR_STEPS[state.tourStep].position;
+
   return (
     <div className="pulse-tour-overlay">
       <div className="pulse-tour-scrim" />
-      <div className="pulse-tour-floating-card">
+      <div className={`pulse-tour-floating-card ${tourPosition}`}>
+        {/* Arrow pointing to target area */}
+        <div className={`pulse-tour-arrow pulse-tour-arrow-${tourPosition}`} />
+
         <div className="pulse-tour-progress">
           {TOUR_STEPS.map((_, i) => (
             <div
@@ -258,10 +311,16 @@ interface SetupModalProps {
   newBucket: SetupState['newBucket'];
   isSaving: boolean;
   error: string | null;
+  pendingPreset: Omit<SetupBucket, 'id'> | null;
+  pendingAmount: string;
   onUpdateConfig: (patch: Partial<SetupConfig>) => void;
   onUpdateNewBucket: (s: SetupState['newBucket']) => void;
   onAddBucket: () => void;
   onRemoveBucket: (id: string) => void;
+  onOpenPresetPopup: (preset: Omit<SetupBucket, 'id'>) => void;
+  onConfirmPresetBucket: () => void;
+  onCancelPresetBucket: () => void;
+  onPendingAmountChange: (s: string) => void;
   onFinish: () => void;
 }
 
@@ -270,17 +329,77 @@ function SetupModal({
   newBucket,
   isSaving,
   error,
+  pendingPreset,
+  pendingAmount,
   onUpdateConfig,
   onUpdateNewBucket,
   onAddBucket,
   onRemoveBucket,
+  onOpenPresetPopup,
+  onConfirmPresetBucket,
+  onCancelPresetBucket,
+  onPendingAmountChange,
   onFinish,
 }: SetupModalProps) {
-  const incomeRef = { current: null as HTMLInputElement | null };
+  const pendingInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-focus the amount input when popup opens
+  useEffect(() => {
+    if (pendingPreset && pendingInputRef.current) {
+      pendingInputRef.current.focus();
+    }
+  }, [pendingPreset]);
+
+  // Confirm on Enter key in pending amount field
+  const handlePendingKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') onConfirmPresetBucket();
+    if (e.key === 'Escape') onCancelPresetBucket();
+  };
 
   return (
     <div className="pulse-setup-overlay">
       <div className="pulse-setup-card">
+
+        {/* Preset Amount Popup — renders as floating card above presets */}
+        {pendingPreset && (
+          <div className="pulse-preset-popup-overlay" onClick={onCancelPresetBucket}>
+            <div className="pulse-preset-popup" onClick={e => e.stopPropagation()}>
+              <div className="pulse-preset-popup-header">
+                <span className="pulse-preset-popup-icon">{pendingPreset.icon}</span>
+                <span className="pulse-preset-popup-name">{pendingPreset.name}</span>
+              </div>
+              <p className="pulse-preset-popup-question">
+                How much do you pay monthly for {pendingPreset.name.toLowerCase()}?
+              </p>
+              <div className="pulse-preset-popup-input-row">
+                <span className="pulse-preset-popup-dollar">$</span>
+                <input
+                  ref={pendingInputRef}
+                  type="number"
+                  className="pulse-preset-popup-input"
+                  placeholder="0"
+                  value={pendingAmount}
+                  onChange={e => onPendingAmountChange(e.target.value)}
+                  onKeyDown={handlePendingKeyDown}
+                  min="0"
+                />
+              </div>
+              <div className="pulse-preset-popup-actions">
+                <button className="pulse-preset-popup-cancel" onClick={onCancelPresetBucket}>
+                  Cancel
+                </button>
+                <button
+                  className="pulse-preset-popup-confirm"
+                  onClick={onConfirmPresetBucket}
+                  disabled={!pendingAmount || parseFloat(pendingAmount) <= 0}
+                >
+                  Add ${pendingAmount || '0'} / mo
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="pulse-setup-header">
           <div className="pulse-setup-icon">💚</div>
@@ -370,10 +489,10 @@ function SetupModal({
             Spending Buckets
           </label>
           <p className="pulse-setup-hint" style={{ marginBottom: 12 }}>
-            What do you track? Add your bills and savings goals.
+            What do you track? Click a category, enter the monthly amount.
           </p>
 
-          {/* Existing buckets */}
+          {/* Added buckets */}
           {config.buckets.length > 0 && (
             <div className="pulse-setup-bucket-list">
               {config.buckets.map(b => (
@@ -381,7 +500,7 @@ function SetupModal({
                   <span className="pulse-setup-bucket-icon">{b.icon}</span>
                   <span className="pulse-setup-bucket-name">{b.name}</span>
                   <span className="pulse-setup-bucket-goal">
-                    ${b.monthly_goal.toLocaleString()}
+                    ${b.monthly_goal.toLocaleString()}/mo
                   </span>
                   <button className="pulse-setup-bucket-remove" onClick={() => onRemoveBucket(b.id)}>
                     ✕
@@ -391,7 +510,7 @@ function SetupModal({
             </div>
           )}
 
-          {/* Presets */}
+          {/* Presets — now opens popup with amount */}
           <div className="pulse-setup-presets">
             {PRESET_BUCKETS.filter(
               pb => !config.buckets.some(cb => cb.name === pb.name)
@@ -399,14 +518,8 @@ function SetupModal({
               <button
                 key={pb.name}
                 className="pulse-setup-preset-btn"
-                onClick={() => {
-                  const bucket: SetupBucket = {
-                    id: `preset-${Date.now()}-${pb.name}`,
-                    ...pb,
-                    monthly_goal: pb.monthly_goal,
-                  };
-                  onUpdateConfig({ buckets: [...config.buckets, bucket] });
-                }}
+                style={{ '--preset-color': pb.color } as React.CSSProperties}
+                onClick={() => onOpenPresetPopup(pb)}
               >
                 <span>{pb.icon}</span>
                 <span>{pb.name}</span>
@@ -454,7 +567,7 @@ function SetupModal({
           {isSaving ? (
             <span className="pulse-setup-saving">Setting up Pulse...</span>
           ) : (
-            'Launch Pulse →'
+            `Launch Pulse →`
           )}
         </button>
       </div>
