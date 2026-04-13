@@ -7,6 +7,8 @@ import { playOrbitMorningBrief } from '../lib/sound';
 import type { LifeTask, LifeHabit, LifeNudge, LifeDailyFocus } from '../types';
 import { MicButton } from './voice';
 import { MissionControlHeader } from './MissionControlHeader';
+import OrbitBoot from './OrbitBoot';
+import OrbitOnboarding, { hasCompletedOrbitOnboarding } from './OrbitOnboarding';
 import { HorizonLine } from './HorizonLine';
 import { TelemetryGrid } from './TelemetryGrid';
 import { AlertConsole } from './AlertConsole';
@@ -92,6 +94,11 @@ export default function LifeAutopilotView() {
 
   /* Quick Log Modal State */
   const [isQuickLogOpen, setIsQuickLogOpen] = useState(false);
+
+  /* Boot → Onboarding state */
+  const [bootDone, setBootDone] = useState(() => localStorage.getItem('orbit-boot-done') === 'true');
+  const hasOnboarded = hasCompletedOrbitOnboarding();
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
 
   /* Keyboard shortcut for Quick Log (Cmd/Ctrl + L) */
   useEffect(() => {
@@ -187,7 +194,25 @@ export default function LifeAutopilotView() {
   if (loading && !dashboard) return <div className="mission-control-view"><div className="mc-loading">Loading your orbit...</div></div>;
 
   return (
-    <div className="mission-control-view">
+    <>
+      {/* ── Boot Sequence ── */}
+      {!bootDone && (
+        <OrbitBoot
+          onComplete={() => {
+            localStorage.setItem('orbit-boot-done', 'true');
+            setBootDone(true);
+          }}
+        />
+      )}
+
+      {/* ── Onboarding Briefing ── */}
+      {bootDone && !hasOnboarded && !onboardingComplete && (
+        <OrbitOnboarding
+          onComplete={() => setOnboardingComplete(true)}
+        />
+      )}
+
+      <div className="mission-control-view">
       {/* Header with Momentum Gauge */}
       <MissionControlHeader
         completedToday={completedToday}
@@ -295,5 +320,6 @@ export default function LifeAutopilotView() {
         ⌘L Quick Log
       </div>
     </div>
+    </>
   );
 }
