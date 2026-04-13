@@ -3,6 +3,7 @@
 
 use anyhow::Result;
 use serde_json::Value;
+use tokio::runtime::Handle;
 
 use super::db::EngineDb;
 
@@ -2216,7 +2217,7 @@ fn execute_budget_get_summary(args: &Value) -> Result<ToolResult> {
 
     let engine = super::get_engine();
     let member_id = args.get("member_id").and_then(|v| v.as_str()).unwrap_or_default();
-    match engine.db().get_budget_summary(&member_id, month) {
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_budget_summary(&member_id, month))) {
         Ok(summary) => {
             let cat_lines: Vec<String> = summary.categories.iter()
                 .map(|c| format!("  {}: ${:.2}", c.category, c.total)).collect();
@@ -2246,7 +2247,7 @@ fn execute_budget_create_goal(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let deadline = args.get("deadline").and_then(|v| v.as_str());
 
-    match engine.db().create_budget_goal(&id, None, name, target_amount, deadline, None) {
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().create_budget_goal(&id, None, name, target_amount, deadline, None))) {
         Ok(()) => Ok(ToolResult {
             success: true,
             output: format!("Created goal: {} (target: ${:.2}{})", name, target_amount,
@@ -2259,7 +2260,7 @@ fn execute_budget_create_goal(args: &Value) -> Result<ToolResult> {
 
 fn execute_budget_get_goals(_args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
-    match engine.db().get_budget_goals(None) {
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_budget_goals(None))) {
         Ok(goals) => {
             if goals.is_empty() {
                 return Ok(ToolResult { success: true, output: "No budget goals set yet.".into(), error: None });
@@ -2600,7 +2601,7 @@ fn execute_weekly_summary(_args: &Value) -> Result<ToolResult> {
 
     // 1. Budget summary
     let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
-    if let Ok(summary) = engine.db().get_budget_summary(&member_id, &this_month) {
+    if let Ok(summary) = tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_budget_summary(&member_id, &this_month))) {
         sections.push(format!("💰 Budget ({}): Spent ${:.2} | Income ${:.2} | Net ${:.2}",
             this_month, summary.total_expenses, summary.total_income, summary.net));
     }
@@ -2671,7 +2672,7 @@ fn execute_can_afford(args: &Value) -> Result<ToolResult> {
     let this_month = now.format("%Y-%m").to_string();
 
     let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
-    let summary = engine.db().get_budget_summary(&member_id, &this_month)?;
+    let summary = tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_budget_summary(&member_id, &this_month)))?;
     let discretionary = summary.total_income - summary.total_expenses;
 
     let mut analysis = Vec::new();
@@ -2688,7 +2689,7 @@ fn execute_can_afford(args: &Value) -> Result<ToolResult> {
     }
 
     // Show savings goals
-    if let Ok(goals) = engine.db().get_budget_goals(None) {
+    if let Ok(goals) = tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_budget_goals(None))) {
         for goal in &goals {
             let remaining = goal.target_amount - goal.current_amount;
             let pct = if goal.target_amount > 0.0 { (goal.current_amount / goal.target_amount * 100.0).min(100.0) } else { 0.0 };

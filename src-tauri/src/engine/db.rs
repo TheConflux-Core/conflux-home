@@ -4,11 +4,14 @@
 use anyhow::{Context, Result};
 use rusqlite::{Connection, params};
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-/// The embedded database. Thread-safe via Mutex.
+/// The embedded database. Thread-safe via tokio::sync::Mutex.
+///
+/// All DB access goes through `conn_async()` (async) or `conn_blocking()` (sync bridge).
+/// The sync bridge uses `block_in_place` and should only be used during migration.
 pub struct EngineDb {
-    conn: Arc<Mutex<Connection>>,
+    conn: Arc<tokio::sync::Mutex<Connection>>,
 }
 
 impl EngineDb {
@@ -30,7 +33,7 @@ impl EngineDb {
         conn.execute_batch("PRAGMA foreign_keys = ON;")?;
 
         let db = EngineDb {
-            conn: Arc::new(Mutex::new(conn)),
+            conn: Arc::new(tokio::sync::Mutex::new(conn)),
         };
 
         db.migrate()?;
@@ -45,7 +48,7 @@ impl EngineDb {
         conn.execute_batch("PRAGMA foreign_keys = ON;")?;
 
         let db = EngineDb {
-            conn: Arc::new(Mutex::new(conn)),
+            conn: Arc::new(tokio::sync::Mutex::new(conn)),
         };
 
         db.migrate()?;
@@ -58,7 +61,7 @@ impl EngineDb {
     /// skipping "already exists" / "duplicate column" errors.
     fn migrate(&self) -> Result<()> {
         let schema = include_str!("../../schema.sql");
-        let conn = self.conn.lock().map_err(|_| anyhow::anyhow!("Database lock poisoned"))?;
+        let conn = self.conn.blocking_lock();
         
         // Try full batch first (fast path for fresh databases)
         match conn.execute_batch(schema) {
@@ -154,10 +157,23 @@ impl EngineDb {
         statements
     }
 
-    /// Get a reference to the underlying connection.
-    /// Holds the lock — use briefly.
-    pub fn conn(&self) -> std::sync::MutexGuard<'_, Connection> {
-        self.conn.lock().expect("Database lock poisoned")
+    /// Get the connection lock (async). Use in async contexts.
+    /// Holds the lock — scope tightly, drop before any .await.
+    pub async fn conn_async(&self) -> tokio::sync::MutexGuard<'_, Connection> {
+        self.conn.lock().await
+    }
+
+    /// Get the connection lock (sync bridge). Use ONLY during migration.
+    /// Blocks the current thread until the lock is acquired.
+    /// Requires a Tokio runtime context.
+    pub fn conn_blocking(&self) -> tokio::sync::MutexGuard<'_, Connection> {
+        self.conn.blocking_lock()
+    }
+
+    /// Backward-compatible alias for conn_blocking(). Will be removed once all callers are async.
+    #[deprecated(note = "Use conn_async() in async contexts, conn_blocking() in sync")]
+    pub fn conn(&self) -> tokio::sync::MutexGuard<'_, Connection> {
+        self.conn.blocking_lock()
     }
 
     // ── Agent Queries ──
@@ -1811,8 +1827,8 @@ impl EngineDb {
 
     // ── Budget Summary ──
 
-    pub fn get_budget_summary(&self, member_id: &str, month: &str) -> Result<super::types::BudgetSummary> {
-        let conn = self.conn();
+    pub async fn get_budget_summary(&self, member_id: &str, month: &str) -> Result<super::types::BudgetSummary> {
+        let conn = self.conn_async().await;
 
         let total_income: f64 = conn.query_row(
             "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id = ?1 AND entry_type = \'income\' AND strftime(\'%Y-%m\', date) = ?2",
@@ -1855,9 +1871,9 @@ impl EngineDb {
 
     // ── Budget Goals (Pulse) ──
 
-    pub fn create_budget_goal(&self, id: &str, member_id: Option<&str>, name: &str,
+    pub async fn create_budget_goal(&self, id: &str, member_id: Option<&str>, name: &str,
         target_amount: f64, deadline: Option<&str>, monthly_allocation: Option<f64>) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         conn.execute(
             "INSERT INTO budget_goals (id, member_id, name, target_amount, deadline, monthly_allocation) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![id, member_id, name, target_amount, deadline, monthly_allocation]
@@ -1865,8 +1881,8 @@ impl EngineDb {
         Ok(())
     }
 
-    pub fn get_budget_goals(&self, member_id: Option<&str>) -> Result<Vec<super::types::BudgetGoal>> {
-        let conn = self.conn();
+    pub async fn get_budget_goals(&self, member_id: Option<&str>) -> Result<Vec<super::types::BudgetGoal>> {
+        let conn = self.conn_async().await;
         let mut result = Vec::new();
         if let Some(mid) = member_id {
             let mut stmt = conn.prepare(
@@ -1898,22 +1914,22 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn update_budget_goal(&self, id: &str, current_amount: f64) -> Result<()> {
-        let conn = self.conn();
+    pub async fn update_budget_goal(&self, id: &str, current_amount: f64) -> Result<()> {
+        let conn = self.conn_async().await;
         conn.execute("UPDATE budget_goals SET current_amount = ?1 WHERE id = ?2", params![current_amount, id])?;
         Ok(())
     }
 
-    pub fn delete_budget_goal(&self, id: &str) -> Result<()> {
-        let conn = self.conn();
+    pub async fn delete_budget_goal(&self, id: &str) -> Result<()> {
+        let conn = self.conn_async().await;
         conn.execute("DELETE FROM budget_goals WHERE id = ?1", params![id])?;
         Ok(())
     }
 
     // ── Budget Engine (Zero-Based Budgeting) ──
 
-    pub fn get_budget_settings(&self, user_id: &str) -> Result<Option<super::types::BudgetSettingsRow>> {
-        let conn = self.conn();
+    pub async fn get_budget_settings(&self, user_id: &str) -> Result<Option<super::types::BudgetSettingsRow>> {
+        let conn = self.conn_async().await;
         let result = conn.query_row(
             "SELECT id, user_id, pay_frequency, pay_dates, income_amount, currency, created_at, updated_at FROM budget_settings WHERE user_id = ?1 LIMIT 1",
             params![user_id], |row| {
@@ -1931,9 +1947,9 @@ impl EngineDb {
         }
     }
 
-    pub fn upsert_budget_settings(&self, id: &str, user_id: &str, pay_frequency: &str,
+    pub async fn upsert_budget_settings(&self, id: &str, user_id: &str, pay_frequency: &str,
         pay_dates: &str, income_amount: f64, currency: &str) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
             "INSERT INTO budget_settings (id, user_id, pay_frequency, pay_dates, income_amount, currency, created_at, updated_at)
@@ -1944,8 +1960,8 @@ impl EngineDb {
         Ok(())
     }
 
-    pub fn get_budget_buckets(&self, user_id: &str) -> Result<Vec<super::types::BudgetBucketRow>> {
-        let conn = self.conn();
+    pub async fn get_budget_buckets(&self, user_id: &str) -> Result<Vec<super::types::BudgetBucketRow>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT id, user_id, name, icon, monthly_goal, color, is_active, created_at, updated_at
              FROM budget_buckets WHERE user_id = ?1 AND is_active = 1 ORDER BY created_at ASC"
@@ -1962,9 +1978,9 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn create_budget_bucket(&self, id: &str, user_id: &str, name: &str, icon: Option<&str>,
+    pub async fn create_budget_bucket(&self, id: &str, user_id: &str, name: &str, icon: Option<&str>,
         monthly_goal: f64, color: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
             "INSERT INTO budget_buckets (id, user_id, name, icon, monthly_goal, color, created_at, updated_at)
@@ -1974,8 +1990,8 @@ impl EngineDb {
         Ok(())
     }
 
-    pub fn get_budget_allocations(&self, user_id: &str) -> Result<Vec<super::types::BudgetAllocationRow>> {
-        let conn = self.conn();
+    pub async fn get_budget_allocations(&self, user_id: &str) -> Result<Vec<super::types::BudgetAllocationRow>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT id, user_id, bucket_id, pay_period_id, amount, created_at, updated_at
              FROM budget_allocations WHERE user_id = ?1 ORDER BY created_at ASC"
@@ -1992,8 +2008,8 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn get_budget_transactions(&self, user_id: &str) -> Result<Vec<super::types::BudgetTransactionRow>> {
-        let conn = self.conn();
+    pub async fn get_budget_transactions(&self, user_id: &str) -> Result<Vec<super::types::BudgetTransactionRow>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT id, user_id, bucket_id, amount, date, status, description, merchant, category, receipt_url, created_at, updated_at
              FROM budget_transactions WHERE user_id = ?1 ORDER BY date DESC"
@@ -2011,10 +2027,10 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn create_budget_transaction(&self, id: &str, user_id: &str, bucket_id: Option<&str>,
+    pub async fn create_budget_transaction(&self, id: &str, user_id: &str, bucket_id: Option<&str>,
         amount: f64, date: &str, status: &str, description: Option<&str>,
         merchant: Option<&str>, category: Option<&str>, receipt_url: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         let now = chrono::Utc::now().to_rfc3339();
         conn.execute(
             "INSERT INTO budget_transactions (id, user_id, bucket_id, amount, date, status, description, merchant, category, receipt_url, created_at, updated_at)
@@ -2027,8 +2043,8 @@ impl EngineDb {
     // Cross-App Synthesis functions
 
     /// Get budget entries for cross-app insights
-    pub fn get_budget_entries(&self, member_id: &str) -> Result<Vec<super::types::BudgetEntry>> {
-        let conn = self.conn();
+    pub async fn get_budget_entries(&self, member_id: &str) -> Result<Vec<super::types::BudgetEntry>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT id, member_id, entry_type, category, amount, description, recurring, frequency, date, created_at 
              FROM budget_entries WHERE member_id = ?1 ORDER BY date DESC"
@@ -2070,8 +2086,8 @@ impl EngineDb {
         self.get_dream_dashboard(member_id)
     }
 
-    pub fn detect_budget_patterns(&self, member_id: Option<&str>) -> Result<Vec<super::types::BudgetPattern>> {
-        let conn = self.conn();
+    pub async fn detect_budget_patterns(&self, member_id: Option<&str>) -> Result<Vec<super::types::BudgetPattern>> {
+        let conn = self.conn_async().await;
         let mut result = Vec::new();
         if let Some(mid) = member_id {
             let mut stmt = conn.prepare(
@@ -2128,16 +2144,16 @@ impl EngineDb {
         Ok(income - expenses >= amount)
     }
 
-    pub fn get_monthly_report(&self, member_id: &str, month: &str) -> Result<super::types::MonthlyReport> {
-        let summary = self.get_budget_summary(member_id, month)?;
-        let patterns = self.detect_budget_patterns(None)?;
-        let goals = self.get_budget_goals(None)?;
+    pub async fn get_monthly_report(&self, member_id: &str, month: &str) -> Result<super::types::MonthlyReport> {
+        let summary = self.get_budget_summary(member_id, month).await?;
+        let patterns = self.detect_budget_patterns(None).await?;
+        let goals = self.get_budget_goals(None).await?;
         // Last month comparison
         let parts: Vec<&str> = month.split('-').collect();
         let y: i32 = parts[0].parse().unwrap_or(2024);
         let m: u32 = parts[1].parse().unwrap_or(1);
         let prev = if m == 1 { format!("{}-12", y - 1) } else { format!("{}-{:02}", y, m - 1) };
-        let prev_summary = self.get_budget_summary(member_id, &prev).ok();
+        let prev_summary = self.get_budget_summary(member_id, &prev).await.ok();
         let comparison = prev_summary.map(|p| summary.net - p.net);
         Ok(super::types::MonthlyReport {
             month: month.to_string(),
@@ -4448,8 +4464,8 @@ impl EngineDb {
 // VAULT — File Browser Methods
 // ============================================================
 
-fn get_conn() -> std::sync::MutexGuard<'static, Connection> {
-    super::get_engine().db.conn()
+fn get_conn() -> tokio::sync::MutexGuard<'static, Connection> {
+    super::get_engine().db.conn_blocking()
 }
 
 pub fn vault_upsert_file(
