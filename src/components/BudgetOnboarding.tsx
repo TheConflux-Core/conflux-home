@@ -1,5 +1,5 @@
 // Conflux Home — Budget Onboarding / Guided Tour
-// Phase 1: Setup (collect data) → Phase 2: Tour (spotlight on real UI)
+// Phase 1: Setup (collect data) → Phase 2: Spotlight Tour (highlight real UI)
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import '../styles/pulse-onboarding.css';
@@ -26,7 +26,7 @@ export interface SetupConfig {
   buckets: SetupBucket[];
 }
 
-// ─── Phase 1: Setup State ───────────────────────────────────
+// ─── Setup State ─────────────────────────────────────────────
 
 interface SetupState {
   step: 'boot' | 'setup' | 'tour';
@@ -37,7 +37,7 @@ interface SetupState {
   error: string | null;
   pendingPreset: Omit<SetupBucket, 'id'> | null;
   pendingAmount: string;
-  isUpdate: boolean; // true if we're updating existing data
+  isUpdate: boolean;
 }
 
 const DEFAULT_CONFIG: SetupConfig = {
@@ -67,39 +67,34 @@ const TOUR_STEPS = [
     title: 'Your Financial Cockpit',
     body: 'Income, obligations, and projected surplus — all in one glance. Pulse updates this in real-time as you log payments.',
     target: '.budget-cockpit',
-    cardPosition: 'bottom-left',
   },
   {
     id: 'buckets',
     title: 'Every Dollar Has a Job',
     body: 'Each bucket is a spending category with a monthly target. Pulse divides that target across your pay periods so you know exactly what to set aside each paycheck.',
     target: '.matrix-container',
-    cardPosition: 'bottom-left',
   },
   {
     id: 'log',
     title: 'Log Payments Fast',
     body: 'Click LOG PAYMENT to record what you\'ve paid. Select a bucket, enter the amount, confirm — Pulse updates the grid instantly.',
     target: '.btn-primary',
-    cardPosition: 'bottom-left',
   },
   {
     id: 'nav',
     title: 'Navigate Your Budget',
-    body: 'Use the period arrows to step through pay periods. Each column shows what was allocated vs. what was actually paid.',
+    body: 'Use the period arrows to step through pay periods. Each column shows allocated vs. actually paid.',
     target: '.matrix-nav',
-    cardPosition: 'bottom-left',
   },
   {
     id: 'nudge',
     title: 'Pulse Doesn\'t Wait',
-    body: 'Pulse watches your patterns. Running low on savings? Overspending in dining? It nudges you before problems grow. Proactive, not reactive.',
+    body: 'Pulse watches your patterns. Running low on savings? Overspending in dining? It nudges you before problems grow.',
     target: '.pulse-proactive',
-    cardPosition: 'bottom-left',
   },
 ];
 
-// ─── Component ──────────────────────────────────────────────
+// ─── Main Component ──────────────────────────────────────────
 
 export default function BudgetOnboarding({ onComplete, onSaveConfig }: BudgetOnboardingProps) {
   const [state, setState] = useState<SetupState>({
@@ -209,9 +204,7 @@ export default function BudgetOnboarding({ onComplete, onSaveConfig }: BudgetOnb
 
   // ─── Render ────────────────────────────────────────────────
 
-  if (state.step === 'boot') {
-    return <BootSequence />;
-  }
+  if (state.step === 'boot') return <BootSequence />;
 
   if (state.step === 'setup') {
     return (
@@ -236,7 +229,6 @@ export default function BudgetOnboarding({ onComplete, onSaveConfig }: BudgetOnb
     );
   }
 
-  // Spotlight Tour — highlight real UI elements
   return (
     <SpotlightTour
       currentStep={state.tourStep}
@@ -255,87 +247,62 @@ interface SpotlightTourProps {
 }
 
 function SpotlightTour({ currentStep, onNext, onSkip }: SpotlightTourProps) {
-  const overlayRef = useRef<HTMLDivElement>(null);
   const [spotlightRect, setSpotlightRect] = useState<DOMRect | null>(null);
-  const [cardStyle, setCardStyle] = useState<React.CSSProperties>({});
-  const stepRef = useRef(currentStep);
-  stepRef.current = currentStep;
-
+  const [cardPos, setCardPos] = useState<{ top: number; left: number } | null>(null);
   const step = TOUR_STEPS[currentStep];
 
-  // Find target element and position the spotlight + card
+  // Position spotlight + card on step change
   useEffect(() => {
-    // Use multiple frames to ensure DOM is stable
     let raf1: number;
     let raf2: number;
 
     const update = () => {
-      const target = document.querySelector(step.target);
-      if (!target) {
-        // Fallback: position card at bottom-left
-        setSpotlightRect(null);
-        setCardStyle({ bottom: 32, left: 32, top: 'auto', right: 'auto' });
-        return;
-      }
+      const el = document.querySelector(step.target);
+      if (!el) { setSpotlightRect(null); setCardPos(null); return; }
 
-      const rect = target.getBoundingClientRect();
-      const GAP = 12;
-      const CARD_WIDTH = 340;
+      const rect = el.getBoundingClientRect();
+      const CARD_W = 360;
+      const GAP = 16;
+      const MARGIN = 24;
       const vw = window.innerWidth;
 
       setSpotlightRect(rect);
 
-      // Position the card below the target, centered
-      let cardLeft = rect.left + rect.width / 2 - CARD_WIDTH / 2;
-      // Clamp to viewport
-      cardLeft = Math.max(16, Math.min(cardLeft, vw - CARD_WIDTH - 16));
-
-      setCardStyle({
-        position: 'fixed',
-        bottom: window.innerHeight - rect.top + GAP,
-        left: cardLeft,
-        top: 'auto',
-        right: 'auto',
-        maxWidth: CARD_WIDTH,
-        width: 'calc(100vw - 32px)',
-      });
+      // Card: centered below spotlight, clamped to viewport
+      const rawLeft = rect.left + rect.width / 2 - CARD_W / 2;
+      const clampedLeft = Math.max(MARGIN, Math.min(rawLeft, vw - CARD_W - MARGIN));
+      setCardPos({ top: rect.bottom + GAP, left: clampedLeft });
     };
 
-    raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(update);
-    });
-
-    return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-    };
+    raf1 = requestAnimationFrame(() => { raf2 = requestAnimationFrame(update); });
+    return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2); };
   }, [currentStep, step.target]);
 
-  // Re-position on scroll/resize
+  // Reposition on scroll/resize
   useEffect(() => {
     const handle = () => {
-      const target = document.querySelector(step.target);
-      if (!target) return;
-      const rect = target.getBoundingClientRect();
-      const CARD_WIDTH = 340;
-      let cardLeft = rect.left + rect.width / 2 - CARD_WIDTH / 2;
-      cardLeft = Math.max(16, Math.min(cardLeft, window.innerWidth - CARD_WIDTH - 16));
+      const el = document.querySelector(step.target);
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
       setSpotlightRect(rect);
-      setCardStyle(prev => ({
-        ...prev,
-        bottom: window.innerHeight - rect.top + 12,
-        left: cardLeft,
-      }));
+      const CARD_W = 360;
+      const GAP = 16;
+      const MARGIN = 24;
+      const rawLeft = rect.left + rect.width / 2 - CARD_W / 2;
+      setCardPos({
+        top: rect.bottom + GAP,
+        left: Math.max(MARGIN, Math.min(rawLeft, window.innerWidth - CARD_W - MARGIN)),
+      });
     };
-    window.addEventListener('resize', handle);
     window.addEventListener('scroll', handle, true);
+    window.addEventListener('resize', handle);
     return () => {
-      window.removeEventListener('resize', handle);
       window.removeEventListener('scroll', handle, true);
+      window.removeEventListener('resize', handle);
     };
   }, [step.target]);
 
-  // Keyboard navigation
+  // Keyboard
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onSkip();
@@ -345,50 +312,49 @@ function SpotlightTour({ currentStep, onNext, onSkip }: SpotlightTourProps) {
     return () => window.removeEventListener('keydown', handler);
   }, [onNext, onSkip]);
 
+  if (!spotlightRect || !cardPos) return null;
+
+  const cardStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: cardPos.top,
+    left: cardPos.left,
+    width: 360,
+    zIndex: 9998,
+  };
+
   return (
-    <div className="pulse-tour-overlay" ref={overlayRef}>
-      {/* Spotlight: glowing box around target */}
-      {spotlightRect && (
-        <div
-          className="pulse-tour-spotlight"
-          style={{
-            top: spotlightRect.top - 8,
-            left: spotlightRect.left - 8,
-            width: spotlightRect.width + 16,
-            height: spotlightRect.height + 16,
-          }}
-        />
-      )}
+    <div className="pulse-tour-overlay">
+      {/* ── Dark scrim with real transparent hole (CSS mask) ── */}
+      <div
+        className="pulse-tour-scrim"
+        style={{
+          '--sx': `${spotlightRect.left - 12}px`,
+          '--sy': `${spotlightRect.top - 12}px`,
+          '--sw': `${spotlightRect.width + 24}px`,
+          '--sh': `${spotlightRect.height + 24}px`,
+        } as React.CSSProperties}
+      />
 
-      {/* Dark scrim — covers everything EXCEPT a margin around the spotlight */}
-      {spotlightRect && (
-        <div
-          className="pulse-tour-scrim"
-          style={{
-            '--spotlight-top': `${spotlightRect.top - 20}px`,
-            '--spotlight-bottom': `${window.innerHeight - spotlightRect.bottom - 20}px`,
-            '--spotlight-left': `${spotlightRect.left - 20}px`,
-            '--spotlight-right': `${window.innerWidth - spotlightRect.right - 20}px`,
-          } as React.CSSProperties}
-        />
-      )}
+      {/* ── Glowing spotlight border around target ── */}
+      <div
+        className="pulse-tour-spotlight"
+        style={{
+          top: spotlightRect.top - 6,
+          left: spotlightRect.left - 6,
+          width: spotlightRect.width + 12,
+          height: spotlightRect.height + 12,
+        }}
+      />
 
-      {/* Arrow pointing down at the spotlight */}
-      {spotlightRect && (
-        <div
-          className="pulse-tour-spotlight-arrow"
-          style={{
-            top: spotlightRect.top - 10,
-            left: spotlightRect.left + spotlightRect.width / 2 - 8,
-          }}
-        />
-      )}
+      {/* ── Tour Card ── */}
+      <div className="pulse-tour-card" style={cardStyle}>
+        {/* Header row */}
+        <div className="pulse-tour-card-header">
+          <span className="pulse-tour-step-num">Step {currentStep + 1} of {TOUR_STEPS.length}</span>
+          <button className="pulse-tour-close" onClick={onSkip} aria-label="Close tour">✕</button>
+        </div>
 
-      {/* Tour Card */}
-      <div className="pulse-tour-spotlight-card" style={cardStyle}>
-        {/* Close X */}
-        <button className="pulse-tour-close" onClick={onSkip}>✕</button>
-
+        {/* Progress */}
         <div className="pulse-tour-progress">
           {TOUR_STEPS.map((_, i) => (
             <div
@@ -398,16 +364,12 @@ function SpotlightTour({ currentStep, onNext, onSkip }: SpotlightTourProps) {
           ))}
         </div>
 
-        <div className="pulse-tour-step-label">
-          {currentStep + 1} of {TOUR_STEPS.length}
-        </div>
-        <h3 className="pulse-tour-heading">{step.title}</h3>
-        <p className="pulse-tour-text">{step.body}</p>
-        <div className="pulse-tour-card-actions">
-          <button className="pulse-tour-skip" onClick={onSkip}>
-            Skip tour
-          </button>
-          <button className="pulse-tour-cta" onClick={onNext}>
+        <h3 className="pulse-tour-title">{step.title}</h3>
+        <p className="pulse-tour-body">{step.body}</p>
+
+        <div className="pulse-tour-footer">
+          <button className="pulse-tour-skip" onClick={onSkip}>Skip tour</button>
+          <button className="pulse-tour-next" onClick={onNext}>
             {currentStep === TOUR_STEPS.length - 1 ? 'Start Using Pulse →' : 'Next →'}
           </button>
         </div>
@@ -475,32 +437,19 @@ interface SetupModalProps {
 }
 
 function SetupModal({
-  config,
-  newBucket,
-  isSaving,
-  error,
-  pendingPreset,
-  pendingAmount,
-  isUpdate,
-  onUpdateConfig,
-  onUpdateNewBucket,
-  onAddBucket,
-  onRemoveBucket,
-  onOpenPresetPopup,
-  onConfirmPresetBucket,
-  onCancelPresetBucket,
-  onPendingAmountChange,
-  onFinish,
+  config, newBucket, isSaving, error,
+  pendingPreset, pendingAmount, isUpdate,
+  onUpdateConfig, onUpdateNewBucket, onAddBucket, onRemoveBucket,
+  onOpenPresetPopup, onConfirmPresetBucket, onCancelPresetBucket,
+  onPendingAmountChange, onFinish,
 }: SetupModalProps) {
   const pendingInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (pendingPreset && pendingInputRef.current) {
-      pendingInputRef.current.focus();
-    }
+    if (pendingPreset && pendingInputRef.current) pendingInputRef.current.focus();
   }, [pendingPreset]);
 
-  const handlePendingKeyDown = (e: React.KeyboardEvent) => {
+  const handlePendingKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') onConfirmPresetBucket();
     if (e.key === 'Escape') onCancelPresetBucket();
   };
@@ -509,14 +458,13 @@ function SetupModal({
     <div className="pulse-setup-overlay">
       <div className="pulse-setup-card">
 
-        {/* Update mode banner */}
         {isUpdate && (
           <div className="pulse-setup-update-banner">
             Updating your existing Pulse configuration
           </div>
         )}
 
-        {/* Preset Amount Popup */}
+        {/* Preset amount popup */}
         {pendingPreset && (
           <div className="pulse-preset-popup-overlay" onClick={onCancelPresetBucket}>
             <div className="pulse-preset-popup" onClick={e => e.stopPropagation()}>
@@ -536,14 +484,12 @@ function SetupModal({
                   placeholder="0"
                   value={pendingAmount}
                   onChange={e => onPendingAmountChange(e.target.value)}
-                  onKeyDown={handlePendingKeyDown}
+                  onKeyDown={handlePendingKey}
                   min="0"
                 />
               </div>
               <div className="pulse-preset-popup-actions">
-                <button className="pulse-preset-popup-cancel" onClick={onCancelPresetBucket}>
-                  Cancel
-                </button>
+                <button className="pulse-preset-popup-cancel" onClick={onCancelPresetBucket}>Cancel</button>
                 <button
                   className="pulse-preset-popup-confirm"
                   onClick={onConfirmPresetBucket}
@@ -563,11 +509,11 @@ function SetupModal({
           <p className="pulse-setup-subtitle">
             {isUpdate
               ? 'Adjust your income, pay rhythm, or tracked buckets.'
-              : 'Tell Pulse about your income and we\'ll build your financial grid.'}
+              : "Tell Pulse about your income and we'll build your financial grid."}
           </p>
         </div>
 
-        {/* Step 1: Income */}
+        {/* Step 01: Income */}
         <div className="pulse-setup-section">
           <label className="pulse-setup-label">
             <span className="pulse-setup-step-num">01</span>
@@ -585,12 +531,10 @@ function SetupModal({
               autoFocus
             />
           </div>
-          <p className="pulse-setup-hint">
-            Total take-home pay per month, after taxes.
-          </p>
+          <p className="pulse-setup-hint">Total take-home pay per month, after taxes.</p>
         </div>
 
-        {/* Step 2: Pay Rhythm */}
+        {/* Step 02: Pay Rhythm */}
         <div className="pulse-setup-section">
           <label className="pulse-setup-label">
             <span className="pulse-setup-step-num">02</span>
@@ -618,9 +562,7 @@ function SetupModal({
               <div className="pulse-setup-payday-group">
                 <label>First Pay Day</label>
                 <input
-                  type="number"
-                  min="1"
-                  max="31"
+                  type="number" min="1" max="31"
                   value={config.payDates.p1}
                   onChange={e => onUpdateConfig({ payDates: { ...config.payDates, p1: parseInt(e.target.value) || 1 } })}
                 />
@@ -629,9 +571,7 @@ function SetupModal({
               <div className="pulse-setup-payday-group">
                 <label>Second Pay Day</label>
                 <input
-                  type="number"
-                  min="1"
-                  max="31"
+                  type="number" min="1" max="31"
                   value={config.payDates.p2}
                   onChange={e => onUpdateConfig({ payDates: { ...config.payDates, p2: parseInt(e.target.value) || 15 } })}
                 />
@@ -640,14 +580,14 @@ function SetupModal({
           )}
         </div>
 
-        {/* Step 3: Buckets */}
+        {/* Step 03: Buckets */}
         <div className="pulse-setup-section">
           <label className="pulse-setup-label">
             <span className="pulse-setup-step-num">03</span>
             Spending Buckets
           </label>
           <p className="pulse-setup-hint" style={{ marginBottom: 12 }}>
-            What do you track? Click a category, enter the monthly amount.
+            Click a category, enter the monthly amount.
           </p>
 
           {config.buckets.length > 0 && (
@@ -656,21 +596,15 @@ function SetupModal({
                 <div key={b.id} className="pulse-setup-bucket-row">
                   <span className="pulse-setup-bucket-icon">{b.icon}</span>
                   <span className="pulse-setup-bucket-name">{b.name}</span>
-                  <span className="pulse-setup-bucket-goal">
-                    ${b.monthly_goal.toLocaleString()}/mo
-                  </span>
-                  <button className="pulse-setup-bucket-remove" onClick={() => onRemoveBucket(b.id)}>
-                    ✕
-                  </button>
+                  <span className="pulse-setup-bucket-goal">${b.monthly_goal.toLocaleString()}/mo</span>
+                  <button className="pulse-setup-bucket-remove" onClick={() => onRemoveBucket(b.id)}>✕</button>
                 </div>
               ))}
             </div>
           )}
 
           <div className="pulse-setup-presets">
-            {PRESET_BUCKETS.filter(
-              pb => !config.buckets.some(cb => cb.name === pb.name)
-            ).map(pb => (
+            {PRESET_BUCKETS.filter(pb => !config.buckets.some(cb => cb.name === pb.name)).map(pb => (
               <button
                 key={pb.name}
                 className="pulse-setup-preset-btn"
@@ -685,8 +619,7 @@ function SetupModal({
 
           <div className="pulse-setup-add-bucket">
             <input
-              type="text"
-              placeholder="Bucket name (e.g. Netflix)"
+              type="text" placeholder="Bucket name (e.g. Netflix)"
               value={newBucket.name}
               onChange={e => onUpdateNewBucket({ ...newBucket, name: e.target.value })}
               className="pulse-setup-bucket-name-input"
@@ -694,36 +627,19 @@ function SetupModal({
             <div className="pulse-setup-bucket-goal-input-wrap">
               <span>$</span>
               <input
-                type="number"
-                placeholder="Monthly $"
+                type="number" placeholder="Monthly $"
                 value={newBucket.goal}
                 onChange={e => onUpdateNewBucket({ ...newBucket, goal: e.target.value })}
               />
             </div>
-            <button
-              className="pulse-setup-add-btn"
-              onClick={onAddBucket}
-              disabled={!newBucket.name.trim() || !newBucket.goal}
-            >
-              +
-            </button>
+            <button className="pulse-setup-add-btn" onClick={onAddBucket} disabled={!newBucket.name.trim() || !newBucket.goal}>+</button>
           </div>
         </div>
 
         {error && <div className="pulse-setup-error">{error}</div>}
 
-        <button
-          className="pulse-setup-finish"
-          onClick={onFinish}
-          disabled={isSaving}
-        >
-          {isSaving ? (
-            <span className="pulse-setup-saving">Setting up Pulse...</span>
-          ) : isUpdate ? (
-            'Save Changes →'
-          ) : (
-            'Launch Pulse →'
-          )}
+        <button className="pulse-setup-finish" onClick={onFinish} disabled={isSaving}>
+          {isSaving ? 'Setting up Pulse...' : isUpdate ? 'Save Changes →' : 'Launch Pulse →'}
         </button>
       </div>
     </div>
