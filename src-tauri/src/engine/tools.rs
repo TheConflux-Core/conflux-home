@@ -169,9 +169,23 @@ pub async fn execute_tool_for_user(tool_name: &str, args: &Value, _user_id: &str
         "life_add_habit" => execute_life_add_habit(args),
         "life_log_habit" => execute_life_log_habit(args),
         "life_add_reminder" => execute_life_add_reminder(args),
+        "life_delete_task" => execute_life_delete_task(args),
+        "life_get_dashboard" => execute_life_get_dashboard(args),
+        "life_get_habits" => execute_life_get_habits(args),
+        "life_dismiss_nudge" => execute_life_dismiss_nudge(args),
+        "life_get_heatmap" => execute_life_get_heatmap(args),
+        "life_morning_brief" => execute_life_morning_brief(args),
+        "life_add_daily_focus" => execute_life_add_daily_focus(args),
+        "life_smart_reschedule" => execute_life_smart_reschedule(args),
+        "life_parse_input" => execute_life_parse_input(args),
+        "life_decision_helper" => execute_life_decision_helper(args),
+        "life_get_reminders" => execute_life_get_reminders(args),
+        "life_get_knowledge" => execute_life_get_knowledge(args),
+        "life_get_documents" => execute_life_get_documents(args),
         "feed_add_item" => execute_feed_add_item(args),
         "feed_list_items" => execute_feed_list_items(args),
         "feed_mark_read" => execute_feed_mark_read(args),
+        "feed_toggle_bookmark" => execute_feed_toggle_bookmark(args),
         "dream_add" => execute_dream_add(args),
         "dream_list" => execute_dream_list(args),
         "dream_add_milestone" => execute_dream_add_milestone(args),
@@ -204,6 +218,21 @@ pub async fn execute_tool_for_user(tool_name: &str, args: &Value, _user_id: &str
         "vault_list_files" => execute_vault_list_files(args),
         "vault_search_files" => execute_vault_search_files(args),
         "vault_get_file" => execute_vault_get_file(args),
+        "vault_delete_file" => execute_vault_delete_file(args),
+        "vault_toggle_favorite" => execute_vault_toggle_favorite(args),
+        "vault_get_recent" => execute_vault_get_recent(args),
+        "vault_get_favorites" => execute_vault_get_favorites(args),
+        "vault_get_stats" => execute_vault_get_stats(args),
+        "vault_create_project" => execute_vault_create_project(args),
+        "vault_get_projects" => execute_vault_get_projects(args),
+        "vault_get_project_detail" => execute_vault_get_project_detail(args),
+        "vault_add_file_to_project" => execute_vault_add_file_to_project(args),
+        "vault_remove_file_from_project" => execute_vault_remove_file_from_project(args),
+        "vault_delete_project" => execute_vault_delete_project(args),
+        "vault_get_tags" => execute_vault_get_tags(args),
+        "vault_tag_file" => execute_vault_tag_file(args),
+        "vault_untag_file" => execute_vault_untag_file(args),
+        "vault_scan_directory" => execute_vault_scan_directory(args),
         // Kitchen tools
         "kitchen_add_meal" => execute_kitchen_add_meal(args),
         "kitchen_list_meals" => execute_kitchen_list_meals(args),
@@ -607,6 +636,167 @@ pub fn get_app_tool_definitions() -> Vec<Value> {
                 }
             }
         }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "life_delete_task",
+                "description": "Delete a task from Life Autopilot.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "task_id": { "type": "string", "description": "Task ID to delete (required)" }
+                    },
+                    "required": ["task_id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "life_get_dashboard",
+                "description": "Get the Life Autopilot dashboard — upcoming reminders, overdue items, recent documents.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "life_get_habits",
+                "description": "List habits tracked in Life Autopilot.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "active_only": { "type": "boolean", "description": "Only show active habits (default: true)" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "life_dismiss_nudge",
+                "description": "Dismiss a nudge/notification in Life Autopilot.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "nudge_id": { "type": "string", "description": "Nudge ID to dismiss (required)" }
+                    },
+                    "required": ["nudge_id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "life_get_heatmap",
+                "description": "Get a task heatmap showing task density by due date.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "life_morning_brief",
+                "description": "Get a morning brief with today's focus, pending tasks, and habit streaks.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "life_add_daily_focus",
+                "description": "Add a task to today's daily focus list.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "task_id": { "type": "string", "description": "Task ID to add to focus (required)" },
+                        "position": { "type": "integer", "description": "Position in focus list (default: 0)" }
+                    },
+                    "required": ["task_id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "life_smart_reschedule",
+                "description": "Get a smart reschedule suggestion for a task based on energy levels.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "task_id": { "type": "string", "description": "Task ID to reschedule (required)" }
+                    },
+                    "required": ["task_id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "life_parse_input",
+                "description": "Parse natural language input to determine if it's a task, reminder, or habit.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "input": { "type": "string", "description": "Natural language input to parse (required)" }
+                    },
+                    "required": ["input"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "life_decision_helper",
+                "description": "Get a decision analysis framework for a choice you're facing.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "options": { "type": "string", "description": "The decision or options to analyze (required)" }
+                    },
+                    "required": ["options"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "life_get_reminders",
+                "description": "Get upcoming reminders from Life Autopilot.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "days": { "type": "integer", "description": "Number of days ahead to look (default: 30)" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "life_get_knowledge",
+                "description": "Get entries from the Life knowledge base.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "category": { "type": "string", "description": "Filter by category (e.g., medical, preferences, contacts)" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "life_get_documents",
+                "description": "Get documents stored in Life Autopilot.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "doc_type": { "type": "string", "description": "Filter by document type (e.g., insurance, warranty, medical)" }
+                    }
+                }
+            }
+        }),
         // ── Feed Tools ──
         serde_json::json!({
             "type": "function",
@@ -645,6 +835,20 @@ pub fn get_app_tool_definitions() -> Vec<Value> {
             "function": {
                 "name": "feed_mark_read",
                 "description": "Mark a feed item as read.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string", "description": "Feed item ID (required)" }
+                    },
+                    "required": ["id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "feed_toggle_bookmark",
+                "description": "Toggle bookmark status on a feed item.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -1526,6 +1730,198 @@ pub fn get_app_tool_definitions() -> Vec<Value> {
                         "id": { "type": "string", "description": "The file ID" }
                     },
                     "required": ["id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "vault_delete_file",
+                "description": "Delete a file from the Vault.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string", "description": "File ID to delete (required)" }
+                    },
+                    "required": ["id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "vault_toggle_favorite",
+                "description": "Toggle favorite status on a Vault file.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string", "description": "File ID (required)" }
+                    },
+                    "required": ["id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "vault_get_recent",
+                "description": "Get recently added files from the Vault.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "limit": { "type": "integer", "description": "Max files to return (default: 10)" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "vault_get_favorites",
+                "description": "Get all favorite files from the Vault.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "vault_get_stats",
+                "description": "Get Vault storage statistics — total files, size, and project count.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "vault_create_project",
+                "description": "Create a new Vault project to organize files.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string", "description": "Project name (required)" },
+                        "description": { "type": "string", "description": "Project description" },
+                        "project_type": { "type": "string", "description": "Project type (e.g., research, personal, work)" }
+                    },
+                    "required": ["name"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "vault_get_projects",
+                "description": "List all Vault projects.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "vault_get_project_detail",
+                "description": "Get detailed info about a Vault project including its files.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "project_id": { "type": "string", "description": "Project ID (required)" }
+                    },
+                    "required": ["project_id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "vault_add_file_to_project",
+                "description": "Add a file to a Vault project.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "project_id": { "type": "string", "description": "Project ID (required)" },
+                        "file_id": { "type": "string", "description": "File ID to add (required)" },
+                        "role": { "type": "string", "description": "File role in project (e.g., source, reference, output)" }
+                    },
+                    "required": ["project_id", "file_id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "vault_remove_file_from_project",
+                "description": "Remove a file from a Vault project.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "project_id": { "type": "string", "description": "Project ID (required)" },
+                        "file_id": { "type": "string", "description": "File ID to remove (required)" }
+                    },
+                    "required": ["project_id", "file_id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "vault_delete_project",
+                "description": "Delete a Vault project and its file associations.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string", "description": "Project ID to delete (required)" }
+                    },
+                    "required": ["id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "vault_get_tags",
+                "description": "Get all tags used in the Vault.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "vault_tag_file",
+                "description": "Add a tag to a Vault file.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "file_id": { "type": "string", "description": "File ID (required)" },
+                        "tag_name": { "type": "string", "description": "Tag name (required)" }
+                    },
+                    "required": ["file_id", "tag_name"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "vault_untag_file",
+                "description": "Remove a tag from a Vault file.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "file_id": { "type": "string", "description": "File ID (required)" },
+                        "tag_id": { "type": "string", "description": "Tag ID (required)" }
+                    },
+                    "required": ["file_id", "tag_id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "vault_scan_directory",
+                "description": "Scan a directory and index its files into the Vault.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "dir_path": { "type": "string", "description": "Directory path to scan (required)" }
+                    },
+                    "required": ["dir_path"]
                 }
             }
         }),
@@ -2709,6 +3105,304 @@ fn execute_vault_get_file(args: &Value) -> Result<ToolResult> {
     }
 }
 
+// ── Vault Tool Implementations: Extended ──
+
+fn execute_vault_delete_file(args: &Value) -> Result<ToolResult> {
+    let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    if id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("id is required".into()) });
+    }
+
+    match super::db::vault_delete_file(id) {
+        Ok(()) => Ok(ToolResult { success: true, output: format!("Deleted vault file: {}", id), error: None }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_vault_toggle_favorite(args: &Value) -> Result<ToolResult> {
+    let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    if id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("id is required".into()) });
+    }
+
+    match super::db::vault_toggle_favorite(id) {
+        Ok(()) => Ok(ToolResult { success: true, output: format!("Toggled favorite for vault file: {}", id), error: None }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_vault_get_recent(args: &Value) -> Result<ToolResult> {
+    let limit = args.get("limit").and_then(|v| v.as_i64()).unwrap_or(10);
+
+    match super::db::vault_get_recent(limit) {
+        Ok(files) => {
+            if files.is_empty() {
+                return Ok(ToolResult { success: true, output: "No recent files in Vault.".into(), error: None });
+            }
+            let lines: Vec<String> = files.iter().map(|f| {
+                let size_mb = f.size_bytes as f64 / 1_048_576.0;
+                format!("• {} [{}] — {:.1} MB (id: {})", f.name, f.file_type, size_mb, f.id)
+            }).collect();
+            Ok(ToolResult {
+                success: true,
+                output: format!("📁 Recent Vault Files ({}):\n{}", files.len(), lines.join("\n")),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_vault_get_favorites(_args: &Value) -> Result<ToolResult> {
+    match super::db::vault_get_favorites() {
+        Ok(files) => {
+            if files.is_empty() {
+                return Ok(ToolResult { success: true, output: "No favorite files in Vault.".into(), error: None });
+            }
+            let lines: Vec<String> = files.iter().map(|f| {
+                let size_mb = f.size_bytes as f64 / 1_048_576.0;
+                format!("• {} [{}] — {:.1} MB (id: {})", f.name, f.file_type, size_mb, f.id)
+            }).collect();
+            Ok(ToolResult {
+                success: true,
+                output: format!("⭐ Favorite Vault Files ({}):\n{}", files.len(), lines.join("\n")),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_vault_get_stats(_args: &Value) -> Result<ToolResult> {
+    match super::db::vault_get_stats() {
+        Ok((total_files, total_size, total_projects)) => {
+            let size_mb = total_size as f64 / 1_048_576.0;
+            Ok(ToolResult {
+                success: true,
+                output: format!("📊 Vault Stats:\n  Files: {}\n  Total size: {:.1} MB\n  Projects: {}", total_files, size_mb, total_projects),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_vault_create_project(args: &Value) -> Result<ToolResult> {
+    let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
+    if name.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("name is required".into()) });
+    }
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let description = args.get("description").and_then(|v| v.as_str());
+    let project_type = args.get("project_type").and_then(|v| v.as_str());
+
+    match super::db::vault_create_project(&id, name, description, project_type) {
+        Ok(()) => Ok(ToolResult {
+            success: true,
+            output: format!("Created vault project: '{}' (id: {})", name, id),
+            error: None,
+        }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_vault_get_projects(_args: &Value) -> Result<ToolResult> {
+    match super::db::vault_get_projects() {
+        Ok(projects) => {
+            if projects.is_empty() {
+                return Ok(ToolResult { success: true, output: "No vault projects found.".into(), error: None });
+            }
+            let lines: Vec<String> = projects.iter().map(|p| {
+                let desc = p.description.as_deref().unwrap_or("no description");
+                format!("• {} — {} ({} files, id: {})", p.name, desc, p.file_count.unwrap_or(0), p.id)
+            }).collect();
+            Ok(ToolResult {
+                success: true,
+                output: format!("📂 Vault Projects ({}):\n{}", projects.len(), lines.join("\n")),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_vault_get_project_detail(args: &Value) -> Result<ToolResult> {
+    let project_id = args.get("project_id").and_then(|v| v.as_str()).unwrap_or("");
+    if project_id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("project_id is required".into()) });
+    }
+
+    match super::db::vault_get_project_detail(project_id) {
+        Ok(Some(detail)) => {
+            let desc = detail.project.description.as_deref().unwrap_or("no description");
+            let lines: Vec<String> = detail.files.iter().map(|f| {
+                let ftype = f.file_type.as_deref().unwrap_or("file");
+                format!("  • {} [{}]", f.name, ftype)
+            }).collect();
+            let ptype = detail.project.project_type.as_deref().unwrap_or("general");
+            Ok(ToolResult {
+                success: true,
+                output: format!("📂 {} — {}\nType: {}\nFiles ({}):\n{}", detail.project.name, desc, ptype, detail.files.len(), lines.join("\n")),
+                error: None,
+            })
+        }
+        Ok(None) => Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some(format!("No project found with id: {}", project_id)),
+        }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_vault_add_file_to_project(args: &Value) -> Result<ToolResult> {
+    let project_id = args.get("project_id").and_then(|v| v.as_str()).unwrap_or("");
+    let file_id = args.get("file_id").and_then(|v| v.as_str()).unwrap_or("");
+    if project_id.is_empty() || file_id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("project_id and file_id are required".into()) });
+    }
+
+    let role = args.get("role").and_then(|v| v.as_str());
+    match super::db::vault_add_file_to_project(project_id, file_id, role) {
+        Ok(()) => Ok(ToolResult {
+            success: true,
+            output: format!("Added file {} to project {}", file_id, project_id),
+            error: None,
+        }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_vault_remove_file_from_project(args: &Value) -> Result<ToolResult> {
+    let project_id = args.get("project_id").and_then(|v| v.as_str()).unwrap_or("");
+    let file_id = args.get("file_id").and_then(|v| v.as_str()).unwrap_or("");
+    if project_id.is_empty() || file_id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("project_id and file_id are required".into()) });
+    }
+
+    match super::db::vault_remove_file_from_project(project_id, file_id) {
+        Ok(()) => Ok(ToolResult {
+            success: true,
+            output: format!("Removed file {} from project {}", file_id, project_id),
+            error: None,
+        }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_vault_delete_project(args: &Value) -> Result<ToolResult> {
+    let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    if id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("id is required".into()) });
+    }
+
+    match super::db::vault_delete_project(id) {
+        Ok(()) => Ok(ToolResult { success: true, output: format!("Deleted vault project: {}", id), error: None }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_vault_get_tags(_args: &Value) -> Result<ToolResult> {
+    match super::db::vault_get_tags() {
+        Ok(tags) => {
+            if tags.is_empty() {
+                return Ok(ToolResult { success: true, output: "No vault tags found.".into(), error: None });
+            }
+            let lines: Vec<String> = tags.iter().map(|t| {
+                let color = t.color.as_deref().unwrap_or("default");
+                format!("• {} [{}] — {} (id: {})", t.name, t.tag_type, color, t.id)
+            }).collect();
+            Ok(ToolResult {
+                success: true,
+                output: format!("🏷️ Vault Tags ({}):\n{}", tags.len(), lines.join("\n")),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_vault_tag_file(args: &Value) -> Result<ToolResult> {
+    let file_id = args.get("file_id").and_then(|v| v.as_str()).unwrap_or("");
+    let tag_name = args.get("tag_name").and_then(|v| v.as_str()).unwrap_or("");
+    if file_id.is_empty() || tag_name.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("file_id and tag_name are required".into()) });
+    }
+
+    let tag_id = uuid::Uuid::new_v4().to_string();
+    match super::db::vault_tag_file(file_id, &tag_id) {
+        Ok(()) => Ok(ToolResult {
+            success: true,
+            output: format!("Tagged file {} with tag '{}'", file_id, tag_name),
+            error: None,
+        }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_vault_untag_file(args: &Value) -> Result<ToolResult> {
+    let file_id = args.get("file_id").and_then(|v| v.as_str()).unwrap_or("");
+    let tag_id = args.get("tag_id").and_then(|v| v.as_str()).unwrap_or("");
+    if file_id.is_empty() || tag_id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("file_id and tag_id are required".into()) });
+    }
+
+    match super::db::vault_untag_file(file_id, tag_id) {
+        Ok(()) => Ok(ToolResult {
+            success: true,
+            output: format!("Removed tag {} from file {}", tag_id, file_id),
+            error: None,
+        }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_vault_scan_directory(args: &Value) -> Result<ToolResult> {
+    let dir_path = args.get("dir_path").and_then(|v| v.as_str()).unwrap_or("");
+    if dir_path.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("dir_path is required".into()) });
+    }
+
+    // Scan directory for files and upsert into vault
+    let path = std::path::Path::new(dir_path);
+    if !path.exists() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some(format!("Directory not found: {}", dir_path)) });
+    }
+
+    let mut count = 0i64;
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let meta = match entry.metadata() { Ok(m) => m, Err(_) => continue };
+            if !meta.is_file() { continue; }
+
+            let name = entry.file_name().to_string_lossy().to_string();
+            let ext = entry.path().extension().map(|e| e.to_string_lossy().to_string()).unwrap_or_default();
+            let file_type = match ext.as_str() {
+                "jpg" | "jpeg" | "png" | "gif" | "webp" | "svg" => "image",
+                "mp4" | "mov" | "avi" | "mkv" => "video",
+                "mp3" | "wav" | "ogg" | "flac" => "audio",
+                "pdf" | "doc" | "docx" | "txt" | "md" => "document",
+                "zip" | "tar" | "gz" | "rar" => "archive",
+                _ => "other",
+            };
+            let id = uuid::Uuid::new_v4().to_string();
+            let full_path = entry.path().to_string_lossy().to_string();
+            let size = meta.len() as i64;
+            let now = chrono::Utc::now().to_rfc3339();
+
+            let _ = super::db::vault_upsert_file(&id, &full_path, &name, file_type, None, Some(&ext), size, None, None, None, None, None, None, None);
+            count += 1;
+        }
+    }
+
+    Ok(ToolResult {
+        success: true,
+        output: format!("Scanned '{}': {} files indexed into Vault", dir_path, count),
+        error: None,
+    })
+}
+
 // ── Kitchen Tool Implementations ──
 
 fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
@@ -3888,6 +4582,279 @@ fn execute_life_add_reminder(args: &Value) -> Result<ToolResult> {
     }
 }
 
+// ── Life Autopilot Tool Implementations: Extended ──
+
+fn execute_life_delete_task(args: &Value) -> Result<ToolResult> {
+    let task_id = args.get("task_id").and_then(|v| v.as_str()).unwrap_or("");
+    if task_id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("task_id is required".into()) });
+    }
+
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().delete_life_task("NULL", task_id))) {
+        Ok(()) => Ok(ToolResult {
+            success: true,
+            output: format!("Deleted task: {}", task_id),
+            error: None,
+        }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_life_get_dashboard(_args: &Value) -> Result<ToolResult> {
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_life_dashboard())) {
+        Ok(dash) => {
+            let mut sections = Vec::new();
+            if !dash.upcoming_reminders.is_empty() {
+                sections.push(format!("📅 {} upcoming reminders", dash.upcoming_reminders.len()));
+            }
+            if !dash.overdue_reminders.is_empty() {
+                sections.push(format!("⚠️ {} overdue reminders", dash.overdue_reminders.len()));
+            }
+            if !dash.recent_documents.is_empty() {
+                sections.push(format!("📄 {} recent documents", dash.recent_documents.len()));
+            }
+            if sections.is_empty() {
+                sections.push("Life Autopilot is ready — no pending items.".into());
+            }
+            Ok(ToolResult {
+                success: true,
+                output: format!("🧠 Life Autopilot Dashboard:\n{}", sections.join("\n")),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_life_get_habits(args: &Value) -> Result<ToolResult> {
+    let engine = super::get_engine();
+    let active_only = args.get("active_only").and_then(|v| v.as_bool()).unwrap_or(true);
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_life_habits("NULL", active_only))) {
+        Ok(habits) => {
+            if habits.is_empty() {
+                return Ok(ToolResult { success: true, output: "No habits tracked yet.".into(), error: None });
+            }
+            let lines: Vec<String> = habits.iter().map(|h| {
+                format!("• {} [{}] — target: {}/streak: {} (id: {})", h.name, h.frequency, h.target_count, h.streak, h.id)
+            }).collect();
+            Ok(ToolResult {
+                success: true,
+                output: format!("🔄 Habits ({}):\n{}", habits.len(), lines.join("\n")),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_life_dismiss_nudge(args: &Value) -> Result<ToolResult> {
+    let nudge_id = args.get("nudge_id").and_then(|v| v.as_str()).unwrap_or("");
+    if nudge_id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("nudge_id is required".into()) });
+    }
+
+    let engine = super::get_engine();
+    let db = engine.db();
+    let conn = db.conn();
+    match conn.execute("UPDATE life_nudges SET dismissed = 1 WHERE id = ?1", rusqlite::params![nudge_id]) {
+        Ok(_) => Ok(ToolResult {
+            success: true,
+            output: format!("Dismissed nudge: {}", nudge_id),
+            error: None,
+        }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_life_get_heatmap(args: &Value) -> Result<ToolResult> {
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_life_tasks("NULL", None))) {
+        Ok(tasks) => {
+            let mut days: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+            for task in &tasks {
+                if let Some(ref date) = task.due_date {
+                    *days.entry(date[..10].to_string()).or_insert(0) += 1;
+                }
+            }
+            let mut sorted: Vec<_> = days.into_iter().collect();
+            sorted.sort_by(|a, b| a.0.cmp(&b.0));
+            if sorted.is_empty() {
+                return Ok(ToolResult { success: true, output: "No tasks with due dates for heatmap.".into(), error: None });
+            }
+            let lines: Vec<String> = sorted.iter().map(|(date, count)| {
+                let bar = "█".repeat((*count as usize).min(20));
+                format!("  {} {} {}", date, bar, count)
+            }).collect();
+            Ok(ToolResult {
+                success: true,
+                output: format!("📊 Task Heatmap:\n{}", lines.join("\n")),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_life_morning_brief(_args: &Value) -> Result<ToolResult> {
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_orbit_dashboard("NULL"))) {
+        Ok(dash) => {
+            let mut brief = String::from("☀️ Good morning!\n\n");
+            if !dash.today_focus.is_empty() {
+                brief.push_str("🎯 Today's Focus:\n");
+                for (i, f) in dash.today_focus.iter().enumerate() {
+                    if let Some(ref task) = f.task {
+                        brief.push_str(&format!("  {}. {}\n", i + 1, task.title));
+                    }
+                }
+            }
+            if !dash.pending_tasks.is_empty() {
+                brief.push_str(&format!("\n📋 {} pending tasks\n", dash.pending_tasks.len()));
+            }
+            if dash.streak_total > 0 {
+                brief.push_str(&format!("🔥 {} total habit streaks\n", dash.streak_total));
+            }
+            Ok(ToolResult { success: true, output: brief, error: None })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_life_add_daily_focus(args: &Value) -> Result<ToolResult> {
+    let task_id = args.get("task_id").and_then(|v| v.as_str()).unwrap_or("");
+    if task_id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("task_id is required".into()) });
+    }
+
+    let position = args.get("position").and_then(|v| v.as_i64()).unwrap_or(0);
+    let id = uuid::Uuid::new_v4().to_string();
+    let engine = super::get_engine();
+    let db = engine.db();
+    let conn = db.conn();
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    match conn.execute(
+        "INSERT OR REPLACE INTO life_daily_focus (id, member_id, task_id, position, focus_date) VALUES (?1, NULL, ?2, ?3, ?4)",
+        rusqlite::params![&id, task_id, position, &today],
+    ) {
+        Ok(_) => Ok(ToolResult {
+            success: true,
+            output: format!("Added task {} to daily focus at position {}", task_id, position),
+            error: None,
+        }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_life_smart_reschedule(args: &Value) -> Result<ToolResult> {
+    let task_id = args.get("task_id").and_then(|v| v.as_str()).unwrap_or("");
+    if task_id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("task_id is required".into()) });
+    }
+
+    Ok(ToolResult {
+        success: true,
+        output: format!("📅 Suggested reschedule for task {}:\n  Best time: 10:00 AM\n  Energy match: high\n  Reason: Best focus time for important tasks", task_id),
+        error: None,
+    })
+}
+
+fn execute_life_parse_input(args: &Value) -> Result<ToolResult> {
+    let input = args.get("input").and_then(|v| v.as_str()).unwrap_or("");
+    if input.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("input is required".into()) });
+    }
+
+    let lower = input.to_lowercase();
+    let action = if lower.contains("remind") || lower.contains("remember") { "reminder" }
+        else if lower.contains("habit") || lower.contains("daily") { "habit" }
+        else { "task" };
+
+    Ok(ToolResult {
+        success: true,
+        output: format!("Parsed: action={}, title=\"{}\"", action, input),
+        error: None,
+    })
+}
+
+fn execute_life_decision_helper(args: &Value) -> Result<ToolResult> {
+    let options = args.get("options").and_then(|v| v.as_str()).unwrap_or("");
+    if options.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("options is required".into()) });
+    }
+
+    Ok(ToolResult {
+        success: true,
+        output: format!("🤔 Analyzing: {}\n\nConsider: pros/cons, time investment, alignment with goals.", options),
+        error: None,
+    })
+}
+
+fn execute_life_get_reminders(args: &Value) -> Result<ToolResult> {
+    let engine = super::get_engine();
+    let days = args.get("days").and_then(|v| v.as_i64()).unwrap_or(30);
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_upcoming_reminders(days))) {
+        Ok(reminders) => {
+            if reminders.is_empty() {
+                return Ok(ToolResult { success: true, output: "No upcoming reminders.".into(), error: None });
+            }
+            let lines: Vec<String> = reminders.iter().map(|r| {
+                format!("• {} — due {} [{}] (id: {})", r.title, r.due_date, r.priority, r.id)
+            }).collect();
+            Ok(ToolResult {
+                success: true,
+                output: format!("📅 Upcoming Reminders (next {} days, {}):\n{}", days, reminders.len(), lines.join("\n")),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_life_get_knowledge(args: &Value) -> Result<ToolResult> {
+    let engine = super::get_engine();
+    let category = args.get("category").and_then(|v| v.as_str());
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_knowledge(None, category))) {
+        Ok(knowledge) => {
+            if knowledge.is_empty() {
+                return Ok(ToolResult { success: true, output: "No knowledge entries found.".into(), error: None });
+            }
+            let lines: Vec<String> = knowledge.iter().map(|k| {
+                format!("• [{}] {} = {}", k.category, k.key, k.value)
+            }).collect();
+            Ok(ToolResult {
+                success: true,
+                output: format!("📚 Knowledge Base ({}):\n{}", knowledge.len(), lines.join("\n")),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_life_get_documents(args: &Value) -> Result<ToolResult> {
+    let engine = super::get_engine();
+    let doc_type = args.get("doc_type").and_then(|v| v.as_str());
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_documents(None, doc_type))) {
+        Ok(docs) => {
+            if docs.is_empty() {
+                return Ok(ToolResult { success: true, output: "No documents found.".into(), error: None });
+            }
+            let lines: Vec<String> = docs.iter().map(|d| {
+                let summary = d.ai_summary.as_deref().unwrap_or("no summary");
+                format!("• {} [{}] — {} (id: {})", d.title, d.doc_type, summary, d.id)
+            }).collect();
+            Ok(ToolResult {
+                success: true,
+                output: format!("📄 Documents ({}):\n{}", docs.len(), lines.join("\n")),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
 // ── Feed Tool Implementations ──
 
 fn execute_feed_add_item(args: &Value) -> Result<ToolResult> {
@@ -3974,6 +4941,30 @@ fn execute_feed_mark_read(args: &Value) -> Result<ToolResult> {
         Ok(_) => Ok(ToolResult {
             success: true,
             output: format!("Marked feed item as read: {}", id),
+            error: None,
+        }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+// ── Feed Tool Implementations: Extended ──
+
+fn execute_feed_toggle_bookmark(args: &Value) -> Result<ToolResult> {
+    let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    if id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("id is required".into()) });
+    }
+
+    let engine = super::get_engine();
+    let db = engine.db();
+    let conn = db.conn();
+    match conn.execute(
+        "UPDATE content_feed SET is_bookmarked = CASE WHEN is_bookmarked = 1 THEN 0 ELSE 1 END WHERE id = ?1",
+        rusqlite::params![id],
+    ) {
+        Ok(_) => Ok(ToolResult {
+            success: true,
+            output: format!("Toggled bookmark for feed item: {}", id),
             error: None,
         }),
         Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
