@@ -2069,8 +2069,8 @@ impl EngineDb {
     }
 
     /// Get kitchen inventory for cross-app insights
-    pub fn get_kitchen_inventory(&self, member_id: &str) -> Result<Vec<super::types::KitchenInventoryItem>> {
-        let conn = self.conn();
+    pub async fn get_kitchen_inventory(&self, member_id: &str) -> Result<Vec<super::types::KitchenInventoryItem>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT id, member_id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at 
              FROM kitchen_inventory WHERE member_id = ?1 ORDER BY location, name"
@@ -2608,11 +2608,11 @@ impl EngineDb {
     // SMART KITCHEN — Meals
     // ============================================================
 
-    pub fn create_meal(&self, id: &str, name: &str, description: Option<&str>, cuisine: Option<&str>,
+    pub async fn create_meal(&self, id: &str, name: &str, description: Option<&str>, cuisine: Option<&str>,
                         category: Option<&str>, photo_url: Option<&str>, prep_time: Option<i64>,
                         cook_time: Option<i64>, servings: i64, difficulty: &str,
                         instructions: Option<&str>, tags: Option<&str>, source: &str) -> Result<super::types::Meal> {
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         let now = Self::now();
         conn.execute(
             "INSERT INTO meals (id, name, description, cuisine, category, photo_url, prep_time_min, cook_time_min, servings, difficulty, instructions, tags, source, created_at, updated_at)
@@ -2630,8 +2630,8 @@ impl EngineDb {
         })
     }
 
-    pub fn get_meals(&self, category: Option<&str>, cuisine: Option<&str>, favorites_only: bool) -> Result<Vec<super::types::Meal>> {
-        let conn = self.conn();
+    pub async fn get_meals(&self, category: Option<&str>, cuisine: Option<&str>, favorites_only: bool) -> Result<Vec<super::types::Meal>> {
+        let conn = self.conn_async().await;
         let mut conditions = Vec::new();
         let mut params_vec: Vec<String> = Vec::new();
 
@@ -2673,8 +2673,8 @@ impl EngineDb {
         })
     }
 
-    pub fn get_meal(&self, id: &str) -> Result<Option<super::types::Meal>> {
-        let conn = self.conn();
+    pub async fn get_meal(&self, id: &str) -> Result<Option<super::types::Meal>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT id, name, description, cuisine, category, photo_url, prep_time_min, cook_time_min, servings, difficulty, instructions, estimated_cost, cost_per_serving, calories, tags, source, is_favorite, last_made, times_made, created_at, updated_at
              FROM meals WHERE id = ?1"
@@ -2683,17 +2683,17 @@ impl EngineDb {
         Ok(rows.next().transpose()?)
     }
 
-    pub fn get_meal_with_ingredients(&self, id: &str) -> Result<Option<super::types::MealWithIngredients>> {
-        let meal = match self.get_meal(id)? {
+    pub async fn get_meal_with_ingredients(&self, id: &str) -> Result<Option<super::types::MealWithIngredients>> {
+        let meal = match self.get_meal(id).await? {
             Some(m) => m,
             None => return Ok(None),
         };
-        let ingredients = self.get_meal_ingredients(id)?;
+        let ingredients = self.get_meal_ingredients(id).await?;
         Ok(Some(super::types::MealWithIngredients { meal, ingredients }))
     }
 
-    pub fn toggle_favorite(&self, id: &str) -> Result<()> {
-        let conn = self.conn();
+    pub async fn toggle_favorite(&self, id: &str) -> Result<()> {
+        let conn = self.conn_async().await;
         conn.execute(
             "UPDATE meals SET is_favorite = CASE WHEN is_favorite = 1 THEN 0 ELSE 1 END, updated_at = ?2 WHERE id = ?1",
             params![id, Self::now()],
@@ -2701,8 +2701,8 @@ impl EngineDb {
         Ok(())
     }
 
-    pub fn update_meal_costs(&self, id: &str) -> Result<()> {
-        let conn = self.conn();
+    pub async fn update_meal_costs(&self, id: &str) -> Result<()> {
+        let conn = self.conn_async().await;
         let total: f64 = conn.query_row(
             "SELECT COALESCE(SUM(estimated_cost), 0) FROM meal_ingredients WHERE meal_id = ?1",
             params![id], |row| row.get(0)
@@ -2722,10 +2722,10 @@ impl EngineDb {
     // Meal Ingredients
     // ============================================================
 
-    pub fn add_meal_ingredient(&self, id: &str, meal_id: &str, name: &str, quantity: Option<f64>,
+    pub async fn add_meal_ingredient(&self, id: &str, meal_id: &str, name: &str, quantity: Option<f64>,
                                 unit: Option<&str>, estimated_cost: Option<f64>, category: Option<&str>,
                                 is_optional: bool, notes: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         let opt: i64 = if is_optional { 1 } else { 0 };
         let max_order: i64 = conn.query_row(
             "SELECT COALESCE(MAX(sort_order), 0) FROM meal_ingredients WHERE meal_id = ?1",
@@ -2736,12 +2736,12 @@ impl EngineDb {
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             params![id, meal_id, name, quantity, unit, estimated_cost, category, opt, notes, max_order + 1],
         )?;
-        self.update_meal_costs(meal_id)?;
+        self.update_meal_costs(meal_id).await?;
         Ok(())
     }
 
-    pub fn get_meal_ingredients(&self, meal_id: &str) -> Result<Vec<super::types::MealIngredient>> {
-        let conn = self.conn();
+    pub async fn get_meal_ingredients(&self, meal_id: &str) -> Result<Vec<super::types::MealIngredient>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT id, meal_id, name, quantity, unit, estimated_cost, category, is_optional, notes, sort_order
              FROM meal_ingredients WHERE meal_id = ?1 ORDER BY sort_order"
@@ -2762,9 +2762,9 @@ impl EngineDb {
     // Meal Plans (Weekly)
     // ============================================================
 
-    pub fn set_plan_entry(&self, id: &str, week_start: &str, day_of_week: i64,
+    pub async fn set_plan_entry(&self, id: &str, week_start: &str, day_of_week: i64,
                            meal_slot: &str, meal_id: Option<&str>, notes: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         // Upsert: delete existing entry for this slot, then insert
         conn.execute(
             "DELETE FROM meal_plans_v2 WHERE week_start = ?1 AND day_of_week = ?2 AND meal_slot = ?3",
@@ -2778,8 +2778,8 @@ impl EngineDb {
         Ok(())
     }
 
-    pub fn get_weekly_plan(&self, week_start: &str) -> Result<super::types::WeeklyPlan> {
-        let conn = self.conn();
+    pub async fn get_weekly_plan(&self, week_start: &str) -> Result<super::types::WeeklyPlan> {
+        let conn = self.conn_async().await;
         let day_names = vec!["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
         let mut stmt = conn.prepare(
@@ -2840,8 +2840,8 @@ impl EngineDb {
         Ok(super::types::WeeklyPlan { week_start: week_start.to_string(), days, total_estimated_cost: total_cost, meal_count })
     }
 
-    pub fn clear_week_plan(&self, week_start: &str) -> Result<()> {
-        let conn = self.conn();
+    pub async fn clear_week_plan(&self, week_start: &str) -> Result<()> {
+        let conn = self.conn_async().await;
         conn.execute("DELETE FROM meal_plans_v2 WHERE week_start = ?1", params![week_start])?;
         conn.execute("DELETE FROM grocery_items WHERE week_start = ?1", params![week_start])?;
         Ok(())
@@ -2851,8 +2851,8 @@ impl EngineDb {
     // Grocery List
     // ============================================================
 
-    pub fn generate_grocery_list(&self, week_start: &str) -> Result<Vec<super::types::GroceryItem>> {
-        let conn = self.conn();
+    pub async fn generate_grocery_list(&self, week_start: &str) -> Result<Vec<super::types::GroceryItem>> {
+        let conn = self.conn_async().await;
 
         // Clear existing grocery list for this week
         conn.execute("DELETE FROM grocery_items WHERE week_start = ?1", params![week_start])?;
@@ -2895,8 +2895,8 @@ impl EngineDb {
         Ok(items)
     }
 
-    pub fn get_grocery_list(&self, week_start: &str) -> Result<Vec<super::types::GroceryItem>> {
-        let conn = self.conn();
+    pub async fn get_grocery_list(&self, week_start: &str) -> Result<Vec<super::types::GroceryItem>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT id, member_id, name, quantity, unit, category, estimated_cost, is_checked, source_meal_id, week_start, created_at
              FROM grocery_items WHERE week_start = ?1 ORDER BY category, name"
@@ -2914,8 +2914,8 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn toggle_grocery_item(&self, id: &str) -> Result<()> {
-        let conn = self.conn();
+    pub async fn toggle_grocery_item(&self, id: &str) -> Result<()> {
+        let conn = self.conn_async().await;
         conn.execute(
             "UPDATE grocery_items SET is_checked = CASE WHEN is_checked = 1 THEN 0 ELSE 1 END WHERE id = ?1",
             params![id],
@@ -2927,9 +2927,9 @@ impl EngineDb {
     // Kitchen Inventory
     // ============================================================
 
-    pub fn add_inventory_item(&self, id: &str, member_id: &str, name: &str, quantity: Option<f64>, unit: Option<&str>,
+    pub async fn add_inventory_item(&self, id: &str, member_id: &str, name: &str, quantity: Option<f64>, unit: Option<&str>,
                                category: Option<&str>, expiry: Option<&str>, location: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         let now = Self::now();
         conn.execute(
             "INSERT INTO kitchen_inventory (id, member_id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at)
@@ -2939,8 +2939,8 @@ impl EngineDb {
         Ok(())
     }
 
-    pub fn get_inventory(&self, member_id: &str, location: Option<&str>) -> Result<Vec<super::types::KitchenInventoryItem>> {
-        let conn = self.conn();
+    pub async fn get_inventory(&self, member_id: &str, location: Option<&str>) -> Result<Vec<super::types::KitchenInventoryItem>> {
+        let conn = self.conn_async().await;
         if let Some(loc) = location {
             let mut stmt = conn.prepare(
                 "SELECT id, member_id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at
@@ -2972,8 +2972,8 @@ impl EngineDb {
 
     // ── Kitchen Hearth Extensions ──
 
-    pub fn add_meal_photo(&self, id: &str, meal_id: &str, photo_url: &str, caption: Option<&str>) -> Result<()> {
-        let conn = self.conn();
+    pub async fn add_meal_photo(&self, id: &str, meal_id: &str, photo_url: &str, caption: Option<&str>) -> Result<()> {
+        let conn = self.conn_async().await;
         conn.execute(
             "INSERT INTO meal_photos (id, meal_id, photo_url, caption) VALUES (?1, ?2, ?3, ?4)",
             params![id, meal_id, photo_url, caption]
@@ -2981,8 +2981,8 @@ impl EngineDb {
         Ok(())
     }
 
-    pub fn get_meal_photos(&self, meal_id: &str) -> Result<Vec<super::types::MealPhoto>> {
-        let conn = self.conn();
+    pub async fn get_meal_photos(&self, meal_id: &str) -> Result<Vec<super::types::MealPhoto>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT id, meal_id, photo_url, caption, ai_tags, taken_at, created_at FROM meal_photos WHERE meal_id = ?1 ORDER BY created_at DESC"
         )?;
@@ -2997,8 +2997,8 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn get_pantry_heatmap(&self) -> Result<Vec<super::types::PantryHeatItem>> {
-        let conn = self.conn();
+    pub async fn get_pantry_heatmap(&self) -> Result<Vec<super::types::PantryHeatItem>> {
+        let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT name, expiry_date, location FROM kitchen_inventory WHERE expiry_date IS NOT NULL ORDER BY expiry_date ASC"
         )?;
@@ -3022,8 +3022,8 @@ impl EngineDb {
         Ok(result)
     }
 
-    pub fn get_expiring_items(&self, days: i64) -> Result<Vec<super::types::KitchenInventoryItem>> {
-        let conn = self.conn();
+    pub async fn get_expiring_items(&self, days: i64) -> Result<Vec<super::types::KitchenInventoryItem>> {
+        let conn = self.conn_async().await;
         let future = chrono::Utc::now().checked_add_signed(chrono::Duration::days(days))
             .map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default();
         let mut stmt = conn.prepare(
