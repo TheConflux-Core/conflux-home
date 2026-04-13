@@ -2102,7 +2102,7 @@ pub async fn budget_detect_patterns(member_id: Option<String>) -> Result<Vec<eng
 #[tauri::command(rename_all = "snake_case")]
 pub async fn budget_can_afford(amount: f64, month: String) -> Result<bool, String> {
     let engine = engine::get_engine();
-    let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
+    let member_id = tokio::task::block_in_place(|| engine.db().get_config("supabase_user_id")).unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
     engine.db().can_afford(&member_id, amount, &month).await.map_err(|e| e.to_string())
 }
 
@@ -2148,7 +2148,7 @@ pub async fn budget_goal_status(member_id: Option<String>) -> Result<serde_json:
 #[tauri::command(rename_all = "snake_case")]
 pub async fn budget_generate_report(month: String) -> Result<engine::types::MonthlyReport, String> {
     let engine = engine::get_engine();
-    let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
+    let member_id = tokio::task::block_in_place(|| engine.db().get_config("supabase_user_id")).unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
     engine.db().get_monthly_report(&member_id, &month).await.map_err(|e| e.to_string())
 }
 
@@ -5602,7 +5602,7 @@ pub async fn purchase_credits(user_id: String, pack: String) -> Result<String, S
 /// Get the stored Supabase user ID from engine config.
 fn get_supabase_user_id() -> String {
     let engine = engine::get_engine();
-    engine.db().get_config("supabase_user_id")
+    tokio::task::block_in_place(|| engine.db().get_config("supabase_user_id"))
         .ok().flatten().unwrap_or_default()
 }
 

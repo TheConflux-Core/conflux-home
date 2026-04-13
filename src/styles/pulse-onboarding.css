@@ -1,0 +1,385 @@
+/* ═══════════════════════════════════════════════════════════════
+   PULSE ONBOARDING — Boot Sequence + Guided Tour Styles
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Boot Sequence ─────────────────────────────────────────── */
+
+.pulse-boot-sequence {
+  position: fixed;
+  inset: 0;
+  background: #020a06;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.boot-phase-1,
+.boot-phase-2,
+.boot-phase-3,
+.boot-phase-4,
+.boot-phase-5 {
+  opacity: 1;
+}
+
+.boot-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+}
+
+.boot-pulse-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 3.5rem;
+  font-weight: 800;
+  letter-spacing: 0.4em;
+  color: #10b981;
+  text-shadow:
+    0 0 20px rgba(16, 185, 129, 0.5),
+    0 0 40px rgba(16, 185, 129, 0.3),
+    0 0 60px rgba(16, 185, 129, 0.2);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.boot-phase-1 .boot-pulse-text,
+.boot-phase-2 .boot-pulse-text,
+.boot-phase-3 .boot-pulse-text,
+.boot-phase-4 .boot-pulse-text,
+.boot-phase-5 .boot-pulse-text {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.boot-heart {
+  width: 80px;
+  height: 80px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.boot-phase-2 .boot-heart,
+.boot-phase-3 .boot-heart,
+.boot-phase-4 .boot-heart,
+.boot-phase-5 .boot-heart {
+  opacity: 1;
+}
+
+.boot-heart-svg {
+  width: 100%;
+  height: 100%;
+  animation: pulse-boot-breathe 1.5s ease-in-out infinite;
+}
+
+.boot-heart-path {
+  animation: pulse-boot-draw 0.8s ease forwards;
+}
+
+.boot-phase-2 .boot-heart-path {
+  animation: pulse-boot-draw 0.8s ease forwards;
+}
+
+@keyframes pulse-boot-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+@keyframes pulse-boot-draw {
+  from { stroke-dashoffset: 300; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* Phase transitions — cockpit and grid materialize */
+.boot-phase-3 ~ * .budget-cockpit,
+.boot-phase-4 ~ * .budget-cockpit,
+.boot-phase-5 ~ * .budget-cockpit {
+  animation: materialize 0.5s ease forwards;
+}
+
+/* ── Tour Overlay ───────────────────────────────────────────── */
+
+.pulse-tour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  pointer-events: none;
+}
+
+/* Spotlight hole */
+.pulse-spotlight {
+  position: fixed;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 9999px rgba(2, 13, 8, 0.85),
+    0 0 30px rgba(16, 185, 129, 0.3);
+  pointer-events: none;
+  z-index: 9001;
+  transition: all 0.3s ease;
+  border: 2px solid rgba(16, 185, 129, 0.5);
+}
+
+/* Tour card base */
+.pulse-tour-card {
+  background: linear-gradient(135deg, #041a0f 0%, #022c22 100%);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 20px;
+  padding: 28px;
+  z-index: 9002;
+  pointer-events: all;
+  box-shadow:
+    0 25px 50px rgba(0, 0, 0, 0.5),
+    0 0 30px rgba(16, 185, 129, 0.1);
+  animation: tour-card-appear 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  backdrop-filter: blur(20px);
+}
+
+@keyframes tour-card-appear {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+.pulse-tour-card.center {
+  animation-name: tour-card-appear-center;
+}
+
+@keyframes tour-card-appear-center {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* Progress dots */
+.pulse-tour-progress {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.pulse-tour-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  transition: all 0.2s ease;
+}
+
+.pulse-tour-dot.active {
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+  transform: scale(1.2);
+}
+
+.pulse-tour-dot.done {
+  background: rgba(16, 185, 129, 0.4);
+}
+
+.pulse-tour-step-num {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: #34d399;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.pulse-tour-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 10px 0;
+  letter-spacing: -0.01em;
+}
+
+.pulse-tour-body {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: #a7f3d0;
+  margin: 0 0 20px 0;
+  opacity: 0.9;
+}
+
+.pulse-tour-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.pulse-tour-skip {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 8px;
+  transition: color 0.2s ease;
+}
+
+.pulse-tour-skip:hover {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.pulse-tour-next {
+  background: #10b981;
+  border: none;
+  color: #022c22;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 10px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.25);
+}
+
+.pulse-tour-next:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 25px rgba(16, 185, 129, 0.4);
+  background: #34d399;
+}
+
+/* Dismiss zone (outside spotlight) */
+.pulse-tour-dismiss-zone {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  cursor: pointer;
+}
+
+/* ── First-Use Empty State Helpers ─────────────────────────── */
+
+/* Shown before setup - dashed placeholder rows */
+.budget-placeholder-row {
+  display: grid;
+  grid-template-columns: 200px 1fr 1fr 1fr 1fr 240px;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 20px;
+  border: 2px dashed rgba(16, 185, 129, 0.2);
+  border-radius: 12px;
+  opacity: 0.5;
+  transition: all 0.3s ease;
+}
+
+.budget-placeholder-row:hover {
+  border-color: rgba(16, 185, 129, 0.4);
+  opacity: 0.8;
+}
+
+.budget-placeholder-text {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.3);
+  font-style: italic;
+}
+
+/* Setup prompt overlay on cockpit */
+.pulse-setup-prompt {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2, 13, 8, 0.7);
+  backdrop-filter: blur(4px);
+  border-radius: 16px;
+  z-index: 10;
+  animation: fade-in-stagger 0.5s ease both;
+}
+
+.pulse-setup-text {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #34d399;
+  margin-bottom: 8px;
+}
+
+.pulse-setup-hint {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ── Proactive Nudge Placeholder ──────────────────────────── */
+
+.pulse-proactive {
+  margin-top: 24px;
+  padding: 20px;
+  background: rgba(16, 185, 129, 0.05);
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  border-radius: 16px;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.pulse-proactive-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.pulse-proactive-content {
+  flex: 1;
+}
+
+.pulse-proactive-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #34d399;
+  margin-bottom: 4px;
+}
+
+.pulse-proactive-body {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.5;
+}
+
+.pulse-proactive-placeholder {
+  opacity: 0.4;
+  border-style: dashed;
+}
+
+/* ── Animation Helpers ─────────────────────────────────────── */
+
+@keyframes materialize {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Staggered grid row entrance */
+.data-row {
+  animation: fade-in-stagger 0.4s ease both;
+  animation-delay: calc(var(--row-index, 0) * 50ms);
+}
+
+@keyframes fade-in-stagger {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

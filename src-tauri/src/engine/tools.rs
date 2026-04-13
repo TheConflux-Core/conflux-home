@@ -1701,7 +1701,7 @@ fn execute_email_send(args: &Value) -> Result<ToolResult> {
 
     // Get SMTP config from DB
     let engine = super::get_engine();
-    let smtp_host = match engine.db().get_config("smtp_host") {
+    let smtp_host = match tokio::task::block_in_place(|| engine.db().get_config("smtp_host")) {
         Ok(Some(h)) => h,
         _ => return Ok(ToolResult {
             success: false,
@@ -1709,9 +1709,9 @@ fn execute_email_send(args: &Value) -> Result<ToolResult> {
             error: Some("Email not configured. Set smtp_host, smtp_user, smtp_pass, smtp_from in Settings > Email.".to_string()),
         }),
     };
-    let smtp_user = engine.db().get_config("smtp_user").unwrap_or(None).unwrap_or_default();
-    let smtp_pass = engine.db().get_config("smtp_pass").unwrap_or(None).unwrap_or_default();
-    let smtp_from = engine.db().get_config("smtp_from").unwrap_or(None).unwrap_or(smtp_user.clone());
+    let smtp_user = tokio::task::block_in_place(|| engine.db().get_config("smtp_user")).unwrap_or(None).unwrap_or_default();
+    let smtp_pass = tokio::task::block_in_place(|| engine.db().get_config("smtp_pass")).unwrap_or(None).unwrap_or_default();
+    let smtp_from = tokio::task::block_in_place(|| engine.db().get_config("smtp_from")).unwrap_or(None).unwrap_or(smtp_user.clone());
 
     let email = match Message::builder()
         .from(smtp_from.parse().map_err(|e| anyhow::anyhow!("Invalid from address: {}", e))?)
@@ -2080,7 +2080,7 @@ fn execute_kitchen_add_inventory(args: &Value) -> Result<ToolResult> {
 
     let id = uuid::Uuid::new_v4().to_string();
     let engine = super::get_engine();
-    let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
+    let member_id = tokio::task::block_in_place(|| engine.db().get_config("supabase_user_id")).unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
     let quantity = args.get("quantity").and_then(|v| v.as_f64());
     let unit = args.get("unit").and_then(|v| v.as_str());
     let category = None::<&str>;
@@ -2102,7 +2102,7 @@ fn execute_kitchen_add_inventory(args: &Value) -> Result<ToolResult> {
 
 fn execute_kitchen_get_inventory(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
-    let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
+    let member_id = tokio::task::block_in_place(|| engine.db().get_config("supabase_user_id")).unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
     let location = args.get("location").and_then(|v| v.as_str());
 
     match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_inventory(&member_id, location))) {
@@ -2600,14 +2600,14 @@ fn execute_weekly_summary(_args: &Value) -> Result<ToolResult> {
     let mut sections: Vec<String> = Vec::new();
 
     // 1. Budget summary
-    let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
+    let member_id = tokio::task::block_in_place(|| engine.db().get_config("supabase_user_id")).unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
     if let Ok(summary) = tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_budget_summary(&member_id, &this_month))) {
         sections.push(format!("💰 Budget ({}): Spent ${:.2} | Income ${:.2} | Net ${:.2}",
             this_month, summary.total_expenses, summary.total_income, summary.net));
     }
 
     // 2. Kitchen — meals + expiring inventory
-    let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
+    let member_id = tokio::task::block_in_place(|| engine.db().get_config("supabase_user_id")).unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
     if let Ok(meals) = tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_meals(None, None, false))) {
         sections.push(format!("🍳 Kitchen: {} meals in collection", meals.len()));
     }
@@ -2671,7 +2671,7 @@ fn execute_can_afford(args: &Value) -> Result<ToolResult> {
     let now = chrono::Utc::now();
     let this_month = now.format("%Y-%m").to_string();
 
-    let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
+    let member_id = tokio::task::block_in_place(|| engine.db().get_config("supabase_user_id")).unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
     let summary = tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_budget_summary(&member_id, &this_month)))?;
     let discretionary = summary.total_income - summary.total_expenses;
 
@@ -2723,7 +2723,7 @@ fn execute_day_overview(_args: &Value) -> Result<ToolResult> {
     }
 
     // 2. Inventory expiring today or tomorrow
-    let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
+    let member_id = tokio::task::block_in_place(|| engine.db().get_config("supabase_user_id")).unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
     if let Ok(inventory) = tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_inventory(&member_id, None))) {
         let urgent: Vec<_> = inventory.iter()
             .filter(|item| {
