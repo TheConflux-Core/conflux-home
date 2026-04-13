@@ -3054,8 +3054,8 @@ impl EngineDb {
         )?;
         Ok(())
     }
-    pub fn get_documents(&self, member_id: Option<&str>, doc_type: Option<&str>) -> Result<Vec<super::types::LifeDocument>> {
-        let conn = self.conn();
+    pub async fn get_documents(&self, member_id: Option<&str>, doc_type: Option<&str>) -> Result<Vec<super::types::LifeDocument>> {
+        let conn = self.conn_async().await;
         let mapper = |row: &rusqlite::Row| -> rusqlite::Result<super::types::LifeDocument> {
             Ok(super::types::LifeDocument {
                 id: row.get(0)?, member_id: row.get(1)?, doc_type: row.get(2)?, title: row.get(3)?,
@@ -3091,8 +3091,8 @@ impl EngineDb {
         }
         Ok(result)
     }
-    pub fn add_reminder(&self, id: &str, member_id: Option<&str>, document_id: Option<&str>, reminder_type: &str, title: &str, description: Option<&str>, due_date: &str, priority: &str) -> Result<()> {
-        let conn = self.conn();
+    pub async fn add_reminder(&self, id: &str, member_id: Option<&str>, document_id: Option<&str>, reminder_type: &str, title: &str, description: Option<&str>, due_date: &str, priority: &str) -> Result<()> {
+        let conn = self.conn_async().await;
         let mid = member_id.map(String::from);
         let did = document_id.map(String::from);
         let desc = description.map(String::from);
@@ -3100,8 +3100,8 @@ impl EngineDb {
             params![id, mid, did, reminder_type, title, desc, due_date, priority])?;
         Ok(())
     }
-    pub fn get_upcoming_reminders(&self, days: i64) -> Result<Vec<super::types::LifeReminder>> {
-        let conn = self.conn();
+    pub async fn get_upcoming_reminders(&self, days: i64) -> Result<Vec<super::types::LifeReminder>> {
+        let conn = self.conn_async().await;
         let future = (chrono::Utc::now() + chrono::Duration::days(days)).format("%Y-%m-%d").to_string();
         let mut stmt = conn.prepare("SELECT id, member_id, document_id, reminder_type, title, description, due_date, priority, is_dismissed, is_completed, recurring, frequency, created_at FROM life_reminders WHERE is_dismissed = 0 AND is_completed = 0 AND due_date <= ?1 ORDER BY priority DESC, due_date")?;
         let rows = stmt.query_map(params![future], Self::map_reminder)?;
@@ -3134,8 +3134,8 @@ impl EngineDb {
             params![id, mid, category, key, value, now])?;
         Ok(())
     }
-    pub fn get_knowledge(&self, member_id: Option<&str>, category: Option<&str>) -> Result<Vec<super::types::LifeKnowledge>> {
-        let conn = self.conn();
+    pub async fn get_knowledge(&self, member_id: Option<&str>, category: Option<&str>) -> Result<Vec<super::types::LifeKnowledge>> {
+        let conn = self.conn_async().await;
         let mapper = |row: &rusqlite::Row| -> rusqlite::Result<super::types::LifeKnowledge> {
             Ok(super::types::LifeKnowledge {
                 id: row.get(0)?, member_id: row.get(1)?, category: row.get(2)?, key: row.get(3)?,
@@ -3338,9 +3338,9 @@ impl EngineDb {
         })
     }
 
-    pub fn add_daily_focus(&self, id: &str, member_id: &str, task_id: &str, position: i64) -> Result<()> {
+    pub async fn add_daily_focus(&self, id: &str, member_id: &str, task_id: &str, position: i64) -> Result<()> {
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-        let conn = self.conn();
+        let conn = self.conn_async().await;
         conn.execute("INSERT INTO life_daily_focus (id, member_id, focus_date, task_id, position) VALUES (?1, ?2, ?3, ?4, ?5)", params![id, member_id, today, task_id, position])?;
         Ok(())
     }
