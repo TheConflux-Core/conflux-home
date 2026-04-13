@@ -653,6 +653,21 @@ impl EngineDb {
         }
     }
 
+    pub async fn get_config_async(&self, key: &str) -> Result<Option<String>> {
+        let conn = self.conn_async().await;
+        let result: std::result::Result<String, _> = conn.query_row(
+            "SELECT value FROM config WHERE key = ?1",
+            params![key],
+            |row| row.get(0),
+        );
+
+        match result {
+            Ok(v) => Ok(Some(v)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
     pub fn set_config(&self, key: &str, value: &str) -> Result<()> {
         let conn = self.conn();
         conn.execute(

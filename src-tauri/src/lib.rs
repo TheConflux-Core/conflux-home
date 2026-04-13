@@ -112,17 +112,17 @@ pub fn run() {
                     let mut current_interval_secs: u64 = 1800;
                     loop {
                         // Read interval from DB on every iteration (fallback when no channel cmd arrives)
-                        let (db_interval_secs, stored) = engine::try_get_engine()
-                            .and_then(|e| {
-                                let ms = e.db().get_config("heartbeat_interval_ms")
-                                    .ok().flatten()
-                                    .and_then(|v| v.parse::<u64>().ok());
-                                let stored = e.db().get_config("heartbeat_interval_ms")
-                                    .ok().flatten()
-                                    .unwrap_or_else(|| "MISSING".into());
-                                Some((ms.map(|m| m / 1000).unwrap_or(1800), stored))
-                            })
-                            .unwrap_or((1800, "NO_ENGINE".into()));
+                        let (db_interval_secs, stored) = if let Some(e) = engine::try_get_engine() {
+                            let ms = e.db().get_config_async("heartbeat_interval_ms").await
+                                .ok().flatten()
+                                .and_then(|v| v.parse::<u64>().ok());
+                            let stored = e.db().get_config_async("heartbeat_interval_ms").await
+                                .ok().flatten()
+                                .unwrap_or_else(|| "MISSING".into());
+                            (ms.map(|m| m / 1000).unwrap_or(1800), stored)
+                        } else {
+                            (1800, "NO_ENGINE".into())
+                        };
                         // Use channel command if received, otherwise use DB value
                         if db_interval_secs != current_interval_secs && db_interval_secs > 0 {
                             current_interval_secs = db_interval_secs;
