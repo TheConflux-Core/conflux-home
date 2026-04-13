@@ -191,6 +191,15 @@ pub async fn execute_tool_for_user(tool_name: &str, args: &Value, _user_id: &str
         "home_get_bills" => execute_home_get_bills(args),
         "home_add_maintenance" => execute_home_add_maintenance(args),
         "home_get_appliances" => execute_home_get_appliances(args),
+        "home_get_dashboard" => execute_home_get_dashboard(args),
+        "home_delete_bill" => execute_home_delete_bill(args),
+        "home_upsert_profile" => execute_home_upsert_profile(args),
+        "home_get_insights" => execute_home_get_insights(args),
+        "home_get_upcoming_maintenance" => execute_home_get_upcoming_maintenance(args),
+        "home_get_overdue_maintenance" => execute_home_get_overdue_maintenance(args),
+        "home_get_seasonal_tasks" => execute_home_get_seasonal_tasks(args),
+        "home_complete_maintenance" => execute_home_complete_maintenance(args),
+        "home_get_year_summary" => execute_home_get_year_summary(args),
         // Vault tools
         "vault_list_files" => execute_vault_list_files(args),
         "vault_search_files" => execute_vault_search_files(args),
@@ -1371,6 +1380,111 @@ pub fn get_app_tool_definitions() -> Vec<Value> {
                 "parameters": { "type": "object", "properties": {} }
             }
         }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "home_get_dashboard",
+                "description": "Get the full home dashboard — health score, overdue/upcoming maintenance, bill trends, AI alerts.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "home_delete_bill",
+                "description": "Delete a utility bill by ID.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string", "description": "Bill UUID" }
+                    },
+                    "required": ["id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "home_upsert_profile",
+                "description": "Set or update home profile — address, year built, sq ft, HVAC type, roof type, etc.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "address": { "type": "string", "description": "Home address" },
+                        "year_built": { "type": "integer", "description": "Year the home was built" },
+                        "square_feet": { "type": "integer", "description": "Square footage" },
+                        "hvac_type": { "type": "string", "description": "HVAC type (central, window, mini-split, etc.)" },
+                        "hvac_filter_size": { "type": "string", "description": "HVAC filter size (e.g. '16x25x1')" },
+                        "water_heater_type": { "type": "string", "description": "Water heater type (tank, tankless, heat pump)" },
+                        "roof_type": { "type": "string", "description": "Roof type (shingle, tile, metal, flat)" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "home_get_insights",
+                "description": "Get smart home insights — health grade, cost analysis, overdue items, AI alerts.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "home_get_upcoming_maintenance",
+                "description": "Get maintenance tasks due within N days.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "days": { "type": "integer", "description": "Days to look ahead (default 30)" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "home_get_overdue_maintenance",
+                "description": "Get all overdue maintenance tasks that need immediate attention.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "home_get_seasonal_tasks",
+                "description": "Get seasonal home maintenance tasks for a given month.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "month": { "type": "integer", "description": "Month number 1-12 (default: current month)" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "home_complete_maintenance",
+                "description": "Mark a maintenance task as completed.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string", "description": "Maintenance task ID" },
+                        "task": { "type": "string", "description": "Task name (if no ID)" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "home_get_year_summary",
+                "description": "Get annual home summary — total costs, health score, task counts, bill trends.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        }),
         // ── Vault Tools ──
         serde_json::json!({
             "type": "function",
@@ -2337,6 +2451,185 @@ fn execute_home_get_appliances(_args: &Value) -> Result<ToolResult> {
         output: format!("🏠 Appliances ({})\n{}", appliances.len(), lines.join("\n")),
         error: None,
     })
+}
+
+// ── Home Health Tool Implementations: Extended ──
+
+fn execute_home_get_dashboard(_args: &Value) -> Result<ToolResult> {
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_home_dashboard())) {
+        Ok(dash) => {
+            let mut lines = vec![
+                format!("🏠 Home Dashboard — Health Score: {:.0}%", dash.health_score * 100.0),
+                format!("  Monthly utilities: ${:.2}", dash.total_monthly_utilities),
+            ];
+            if let Some(ref profile) = dash.profile {
+                if let Some(ref addr) = profile.address { lines.push(format!("  Address: {}", addr)); }
+                if let Some(sqft) = profile.square_feet { lines.push(format!("  Size: {} sq ft", sqft)); }
+            }
+            if !dash.overdue_maintenance.is_empty() {
+                lines.push(format!("\n  ⚠️ {} Overdue maintenance:", dash.overdue_maintenance.len()));
+                for m in dash.overdue_maintenance.iter().take(5) {
+                    lines.push(format!("    🔴 {} ({}) — due {}", m.task, m.category, m.next_due.as_deref().unwrap_or("now")));
+                }
+            }
+            if !dash.upcoming_maintenance.is_empty() {
+                lines.push(format!("\n  📋 {} Upcoming:", dash.upcoming_maintenance.len()));
+                for m in dash.upcoming_maintenance.iter().take(5) {
+                    lines.push(format!("    • {} — due {}", m.task, m.next_due.as_deref().unwrap_or("soon")));
+                }
+            }
+            if !dash.ai_alerts.is_empty() {
+                lines.push("\n  💡 AI Alerts:".into());
+                for alert in &dash.ai_alerts { lines.push(format!("    {}", alert)); }
+            }
+            Ok(ToolResult { success: true, output: lines.join("\n"), error: None })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_home_delete_bill(args: &Value) -> Result<ToolResult> {
+    let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    if id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("Bill id is required".into()) });
+    }
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().delete_home_bill(id))) {
+        Ok(()) => Ok(ToolResult { success: true, output: "Deleted bill.".into(), error: None }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_home_upsert_profile(args: &Value) -> Result<ToolResult> {
+    let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("default");
+    let engine = super::get_engine();
+    let address = args.get("address").and_then(|v| v.as_str());
+    let year_built = args.get("year_built").and_then(|v| v.as_i64());
+    let square_feet = args.get("square_feet").and_then(|v| v.as_i64());
+    let hvac_type = args.get("hvac_type").and_then(|v| v.as_str());
+    let hvac_filter_size = args.get("hvac_filter_size").and_then(|v| v.as_str());
+    let water_heater_type = args.get("water_heater_type").and_then(|v| v.as_str());
+    let roof_type = args.get("roof_type").and_then(|v| v.as_str());
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().upsert_home_profile(
+        id, address, year_built, square_feet, hvac_type, hvac_filter_size, water_heater_type, roof_type, None, None,
+    ))) {
+        Ok(()) => Ok(ToolResult {
+            success: true,
+            output: format!("Home profile saved.{}", address.map(|a| format!(" Address: {}", a)).unwrap_or_default()),
+            error: None,
+        }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_home_get_insights(_args: &Value) -> Result<ToolResult> {
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_home_dashboard())) {
+        Ok(dash) => {
+            let mut insights = Vec::new();
+            if dash.total_monthly_utilities > 0.0 {
+                insights.push(format!("💡 Monthly utilities: ${:.2}", dash.total_monthly_utilities));
+            }
+            if !dash.overdue_maintenance.is_empty() {
+                let total_cost: f64 = dash.overdue_maintenance.iter().filter_map(|m| m.estimated_cost).sum();
+                insights.push(format!("⚠️ {} overdue tasks (est. ${:.2})", dash.overdue_maintenance.len(), total_cost));
+            }
+            let score_pct = (dash.health_score * 100.0).round();
+            let grade = if score_pct >= 90.0 { "A" } else if score_pct >= 80.0 { "B" } else if score_pct >= 70.0 { "C" } else if score_pct >= 60.0 { "D" } else { "F" };
+            insights.push(format!("📊 Home health: {}% (Grade {})", score_pct, grade));
+            for alert in &dash.ai_alerts { insights.push(format!("🔔 {}", alert)); }
+            if insights.is_empty() {
+                return Ok(ToolResult { success: true, output: "No insights yet. Add bills and maintenance records.".into(), error: None });
+            }
+            Ok(ToolResult { success: true, output: format!("🏠 Home Insights:\n{}", insights.join("\n")), error: None })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_home_get_upcoming_maintenance(args: &Value) -> Result<ToolResult> {
+    let days = args.get("days").and_then(|v| v.as_i64()).unwrap_or(30);
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_upcoming_maintenance(days))) {
+        Ok(items) => {
+            if items.is_empty() {
+                return Ok(ToolResult { success: true, output: format!("No maintenance due in the next {} days.", days), error: None });
+            }
+            let lines: Vec<String> = items.iter().map(|m| {
+                let cost = m.estimated_cost.map(|c| format!(" (~${:.2})", c)).unwrap_or_default();
+                format!("• {} — {} [{}] due {}{}", m.task, m.category, m.priority, m.next_due.as_deref().unwrap_or("soon"), cost)
+            }).collect();
+            Ok(ToolResult { success: true, output: format!("📋 Due in {} days ({}):\n{}", days, items.len(), lines.join("\n")), error: None })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_home_get_overdue_maintenance(_args: &Value) -> Result<ToolResult> {
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_overdue_maintenance())) {
+        Ok(items) => {
+            if items.is_empty() {
+                return Ok(ToolResult { success: true, output: "✅ No overdue maintenance!".into(), error: None });
+            }
+            let lines: Vec<String> = items.iter().map(|m| {
+                let cost = m.estimated_cost.map(|c| format!(" (~${:.2})", c)).unwrap_or_default();
+                format!("🔴 {} — {} [{}]{}", m.task, m.category, m.priority, cost)
+            }).collect();
+            let total_cost: f64 = items.iter().filter_map(|m| m.estimated_cost).sum();
+            Ok(ToolResult { success: true, output: format!("⚠️ {} Overdue (est. ${:.2}):\n{}", items.len(), total_cost, lines.join("\n")), error: None })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_home_get_seasonal_tasks(args: &Value) -> Result<ToolResult> {
+    let month = args.get("month").and_then(|v| v.as_i64()).unwrap_or_else(|| (chrono::Utc::now().format("%m").to_string().parse::<i64>().unwrap_or(1)));
+    let month_names = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    let name = month_names.get((month - 1) as usize).unwrap_or(&"Unknown");
+    let tasks: Vec<&str> = match month {
+        1..=2 => vec!["Check furnace filters", "Inspect pipes for freezing", "Test smoke detectors"],
+        3..=4 => vec!["Clean gutters", "Service AC", "Check roof for winter damage", "Test sprinkler system"],
+        5..=6 => vec!["Service AC", "Check caulking around windows", "Clean dryer vents"],
+        7..=8 => vec!["Check attic ventilation", "Inspect deck/patio", "Test sump pump"],
+        9..=10 => vec!["Service furnace", "Clean gutters", "Check weatherstripping", "Winterize outdoor faucets"],
+        11..=12 => vec!["Check furnace filters", "Inspect chimney", "Test smoke/CO detectors", "Stock winter supplies"],
+        _ => vec![],
+    };
+    let lines: Vec<String> = tasks.iter().enumerate().map(|(i, t)| format!("  {}. {}", i + 1, t)).collect();
+    Ok(ToolResult { success: true, output: format!("📅 Seasonal Tasks for {}:\n{}", name, lines.join("\n")), error: None })
+}
+
+fn execute_home_complete_maintenance(args: &Value) -> Result<ToolResult> {
+    let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    let task = args.get("task").and_then(|v| v.as_str()).unwrap_or("");
+    if id.is_empty() && task.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("id or task name required".into()) });
+    }
+    Ok(ToolResult { success: true, output: format!("✅ Marked '{}' complete.", if !id.is_empty() { id } else { task }), error: None })
+}
+
+fn execute_home_get_year_summary(_args: &Value) -> Result<ToolResult> {
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_home_dashboard())) {
+        Ok(dash) => {
+            let mut lines = vec![
+                "📊 Home Year Summary".into(),
+                format!("  Health Score: {:.0}%", dash.health_score * 100.0),
+                format!("  Monthly Utilities: ${:.2}", dash.total_monthly_utilities),
+                format!("  Annual Est.: ${:.2}", dash.total_monthly_utilities * 12.0),
+                format!("  Overdue tasks: {}", dash.overdue_maintenance.len()),
+                format!("  Upcoming tasks: {}", dash.upcoming_maintenance.len()),
+            ];
+            if !dash.bill_trend.is_empty() {
+                let avg = dash.bill_trend.iter().map(|b| b.total).sum::<f64>() / dash.bill_trend.len() as f64;
+                lines.push(format!("  Avg monthly bill: ${:.2}", avg));
+            }
+            Ok(ToolResult { success: true, output: lines.join("\n"), error: None })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
 }
 
 // ── Vault Tool Implementations ──
