@@ -9,7 +9,7 @@ import PulseParticles from './PulseParticles';
 import BudgetConfigModal from './BudgetConfigModal';
 import { TransactionLogModal } from './TransactionLogModal';
 import { parseBudgetCommand } from '../hooks/useBudgetAI';
-import BudgetOnboarding, { type SetupConfig } from './BudgetOnboarding';
+import BudgetOnboarding, { type SetupConfig, hasCompletedBudgetOnboarding } from './BudgetOnboarding';
 import '../styles/budget-pulse.css';
 import '../styles/pulse-onboarding.css';
 
@@ -32,9 +32,9 @@ export default function BudgetView() {
     loading 
   } = useBudgetEngine();
 
-  // Onboarding state — show tour on first open
+  // Onboarding state — separate keys for data-onboarding (persistent) vs tour (resettable)
   const [showOnboarding, setShowOnboarding] = useState(() => {
-    return localStorage.getItem('budget-tour-completed') !== 'true';
+    return !hasCompletedBudgetOnboarding();
   });
   const [onboardingComplete, setOnboardingComplete] = useState(false);
 
