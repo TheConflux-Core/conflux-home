@@ -192,6 +192,20 @@ pub async fn execute_tool_for_user(tool_name: &str, args: &Value, _user_id: &str
         "kitchen_get_plan" => execute_kitchen_get_plan(args),
         "kitchen_add_inventory" => execute_kitchen_add_inventory(args),
         "kitchen_get_inventory" => execute_kitchen_get_inventory(args),
+        "kitchen_get_meal" => execute_kitchen_get_meal(args),
+        "kitchen_toggle_favorite" => execute_kitchen_toggle_favorite(args),
+        "kitchen_add_ingredient" => execute_kitchen_add_ingredient(args),
+        "kitchen_clear_week_plan" => execute_kitchen_clear_week_plan(args),
+        "kitchen_generate_grocery" => execute_kitchen_generate_grocery(args),
+        "kitchen_get_grocery" => execute_kitchen_get_grocery(args),
+        "kitchen_toggle_grocery" => execute_kitchen_toggle_grocery(args),
+        "fridge_scan" => execute_fridge_scan(args),
+        "fridge_what_can_i_make" => execute_fridge_what_can_i_make(args),
+        "fridge_expiring" => execute_fridge_expiring(args),
+        "fridge_shopping_for_meals" => execute_fridge_shopping_for_meals(args),
+        "kitchen_pantry_heatmap" => execute_kitchen_pantry_heatmap(args),
+        "kitchen_get_cooking_steps" => execute_kitchen_get_cooking_steps(args),
+        "kitchen_get_meal_photos" => execute_kitchen_get_meal_photos(args),
         // Budget tools
         "budget_add_entry" => execute_budget_add_entry(args),
         "budget_get_entries" => execute_budget_get_entries(args),
@@ -774,6 +788,202 @@ pub fn get_app_tool_definitions() -> Vec<Value> {
                     "properties": {
                         "location": { "type": "string", "description": "Filter by location: fridge, freezer, pantry" }
                     }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "kitchen_get_meal",
+                "description": "Get detailed info about a meal including ingredients, cost, and instructions. Look up by id or name.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string", "description": "Meal UUID" },
+                        "name": { "type": "string", "description": "Meal name (case-insensitive lookup)" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "kitchen_toggle_favorite",
+                "description": "Toggle favorite status on a meal. Stars/unstars it for priority display.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string", "description": "Meal UUID" },
+                        "name": { "type": "string", "description": "Meal name (case-insensitive lookup)" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "kitchen_add_ingredient",
+                "description": "Add an ingredient to an existing meal. Automatically recalculates meal cost.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "meal_id": { "type": "string", "description": "Meal UUID" },
+                        "meal_name": { "type": "string", "description": "Meal name (case-insensitive lookup)" },
+                        "name": { "type": "string", "description": "Ingredient name (e.g. 'Chicken breast')" },
+                        "quantity": { "type": "number", "description": "Quantity amount" },
+                        "unit": { "type": "string", "description": "Unit (e.g. 'lbs', 'cups', 'pieces')" },
+                        "estimated_cost": { "type": "number", "description": "Estimated cost in dollars" },
+                        "category": { "type": "string", "description": "Category (produce, dairy, meat, pantry, spice, frozen)" },
+                        "is_optional": { "type": "boolean", "description": "Whether this ingredient is optional" },
+                        "notes": { "type": "string", "description": "Notes (e.g. 'diced', 'organic')" }
+                    },
+                    "required": ["name"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "kitchen_clear_week_plan",
+                "description": "Clear all meals from a weekly plan. Also removes associated grocery items.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "week_start": { "type": "string", "description": "Week start date in YYYY-MM-DD format (Monday)" }
+                    },
+                    "required": ["week_start"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "kitchen_generate_grocery",
+                "description": "Generate a grocery list from the weekly meal plan. Aggregates ingredients across all planned meals.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "week_start": { "type": "string", "description": "Week start date in YYYY-MM-DD format (Monday)" }
+                    },
+                    "required": ["week_start"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "kitchen_get_grocery",
+                "description": "Get the grocery list for a week. Shows checked/unchecked items with quantities and costs.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "week_start": { "type": "string", "description": "Week start date in YYYY-MM-DD format (Monday)" }
+                    },
+                    "required": ["week_start"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "kitchen_toggle_grocery",
+                "description": "Check/uncheck a grocery list item. Toggles its purchased status.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string", "description": "Grocery item UUID" }
+                    },
+                    "required": ["id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "fridge_scan",
+                "description": "Log items from a fridge/pantry scan into inventory. Describe what you see and this will add each item.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "description": { "type": "string", "description": "Description of fridge contents, one item per line" }
+                    },
+                    "required": ["description"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "fridge_what_can_i_make",
+                "description": "Check what meals you can make with current inventory. Shows match percentage and missing ingredients.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "min_match_pct": { "type": "number", "description": "Minimum ingredient match % (default 50)" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "fridge_expiring",
+                "description": "Check which inventory items are expiring soon. Helps prevent food waste.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "days": { "type": "integer", "description": "Number of days to look ahead (default 7)" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "fridge_shopping_for_meals",
+                "description": "Compare all meal ingredients against inventory. Shows what you're missing to cook your recipes.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "kitchen_pantry_heatmap",
+                "description": "Get a visual stock-level heatmap of pantry inventory. Shows what's running low.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {}
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "kitchen_get_cooking_steps",
+                "description": "Get numbered cooking steps/instructions for a meal.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "meal_id": { "type": "string", "description": "Meal UUID" },
+                        "meal_name": { "type": "string", "description": "Meal name (case-insensitive lookup)" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "kitchen_get_meal_photos",
+                "description": "Get photos attached to a meal.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "meal_id": { "type": "string", "description": "Meal UUID" }
+                    },
+                    "required": ["meal_id"]
                 }
             }
         }),
@@ -2120,6 +2330,482 @@ fn execute_kitchen_get_inventory(args: &Value) -> Result<ToolResult> {
                 s
             }).collect();
             Ok(ToolResult { success: true, output: format!("{} items in inventory:\n{}", items.len(), lines.join("\n")), error: None })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+// ── Kitchen Tool Implementations: Extended ──
+
+fn execute_kitchen_get_meal(args: &Value) -> Result<ToolResult> {
+    let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
+    if id.is_empty() && name.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("Either id or name is required".into()) });
+    }
+
+    let engine = super::get_engine();
+
+    // If name provided, find by name first
+    let meal_id = if !id.is_empty() {
+        id.to_string()
+    } else {
+        let meals = match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_meals(None, None, false))) {
+            Ok(m) => m,
+            Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+        };
+        match meals.iter().find(|m| m.name.to_lowercase() == name.to_lowercase()) {
+            Some(m) => m.id.clone(),
+            None => return Ok(ToolResult { success: false, output: String::new(), error: Some(format!("Meal '{}' not found", name)) }),
+        }
+    };
+
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_meal_with_ingredients(&meal_id))) {
+        Ok(Some(meal)) => {
+            let mut lines = vec![
+                format!("🍽️ {} (id: {})", meal.meal.name, meal.meal.id),
+            ];
+            if let Some(ref cat) = meal.meal.category { lines.push(format!("  Category: {}", cat)); }
+            if let Some(ref cus) = meal.meal.cuisine { lines.push(format!("  Cuisine: {}", cus)); }
+            if let Some(prep) = meal.meal.prep_time_min { lines.push(format!("  Prep: {} min", prep)); }
+            if let Some(cook) = meal.meal.cook_time_min { lines.push(format!("  Cook: {} min", cook)); }
+            lines.push(format!("  Servings: {}", meal.meal.servings));
+            if let Some(cost) = meal.meal.cost_per_serving { lines.push(format!("  Cost/serving: ${:.2}", cost)); }
+            if meal.meal.is_favorite { lines.push("  ⭐ Favorite".into()); }
+            if !meal.ingredients.is_empty() {
+                lines.push(format!("\n  Ingredients ({}):", meal.ingredients.len()));
+                for ing in &meal.ingredients {
+                    let qty = ing.quantity.map(|q| format!("{} {}", q, ing.unit.as_deref().unwrap_or(""))).unwrap_or_default();
+                    lines.push(format!("    • {} {}", ing.name, qty).trim_end().to_string());
+                }
+            }
+            if let Some(ref inst) = meal.meal.instructions {
+                lines.push(format!("\n  Instructions:\n  {}", inst));
+            }
+            Ok(ToolResult { success: true, output: lines.join("\n"), error: None })
+        }
+        Ok(None) => Ok(ToolResult { success: false, output: String::new(), error: Some(format!("Meal '{}' not found", if !id.is_empty() { id } else { name })) }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_kitchen_toggle_favorite(args: &Value) -> Result<ToolResult> {
+    let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
+    if id.is_empty() && name.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("Either id or name is required".into()) });
+    }
+
+    let engine = super::get_engine();
+    let meal_id = if !id.is_empty() {
+        id.to_string()
+    } else {
+        let meals = match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_meals(None, None, false))) {
+            Ok(m) => m,
+            Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+        };
+        match meals.iter().find(|m| m.name.to_lowercase() == name.to_lowercase()) {
+            Some(m) => m.id.clone(),
+            None => return Ok(ToolResult { success: false, output: String::new(), error: Some(format!("Meal '{}' not found", name)) }),
+        }
+    };
+
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().toggle_favorite(&meal_id))) {
+        Ok(()) => Ok(ToolResult { success: true, output: "Toggled favorite status.".into(), error: None }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_kitchen_add_ingredient(args: &Value) -> Result<ToolResult> {
+    let meal_id = args.get("meal_id").and_then(|v| v.as_str()).unwrap_or("");
+    let meal_name = args.get("meal_name").and_then(|v| v.as_str()).unwrap_or("");
+    let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
+    if name.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("Ingredient name is required".into()) });
+    }
+    if meal_id.is_empty() && meal_name.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("Either meal_id or meal_name is required".into()) });
+    }
+
+    let engine = super::get_engine();
+    let resolved_meal_id = if !meal_id.is_empty() {
+        meal_id.to_string()
+    } else {
+        let meals = match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_meals(None, None, false))) {
+            Ok(m) => m,
+            Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+        };
+        match meals.iter().find(|m| m.name.to_lowercase() == meal_name.to_lowercase()) {
+            Some(m) => m.id.clone(),
+            None => return Ok(ToolResult { success: false, output: String::new(), error: Some(format!("Meal '{}' not found", meal_name)) }),
+        }
+    };
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let quantity = args.get("quantity").and_then(|v| v.as_f64());
+    let unit = args.get("unit").and_then(|v| v.as_str());
+    let estimated_cost = args.get("estimated_cost").and_then(|v| v.as_f64());
+    let category = args.get("category").and_then(|v| v.as_str());
+    let is_optional = args.get("is_optional").and_then(|v| v.as_bool()).unwrap_or(false);
+    let notes = args.get("notes").and_then(|v| v.as_str());
+
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().add_meal_ingredient(
+        &id, &resolved_meal_id, name, quantity, unit, estimated_cost, category, is_optional, notes,
+    ))) {
+        Ok(()) => Ok(ToolResult {
+            success: true,
+            output: format!("Added ingredient '{}' to meal.", name),
+            error: None,
+        }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_kitchen_clear_week_plan(args: &Value) -> Result<ToolResult> {
+    let week_start = args.get("week_start").and_then(|v| v.as_str()).unwrap_or("");
+    if week_start.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("week_start is required (YYYY-MM-DD)".into()) });
+    }
+
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().clear_week_plan(week_start))) {
+        Ok(()) => Ok(ToolResult { success: true, output: format!("Cleared meal plan for week of {}.", week_start), error: None }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_kitchen_generate_grocery(args: &Value) -> Result<ToolResult> {
+    let week_start = args.get("week_start").and_then(|v| v.as_str()).unwrap_or("");
+    if week_start.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("week_start is required (YYYY-MM-DD)".into()) });
+    }
+
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().generate_grocery_list(week_start))) {
+        Ok(items) => {
+            if items.is_empty() {
+                return Ok(ToolResult { success: true, output: "No meals planned this week — nothing to generate.".into(), error: None });
+            }
+            let mut lines: Vec<String> = items.iter().map(|item| {
+                let mut s = format!("☐ {}", item.name);
+                if let Some(q) = item.quantity {
+                    s.push_str(&format!(" ({} {})", q, item.unit.as_deref().unwrap_or("")));
+                }
+                if let Some(ref cat) = item.category { s.push_str(&format!(" [{}]", cat)); }
+                if let Some(cost) = item.estimated_cost { s.push_str(&format!(" ~${:.2}", cost)); }
+                s
+            }).collect();
+            let total: f64 = items.iter().filter_map(|i| i.estimated_cost).sum();
+            lines.push(format!("\n{} items, estimated ${:.2}", items.len(), total));
+            Ok(ToolResult { success: true, output: format!("🛒 Grocery list for week of {}:\n{}", week_start, lines.join("\n")), error: None })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_kitchen_get_grocery(args: &Value) -> Result<ToolResult> {
+    let week_start = args.get("week_start").and_then(|v| v.as_str()).unwrap_or("");
+    if week_start.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("week_start is required (YYYY-MM-DD)".into()) });
+    }
+
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_grocery_list(week_start))) {
+        Ok(items) => {
+            if items.is_empty() {
+                return Ok(ToolResult { success: true, output: "No grocery items for this week. Use kitchen_generate_grocery first.".into(), error: None });
+            }
+            let lines: Vec<String> = items.iter().map(|item| {
+                let check = if item.is_checked { "☑" } else { "☐" };
+                let mut s = format!("{} {}", check, item.name);
+                if let Some(q) = item.quantity {
+                    s.push_str(&format!(" ({} {})", q, item.unit.as_deref().unwrap_or("")));
+                }
+                if let Some(ref cat) = item.category { s.push_str(&format!(" [{}]", cat)); }
+                if let Some(cost) = item.estimated_cost { s.push_str(&format!(" ~${:.2}", cost)); }
+                s
+            }).collect();
+            let checked = items.iter().filter(|i| i.is_checked).count();
+            Ok(ToolResult { success: true, output: format!("🛒 Grocery ({}/{} checked):\n{}", checked, items.len(), lines.join("\n")), error: None })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_kitchen_toggle_grocery(args: &Value) -> Result<ToolResult> {
+    let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    if id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("Grocery item id is required".into()) });
+    }
+
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().toggle_grocery_item(id))) {
+        Ok(()) => Ok(ToolResult { success: true, output: "Toggled grocery item.".into(), error: None }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_fridge_scan(args: &Value) -> Result<ToolResult> {
+    let description = args.get("description").and_then(|v| v.as_str()).unwrap_or("");
+    if description.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("description of fridge contents is required".into()) });
+    }
+
+    // This is an AI-powered tool — we return the raw description for the agent to process
+    // The actual AI parsing happens in the Tauri command (kitchen_recognize_meal/fridge_scan)
+    // Here we add items to inventory based on the description
+    let engine = super::get_engine();
+    let member_id = tokio::task::block_in_place(|| engine.db().get_config("supabase_user_id")).unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
+
+    // Parse simple "item (qty unit)" patterns from description
+    let mut added = Vec::new();
+    for line in description.lines() {
+        let line = line.trim();
+        if line.is_empty() { continue; }
+        // Try to extract item name — just add the whole line as an item
+        let id = uuid::Uuid::new_v4().to_string();
+        match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().add_inventory_item(&id, &member_id, line, None, None, None, None, Some("fridge")))) {
+            Ok(()) => added.push(line.to_string()),
+            Err(_) => {} // skip items that fail
+        }
+    }
+
+    if added.is_empty() {
+        Ok(ToolResult { success: false, output: String::new(), error: Some("Could not parse any items from the description.".into()) })
+    } else {
+        Ok(ToolResult { success: true, output: format!("Scanned {} items into fridge inventory:\n{}", added.len(), added.join("\n")), error: None })
+    }
+}
+
+fn execute_fridge_what_can_i_make(args: &Value) -> Result<ToolResult> {
+    let min_pct = args.get("min_match_pct").and_then(|v| v.as_f64()).unwrap_or(50.0);
+    let engine = super::get_engine();
+
+    // Get inventory
+    let inventory: std::collections::HashMap<String, Option<f64>> = {
+        let conn = tokio::task::block_in_place(|| engine.db().conn_blocking());
+        let mut stmt = match conn.prepare("SELECT LOWER(name), quantity FROM kitchen_inventory") {
+            Ok(s) => s,
+            Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+        };
+        let rows = match stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<f64>>(1)?))) {
+            Ok(r) => r,
+            Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+        };
+        let mut inv = std::collections::HashMap::new();
+        for r in rows {
+            if let Ok((name, qty)) = r { inv.insert(name, qty); }
+        }
+        inv
+    };
+
+    if inventory.is_empty() {
+        return Ok(ToolResult { success: true, output: "Inventory is empty. Add items first with kitchen_add_inventory.".into(), error: None });
+    }
+
+    let meals = match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_meals(None, None, false))) {
+        Ok(m) => m,
+        Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    };
+
+    let mut matches = Vec::new();
+    for meal in &meals {
+        let ingredients = match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_meal_ingredients(&meal.id))) {
+            Ok(ings) => ings,
+            Err(_) => continue,
+        };
+        if ingredients.is_empty() { continue; }
+
+        let mut have = 0i64;
+        let mut missing: Vec<String> = Vec::new();
+        for ing in &ingredients {
+            let ing_lower = ing.name.to_lowercase();
+            let has_it = inventory.keys().any(|inv| inv.contains(&ing_lower) || ing_lower.contains(inv.as_str()));
+            if has_it { have += 1; } else { missing.push(ing.name.clone()); }
+        }
+
+        let total = ingredients.len() as i64;
+        let pct = (have as f64 / total as f64) * 100.0;
+        if pct >= min_pct {
+            matches.push((meal.name.clone(), have, total, pct, missing.clone(), missing.is_empty()));
+        }
+    }
+
+    if matches.is_empty() {
+        return Ok(ToolResult { success: true, output: format!("No meals match your inventory at {}%+ threshold.", min_pct), error: None });
+    }
+
+    matches.sort_by(|a, b| b.3.partial_cmp(&a.3).unwrap_or(std::cmp::Ordering::Equal));
+    let can_make = matches.iter().filter(|m| m.5).count();
+
+    let lines: Vec<String> = matches.iter().map(|(name, have, total, pct, missing, can)| {
+        let status = if *can { "✅" } else { "🔸" };
+        let mut s = format!("{} {} — {}/{} ingredients ({:.0}%)", status, name, have, total, pct);
+        if !missing.is_empty() {
+            s.push_str(&format!("\n     Missing: {}", missing.join(", ")));
+        }
+        s
+    }).collect();
+
+    Ok(ToolResult {
+        success: true,
+        output: format!("🍳 You can make {} of {} meals ({}+ items match):\n{}\n\nInventory: {} items",
+            can_make, matches.len(), min_pct, lines.join("\n"), inventory.len()),
+        error: None,
+    })
+}
+
+fn execute_fridge_expiring(args: &Value) -> Result<ToolResult> {
+    let days = args.get("days").and_then(|v| v.as_i64()).unwrap_or(7);
+    let engine = super::get_engine();
+
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_expiring_items(days))) {
+        Ok(items) => {
+            if items.is_empty() {
+                return Ok(ToolResult { success: true, output: format!("Nothing expiring in the next {} days.", days), error: None });
+            }
+            let lines: Vec<String> = items.iter().map(|item| {
+                let mut s = format!("⚠️ {}", item.name);
+                if let Some(ref exp) = item.expiry_date { s.push_str(&format!(" — expires {}", exp)); }
+                if let Some(q) = item.quantity { s.push_str(&format!(" ({} {})", q, item.unit.as_deref().unwrap_or(""))); }
+                if let Some(ref loc) = item.location { s.push_str(&format!(" [{}]", loc)); }
+                s
+            }).collect();
+            Ok(ToolResult { success: true, output: format!("⏰ {} items expiring in {} days:\n{}", items.len(), days, lines.join("\n")), error: None })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_fridge_shopping_for_meals(args: &Value) -> Result<ToolResult> {
+    let _ = args; // no params needed
+    let engine = super::get_engine();
+
+    // Get inventory set — collect into owned Strings before dropping conn
+    let inventory_set: std::collections::HashSet<String> = {
+        let conn = tokio::task::block_in_place(|| engine.db().conn_blocking());
+        let mut inv_stmt = match conn.prepare("SELECT LOWER(name) FROM kitchen_inventory") {
+            Ok(s) => s,
+            Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+        };
+        let inv_rows = match inv_stmt.query_map([], |row| Ok(row.get::<_, String>(0)?)) {
+            Ok(r) => r,
+            Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+        };
+        let mut set = std::collections::HashSet::new();
+        for r in inv_rows { if let Ok(name) = r { set.insert(name); } }
+        set
+    }; // conn dropped here
+
+    // Get all ingredients from all meals
+    let meals = match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_meals(None, None, false))) {
+        Ok(m) => m,
+        Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    };
+
+    let mut needed: Vec<(String, Option<f64>, Option<String>, Option<String>)> = Vec::new();
+    for meal in &meals {
+        let ingredients = match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_meal_ingredients(&meal.id))) {
+            Ok(ings) => ings,
+            Err(_) => continue,
+        };
+        for ing in &ingredients {
+            let ing_lower = ing.name.to_lowercase();
+            if !inventory_set.iter().any(|inv| inv.contains(&ing_lower) || ing_lower.contains(inv.as_str())) {
+                needed.push((ing.name.clone(), ing.quantity, ing.unit.clone(), ing.category.clone()));
+            }
+        }
+    }
+
+    if needed.is_empty() {
+        return Ok(ToolResult { success: true, output: "You have everything you need!".into(), error: None });
+    }
+
+    let lines: Vec<String> = needed.iter().map(|(name, qty, unit, cat)| {
+        let mut s = format!("☐ {}", name);
+        if let Some(q) = qty { s.push_str(&format!(" ({} {})", q, unit.as_deref().unwrap_or(""))); }
+        if let Some(ref c) = cat { s.push_str(&format!(" [{}]", c)); }
+        s
+    }).collect();
+
+    Ok(ToolResult { success: true, output: format!("🛒 You're missing {} ingredients:\n{}", needed.len(), lines.join("\n")), error: None })
+}
+
+fn execute_kitchen_pantry_heatmap(_args: &Value) -> Result<ToolResult> {
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_pantry_heatmap())) {
+        Ok(items) => {
+            if items.is_empty() {
+                return Ok(ToolResult { success: true, output: "No pantry data yet. Add inventory items first.".into(), error: None });
+            }
+            let lines: Vec<String> = items.iter().map(|item| {
+                let bar_len = ((item.freshness * 10.0) as usize).min(10);
+                let bar: String = "█".repeat(bar_len) + &"░".repeat(10 - bar_len);
+                let days = item.days_until_expiry.map(|d| format!("{}d", d)).unwrap_or_else(|| "∞".into());
+                format!("  {} {} {:.0}% fresh (expires in {})", item.name, bar, item.freshness * 100.0, days)
+            }).collect();
+            Ok(ToolResult { success: true, output: format!("📊 Pantry Heatmap:\n{}", lines.join("\n")), error: None })
+        }
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_kitchen_get_cooking_steps(args: &Value) -> Result<ToolResult> {
+    let meal_id = args.get("meal_id").and_then(|v| v.as_str()).unwrap_or("");
+    let meal_name = args.get("meal_name").and_then(|v| v.as_str()).unwrap_or("");
+    if meal_id.is_empty() && meal_name.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("meal_id or meal_name is required".into()) });
+    }
+
+    let engine = super::get_engine();
+    let resolved_id = if !meal_id.is_empty() {
+        meal_id.to_string()
+    } else {
+        let meals = match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_meals(None, None, false))) {
+            Ok(m) => m,
+            Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+        };
+        match meals.iter().find(|m| m.name.to_lowercase() == meal_name.to_lowercase()) {
+            Some(m) => m.id.clone(),
+            None => return Ok(ToolResult { success: false, output: String::new(), error: Some(format!("Meal '{}' not found", meal_name)) }),
+        }
+    };
+
+    // Cooking steps are derived from the meal's instructions field
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_meal_with_ingredients(&resolved_id))) {
+        Ok(Some(meal)) => {
+            match meal.meal.instructions {
+                Some(ref inst) => {
+                    let steps: Vec<&str> = inst.lines().filter(|l| !l.trim().is_empty()).collect();
+                    let numbered: Vec<String> = steps.iter().enumerate().map(|(i, s)| format!("{}. {}", i + 1, s.trim())).collect();
+                    Ok(ToolResult { success: true, output: format!("👨‍🍳 {} — Cooking Steps:\n{}", meal.meal.name, numbered.join("\n")), error: None })
+                }
+                None => Ok(ToolResult { success: true, output: format!("No cooking instructions saved for {}.", meal.meal.name), error: None }),
+            }
+        }
+        Ok(None) => Ok(ToolResult { success: false, output: String::new(), error: Some("Meal not found".into()) }),
+        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
+    }
+}
+
+fn execute_kitchen_get_meal_photos(args: &Value) -> Result<ToolResult> {
+    let meal_id = args.get("meal_id").and_then(|v| v.as_str()).unwrap_or("");
+    if meal_id.is_empty() {
+        return Ok(ToolResult { success: false, output: String::new(), error: Some("meal_id is required".into()) });
+    }
+
+    let engine = super::get_engine();
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_meal_photos(meal_id))) {
+        Ok(photos) => {
+            if photos.is_empty() {
+                return Ok(ToolResult { success: true, output: "No photos for this meal.".into(), error: None });
+            }
+            let lines: Vec<String> = photos.iter().map(|p| {
+                let mut s = format!("📸 {}", p.photo_url);
+                if let Some(ref cap) = p.caption { s.push_str(&format!(" — {}", cap)); }
+                s
+            }).collect();
+            Ok(ToolResult { success: true, output: format!("{} photos:\n{}", photos.len(), lines.join("\n")), error: None })
         }
         Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
     }
