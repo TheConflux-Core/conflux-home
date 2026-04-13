@@ -1969,10 +1969,10 @@ fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
     let prep_time_min = args.get("prep_time_min").and_then(|v| v.as_i64());
     let cook_time_min = args.get("cook_time_min").and_then(|v| v.as_i64());
 
-    match engine.db().create_meal(
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().create_meal(
         &id, name, None, cuisine, category, None, prep_time_min, cook_time_min,
         4, "normal", instructions, None, "agent",
-    ) {
+    ))) {
         Ok(meal) => Ok(ToolResult {
             success: true,
             output: format!("Added meal: {} (id: {})", meal.name, meal.id),
@@ -1988,7 +1988,7 @@ fn execute_kitchen_list_meals(args: &Value) -> Result<ToolResult> {
     let cuisine = args.get("cuisine").and_then(|v| v.as_str());
     let favorites_only = args.get("favorites_only").and_then(|v| v.as_bool()).unwrap_or(false);
 
-    match engine.db().get_meals(category, cuisine, favorites_only) {
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_meals(category, cuisine, favorites_only))) {
         Ok(meals) => {
             if meals.is_empty() {
                 return Ok(ToolResult { success: true, output: "No meals found.".into(), error: None });
@@ -2014,7 +2014,7 @@ fn execute_kitchen_add_to_plan(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
 
     // Find the meal by name
-    let meals = match engine.db().get_meals(None, None, false) {
+    let meals = match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_meals(None, None, false))) {
         Ok(m) => m,
         Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
     };
@@ -2033,7 +2033,7 @@ fn execute_kitchen_add_to_plan(args: &Value) -> Result<ToolResult> {
     let day_of_week = args.get("day_of_week").and_then(|v| v.as_i64()).unwrap_or(0);
     let meal_slot = args.get("meal_slot").and_then(|v| v.as_str()).unwrap_or("dinner");
 
-    match engine.db().set_plan_entry(&id, week_start, day_of_week, meal_slot, Some(&meal_id), None) {
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().set_plan_entry(&id, week_start, day_of_week, meal_slot, Some(&meal_id), None))) {
         Ok(()) => {
             let day_names = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
             let day = day_names.get(day_of_week as usize).unwrap_or(&"Unknown");
@@ -2054,7 +2054,7 @@ fn execute_kitchen_get_plan(args: &Value) -> Result<ToolResult> {
     }
 
     let engine = super::get_engine();
-    match engine.db().get_weekly_plan(week_start) {
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_weekly_plan(week_start))) {
         Ok(plan) => {
             let mut lines = Vec::new();
             for day in &plan.days {
@@ -2087,7 +2087,7 @@ fn execute_kitchen_add_inventory(args: &Value) -> Result<ToolResult> {
     let expiry = args.get("expiry_date").and_then(|v| v.as_str());
     let location = args.get("location").and_then(|v| v.as_str());
 
-    match engine.db().add_inventory_item(&id, &member_id, name, quantity, unit, category, expiry, location) {
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().add_inventory_item(&id, &member_id, name, quantity, unit, category, expiry, location))) {
         Ok(()) => Ok(ToolResult {
             success: true,
             output: format!("Added {} to inventory{}{}",
@@ -2105,7 +2105,7 @@ fn execute_kitchen_get_inventory(args: &Value) -> Result<ToolResult> {
     let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
     let location = args.get("location").and_then(|v| v.as_str());
 
-    match engine.db().get_inventory(&member_id, location) {
+    match tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_inventory(&member_id, location))) {
         Ok(items) => {
             if items.is_empty() {
                 return Ok(ToolResult { success: true, output: "Inventory is empty.".into(), error: None });
@@ -2608,10 +2608,10 @@ fn execute_weekly_summary(_args: &Value) -> Result<ToolResult> {
 
     // 2. Kitchen — meals + expiring inventory
     let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
-    if let Ok(meals) = engine.db().get_meals(None, None, false) {
+    if let Ok(meals) = tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_meals(None, None, false))) {
         sections.push(format!("🍳 Kitchen: {} meals in collection", meals.len()));
     }
-    if let Ok(inventory) = engine.db().get_inventory(&member_id, None) {
+    if let Ok(inventory) = tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_inventory(&member_id, None))) {
         let expiring: Vec<_> = inventory.iter()
             .filter(|item| {
                 if let Some(ref exp) = item.expiry_date {
@@ -2724,7 +2724,7 @@ fn execute_day_overview(_args: &Value) -> Result<ToolResult> {
 
     // 2. Inventory expiring today or tomorrow
     let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
-    if let Ok(inventory) = engine.db().get_inventory(&member_id, None) {
+    if let Ok(inventory) = tokio::task::block_in_place(|| Handle::current().block_on(engine.db().get_inventory(&member_id, None))) {
         let urgent: Vec<_> = inventory.iter()
             .filter(|item| {
                 if let Some(ref exp) = item.expiry_date {

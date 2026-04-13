@@ -1393,7 +1393,7 @@ pub struct CreateMealRequest {
 }
 
 #[tauri::command]
-pub fn kitchen_create_meal(req: CreateMealRequest, member_id: Option<String>) -> Result<engine::types::Meal, String> {
+pub async fn kitchen_create_meal(req: CreateMealRequest, member_id: Option<String>) -> Result<engine::types::Meal, String> {
     let _member_id = member_id;
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
@@ -1403,28 +1403,28 @@ pub fn kitchen_create_meal(req: CreateMealRequest, member_id: Option<String>) ->
         req.cook_time_min, req.servings.unwrap_or(4),
         req.difficulty.as_deref().unwrap_or("normal"),
         req.instructions.as_deref(), req.tags.as_deref(), "manual",
-    ).map_err(|e| e.to_string())
+    ).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn kitchen_get_meals(category: Option<String>, cuisine: Option<String>, favorites_only: bool, member_id: Option<String>) -> Result<Vec<engine::types::Meal>, String> {
+pub async fn kitchen_get_meals(category: Option<String>, cuisine: Option<String>, favorites_only: bool, member_id: Option<String>) -> Result<Vec<engine::types::Meal>, String> {
     let _member_id = member_id;
     let engine = engine::get_engine();
-    engine.db().get_meals(category.as_deref(), cuisine.as_deref(), favorites_only).map_err(|e| e.to_string())
+    engine.db().get_meals(category.as_deref(), cuisine.as_deref(), favorites_only).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn kitchen_get_meal(id: String, member_id: Option<String>) -> Result<Option<engine::types::MealWithIngredients>, String> {
+pub async fn kitchen_get_meal(id: String, member_id: Option<String>) -> Result<Option<engine::types::MealWithIngredients>, String> {
     let _member_id = member_id;
     let engine = engine::get_engine();
-    engine.db().get_meal_with_ingredients(&id).map_err(|e| e.to_string())
+    engine.db().get_meal_with_ingredients(&id).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn kitchen_toggle_favorite(id: String, member_id: Option<String>) -> Result<(), String> {
+pub async fn kitchen_toggle_favorite(id: String, member_id: Option<String>) -> Result<(), String> {
     let _member_id = member_id;
     let engine = engine::get_engine();
-    engine.db().toggle_favorite(&id).map_err(|e| e.to_string())
+    engine.db().toggle_favorite(&id).await.map_err(|e| e.to_string())
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1440,7 +1440,7 @@ pub struct AddIngredientRequest {
 }
 
 #[tauri::command]
-pub fn kitchen_add_ingredient(req: AddIngredientRequest, member_id: Option<String>) -> Result<(), String> {
+pub async fn kitchen_add_ingredient(req: AddIngredientRequest, member_id: Option<String>) -> Result<(), String> {
     let _member_id = member_id;
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
@@ -1448,7 +1448,7 @@ pub fn kitchen_add_ingredient(req: AddIngredientRequest, member_id: Option<Strin
         &id, &req.meal_id, &req.name, req.quantity,
         req.unit.as_deref(), req.estimated_cost, req.category.as_deref(),
         req.is_optional, req.notes.as_deref(),
-    ).map_err(|e| e.to_string())
+    ).await.map_err(|e| e.to_string())
 }
 
 // ── Smart Kitchen — AI Meal Recognition ──
@@ -1593,7 +1593,7 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
         ai_meal.category.as_deref(), None, ai_meal.prep_time_min, ai_meal.cook_time_min,
         ai_meal.servings.unwrap_or(4), &ai_meal.difficulty.unwrap_or("normal".to_string()),
         ai_meal.instructions.as_deref(), ai_meal.tags.as_deref(), "ai-generated",
-    ).map_err(|e| e.to_string())?;
+    ).await.map_err(|e| e.to_string())?;
 
     // Add ingredients
     for ing in &ai_meal.ingredients {
@@ -1601,12 +1601,12 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
         engine.db().add_meal_ingredient(
             &ing_id, &meal_id, &ing.name, ing.quantity, ing.unit.as_deref(),
             ing.estimated_cost, ing.category.as_deref(), false, ing.notes.as_deref(),
-        ).map_err(|e| e.to_string())?;
+        ).await.map_err(|e| e.to_string())?;
     }
 
     // Get the full meal with ingredients
     engine.db().get_meal_with_ingredients(&meal_id)
-        .map_err(|e| e.to_string())?
+        .await.map_err(|e| e.to_string())?
         .ok_or_else(|| "Failed to load created meal".to_string())
 }
 
@@ -1622,50 +1622,50 @@ pub struct SetPlanEntryRequest {
 }
 
 #[tauri::command]
-pub fn kitchen_set_plan_entry(req: SetPlanEntryRequest, member_id: Option<String>) -> Result<(), String> {
+pub async fn kitchen_set_plan_entry(req: SetPlanEntryRequest, member_id: Option<String>) -> Result<(), String> {
     let _member_id = member_id;
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
     engine.db().set_plan_entry(
         &id, &req.week_start, req.day_of_week, &req.meal_slot, req.meal_id.as_deref(), req.notes.as_deref(),
-    ).map_err(|e| e.to_string())
+    ).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn kitchen_get_weekly_plan(week_start: String, member_id: Option<String>) -> Result<engine::types::WeeklyPlan, String> {
+pub async fn kitchen_get_weekly_plan(week_start: String, member_id: Option<String>) -> Result<engine::types::WeeklyPlan, String> {
     let _member_id = member_id;
     let engine = engine::get_engine();
-    engine.db().get_weekly_plan(&week_start).map_err(|e| e.to_string())
+    engine.db().get_weekly_plan(&week_start).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn kitchen_clear_week_plan(week_start: String, member_id: Option<String>) -> Result<(), String> {
+pub async fn kitchen_clear_week_plan(week_start: String, member_id: Option<String>) -> Result<(), String> {
     let _member_id = member_id;
     let engine = engine::get_engine();
-    engine.db().clear_week_plan(&week_start).map_err(|e| e.to_string())
+    engine.db().clear_week_plan(&week_start).await.map_err(|e| e.to_string())
 }
 
 // ── Smart Kitchen — Grocery List ──
 
 #[tauri::command]
-pub fn kitchen_generate_grocery(week_start: String, member_id: Option<String>) -> Result<Vec<engine::types::GroceryItem>, String> {
+pub async fn kitchen_generate_grocery(week_start: String, member_id: Option<String>) -> Result<Vec<engine::types::GroceryItem>, String> {
     let _member_id = member_id;
     let engine = engine::get_engine();
-    engine.db().generate_grocery_list(&week_start).map_err(|e| e.to_string())
+    engine.db().generate_grocery_list(&week_start).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn kitchen_get_grocery(week_start: String, member_id: Option<String>) -> Result<Vec<engine::types::GroceryItem>, String> {
+pub async fn kitchen_get_grocery(week_start: String, member_id: Option<String>) -> Result<Vec<engine::types::GroceryItem>, String> {
     let _member_id = member_id;
     let engine = engine::get_engine();
-    engine.db().get_grocery_list(&week_start).map_err(|e| e.to_string())
+    engine.db().get_grocery_list(&week_start).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn kitchen_toggle_grocery_item(id: String, member_id: Option<String>) -> Result<(), String> {
+pub async fn kitchen_toggle_grocery_item(id: String, member_id: Option<String>) -> Result<(), String> {
     let _member_id = member_id;
     let engine = engine::get_engine();
-    engine.db().toggle_grocery_item(&id).map_err(|e| e.to_string())
+    engine.db().toggle_grocery_item(&id).await.map_err(|e| e.to_string())
 }
 
 // ── Smart Kitchen — Inventory ──
@@ -1681,31 +1681,31 @@ pub struct AddInventoryRequest {
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn kitchen_add_inventory(req: AddInventoryRequest, member_id: Option<String>) -> Result<(), String> {
+pub async fn kitchen_add_inventory(req: AddInventoryRequest, member_id: Option<String>) -> Result<(), String> {
     let user_id = member_id.unwrap_or_else(|| get_supabase_user_id());
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
     engine.db().add_inventory_item(
         &id, &user_id, &req.name, req.quantity, req.unit.as_deref(),
         req.category.as_deref(), req.expiry_date.as_deref(), req.location.as_deref(),
-    ).map_err(|e| e.to_string())
+    ).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn kitchen_get_inventory(location: Option<String>, member_id: Option<String>) -> Result<Vec<engine::types::KitchenInventoryItem>, String> {
+pub async fn kitchen_get_inventory(location: Option<String>, member_id: Option<String>) -> Result<Vec<engine::types::KitchenInventoryItem>, String> {
     let user_id = member_id.unwrap_or_else(|| get_supabase_user_id());
     let engine = engine::get_engine();
-    engine.db().get_inventory(&user_id, location.as_deref()).map_err(|e| e.to_string())
+    engine.db().get_inventory(&user_id, location.as_deref()).await.map_err(|e| e.to_string())
 }
 
 // ── Kitchen Hearth Commands ──
 
 #[tauri::command]
-pub fn kitchen_home_menu(member_id: Option<String>) -> Result<Vec<engine::types::HomeMenuItem>, String> {
+pub async fn kitchen_home_menu(member_id: Option<String>) -> Result<Vec<engine::types::HomeMenuItem>, String> {
     let user_id = member_id.unwrap_or_else(|| get_supabase_user_id());
     let engine = engine::get_engine();
-    let _inventory = engine.db().get_inventory(&user_id, None).unwrap_or_default();
-    let meals = engine.db().get_meals(None, None, false).unwrap_or_default();
+    let _inventory = engine.db().get_inventory(&user_id, None).await.unwrap_or_default();
+    let meals = engine.db().get_meals(None, None, false).await.unwrap_or_default();
     let mut menu = Vec::new();
     for meal in meals.iter().take(5) {
         menu.push(engine::types::HomeMenuItem {
@@ -1721,11 +1721,11 @@ pub fn kitchen_home_menu(member_id: Option<String>) -> Result<Vec<engine::types:
 }
 
 #[tauri::command]
-pub fn kitchen_upload_meal_photo(meal_id: String, photo_url: String, caption: Option<String>, member_id: Option<String>) -> Result<(), String> {
+pub async fn kitchen_upload_meal_photo(meal_id: String, photo_url: String, caption: Option<String>, member_id: Option<String>) -> Result<(), String> {
     let _member_id = member_id;
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
-    engine.db().add_meal_photo(&id, &meal_id, &photo_url, caption.as_deref()).map_err(|e| e.to_string())
+    engine.db().add_meal_photo(&id, &meal_id, &photo_url, caption.as_deref()).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1739,7 +1739,7 @@ pub async fn kitchen_identify_meal_from_photo(_photo_url: String) -> Result<serd
 }
 
 #[tauri::command]
-pub fn kitchen_plan_week_natural(input: String) -> Result<serde_json::Value, String> {
+pub async fn kitchen_plan_week_natural(input: String) -> Result<serde_json::Value, String> {
     Ok(serde_json::json!({
         "parsed": true,
         "input": input,
@@ -1748,10 +1748,10 @@ pub fn kitchen_plan_week_natural(input: String) -> Result<serde_json::Value, Str
 }
 
 #[tauri::command]
-pub fn kitchen_suggest_meal_natural(constraints: String, member_id: Option<String>) -> Result<serde_json::Value, String> {
+pub async fn kitchen_suggest_meal_natural(constraints: String, member_id: Option<String>) -> Result<serde_json::Value, String> {
     let _member_id = member_id;
     let engine = engine::get_engine();
-    let meals = engine.db().get_meals(None, None, false).unwrap_or_default();
+    let meals = engine.db().get_meals(None, None, false).await.unwrap_or_default();
     let suggestion = meals.first().map(|m| serde_json::json!({
         "meal_id": m.id,
         "name": m.name,
@@ -1761,17 +1761,17 @@ pub fn kitchen_suggest_meal_natural(constraints: String, member_id: Option<Strin
 }
 
 #[tauri::command]
-pub fn kitchen_pantry_heatmap(member_id: Option<String>) -> Result<Vec<engine::types::PantryHeatItem>, String> {
+pub async fn kitchen_pantry_heatmap(member_id: Option<String>) -> Result<Vec<engine::types::PantryHeatItem>, String> {
     let _member_id = member_id;
     let engine = engine::get_engine();
-    engine.db().get_pantry_heatmap().map_err(|e| e.to_string())
+    engine.db().get_pantry_heatmap().await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn kitchen_use_expiring(member_id: Option<String>) -> Result<serde_json::Value, String> {
+pub async fn kitchen_use_expiring(member_id: Option<String>) -> Result<serde_json::Value, String> {
     let _member_id = member_id;
     let engine = engine::get_engine();
-    let expiring = engine.db().get_expiring_items(3).unwrap_or_default();
+    let expiring = engine.db().get_expiring_items(3).await.unwrap_or_default();
     Ok(serde_json::json!({
         "expiring_count": expiring.len(),
         "items": expiring.iter().map(|i| serde_json::json!({
@@ -1782,10 +1782,10 @@ pub fn kitchen_use_expiring(member_id: Option<String>) -> Result<serde_json::Val
 }
 
 #[tauri::command]
-pub fn kitchen_get_cooking_steps(meal_id: String, member_id: Option<String>) -> Result<Vec<engine::types::CookingStep>, String> {
+pub async fn kitchen_get_cooking_steps(meal_id: String, member_id: Option<String>) -> Result<Vec<engine::types::CookingStep>, String> {
     let _member_id = member_id;
     let engine = engine::get_engine();
-    let meal = engine.db().get_meal_with_ingredients(&meal_id).map_err(|e| e.to_string())?;
+    let meal = engine.db().get_meal_with_ingredients(&meal_id).await.map_err(|e| e.to_string())?;
     if let Some(m) = meal {
         // Parse instructions into steps
         let instructions = m.meal.instructions.unwrap_or_default();
@@ -1807,10 +1807,10 @@ pub fn kitchen_get_cooking_steps(meal_id: String, member_id: Option<String>) -> 
 }
 
 #[tauri::command]
-pub fn kitchen_weekly_digest(week_start: String, member_id: Option<String>) -> Result<engine::types::KitchenDigest, String> {
+pub async fn kitchen_weekly_digest(week_start: String, member_id: Option<String>) -> Result<engine::types::KitchenDigest, String> {
     let _member_id = member_id;
     let engine = engine::get_engine();
-    let meals_cooked = engine.db().get_weekly_plan(&week_start)
+    let meals_cooked = engine.db().get_weekly_plan(&week_start).await
         .map(|p| p.meal_count)
         .unwrap_or(0);
     Ok(engine::types::KitchenDigest {
@@ -1825,11 +1825,11 @@ pub fn kitchen_weekly_digest(week_start: String, member_id: Option<String>) -> R
 }
 
 #[tauri::command]
-pub fn kitchen_get_nudges(member_id: Option<String>) -> Result<Vec<engine::types::KitchenNudge>, String> {
+pub async fn kitchen_get_nudges(member_id: Option<String>) -> Result<Vec<engine::types::KitchenNudge>, String> {
     let _member_id = member_id;
     let engine = engine::get_engine();
     let mut nudges = Vec::new();
-    let expiring = engine.db().get_expiring_items(2).unwrap_or_default();
+    let expiring = engine.db().get_expiring_items(2).await.unwrap_or_default();
     if !expiring.is_empty() {
         nudges.push(engine::types::KitchenNudge {
             nudge_type: "expiring".to_string(),
@@ -1842,17 +1842,17 @@ pub fn kitchen_get_nudges(member_id: Option<String>) -> Result<Vec<engine::types
 }
 
 #[tauri::command]
-pub fn kitchen_smart_grocery(week_start: String, member_id: Option<String>) -> Result<Vec<engine::types::GroceryItem>, String> {
+pub async fn kitchen_smart_grocery(week_start: String, member_id: Option<String>) -> Result<Vec<engine::types::GroceryItem>, String> {
     let _member_id = member_id;
     let engine = engine::get_engine();
-    engine.db().generate_grocery_list(&week_start).map_err(|e| e.to_string())
+    engine.db().generate_grocery_list(&week_start).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn kitchen_get_meal_photos(meal_id: String, member_id: Option<String>) -> Result<Vec<engine::types::MealPhoto>, String> {
+pub async fn kitchen_get_meal_photos(meal_id: String, member_id: Option<String>) -> Result<Vec<engine::types::MealPhoto>, String> {
     let _member_id = member_id;
     let engine = engine::get_engine();
-    engine.db().get_meal_photos(&meal_id).map_err(|e| e.to_string())
+    engine.db().get_meal_photos(&meal_id).await.map_err(|e| e.to_string())
 }
 
 // ── Onboarding Setup ──
@@ -1875,7 +1875,7 @@ pub async fn save_budget_data(req: SaveBudgetDataRequest) -> Result<serde_json::
     // Save income entry
     let income_id = uuid::Uuid::new_v4().to_string();
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    let _ = engine.db().conn().execute(
+    let _ = engine.db().conn_async().await.execute(
         "INSERT INTO budget_entries (id, member_id, entry_type, category, amount, description, recurring, frequency, date, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         rusqlite::params![income_id, member_id, "income", "salary", income, "Onboarding starter income", 1i64, "monthly", today, chrono::Utc::now().to_rfc3339()],
@@ -1885,7 +1885,7 @@ pub async fn save_budget_data(req: SaveBudgetDataRequest) -> Result<serde_json::
     let mut entries_created = 1; // income
     for cat in &categories {
         let id = uuid::Uuid::new_v4().to_string();
-        let _ = engine.db().conn().execute(
+        let _ = engine.db().conn_async().await.execute(
             "INSERT INTO budget_entries (id, member_id, entry_type, category, amount, description, recurring, frequency, date, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             rusqlite::params![id, member_id, "expense", cat, 0.0, format!("Starter category: {}", cat), 0i64, None::<String>, today, chrono::Utc::now().to_rfc3339()],
@@ -1920,7 +1920,7 @@ pub async fn budget_add_entry(req: CreateBudgetEntryRequest) -> Result<engine::t
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
     let now = engine::db::EngineDb::now();
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_async().await;
     conn.execute(
         "INSERT INTO budget_entries (id, member_id, entry_type, category, amount, description, recurring, frequency, date, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
@@ -1937,7 +1937,7 @@ pub async fn budget_add_entry(req: CreateBudgetEntryRequest) -> Result<engine::t
 #[tauri::command(rename_all = "snake_case")]
 pub async fn budget_get_entries(member_id: Option<String>, month: Option<String>) -> Result<Vec<engine::types::BudgetEntry>, String> {
     let engine = engine::get_engine();
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_async().await;
     let mut conditions = Vec::new();
     let mut params_vec: Vec<String> = Vec::new();
 
@@ -1973,7 +1973,7 @@ pub async fn budget_get_entries(member_id: Option<String>, month: Option<String>
 #[tauri::command(rename_all = "snake_case")]
 pub async fn budget_get_summary(member_id: String, month: String) -> Result<engine::types::BudgetSummary, String> {
     let engine = engine::get_engine();
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_async().await;
 
     let total_income: f64 = conn.query_row(
         "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id = ?1 AND entry_type = 'income' AND strftime('%Y-%m', date) = ?2",
@@ -2018,7 +2018,7 @@ pub async fn budget_get_summary(member_id: String, month: String) -> Result<engi
 #[tauri::command(rename_all = "snake_case")]
 pub async fn budget_delete_entry(id: String) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.db().conn().execute("DELETE FROM budget_entries WHERE id = ?1", rusqlite::params![id])
+    engine.db().conn_async().await.execute("DELETE FROM budget_entries WHERE id = ?1", rusqlite::params![id])
         .map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -2144,7 +2144,7 @@ pub async fn budget_generate_report(month: String) -> Result<engine::types::Mont
 #[tauri::command]
 pub async fn feed_get_items(user_id: String, member_id: Option<String>, content_type: Option<String>, unread_only: bool) -> Result<Vec<engine::types::ContentFeedItem>, String> {
     let engine = engine::get_engine();
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_async().await;
     let mut conditions = Vec::<String>::new();
     let mut params_vec: Vec<String> = Vec::new();
 
@@ -2186,7 +2186,7 @@ pub async fn feed_get_items(user_id: String, member_id: Option<String>, content_
 #[tauri::command]
 pub async fn feed_mark_read(user_id: String, id: String) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.db().conn().execute("UPDATE content_feed SET is_read = 1 WHERE id = ?1 AND member_id = ?2", rusqlite::params![id, user_id])
+    engine.db().conn_async().await.execute("UPDATE content_feed SET is_read = 1 WHERE id = ?1 AND member_id = ?2", rusqlite::params![id, user_id])
         .map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -2194,7 +2194,7 @@ pub async fn feed_mark_read(user_id: String, id: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn feed_toggle_bookmark(user_id: String, id: String) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.db().conn().execute(
+    engine.db().conn_async().await.execute(
         "UPDATE content_feed SET is_bookmarked = CASE WHEN is_bookmarked = 1 THEN 0 ELSE 1 END WHERE id = ?1 AND member_id = ?2",
         rusqlite::params![id, user_id],
     ).map_err(|e| e.to_string())?;
@@ -2205,7 +2205,7 @@ pub async fn feed_toggle_bookmark(user_id: String, id: String) -> Result<(), Str
 pub async fn feed_add_item(member_id: Option<String>, content_type: String, title: String, body: String,
                       source_url: Option<String>, category: Option<String>) -> Result<engine::types::ContentFeedItem, String> {
     let engine = engine::get_engine();
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_async().await;
     let id = uuid::Uuid::new_v4().to_string();
     let now = engine::db::EngineDb::now();
     conn.execute(
@@ -2288,7 +2288,7 @@ Make the content genuinely useful and interesting. Not generic filler."
     let items: Vec<FeedItem> = serde_json::from_str(json_str)
         .map_err(|e| format!("Failed to parse AI response: {}. Raw: {}", e, json_str))?;
 
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_async().await;
     let now = engine::db::EngineDb::now();
     let mut result = Vec::new();
 
@@ -2378,7 +2378,7 @@ Be specific with ingredient names. Use standard grocery terms."
         .map_err(|e| format!("Failed to parse scan: {}. Raw: {}", e, json_str))?;
 
     let now = chrono::Utc::now();
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_async().await;
     let mut added_items = Vec::new();
 
     for item in &scan.items {
@@ -2411,25 +2411,29 @@ Be specific with ingredient names. Use standard grocery terms."
 }
 
 #[tauri::command]
-pub fn fridge_what_can_i_make() -> Result<engine::types::MealMatchResult, String> {
+pub async fn fridge_what_can_i_make() -> Result<engine::types::MealMatchResult, String> {
     let engine = engine::get_engine();
-    let conn = engine.db().conn();
 
-    let mut inv_stmt = conn.prepare("SELECT name, quantity FROM kitchen_inventory").map_err(|e| e.to_string())?;
-    let inv_rows = inv_stmt.query_map([], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, Option<f64>>(1)?))
-    }).map_err(|e| e.to_string())?;
-    let mut inventory: std::collections::HashMap<String, Option<f64>> = std::collections::HashMap::new();
-    for r in inv_rows {
-        let (name, qty) = r.map_err(|e| e.to_string())?;
-        inventory.insert(name.to_lowercase(), qty);
-    }
+    // Get inventory (sync block — conn guard dropped before any await)
+    let inventory: std::collections::HashMap<String, Option<f64>> = {
+        let conn = engine.db().conn_blocking();
+        let mut inv_stmt = conn.prepare("SELECT name, quantity FROM kitchen_inventory").map_err(|e| e.to_string())?;
+        let inv_rows = inv_stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, Option<f64>>(1)?))
+        }).map_err(|e| e.to_string())?;
+        let mut inv = std::collections::HashMap::new();
+        for r in inv_rows {
+            let (name, qty) = r.map_err(|e| e.to_string())?;
+            inv.insert(name.to_lowercase(), qty);
+        }
+        inv
+    }; // conn guard dropped here
 
-    let meals = engine.db().get_meals(None, None, false).map_err(|e| e.to_string())?;
+    let meals = engine.db().get_meals(None, None, false).await.map_err(|e| e.to_string())?;
     let mut matches = Vec::new();
 
     for meal in &meals {
-        let ingredients = engine.db().get_meal_ingredients(&meal.id).map_err(|e| e.to_string())?;
+        let ingredients = engine.db().get_meal_ingredients(&meal.id).await.map_err(|e| e.to_string())?;
         let mut have = 0i64;
         let mut missing: Vec<String> = Vec::new();
 
@@ -2463,9 +2467,9 @@ pub fn fridge_what_can_i_make() -> Result<engine::types::MealMatchResult, String
 }
 
 #[tauri::command]
-pub fn fridge_expiring_soon(days: Option<i64>) -> Result<Vec<engine::types::KitchenInventoryItem>, String> {
+pub async fn fridge_expiring_soon(days: Option<i64>) -> Result<Vec<engine::types::KitchenInventoryItem>, String> {
     let engine = engine::get_engine();
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_async().await;
     let d = days.unwrap_or(3);
     let future_date = (chrono::Utc::now() + chrono::Duration::days(d)).format("%Y-%m-%d").to_string();
     let member_id = get_supabase_user_id();
@@ -2487,9 +2491,9 @@ pub fn fridge_expiring_soon(days: Option<i64>) -> Result<Vec<engine::types::Kitc
 }
 
 #[tauri::command]
-pub fn fridge_shopping_for_meals() -> Result<Vec<engine::types::GroceryItem>, String> {
+pub async fn fridge_shopping_for_meals() -> Result<Vec<engine::types::GroceryItem>, String> {
     let engine = engine::get_engine();
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_async().await;
 
     let mut inv_stmt = conn.prepare("SELECT LOWER(name) FROM kitchen_inventory").map_err(|e| e.to_string())?;
     let inv_rows = inv_stmt.query_map([], |row| Ok(row.get::<_, String>(0)?)).map_err(|e| e.to_string())?;
@@ -2857,7 +2861,7 @@ pub async fn life_get_heatmap(user_id: String) -> Result<serde_json::Value, Stri
 #[tauri::command]
 pub async fn life_dismiss_nudge(user_id: String, nudge_id: String) -> Result<(), String> {
     let engine = engine::get_engine();
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_async().await;
     conn.execute("UPDATE life_nudges SET dismissed = 1 WHERE id = ?1 AND member_id = ?2", rusqlite::params![nudge_id, user_id]).map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -3681,7 +3685,7 @@ pub async fn current_daily_briefing(member_id: Option<String>) -> Result<serde_j
 
     // Pull feed context before the await
     let feed_context = {
-        let conn = engine.db().conn();
+        let conn = engine.db().conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT title, body, category FROM content_feed ORDER BY created_at DESC LIMIT 10"
         ).map_err(|e| e.to_string())?;
@@ -3741,7 +3745,7 @@ Make items genuinely insightful, not generic filler."
     let items_json = serde_json::to_string(&briefing["items"]).unwrap_or_default();
     let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
 
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_async().await;
     conn.execute(
         "INSERT INTO daily_briefings (id, member_id, greeting, items_json, generated_at) VALUES (?1, ?2, ?3, ?4, ?5)",
         rusqlite::params![id, member_id, greeting, items_json, now],
@@ -3783,7 +3787,7 @@ Confidence should be honest — most weak signals are 0.3-0.7. Be specific, not 
         .map_err(|e| format!("Failed to parse ripples: {}. Raw: {}", e, json_str))?;
 
     let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_async().await;
     let mut result = Vec::new();
 
     for item in &items {
@@ -3806,7 +3810,7 @@ Confidence should be honest — most weak signals are 0.3-0.7. Be specific, not 
 #[tauri::command]
 pub fn current_signal_threads(member_id: Option<String>) -> Result<Vec<serde_json::Value>, String> {
     let engine = engine::get_engine();
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_blocking();
     let mut conditions = Vec::<String>::new();
     let mut params_vec: Vec<String> = Vec::new();
     if let Some(mid) = &member_id { conditions.push("member_id = ?".to_string()); params_vec.push(mid.clone()); }
@@ -3872,7 +3876,7 @@ Respond as JSON (no markdown):
     let key_devs_json = serde_json::to_string(&init.key_developments).unwrap_or_default();
     let entries_json = serde_json::to_string(&serde_json::json!([{"timestamp": now, "content": initial_content, "source": "user_input"}])).unwrap_or_default();
 
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_async().await;
     conn.execute(
         "INSERT INTO signal_threads (id, member_id, topic, summary, key_developments_json, prediction, prediction_confidence, entries_json, entries_count, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1, ?9, ?9)",
         rusqlite::params![id, member_id, topic, init.summary, key_devs_json, init.prediction, init.prediction_confidence, entries_json, now],
@@ -3893,7 +3897,7 @@ pub async fn current_ask(member_id: Option<String>, question: String) -> Result<
 
     // Pull feed context before the await
     let feed_context = {
-        let conn = engine.db().conn();
+        let conn = engine.db().conn_async().await;
         let mut stmt = conn.prepare("SELECT title, body, category FROM content_feed ORDER BY created_at DESC LIMIT 5").map_err(|e| e.to_string())?;
         let rows = stmt.query_map([], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?))
@@ -3941,7 +3945,7 @@ Use confidence_level: high, medium, or low. Be honest."
     let kp_json = serde_json::to_string(&qa.key_points).unwrap_or_default();
     let src_json = serde_json::to_string(&qa.sources).unwrap_or_default();
 
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_async().await;
     conn.execute(
         "INSERT INTO questions (id, member_id, question, answer, key_points_json, sources_json, confidence_level, asked_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         rusqlite::params![id, member_id, question, qa.answer, kp_json, src_json, qa.confidence_level, now],
@@ -3957,7 +3961,7 @@ Use confidence_level: high, medium, or low. Be honest."
 #[tauri::command]
 pub fn current_get_questions(member_id: Option<String>, limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
     let engine = engine::get_engine();
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_blocking();
     let lim = limit.unwrap_or(20);
     let mut conditions = Vec::<String>::new();
     let mut params_vec: Vec<String> = Vec::new();
@@ -3988,7 +3992,7 @@ pub async fn current_cognitive_patterns(member_id: Option<String>, time_range: O
 
     // Pull feed data before the await
     let (feed_data, cat_dist) = {
-        let conn = engine.db().conn();
+        let conn = engine.db().conn_async().await;
         let mut stmt = conn.prepare("SELECT content_type, category, title, body FROM content_feed ORDER BY created_at DESC LIMIT 50").map_err(|e| e.to_string())?;
         let rows = stmt.query_map([], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?))
@@ -4044,7 +4048,7 @@ Be specific and actionable. Don't just describe — interpret."
     let focus = analysis["focus_shift"].as_str().unwrap_or("").to_string();
     let rec = analysis["recommendation"].as_str().unwrap_or("").to_string();
 
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_async().await;
     conn.execute(
         "INSERT INTO reading_patterns (id, member_id, time_range, category_distribution_json, tone_trend, blind_spots_json, focus_shift, recommendation, analyzed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         rusqlite::params![id, member_id, tr, cat_json, tone, blind_json, focus, rec, now],
@@ -4064,7 +4068,7 @@ pub async fn current_synthesize(_member_id: Option<String>, topic: String) -> Re
 
     // Pull relevant feed items before the await
     let source_data = {
-        let conn = engine.db().conn();
+        let conn = engine.db().conn_async().await;
         let mut stmt = conn.prepare(
             "SELECT title, body, category, source_url FROM content_feed WHERE title LIKE ?1 OR body LIKE ?1 OR category LIKE ?1 ORDER BY created_at DESC LIMIT 10"
         ).map_err(|e| e.to_string())?;
@@ -5372,7 +5376,7 @@ pub mod voice_cmds {
     #[tauri::command]
     pub fn voice_get_config() -> Result<Vec<serde_json::Value>, String> {
         let engine = engine::get_engine();
-        let conn = engine.db().conn();
+        let conn = engine.db().conn_blocking();
 
         let mut stmt = conn.prepare("SELECT key, value, updated_at FROM voice_config")
             .map_err(|e| e.to_string())?;
@@ -5396,7 +5400,7 @@ pub mod voice_cmds {
     #[tauri::command]
     pub fn voice_set_config(key: String, value: String) -> Result<(), String> {
         let engine = engine::get_engine();
-        let conn = engine.db().conn();
+        let conn = engine.db().conn_blocking();
 
         conn.execute(
             "UPDATE voice_config SET value = ?1, updated_at = datetime('now') WHERE key = ?2",
@@ -5687,7 +5691,7 @@ pub async fn orbit_get_cross_app_insights(user_id: String) -> Result<OrbitInsigh
     
     // Pull data from each app
     let budget_entries = engine.db().get_budget_entries(&user_id).await.unwrap_or_default();
-    let kitchen_inventory = engine.db().get_kitchen_inventory(&user_id).unwrap_or_default();
+    let kitchen_inventory = engine.db().get_kitchen_inventory(&user_id).await.unwrap_or_default();
     let dream_dashboard = engine.db().get_orbit_dream_dashboard(&user_id).await.unwrap_or_default();
     
     // Synthesize insights
