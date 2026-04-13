@@ -324,22 +324,13 @@ function SpotlightTour({ currentStep, onNext, onSkip }: SpotlightTourProps) {
 
   return (
     <div className="pulse-tour-overlay">
-      {/* ── Dark scrim with real transparent hole (CSS mask) ── */}
-      <div
-        className="pulse-tour-scrim"
-        style={{
-          '--sx': `${spotlightRect.left - 12}px`,
-          '--sy': `${spotlightRect.top - 12}px`,
-          '--sw': `${spotlightRect.width + 24}px`,
-          '--sh': `${spotlightRect.height + 24}px`,
-        } as React.CSSProperties}
-      />
+      {/* No dark scrim — just the glowing spotlight over the real UI */}
 
-      {/* ── Glowing spotlight border around target ── */}
+      {/* ── Glowing spotlight border around target (raised up ~25px) ── */}
       <div
         className="pulse-tour-spotlight"
         style={{
-          top: spotlightRect.top - 6,
+          top: spotlightRect.top - 30,
           left: spotlightRect.left - 6,
           width: spotlightRect.width + 12,
           height: spotlightRect.height + 12,
