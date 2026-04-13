@@ -80,7 +80,7 @@ export default function Marketplace() {
     e.stopPropagation();
     if (item.status === 'coming-soon' || item.status === 'installed') return;
     try {
-      await invoke('agent_template_install', { template_id: item.agent_id, member_id: null });
+      await invoke('agent_template_install', { template_id: item.agentId, member_id: null });
       setLocalStatus((prev) => ({ ...prev, [item.id]: 'installed' }));
     } catch {
       // install failed — leave as available

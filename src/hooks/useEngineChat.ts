@@ -156,7 +156,7 @@ export function useEngineChat(agent_id: string | null, user_id?: string): UseEng
         .filter(m => m.role === 'user' || m.role === 'assistant')
         .map(m => ({
           id: m.id,
-          agent_id: m.role === 'user' ? 'user' : (agent_id ?? 'unknown'),
+          agentId: m.role === 'user' ? 'user' : (agent_id ?? 'unknown'),
           content: m.content,
           timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
           type: m.role === 'user' ? 'user' as const : 'agent' as const,
@@ -178,7 +178,7 @@ export function useEngineChat(agent_id: string | null, user_id?: string): UseEng
     // Add user message to UI immediately
     const userMsg: AgentMessage = {
       id: nextId(),
-      agent_id: 'user',
+      agentId: 'user',
       content,
       timestamp: timestamp(),
       type: 'user',
@@ -190,7 +190,7 @@ export function useEngineChat(agent_id: string | null, user_id?: string): UseEng
     assistantIdRef.current = assistantId;
     const assistantMsg: AgentMessage = {
       id: assistantId,
-      agent_id,
+      agentId: agent_id,
       content: '',
       timestamp: timestamp(),
       type: 'agent',
@@ -251,7 +251,7 @@ export function useEngineChat(agent_id: string | null, user_id?: string): UseEng
                 .filter(m => m.role === 'user' || m.role === 'assistant' || m.role === 'tool')
                 .map(m => ({
                   id: m.id,
-                  agent_id: m.role === 'user' ? 'user' : m.role === 'tool' ? 'system' : (agent_id ?? 'unknown'),
+                  agentId: m.role === 'user' ? 'user' : m.role === 'tool' ? 'system' : (agent_id ?? 'unknown'),
                   content: m.role === 'tool' && m.tool_name
                     ? `🔧 **${m.tool_name}**\n${m.content}`
                     : m.content,
