@@ -108,7 +108,7 @@ export default function BudgetView() {
   };
 
   // Save config from onboarding setup flow
-  const handleSaveOnboardingConfig = async (config: SetupConfig) => {
+  const handleSaveOnboardingConfig = async (config: SetupConfig, isUpdate?: boolean): Promise<{ isUpdate: boolean }> => {
     // Map onboarding frequency labels to backend values
     const freqMap: Record<string, string> = {
       'weekly': 'weekly',
@@ -117,23 +117,33 @@ export default function BudgetView() {
       'monthly': 'monthly',
     };
 
-    await updateSettings({
-      pay_frequency: freqMap[config.payFrequency] || config.payFrequency,
-      pay_dates: [config.payDates.p1, config.payDates.p2],
-      income_amount: config.monthlyIncome,
-    });
+    const hasExistingData = (settings?.income_amount ?? 0) > 0 || buckets.length > 0;
+    const reallyIsUpdate = isUpdate ?? hasExistingData;
 
-    // Create each bucket (ignore preset IDs — they may conflict with DB auto-generated IDs)
-    for (const bucket of config.buckets) {
-      await createBucket({
-        name: bucket.name,
-        icon: bucket.icon,
-        monthly_goal: bucket.monthly_goal,
-        color: bucket.color,
+    // Only update settings if income changed or this is a fresh setup
+    if (!reallyIsUpdate || (config.monthlyIncome > 0 && (settings?.income_amount ?? 0) !== config.monthlyIncome)) {
+      await updateSettings({
+        pay_frequency: freqMap[config.payFrequency] || config.payFrequency,
+        pay_dates: [config.payDates.p1, config.payDates.p2],
+        income_amount: config.monthlyIncome,
       });
     }
 
+    // Deduplicate: only create buckets that don't already exist (by name)
+    const existingBucketNames = new Set(buckets.map(b => b.name.toLowerCase()));
+    for (const bucket of config.buckets) {
+      if (!existingBucketNames.has(bucket.name.toLowerCase())) {
+        await createBucket({
+          name: bucket.name,
+          icon: bucket.icon,
+          monthly_goal: bucket.monthly_goal,
+          color: bucket.color,
+        });
+      }
+    }
+
     await refreshData();
+    return { isUpdate: reallyIsUpdate };
   };
 
   return (
@@ -142,10 +152,9 @@ export default function BudgetView() {
       <PulseParticles />
 
       {/* Onboarding Overlay + Guided Tour */}
-      {!onboardingComplete && (
+      {showOnboarding && !onboardingComplete && (
         <BudgetOnboarding
           onComplete={() => {
-            setShowOnboarding(false);
             setOnboardingComplete(true);
           }}
           onSaveConfig={handleSaveOnboardingConfig}

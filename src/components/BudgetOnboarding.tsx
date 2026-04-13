@@ -1,5 +1,5 @@
 // Conflux Home — Budget Onboarding / Guided Tour
-// Phase 1: Setup (collect data) → Phase 2: Tour (teach with real data)
+// Phase 1: Setup (collect data) → Phase 2: Tour (spotlight on real UI)
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import '../styles/pulse-onboarding.css';
@@ -8,7 +8,7 @@ import '../styles/pulse-onboarding.css';
 
 export interface BudgetOnboardingProps {
   onComplete: () => void;
-  onSaveConfig: (config: SetupConfig) => Promise<void>;
+  onSaveConfig: (config: SetupConfig, isUpdate?: boolean) => Promise<{ isUpdate: boolean }>;
 }
 
 export interface SetupBucket {
@@ -35,9 +35,9 @@ interface SetupState {
   newBucket: { name: string; goal: string; icon: string; color: string };
   isSaving: boolean;
   error: string | null;
-  // Preset amount popup
   pendingPreset: Omit<SetupBucket, 'id'> | null;
   pendingAmount: string;
+  isUpdate: boolean; // true if we're updating existing data
 }
 
 const DEFAULT_CONFIG: SetupConfig = {
@@ -47,7 +47,6 @@ const DEFAULT_CONFIG: SetupConfig = {
   buckets: [],
 };
 
-// Specific utility presets — replaces generic "Utilities"
 const PRESET_BUCKETS: Omit<SetupBucket, 'id'>[] = [
   { name: 'Rent / Mortgage', icon: '🏠', monthly_goal: 0, color: '#10b981' },
   { name: 'Groceries', icon: '🛒', monthly_goal: 0, color: '#3b82f6' },
@@ -60,38 +59,43 @@ const PRESET_BUCKETS: Omit<SetupBucket, 'id'>[] = [
   { name: 'Savings', icon: '🏦', monthly_goal: 0, color: '#0ea5e9' },
 ];
 
-// ─── 5-Step Tour (floats to different positions) ────────────
+// ─── 5-Step Spotlight Tour ───────────────────────────────────
 
 const TOUR_STEPS = [
   {
     id: 'cockpit',
     title: 'Your Financial Cockpit',
     body: 'Income, obligations, and projected surplus — all in one glance. Pulse updates this in real-time as you log payments.',
-    position: 'bottom-left',
+    target: '.budget-cockpit',
+    cardPosition: 'bottom-left',
   },
   {
     id: 'buckets',
     title: 'Every Dollar Has a Job',
     body: 'Each bucket is a spending category with a monthly target. Pulse divides that target across your pay periods so you know exactly what to set aside each paycheck.',
-    position: 'bottom-right',
-  },
-  {
-    id: 'grid',
-    title: 'Track Every Payment',
-    body: 'The allocation grid shows what\'s been set aside vs. what\'s actually been paid. Green means secured. Yellow means still due.',
-    position: 'bottom-left',
+    target: '.matrix-container',
+    cardPosition: 'bottom-left',
   },
   {
     id: 'log',
     title: 'Log Payments Fast',
     body: 'Click LOG PAYMENT to record what you\'ve paid. Select a bucket, enter the amount, confirm — Pulse updates the grid instantly.',
-    position: 'bottom-right',
+    target: '.btn-primary',
+    cardPosition: 'bottom-left',
+  },
+  {
+    id: 'nav',
+    title: 'Navigate Your Budget',
+    body: 'Use the period arrows to step through pay periods. Each column shows what was allocated vs. what was actually paid.',
+    target: '.matrix-nav',
+    cardPosition: 'bottom-left',
   },
   {
     id: 'nudge',
     title: 'Pulse Doesn\'t Wait',
     body: 'Pulse watches your patterns. Running low on savings? Overspending in dining? It nudges you before problems grow. Proactive, not reactive.',
-    position: 'bottom-center',
+    target: '.pulse-proactive',
+    cardPosition: 'bottom-left',
   },
 ];
 
@@ -107,6 +111,7 @@ export default function BudgetOnboarding({ onComplete, onSaveConfig }: BudgetOnb
     error: null,
     pendingPreset: null,
     pendingAmount: '',
+    isUpdate: false,
   });
 
   // Boot sequence → auto-advance to setup
@@ -144,7 +149,6 @@ export default function BudgetOnboarding({ onComplete, onSaveConfig }: BudgetOnb
     }));
   }, []);
 
-  // Preset: open amount popup instead of adding directly
   const openPresetPopup = useCallback((preset: Omit<SetupBucket, 'id'>) => {
     setState(s => ({ ...s, pendingPreset: preset, pendingAmount: '' }));
   }, []);
@@ -172,7 +176,7 @@ export default function BudgetOnboarding({ onComplete, onSaveConfig }: BudgetOnb
   }, []);
 
   const handleFinishSetup = async () => {
-    const { config } = state;
+    const { config, isUpdate } = state;
     if (config.monthlyIncome <= 0) {
       setState(s => ({ ...s, error: 'Please enter your monthly income.' }));
       return;
@@ -183,8 +187,8 @@ export default function BudgetOnboarding({ onComplete, onSaveConfig }: BudgetOnb
     }
     setState(s => ({ ...s, isSaving: true, error: null }));
     try {
-      await onSaveConfig(config);
-      setState(s => ({ ...s, step: 'tour', tourStep: 0 }));
+      const result = await onSaveConfig(config, isUpdate);
+      setState(s => ({ ...s, step: 'tour', tourStep: 0, isUpdate: result.isUpdate }));
     } catch {
       setState(s => ({ ...s, isSaving: false, error: 'Failed to save. Try again.' }));
     }
@@ -218,6 +222,7 @@ export default function BudgetOnboarding({ onComplete, onSaveConfig }: BudgetOnb
         error={state.error}
         pendingPreset={state.pendingPreset}
         pendingAmount={state.pendingAmount}
+        isUpdate={state.isUpdate}
         onUpdateConfig={updateConfig}
         onUpdateNewBucket={s => setState(prev => ({ ...prev, newBucket: s }))}
         onAddBucket={addBucket}
@@ -231,35 +236,179 @@ export default function BudgetOnboarding({ onComplete, onSaveConfig }: BudgetOnb
     );
   }
 
-  // Tour — positions card based on step
-  const tourPosition = TOUR_STEPS[state.tourStep].position;
+  // Spotlight Tour — highlight real UI elements
+  return (
+    <SpotlightTour
+      currentStep={state.tourStep}
+      onNext={handleTourNext}
+      onSkip={handleComplete}
+    />
+  );
+}
+
+// ─── Spotlight Tour ────────────────────────────────────────
+
+interface SpotlightTourProps {
+  currentStep: number;
+  onNext: () => void;
+  onSkip: () => void;
+}
+
+function SpotlightTour({ currentStep, onNext, onSkip }: SpotlightTourProps) {
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const [spotlightRect, setSpotlightRect] = useState<DOMRect | null>(null);
+  const [cardStyle, setCardStyle] = useState<React.CSSProperties>({});
+  const stepRef = useRef(currentStep);
+  stepRef.current = currentStep;
+
+  const step = TOUR_STEPS[currentStep];
+
+  // Find target element and position the spotlight + card
+  useEffect(() => {
+    // Use multiple frames to ensure DOM is stable
+    let raf1: number;
+    let raf2: number;
+
+    const update = () => {
+      const target = document.querySelector(step.target);
+      if (!target) {
+        // Fallback: position card at bottom-left
+        setSpotlightRect(null);
+        setCardStyle({ bottom: 32, left: 32, top: 'auto', right: 'auto' });
+        return;
+      }
+
+      const rect = target.getBoundingClientRect();
+      const GAP = 12;
+      const CARD_WIDTH = 340;
+      const vw = window.innerWidth;
+
+      setSpotlightRect(rect);
+
+      // Position the card below the target, centered
+      let cardLeft = rect.left + rect.width / 2 - CARD_WIDTH / 2;
+      // Clamp to viewport
+      cardLeft = Math.max(16, Math.min(cardLeft, vw - CARD_WIDTH - 16));
+
+      setCardStyle({
+        position: 'fixed',
+        bottom: window.innerHeight - rect.top + GAP,
+        left: cardLeft,
+        top: 'auto',
+        right: 'auto',
+        maxWidth: CARD_WIDTH,
+        width: 'calc(100vw - 32px)',
+      });
+    };
+
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(update);
+    });
+
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [currentStep, step.target]);
+
+  // Re-position on scroll/resize
+  useEffect(() => {
+    const handle = () => {
+      const target = document.querySelector(step.target);
+      if (!target) return;
+      const rect = target.getBoundingClientRect();
+      const CARD_WIDTH = 340;
+      let cardLeft = rect.left + rect.width / 2 - CARD_WIDTH / 2;
+      cardLeft = Math.max(16, Math.min(cardLeft, window.innerWidth - CARD_WIDTH - 16));
+      setSpotlightRect(rect);
+      setCardStyle(prev => ({
+        ...prev,
+        bottom: window.innerHeight - rect.top + 12,
+        left: cardLeft,
+      }));
+    };
+    window.addEventListener('resize', handle);
+    window.addEventListener('scroll', handle, true);
+    return () => {
+      window.removeEventListener('resize', handle);
+      window.removeEventListener('scroll', handle, true);
+    };
+  }, [step.target]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onSkip();
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNext(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onNext, onSkip]);
 
   return (
-    <div className="pulse-tour-overlay">
-      <div className="pulse-tour-scrim" />
-      <div className={`pulse-tour-floating-card ${tourPosition}`}>
-        {/* Arrow pointing to target area */}
-        <div className={`pulse-tour-arrow pulse-tour-arrow-${tourPosition}`} />
+    <div className="pulse-tour-overlay" ref={overlayRef}>
+      {/* Spotlight: glowing box around target */}
+      {spotlightRect && (
+        <div
+          className="pulse-tour-spotlight"
+          style={{
+            top: spotlightRect.top - 8,
+            left: spotlightRect.left - 8,
+            width: spotlightRect.width + 16,
+            height: spotlightRect.height + 16,
+          }}
+        />
+      )}
+
+      {/* Dark scrim — covers everything EXCEPT a margin around the spotlight */}
+      {spotlightRect && (
+        <div
+          className="pulse-tour-scrim"
+          style={{
+            '--spotlight-top': `${spotlightRect.top - 20}px`,
+            '--spotlight-bottom': `${window.innerHeight - spotlightRect.bottom - 20}px`,
+            '--spotlight-left': `${spotlightRect.left - 20}px`,
+            '--spotlight-right': `${window.innerWidth - spotlightRect.right - 20}px`,
+          } as React.CSSProperties}
+        />
+      )}
+
+      {/* Arrow pointing down at the spotlight */}
+      {spotlightRect && (
+        <div
+          className="pulse-tour-spotlight-arrow"
+          style={{
+            top: spotlightRect.top - 10,
+            left: spotlightRect.left + spotlightRect.width / 2 - 8,
+          }}
+        />
+      )}
+
+      {/* Tour Card */}
+      <div className="pulse-tour-spotlight-card" style={cardStyle}>
+        {/* Close X */}
+        <button className="pulse-tour-close" onClick={onSkip}>✕</button>
 
         <div className="pulse-tour-progress">
           {TOUR_STEPS.map((_, i) => (
             <div
               key={i}
-              className={`pulse-tour-dot ${i === state.tourStep ? 'active' : i < state.tourStep ? 'done' : ''}`}
+              className={`pulse-tour-dot ${i === currentStep ? 'active' : i < currentStep ? 'done' : ''}`}
             />
           ))}
         </div>
+
         <div className="pulse-tour-step-label">
-          {state.tourStep + 1} of {TOUR_STEPS.length}
+          {currentStep + 1} of {TOUR_STEPS.length}
         </div>
-        <h3 className="pulse-tour-heading">{TOUR_STEPS[state.tourStep].title}</h3>
-        <p className="pulse-tour-text">{TOUR_STEPS[state.tourStep].body}</p>
+        <h3 className="pulse-tour-heading">{step.title}</h3>
+        <p className="pulse-tour-text">{step.body}</p>
         <div className="pulse-tour-card-actions">
-          <button className="pulse-tour-skip" onClick={handleComplete}>
+          <button className="pulse-tour-skip" onClick={onSkip}>
             Skip tour
           </button>
-          <button className="pulse-tour-cta" onClick={handleTourNext}>
-            {state.tourStep === TOUR_STEPS.length - 1 ? 'Start Using Pulse →' : 'Next →'}
+          <button className="pulse-tour-cta" onClick={onNext}>
+            {currentStep === TOUR_STEPS.length - 1 ? 'Start Using Pulse →' : 'Next →'}
           </button>
         </div>
       </div>
@@ -313,6 +462,7 @@ interface SetupModalProps {
   error: string | null;
   pendingPreset: Omit<SetupBucket, 'id'> | null;
   pendingAmount: string;
+  isUpdate: boolean;
   onUpdateConfig: (patch: Partial<SetupConfig>) => void;
   onUpdateNewBucket: (s: SetupState['newBucket']) => void;
   onAddBucket: () => void;
@@ -331,6 +481,7 @@ function SetupModal({
   error,
   pendingPreset,
   pendingAmount,
+  isUpdate,
   onUpdateConfig,
   onUpdateNewBucket,
   onAddBucket,
@@ -343,14 +494,12 @@ function SetupModal({
 }: SetupModalProps) {
   const pendingInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-focus the amount input when popup opens
   useEffect(() => {
     if (pendingPreset && pendingInputRef.current) {
       pendingInputRef.current.focus();
     }
   }, [pendingPreset]);
 
-  // Confirm on Enter key in pending amount field
   const handlePendingKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') onConfirmPresetBucket();
     if (e.key === 'Escape') onCancelPresetBucket();
@@ -360,7 +509,14 @@ function SetupModal({
     <div className="pulse-setup-overlay">
       <div className="pulse-setup-card">
 
-        {/* Preset Amount Popup — renders as floating card above presets */}
+        {/* Update mode banner */}
+        {isUpdate && (
+          <div className="pulse-setup-update-banner">
+            Updating your existing Pulse configuration
+          </div>
+        )}
+
+        {/* Preset Amount Popup */}
         {pendingPreset && (
           <div className="pulse-preset-popup-overlay" onClick={onCancelPresetBucket}>
             <div className="pulse-preset-popup" onClick={e => e.stopPropagation()}>
@@ -403,9 +559,11 @@ function SetupModal({
         {/* Header */}
         <div className="pulse-setup-header">
           <div className="pulse-setup-icon">💚</div>
-          <h2 className="pulse-setup-title">Set Up Pulse</h2>
+          <h2 className="pulse-setup-title">{isUpdate ? 'Update Pulse' : 'Set Up Pulse'}</h2>
           <p className="pulse-setup-subtitle">
-            Tell Pulse about your income and we'll build your financial grid.
+            {isUpdate
+              ? 'Adjust your income, pay rhythm, or tracked buckets.'
+              : 'Tell Pulse about your income and we\'ll build your financial grid.'}
           </p>
         </div>
 
@@ -492,7 +650,6 @@ function SetupModal({
             What do you track? Click a category, enter the monthly amount.
           </p>
 
-          {/* Added buckets */}
           {config.buckets.length > 0 && (
             <div className="pulse-setup-bucket-list">
               {config.buckets.map(b => (
@@ -510,7 +667,6 @@ function SetupModal({
             </div>
           )}
 
-          {/* Presets — now opens popup with amount */}
           <div className="pulse-setup-presets">
             {PRESET_BUCKETS.filter(
               pb => !config.buckets.some(cb => cb.name === pb.name)
@@ -527,7 +683,6 @@ function SetupModal({
             ))}
           </div>
 
-          {/* Custom bucket */}
           <div className="pulse-setup-add-bucket">
             <input
               type="text"
@@ -555,10 +710,8 @@ function SetupModal({
           </div>
         </div>
 
-        {/* Error */}
         {error && <div className="pulse-setup-error">{error}</div>}
 
-        {/* Finish */}
         <button
           className="pulse-setup-finish"
           onClick={onFinish}
@@ -566,8 +719,10 @@ function SetupModal({
         >
           {isSaving ? (
             <span className="pulse-setup-saving">Setting up Pulse...</span>
+          ) : isUpdate ? (
+            'Save Changes →'
           ) : (
-            `Launch Pulse →`
+            'Launch Pulse →'
           )}
         </button>
       </div>
