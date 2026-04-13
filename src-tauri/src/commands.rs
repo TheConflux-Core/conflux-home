@@ -1916,7 +1916,7 @@ pub struct CreateBudgetEntryRequest {
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_add_entry(req: CreateBudgetEntryRequest) -> Result<engine::types::BudgetEntry, String> {
+pub async fn budget_add_entry(req: CreateBudgetEntryRequest) -> Result<engine::types::BudgetEntry, String> {
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
     let now = engine::db::EngineDb::now();
@@ -1935,7 +1935,7 @@ pub fn budget_add_entry(req: CreateBudgetEntryRequest) -> Result<engine::types::
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_get_entries(member_id: Option<String>, month: Option<String>) -> Result<Vec<engine::types::BudgetEntry>, String> {
+pub async fn budget_get_entries(member_id: Option<String>, month: Option<String>) -> Result<Vec<engine::types::BudgetEntry>, String> {
     let engine = engine::get_engine();
     let conn = engine.db().conn();
     let mut conditions = Vec::new();
@@ -1971,7 +1971,7 @@ pub fn budget_get_entries(member_id: Option<String>, month: Option<String>) -> R
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_get_summary(member_id: String, month: String) -> Result<engine::types::BudgetSummary, String> {
+pub async fn budget_get_summary(member_id: String, month: String) -> Result<engine::types::BudgetSummary, String> {
     let engine = engine::get_engine();
     let conn = engine.db().conn();
 
@@ -2016,7 +2016,7 @@ pub fn budget_get_summary(member_id: String, month: String) -> Result<engine::ty
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_delete_entry(id: String) -> Result<(), String> {
+pub async fn budget_delete_entry(id: String) -> Result<(), String> {
     let engine = engine::get_engine();
     engine.db().conn().execute("DELETE FROM budget_entries WHERE id = ?1", rusqlite::params![id])
         .map_err(|e| e.to_string())?;
@@ -2026,7 +2026,7 @@ pub fn budget_delete_entry(id: String) -> Result<(), String> {
 // ── Budget Pulse Commands ──
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_parse_natural(input: String) -> Result<serde_json::Value, String> {
+pub async fn budget_parse_natural(input: String) -> Result<serde_json::Value, String> {
     // Parse natural language like "spent $45 on groceries" or "got paid $2000"
     let lower = input.to_lowercase();
     let mut entry_type = "expense";
@@ -2081,47 +2081,47 @@ pub fn budget_parse_natural(input: String) -> Result<serde_json::Value, String> 
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_detect_patterns(member_id: Option<String>) -> Result<Vec<engine::types::BudgetPattern>, String> {
+pub async fn budget_detect_patterns(member_id: Option<String>) -> Result<Vec<engine::types::BudgetPattern>, String> {
     let engine = engine::get_engine();
-    engine.db().detect_budget_patterns(member_id.as_deref()).map_err(|e| e.to_string())
+    engine.db().detect_budget_patterns(member_id.as_deref()).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_can_afford(amount: f64, month: String) -> Result<bool, String> {
+pub async fn budget_can_afford(amount: f64, month: String) -> Result<bool, String> {
     let engine = engine::get_engine();
     let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
     engine.db().can_afford(&member_id, amount, &month).map_err(|e| e.to_string())
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_create_goal(name: String, target_amount: f64, deadline: Option<String>, monthly_allocation: Option<f64>, member_id: Option<String>) -> Result<(), String> {
+pub async fn budget_create_goal(name: String, target_amount: f64, deadline: Option<String>, monthly_allocation: Option<f64>, member_id: Option<String>) -> Result<(), String> {
     let engine = engine::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
-    engine.db().create_budget_goal(&id, member_id.as_deref(), &name, target_amount, deadline.as_deref(), monthly_allocation).map_err(|e| e.to_string())
+    engine.db().create_budget_goal(&id, member_id.as_deref(), &name, target_amount, deadline.as_deref(), monthly_allocation).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_get_goals(member_id: Option<String>) -> Result<Vec<engine::types::BudgetGoal>, String> {
+pub async fn budget_get_goals(member_id: Option<String>) -> Result<Vec<engine::types::BudgetGoal>, String> {
     let engine = engine::get_engine();
-    engine.db().get_budget_goals(member_id.as_deref()).map_err(|e| e.to_string())
+    engine.db().get_budget_goals(member_id.as_deref()).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_update_goal(id: String, current_amount: f64) -> Result<(), String> {
+pub async fn budget_update_goal(id: String, current_amount: f64) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.db().update_budget_goal(&id, current_amount).map_err(|e| e.to_string())
+    engine.db().update_budget_goal(&id, current_amount).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_delete_goal(id: String) -> Result<(), String> {
+pub async fn budget_delete_goal(id: String) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.db().delete_budget_goal(&id).map_err(|e| e.to_string())
+    engine.db().delete_budget_goal(&id).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn budget_goal_status(member_id: Option<String>) -> Result<serde_json::Value, String> {
+pub async fn budget_goal_status(member_id: Option<String>) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
-    let goals = engine.db().get_budget_goals(member_id.as_deref()).map_err(|e| e.to_string())?;
+    let goals = engine.db().get_budget_goals(member_id.as_deref()).await.map_err(|e| e.to_string())?;
     let total_target: f64 = goals.iter().map(|g| g.target_amount).sum();
     let total_current: f64 = goals.iter().map(|g| g.current_amount).sum();
     Ok(serde_json::json!({
@@ -2133,10 +2133,10 @@ pub fn budget_goal_status(member_id: Option<String>) -> Result<serde_json::Value
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn budget_generate_report(month: String) -> Result<engine::types::MonthlyReport, String> {
+pub async fn budget_generate_report(month: String) -> Result<engine::types::MonthlyReport, String> {
     let engine = engine::get_engine();
     let member_id = engine.db().get_config("supabase_user_id").unwrap_or_default().unwrap_or_else(|| "default_user".to_string());
-    engine.db().get_monthly_report(&member_id, &month).map_err(|e| e.to_string())
+    engine.db().get_monthly_report(&member_id, &month).await.map_err(|e| e.to_string())
 }
 
 // ── Content Feed ──
@@ -5686,7 +5686,7 @@ pub async fn orbit_get_cross_app_insights(user_id: String) -> Result<OrbitInsigh
     let engine = engine::get_engine();
     
     // Pull data from each app
-    let budget_entries = engine.db().get_budget_entries(&user_id).unwrap_or_default();
+    let budget_entries = engine.db().get_budget_entries(&user_id).await.unwrap_or_default();
     let kitchen_inventory = engine.db().get_kitchen_inventory(&user_id).unwrap_or_default();
     let dream_dashboard = engine.db().get_orbit_dream_dashboard(&user_id).unwrap_or_default();
     
