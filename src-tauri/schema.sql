@@ -1905,3 +1905,117 @@ INSERT OR IGNORE INTO voice_config (key, value) VALUES
   ('max_duration_ms', '30000'),
   ('sound_effects', 'false'),
   ('device_id', 'default');
+
+-- ============================================================
+-- SECURITY — Agent Security, SIEM, Permission Gates
+-- Mission 1224: Consumer Agent Security
+-- ============================================================
+
+-- Security events log — the SIEM feed
+-- Every security-relevant action by an agent gets logged here.
+CREATE TABLE IF NOT EXISTS security_events (
+    id              TEXT PRIMARY KEY,           -- uuid
+    agent_id        TEXT NOT NULL REFERENCES agents(id),
+    session_id      TEXT,                       -- nullable (system-level events)
+    event_type      TEXT NOT NULL,              -- 'file_access' | 'network_request' | 'exec_command' | 'api_call' | 'browser_action' | 'permission_denied' | 'anomaly'
+    category        TEXT NOT NULL DEFAULT 'info', -- 'info' | 'warning' | 'critical'
+    tool_name       TEXT,                       -- which tool triggered this
+    target          TEXT,                       -- what was accessed (file path, URL, domain, command)
+    details         TEXT,                       -- JSON: additional context
+    risk_score      INTEGER NOT NULL DEFAULT 0, -- 0-100, computed by anomaly detection
+    was_allowed     INTEGER NOT NULL DEFAULT 1, -- 0 = blocked by permission gate
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_sec_events_agent ON security_events(agent_id);
+CREATE INDEX IF NOT EXISTS idx_sec_events_type ON security_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_sec_events_category ON security_events(category);
+CREATE INDEX IF NOT EXISTS idx_sec_events_created ON security_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sec_events_risk ON security_events(risk_score DESC);
+
+-- Granular permission rules — beyond the simple tool_permissions table
+-- Controls WHAT agents can access, not just IF they can use a tool.
+CREATE TABLE IF NOT EXISTS permission_rules (
+    id              TEXT PRIMARY KEY,           -- uuid
+    agent_id        TEXT NOT NULL REFERENCES agents(id),
+    resource_type   TEXT NOT NULL,              -- 'file_path' | 'network_domain' | 'exec_command' | 'api_endpoint' | 'browser_domain'
+    resource_value  TEXT NOT NULL,              -- the path, domain, command pattern, etc.
+    action          TEXT NOT NULL DEFAULT 'allow', -- 'allow' | 'deny' | 'prompt' (ask user)
+    scope           TEXT NOT NULL DEFAULT 'all', -- 'read' | 'write' | 'exec' | 'all'
+    description     TEXT,                       -- human-readable why this rule exists
+    is_system       INTEGER NOT NULL DEFAULT 0, -- 1 = system-managed, can't be deleted by user
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_perm_rules_agent ON permission_rules(agent_id);
+CREATE INDEX IF NOT EXISTS idx_perm_rules_type ON permission_rules(resource_type);
+
+-- Permission prompts — pending user decisions
+-- When an agent hits a 'prompt' rule, a record goes here waiting for user approval.
+CREATE TABLE IF NOT EXISTS permission_prompts (
+    id              TEXT PRIMARY KEY,           -- uuid
+    agent_id        TEXT NOT NULL REFERENCES agents(id),
+    session_id      TEXT,
+    rule_id         TEXT REFERENCES permission_rules(id),
+    request_type    TEXT NOT NULL,              -- 'file_access' | 'network_request' | 'exec_command' | 'api_call'
+    target          TEXT NOT NULL,              -- what the agent wants to access
+    tool_name       TEXT,
+    tool_args       TEXT,                       -- JSON: the original tool arguments
+    status          TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'approved' | 'denied' | 'expired'
+    decision        TEXT,                       -- 'allow_once' | 'allow_always' | 'deny_once' | 'deny_always'
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    resolved_at     TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_perm_prompts_status ON permission_prompts(status);
+CREATE INDEX IF NOT EXISTS idx_perm_prompts_agent ON permission_prompts(agent_id);
+
+-- Agent security profiles — overall security settings per agent
+CREATE TABLE IF NOT EXISTS agent_security_profiles (
+    agent_id        TEXT PRIMARY KEY REFERENCES agents(id),
+    sandbox_enabled INTEGER NOT NULL DEFAULT 0, -- 1 = agent runs in sandbox
+    file_access_mode TEXT NOT NULL DEFAULT 'allowlist', -- 'allowlist' | 'denylist' | 'prompt_all'
+    network_mode    TEXT NOT NULL DEFAULT 'allowlist',  -- 'allowlist' | 'denylist' | 'open'
+    exec_mode       TEXT NOT NULL DEFAULT 'restricted', -- 'restricted' | 'full' | 'disabled'
+    max_file_reads_per_min  INTEGER NOT NULL DEFAULT 60,
+    max_file_writes_per_min INTEGER NOT NULL DEFAULT 20,
+    max_exec_per_min        INTEGER NOT NULL DEFAULT 10,
+    max_network_per_min     INTEGER NOT NULL DEFAULT 30,
+    anomaly_threshold       INTEGER NOT NULL DEFAULT 70, -- risk_score threshold for alerts
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- Seed security profiles for all existing agents
+INSERT OR IGNORE INTO agent_security_profiles (agent_id)
+    SELECT id FROM agents;
+
+-- Anomaly rules — patterns that trigger alerts
+CREATE TABLE IF NOT EXISTS anomaly_rules (
+    id              TEXT PRIMARY KEY,           -- uuid
+    name            TEXT NOT NULL,
+    description     TEXT,
+    rule_type       TEXT NOT NULL,              -- 'rate_limit' | 'pattern_match' | 'privilege_escalation' | 'data_exfil'
+    condition_json  TEXT NOT NULL,              -- JSON: the condition to match
+    severity        TEXT NOT NULL DEFAULT 'warning', -- 'info' | 'warning' | 'critical'
+    action          TEXT NOT NULL DEFAULT 'alert', -- 'alert' | 'block' | 'alert_and_block'
+    is_enabled      INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- Seed anomaly rules
+INSERT OR IGNORE INTO anomaly_rules (id, name, description, rule_type, condition_json, severity, action) VALUES
+    ('mass-file-read', 'Mass File Read', 'Agent reads more than 50 files in 5 minutes', 'rate_limit',
+     '{"event_type":"file_access","scope":"read","threshold":50,"window_seconds":300}', 'warning', 'alert'),
+    ('mass-file-write', 'Mass File Write', 'Agent writes more than 20 files in 5 minutes', 'rate_limit',
+     '{"event_type":"file_access","scope":"write","threshold":20,"window_seconds":300}', 'critical', 'alert_and_block'),
+    ('sensitive-path', 'Sensitive Path Access', 'Agent accesses sensitive paths (.ssh, .aws, credentials)', 'pattern_match',
+     '{"event_type":"file_access","patterns":["/.ssh/","/.aws/","/.gnupg/","credentials","password","secret"]}', 'critical', 'alert'),
+    ('suspicious-exec', 'Suspicious Command', 'Agent executes commands commonly used in attacks', 'pattern_match',
+     '{"event_type":"exec_command","patterns":["chmod 777","chown","/etc/passwd","nc -","ncat","socat","/dev/tcp"]}', 'critical', 'alert_and_block'),
+    ('unknown-domain', 'Unknown Domain Request', 'Agent makes network request to unlisted domain', 'pattern_match',
+     '{"event_type":"network_request","match":"not_in_allowlist"}', 'warning', 'prompt'),
+    ('privilege-escalation', 'Privilege Escalation Attempt', 'Agent tries to use sudo or modify system files', 'privilege_escalation',
+     '{"patterns":["sudo","su -","/etc/sudoers","visudo","passwd root"]}', 'critical', 'alert_and_block'),
+    ('rapid-api-calls', 'Rapid API Calls', 'Agent makes more than 30 API calls in 1 minute', 'rate_limit',
+     '{"event_type":"api_call","threshold":30,"window_seconds":60}', 'warning', 'alert');
