@@ -10,6 +10,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useMeals } from '../hooks/useKitchen';
+import type { Meal } from '../types';
 import '../styles/hearth-onboarding.css';
 
 const ONBOARDING_DONE_KEY = 'hearth-onboarding-completed';
@@ -23,7 +24,7 @@ interface ParsedMeal {
 }
 
 interface Props {
-  onComplete: () => void;
+  onComplete: (createdMeal?: Meal) => void;
 }
 
 export function hasCompletedHearthOnboarding(): boolean {
@@ -197,16 +198,18 @@ export default function HearthOnboarding({ onComplete }: Props) {
 
     await new Promise(r => setTimeout(r, 1200));
 
+    let createdMeal = null;
     try {
       const result = await addWithAI(editedName || parsed.name);
       console.log('[HearthOnboarding] Created meal:', result.meal?.name);
+      createdMeal = result.meal;
     } catch (e) {
       console.error('[HearthOnboarding] Failed to create meal:', e);
     }
 
     localStorage.setItem(ONBOARDING_DONE_KEY, 'true');
     await new Promise(r => setTimeout(r, 600));
-    onComplete();
+    onComplete(createdMeal ?? undefined);
   }, [parsed, editedName, addWithAI, onComplete]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

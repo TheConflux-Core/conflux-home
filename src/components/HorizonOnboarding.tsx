@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDreams } from '../hooks/useDreams';
+import type { Dream } from '../types';
 import '../styles/horizon-onboarding.css';
 
 const ONBOARDING_DONE_KEY = 'horizon-onboarding-completed';
@@ -33,7 +34,7 @@ interface ParsedDream {
 }
 
 interface Props {
-  onComplete: () => void;
+  onComplete: (createdDream?: Dream) => void;
 }
 
 export default function HorizonOnboarding({ onComplete }: Props) {
@@ -176,8 +177,9 @@ export default function HorizonOnboarding({ onComplete }: Props) {
     await new Promise(r => setTimeout(r, 1200));
 
     // Actually create the dream in the DB
+    let createdDream: Dream | undefined;
     try {
-      await addDream(
+      createdDream = await addDream(
         crypto.randomUUID(),
         editedTitle || parsed.title,
         null,
@@ -191,7 +193,7 @@ export default function HorizonOnboarding({ onComplete }: Props) {
 
     localStorage.setItem(ONBOARDING_DONE_KEY, 'true');
     await new Promise(r => setTimeout(r, 800));
-    onComplete();
+    onComplete(createdDream);
   }, [parsed, editedTitle, addDream, onComplete]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
