@@ -340,6 +340,7 @@ pub fn run() {
             commands::kitchen_get_grocery,
             commands::kitchen_toggle_grocery_item,
             commands::kitchen_add_inventory,
+            commands::kitchen_nl_add_inventory,
             commands::kitchen_get_inventory,
             // Kitchen Hearth
             commands::kitchen_home_menu,
