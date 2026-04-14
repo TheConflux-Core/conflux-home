@@ -62,11 +62,12 @@ export default function KitchenView() {
   const [showTour, setShowTour] = useState(!bootDone ? false : !hasTakenTour);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [tourComplete, setTourComplete] = useState(false);
+  const [showAddPantryItem, setShowAddPantryItem] = useState(false);
 
   const weekStart = useMemo(getWeekStart, []);
 
   // Existing kitchen hooks
-  const { meals, loading, addWithAI, toggleFavorite, reload: reloadMeals } = useMeals(
+  const { meals, loading, addWithAI, toggleFavorite, reload: reloadMeals, setMeals } = useMeals(
     filterCat === 'all' ? undefined : filterCat,
     filterCuisine === 'all' ? undefined : filterCuisine,
     showFavorites,
@@ -107,6 +108,13 @@ export default function KitchenView() {
       unlistenPromise.then(fn => fn());
     };
   }, [loadHomeMenu, loadNudges, loadDigest]);
+
+  // Refresh Chef's Specials whenever meals change (covers adds from any tab)
+  useEffect(() => {
+    if (meals.length > 0) {
+      loadHomeMenu();
+    }
+  }, [meals.length, loadHomeMenu]);
 
   // Load pantry inventory for Pantry tab
   const [pantryItems, setPantryItems] = useState<any[]>([]);
@@ -184,9 +192,21 @@ export default function KitchenView() {
       {/* ── Onboarding ── */}
       {bootDone && showOnboarding && !onboardingComplete && (
         <HearthOnboarding
-          onComplete={() => {
+          onComplete={(createdMeal) => {
+            console.log('[KitchenView] onComplete called, createdMeal:', createdMeal?.name ?? 'UNDEFINED');
+            console.log('[KitchenView] current meals before update:', meals.length);
             setOnboardingComplete(true);
             setShowOnboarding(false);
+            if (createdMeal) {
+              setMeals(prev => {
+                console.log('[KitchenView] setMeals called with meal:', createdMeal.name, 'prev length:', prev.length);
+                return [createdMeal, ...prev];
+              });
+              loadHomeMenu();
+            } else {
+              console.warn('[KitchenView] createdMeal was null/undefined, falling back to reloadMeals()');
+              reloadMeals();
+            }
           }}
         />
       )}
@@ -439,16 +459,110 @@ export default function KitchenView() {
       {/* ── PANTRY TAB ── */}
       {tab === 'pantry' && (
         <div className="kitchen-pantry">
-          {/* Placeholder data until backend provides pantry items */}
-          <PantryHeatmap items={pantryItems} />
-          {pantryItems.length === 0 && (
-            <div className="kitchen-empty" style={{ marginTop: '1rem' }}>
-              <p>🌡️ Add items during onboarding or use the AI to stock your pantry.</p>
-              <button className="btn-primary" onClick={() => setTab('home')}>
-                Go to Home
-              </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3>🌡️ Pantry</h3>
+            <button className="btn-primary" onClick={() => setShowAddPantryItem(true)}>
+              + Add Item
+            </button>
+          </div>
+          {pantryItems.length > 0 ? (
+            <PantryHeatmap items={pantryItems} />
+          ) : (
+            <div className="kitchen-empty">
+              <p>🌡️ Your pantry is empty. Add items to track freshness and get nudges when things are about to expire.</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── ADD PANTRY ITEM MODAL ── */}
+      {showAddPantryItem && (
+        <div className="hearth-modal-backdrop" style={{ alignItems: 'center' }} onClick={() => setShowAddPantryItem(false)}>
+          <div className="hearth-modal" onClick={e => e.stopPropagation()} style={{ background: '#1a1a2e', padding: '1.5rem', borderRadius: '12px', minWidth: '340px', maxWidth: '420px', color: '#e0e0e0' }}>
+            <h3 style={{ marginBottom: '1rem' }}>Add Pantry Item</h3>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const form = e.currentTarget;
+              const name = (form.elements.namedItem('name') as HTMLInputElement).value;
+              if (!name) return;
+              try {
+                await invoke('kitchen_add_inventory', {
+                  req: {
+                    name,
+                    quantity: parseFloat((form.elements.namedItem('quantity') as HTMLInputElement).value) || null,
+                    unit: (form.elements.namedItem('unit') as HTMLInputElement).value || null,
+                    category: (form.elements.namedItem('category') as HTMLInputElement).value || null,
+                    expiry_date: (form.elements.namedItem('expiry_date') as HTMLInputElement).value || null,
+                    location: (form.elements.namedItem('location') as HTMLInputElement).value || null,
+                  },
+                  member_id: user?.id || null,
+                });
+                setShowAddPantryItem(false);
+                // Reload inventory
+                const inventory = await invoke<any[]>('kitchen_get_inventory', { location: null, member_id: user?.id || null });
+                const today = new Date();
+                const heatItems = inventory.map((item: any) => {
+                  let daysUntilExpiry: number | null = null;
+                  let freshness = 1.0;
+                  if (item.expiry_date) {
+                    const expiryDate = new Date(item.expiry_date);
+                    daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                    freshness = Math.max(0, Math.min(1, daysUntilExpiry / 30));
+                  }
+                  return { name: item.name, freshness, days_until_expiry: daysUntilExpiry, location: item.location || 'pantry' };
+                });
+                setPantryItems(heatItems);
+              } catch (err) {
+                console.error('[KitchenView] Failed to add pantry item:', err);
+              }
+            }}>
+              <div style={{ marginBottom: '0.75rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Name *</label>
+                <input name="name" type="text" required placeholder="e.g. Chicken breast" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #333', background: '#0e0e1a', color: '#e0e0e0' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Quantity</label>
+                  <input name="quantity" type="number" step="any" placeholder="2" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #333', background: '#0e0e1a', color: '#e0e0e0' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Unit</label>
+                  <input name="unit" type="text" placeholder="pieces" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #333', background: '#0e0e1a', color: '#e0e0e0' }} />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Category</label>
+                  <select name="category" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #333', background: '#0e0e1a', color: '#e0e0e0' }}>
+                    <option value="">Select...</option>
+                    <option value="produce">🍎 Produce</option>
+                    <option value="dairy">🥛 Dairy</option>
+                    <option value="meat">🥩 Meat</option>
+                    <option value="pantry">🥫 Pantry</option>
+                    <option value="frozen">🧊 Frozen</option>
+                    <option value="spice">🌿 Spice</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Location</label>
+                  <select name="location" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #333', background: '#0e0e1a', color: '#e0e0e0' }}>
+                    <option value="">Select...</option>
+                    <option value="fridge">🧊 Fridge</option>
+                    <option value="freezer">❄️ Freezer</option>
+                    <option value="pantry">🏠 Pantry</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Expiry Date</label>
+                <input name="expiry_date" type="date" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #333', background: '#0e0e1a', color: '#e0e0e0' }} />
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => setShowAddPantryItem(false)} style={{ padding: '0.5rem 1rem', borderRadius: '6px', border: '1px solid #333', background: 'transparent', color: '#888', cursor: 'pointer' }}>Cancel</button>
+                <button type="submit" className="btn-primary">Add Item</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

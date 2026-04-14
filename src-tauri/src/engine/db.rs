@@ -1840,6 +1840,30 @@ impl EngineDb {
         Ok(())
     }
 
+    pub async fn get_or_create_family_member_id(&self, user_id: &str) -> Result<String> {
+        // Try to find an existing active family member for this user
+        let existing = {
+            let conn = self.conn_async().await;
+            let mut stmt = conn.prepare(
+                "SELECT id FROM family_members WHERE user_id = ?1 AND is_active = 1 ORDER BY created_at LIMIT 1"
+            )?;
+            stmt.query_row(params![user_id], |row| row.get(0)).ok()
+        };
+        if let Some(id) = existing {
+            return Ok(id);
+        }
+        // Create a default family member
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = Self::now();
+        let conn = self.conn_async().await;
+        conn.execute(
+            "INSERT INTO family_members (id, user_id, name, age_group, color, is_active, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?6)",
+            params![id, user_id, "Me", "adult", "#6366f1", now],
+        )?;
+        Ok(id)
+    }
+
     // ── Budget Summary ──
 
     pub async fn get_budget_summary(&self, member_id: &str, month: &str) -> Result<super::types::BudgetSummary> {
@@ -2949,8 +2973,8 @@ impl EngineDb {
         let now = Self::now();
         conn.execute(
             "INSERT INTO kitchen_inventory (id, member_id, name, quantity, unit, category, expiry_date, location, last_restocked, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)",
-            params![id, member_id, name, quantity, unit, category, expiry, location, now],
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10)",
+            params![id, member_id, name, quantity, unit, category, expiry, location, now, now],
         )?;
         Ok(())
     }

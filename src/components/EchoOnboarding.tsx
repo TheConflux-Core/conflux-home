@@ -6,6 +6,7 @@
 
 import { useState, useCallback } from 'react';
 import { useEchoCounselor } from '../hooks/useEchoCounselor';
+import type { EchoCounselorSession } from '../types';
 import '../styles-echo-onboarding.css';
 
 const ONBOARDING_DONE_KEY = 'echo-onboarding-completed';
@@ -15,7 +16,7 @@ export function hasCompletedEchoOnboarding(): boolean {
 }
 
 interface EchoOnboardingProps {
-  onComplete: () => void;
+  onComplete: (createdSession?: EchoCounselorSession) => void;
   onStartSession: () => void; // tell parent to start session immediately
 }
 
@@ -27,13 +28,13 @@ export default function EchoOnboarding({ onComplete, onStartSession }: EchoOnboa
     setIsStarting(true);
     try {
       // Start the first session
-      await startSession();
+      const session = await startSession();
       // Mark onboarding as done
       localStorage.setItem(ONBOARDING_DONE_KEY, 'true');
       // Brief pause for the session to initialize
       await new Promise(r => setTimeout(r, 400));
       onStartSession(); // tell EchoView to show the session
-      onComplete();     // remove the onboarding overlay
+      onComplete(session ?? undefined); // pass the created session to parent
     } catch (e) {
       console.error('Failed to start session:', e);
       // Still complete even if session fails

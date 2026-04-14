@@ -8,13 +8,14 @@ import { FoundationHero, FoundationDiagnosisCard, FoundationPredictionsGrid, Fou
 import FoundationBoot from './FoundationBoot';
 import FoundationOnboarding, { hasCompletedFoundationOnboarding } from './FoundationOnboarding';
 import FoundationTour, { hasCompletedFoundationTour } from './FoundationTour';
+import type { HomeProfile } from '../types';
 import '../styles/foundation.css';
 import '../styles/foundation-onboarding.css';
 
 type Tab = 'overview' | 'diagnose' | 'calendar' | 'vault' | 'chat';
 
 export default function HomeHealthView() {
-  const { dashboard, loading, load } = useHomeHealth();
+  const { dashboard, loading, load, setProfileData } = useHomeHealth();
   const { diagnosis, loading: diagnosing, error: diagnoseError, diagnose } = useHomeDiagnosis();
   const { predictions, load: loadPredictions } = usePredictions();
   const { tasks, load: loadSeasonalTasks, complete } = useSeasonalTasks();
@@ -97,7 +98,7 @@ export default function HomeHealthView() {
   }
 
   if (showOnboarding) {
-    return <FoundationOnboarding onComplete={() => { setShowOnboarding(false); if (!hasTakenTour) setShowTour(true); }} />;
+    return <FoundationOnboarding onComplete={(createdProfile?: HomeProfile) => { if (createdProfile) setProfileData(createdProfile); setShowOnboarding(false); if (!hasTakenTour) setShowTour(true); }} />;
   }
 
   if (showTour) {
@@ -140,7 +141,7 @@ export default function HomeHealthView() {
         </div>
       </div>
 
-      {/* ── Overview Tab ── */}
+      {/* -- Overview Tab -- */}
       {tab === 'overview' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Nudge Banner */}
@@ -256,7 +257,7 @@ export default function HomeHealthView() {
         </div>
       )}
 
-      {/* ── Diagnose Tab ── */}
+      {/* -- Diagnose Tab -- */}
       {tab === 'diagnose' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Natural Language Input */}
@@ -314,7 +315,7 @@ export default function HomeHealthView() {
         </div>
       )}
 
-      {/* ── Calendar Tab ── */}
+      {/* -- Calendar Tab -- */}
       {tab === 'calendar' && (
         <FoundationSeasonalCalendar
           tasks={tasks}
@@ -324,12 +325,12 @@ export default function HomeHealthView() {
         />
       )}
 
-      {/* ── Vault Tab ── */}
+      {/* -- Vault Tab -- */}
       {tab === 'vault' && (
         <FoundationVault alerts={alerts} />
       )}
 
-      {/* ── Chat Tab ── */}
+      {/* -- Chat Tab -- */}
       {tab === 'chat' && (
         <FoundationChat
           messages={messages}

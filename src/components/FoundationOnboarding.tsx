@@ -5,6 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import { useHomeHealth } from '../hooks/useHomeHealth';
+import type { HomeProfile } from '../types';
 import '../styles/foundation-onboarding.css';
 
 const ONBOARDING_DONE_KEY = 'foundation-onboarding-completed';
@@ -22,7 +23,7 @@ export function hasCompletedFoundationOnboarding(): boolean {
   return localStorage.getItem(ONBOARDING_DONE_KEY) === 'true';
 }
 
-interface HomeProfile {
+interface HomeProfileInput {
   address: string;
   yearBuilt: string;
   squareFeet: string;
@@ -32,13 +33,13 @@ interface HomeProfile {
 }
 
 interface Props {
-  onComplete: () => void;
+  onComplete: (createdProfile?: HomeProfile) => void;
 }
 
 export default function FoundationOnboarding({ onComplete }: Props) {
   const { upsertProfile } = useHomeHealth();
   const [step, setStep] = useState(0);
-  const [profile, setProfile] = useState<HomeProfile>({
+  const [profile, setProfile] = useState<HomeProfileInput>({
     address: '',
     yearBuilt: '',
     squareFeet: '',
@@ -50,7 +51,7 @@ export default function FoundationOnboarding({ onComplete }: Props) {
 
   const TOTAL_STEPS = 4;
 
-  const updateProfile = useCallback((patch: Partial<HomeProfile>) => {
+  const updateProfile = useCallback((patch: Partial<HomeProfileInput>) => {
     setProfile(p => ({ ...p, ...patch }));
   }, []);
 
@@ -66,13 +67,13 @@ export default function FoundationOnboarding({ onComplete }: Props) {
   const handleFinish = useCallback(async () => {
     setSaving(true);
     try {
-      await upsertProfile({
+      const createdProfile = await upsertProfile({
         yearBuilt: profile.yearBuilt ? parseInt(profile.yearBuilt) : undefined,
         squareFeet: profile.squareFeet ? parseInt(profile.squareFeet) : undefined,
       });
       localStorage.setItem(ONBOARDING_DONE_KEY, 'true');
       await new Promise(r => setTimeout(r, 600));
-      onComplete();
+      onComplete(createdProfile);
     } catch (e) {
       console.error('Failed to save profile:', e);
     } finally {
@@ -280,7 +281,7 @@ export default function FoundationOnboarding({ onComplete }: Props) {
                   key={opt.value}
                   className={`foundation-onboard-alert-btn ${profile.alertLevel === opt.value ? 'selected' : ''}`}
                   style={{ '--alert-color': opt.color } as React.CSSProperties}
-                  onClick={() => updateProfile({ alertLevel: opt.value as HomeProfile['alertLevel'] })}
+                  onClick={() => updateProfile({ alertLevel: opt.value as HomeProfileInput['alertLevel'] })}
                 >
                   <span className="foundation-onboard-alert-icon">{opt.icon}</span>
                   <div className="foundation-onboard-alert-content">

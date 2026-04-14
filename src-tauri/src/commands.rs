@@ -1697,9 +1697,15 @@ pub struct AddInventoryRequest {
 pub async fn kitchen_add_inventory(req: AddInventoryRequest, member_id: Option<String>) -> Result<(), String> {
     let user_id = member_id.unwrap_or_else(|| get_supabase_user_id());
     let engine = engine::get_engine();
+
+    // Resolve family_members.id for this user (may create one if missing)
+    let family_member_id = engine.db().get_or_create_family_member_id(&user_id)
+        .await
+        .map_err(|e| format!("Failed to resolve family member: {}", e))?;
+
     let id = uuid::Uuid::new_v4().to_string();
     engine.db().add_inventory_item(
-        &id, &user_id, &req.name, req.quantity, req.unit.as_deref(),
+        &id, &family_member_id, &req.name, req.quantity, req.unit.as_deref(),
         req.category.as_deref(), req.expiry_date.as_deref(), req.location.as_deref(),
     ).await.map_err(|e| e.to_string())
 }
@@ -1708,7 +1714,10 @@ pub async fn kitchen_add_inventory(req: AddInventoryRequest, member_id: Option<S
 pub async fn kitchen_get_inventory(location: Option<String>, member_id: Option<String>) -> Result<Vec<engine::types::KitchenInventoryItem>, String> {
     let user_id = member_id.unwrap_or_else(|| get_supabase_user_id());
     let engine = engine::get_engine();
-    engine.db().get_inventory(&user_id, location.as_deref()).await.map_err(|e| e.to_string())
+    let family_member_id = engine.db().get_or_create_family_member_id(&user_id)
+        .await
+        .map_err(|e| format!("Failed to resolve family member: {}", e))?;
+    engine.db().get_inventory(&family_member_id, location.as_deref()).await.map_err(|e| e.to_string())
 }
 
 // ── Kitchen Hearth Commands ──

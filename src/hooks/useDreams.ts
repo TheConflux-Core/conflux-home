@@ -22,9 +22,23 @@ export function useDreams() {
 
   useEffect(() => { load(); }, [load]);
 
-  const addDream = useCallback(async (id: string, title: string, description: string | null, category: string, targetDate: string | null, member_id?: string) => {
+  const addDream = useCallback(async (id: string, title: string, description: string | null, category: string, targetDate: string | null, member_id?: string): Promise<Dream> => {
     await invoke('dream_add', { user_id, id, member_id: member_id ?? null, title, description, category, target_date: targetDate });
     await load();
+    return {
+      id,
+      member_id: member_id ?? null,
+      title,
+      description,
+      category,
+      target_date: targetDate,
+      status: 'active',
+      progress: 0,
+      ai_plan: null,
+      ai_next_actions: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
   }, [user_id, load]);
 
   const deleteDream = useCallback(async (id: string) => {
@@ -78,9 +92,13 @@ export function useDreams() {
     return await invoke<string>('dream_ai_narrate', { user_id, dream_id });
   }, [user_id]);
 
+  const prependDream = useCallback((dream: Dream) => {
+    setDashboard(prev => prev ? { ...prev, dreams: [dream, ...prev.dreams], active_dreams: prev.active_dreams + 1 } : null);
+  }, []);
+
   return {
     dashboard, loading, load,
-    addDream, deleteDream,
+    addDream, deleteDream, prependDream,
     addMilestone, completeMilestone,
     addTask, completeTask,
     addProgress,
