@@ -6,6 +6,7 @@ use serde_json::Value;
 use tokio::runtime::Handle;
 
 use super::db::EngineDb;
+use super::security::events::{log_security_event, EventType, EventCategory};
 
 /// Result of a tool execution.
 #[derive(Debug, Clone)]
@@ -111,6 +112,193 @@ fn is_command_safe(command: &str) -> Result<()> {
     Ok(())
 }
 
+// ── Security Telemetry ──
+
+/// Classify a tool name into a security event type and category.
+fn classify_tool(tool_name: &str) -> (EventType, EventCategory, i64) {
+    match tool_name {
+        // File operations — high risk
+        "file_read" | "file_write" => (EventType::FileAccess, EventCategory::Warning, 30),
+        // Command execution — critical risk
+        "exec" => (EventType::ExecCommand, EventCategory::Critical, 70),
+        // Network operations — medium risk
+        "web_search" | "web_fetch" | "web_post" => (EventType::NetworkRequest, EventCategory::Info, 20),
+        // Email — high risk
+        "email_send" | "gmail_send" => (EventType::ApiCall, EventCategory::Warning, 50),
+        // Google APIs — medium risk
+        "google_auth" | "gmail_search" | "google_drive_list" |
+        "google_doc_read" | "google_doc_write" | "google_sheet_read" | "google_sheet_write" => {
+            (EventType::ApiCall, EventCategory::Info, 25)
+        }
+        // Everything else — low risk info
+        _ => (EventType::ApiCall, EventCategory::Info, 5),
+    }
+}
+
+/// Extract the domain from a URL string (no url crate needed).
+fn extract_domain(url: &str) -> String {
+    // Strip protocol
+    let after_proto = if let Some(pos) = url.find("://") {
+        &url[pos + 3..]
+    } else {
+        url
+    };
+    // Strip path, query, fragment
+    let host = after_proto.split('/').next().unwrap_or(after_proto);
+    // Strip port
+    let domain = host.split(':').next().unwrap_or(host);
+    // Strip userinfo
+    if let Some(at_pos) = domain.rfind('@') {
+        domain[at_pos + 1..].to_string()
+    } else {
+        domain.to_string()
+    }
+}
+
+/// Extract the primary target from tool arguments.
+fn extract_target(tool_name: &str, args: &Value) -> Option<String> {
+    match tool_name {
+        "file_read" | "file_write" => args.get("path").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        "exec" => args.get("command").and_then(|v| v.as_str()).map(|s| {
+            // Truncate long commands for storage
+            if s.len() > 200 { format!("{}...", &s[..200]) } else { s.to_string() }
+        }),
+        "web_fetch" => args.get("url").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        "web_search" => args.get("query").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        "web_post" => args.get("url").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        "email_send" | "gmail_send" => args.get("to").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        _ => None,
+    }
+}
+
+/// Log a security event for a tool execution. Fire-and-forget — errors are logged but don't block execution.
+fn log_tool_security_event(tool_name: &str, args: &Value, success: bool, agent_id: &str) {
+    let (event_type, category, base_risk) = classify_tool(tool_name);
+    let target = extract_target(tool_name, args);
+
+    // Increase risk for failed operations
+    let risk = if !success { base_risk + 20 } else { base_risk };
+
+    let db = super::get_engine().db();
+    if let Err(e) = log_security_event(
+        db,
+        agent_id,
+        None, // session_id — Phase 1 doesn't track per-session yet
+        event_type,
+        category,
+        Some(tool_name),
+        target.as_deref(),
+        None, // details
+        risk,
+        success,
+    ) {
+        log::warn!("[Security] Failed to log tool event for {}: {}", tool_name, e);
+    }
+}
+
+/// Check the security gate before tool execution.
+/// Returns Ok(()) if allowed, Err with a message if blocked.
+/// Non-blocking for Phase 1: default profile = open (allow all).
+fn check_security_gate(tool_name: &str, args: &Value, agent_id: &str) -> Result<()> {
+    use super::security::permissions::{get_security_profile, ResourceType};
+
+    let db = super::get_engine().db();
+
+    // Get agent security profile — if none, default to open
+    let profile = match get_security_profile(db, agent_id) {
+        Ok(p) => p,
+        Err(_) => return Ok(()), // No profile = allow all
+    };
+
+    // Map tool name to resource type and value for permission checking
+    let (resource_type, resource_value) = match tool_name {
+        "file_read" | "file_write" => {
+            let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("");
+            if path.is_empty() { return Ok(()); }
+            (ResourceType::FilePath.as_str(), path.to_string())
+        }
+        "exec" => {
+            let cmd = args.get("command").and_then(|v| v.as_str()).unwrap_or("");
+            if cmd.is_empty() { return Ok(()); }
+            (ResourceType::ExecCommand.as_str(), cmd.to_string())
+        }
+        "web_fetch" | "web_post" => {
+            let url = args.get("url").and_then(|v| v.as_str()).unwrap_or("");
+            if url.is_empty() { return Ok(()); }
+            // Extract domain from URL without url crate
+            let domain = extract_domain(url);
+            (ResourceType::NetworkDomain.as_str(), domain)
+        }
+        _ => return Ok(()), // Other tools not gated
+    };
+
+    // Check access mode from profile
+    let mode = match resource_type {
+        "file_path" => &profile.file_access_mode,
+        "exec_command" => &profile.exec_mode,
+        "network_domain" => &profile.network_mode,
+        _ => "open",
+    };
+
+    match mode.as_str() {
+        "open" => Ok(()),
+        "deny" => {
+            log_tool_security_event(tool_name, args, false, agent_id);
+            let _ = log_security_event(
+                db, agent_id, None,
+                super::security::events::EventType::PermissionDenied,
+                super::security::events::EventCategory::Warning,
+                Some(tool_name),
+                Some(&resource_value),
+                Some(&format!("Blocked by agent security policy: {} mode={}", resource_type, mode)),
+                80,
+                false,
+            );
+            anyhow::bail!(
+                "🛡️ Security: {} blocked for agent '{}'. Access mode is '{}'.",
+                tool_name, agent_id, mode
+            );
+        }
+        "allowlist" => {
+            // Check if there's an explicit allow rule for this resource
+            let has_allow = db.conn().query_row(
+                "SELECT 1 FROM permission_rules
+                 WHERE (agent_id = ?1 OR agent_id IS NULL)
+                   AND resource_type = ?2
+                   AND action = 'allow'
+                   AND (?3 LIKE resource_value OR resource_value = '*')
+                 LIMIT 1",
+                rusqlite::params![agent_id, resource_type, resource_value],
+                |_| Ok(0_i32),
+            ).is_ok();
+
+            if !has_allow {
+                log_tool_security_event(tool_name, args, false, agent_id);
+                anyhow::bail!(
+                    "🛡️ Security: {} blocked — '{}' not in allowlist for agent '{}'.",
+                    tool_name, resource_value, agent_id
+                );
+            }
+            Ok(())
+        }
+        "prompt_all" => {
+            // Log that a prompt would be needed — allow for Phase 1
+            let _ = log_security_event(
+                db, agent_id, None,
+                super::security::events::EventType::FileAccess,
+                super::security::events::EventCategory::Info,
+                Some(tool_name),
+                Some(&resource_value),
+                Some(&format!("Prompt mode: {} would require user approval (allowed by default in Phase 1)", resource_type)),
+                15,
+                true,
+            );
+            Ok(())
+        }
+        _ => Ok(()), // Unknown mode = open
+    }
+}
+
 // ── Tool Permission Check ──
 
 fn check_tool_permission(db: &EngineDb, agent_id: &str, tool_name: &str) -> Result<bool> {
@@ -133,7 +321,20 @@ fn check_tool_permission(db: &EngineDb, agent_id: &str, tool_name: &str) -> Resu
 
 /// Execute a tool by name with the given arguments and user context.
 pub async fn execute_tool(tool_name: &str, args: &Value, user_id: &str) -> Result<ToolResult> {
-    execute_tool_for_user(tool_name, args, user_id).await
+    // Security gate — check permission before execution
+    if let Err(security_err) = check_security_gate(tool_name, args, user_id) {
+        return Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some(security_err.to_string()),
+        });
+    }
+
+    let result = execute_tool_for_user(tool_name, args, user_id).await;
+    // Security telemetry — fire and forget
+    let success = result.as_ref().map(|r| r.success).unwrap_or(false);
+    log_tool_security_event(tool_name, args, success, user_id);
+    result
 }
 
 /// Execute a tool with user-specific context and permission checking.

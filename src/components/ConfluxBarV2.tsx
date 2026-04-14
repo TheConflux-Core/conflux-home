@@ -72,6 +72,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   settings: { icon: '⚙️', label: 'Settings' },
   onboarding: { icon: '👋', label: 'Onboarding' },
   'api-dashboard': { icon: '📊', label: 'API' },
+  security: { icon: '🛡️', label: 'Security' },
 };
 
 const ALL_APPS: AppItem[] = [
@@ -90,6 +91,7 @@ const ALL_APPS: AppItem[] = [
   { id: 'vault', icon: '🔐', label: 'Vault', category: 'system', description: 'Encrypted password & credential manager' },
   { id: 'studio', icon: '✨', label: 'Studio', category: 'work', description: 'AI creator workspace — images, video, music, voice, web, design' },
   { id: 'api-dashboard', icon: '📊', label: 'API Dashboard', category: 'work', description: 'Manage your API usage and credits' },
+  { id: 'security', icon: '🛡️', label: 'Security Center', category: 'system', description: 'Agent security monitoring & controls' },
   { id: 'settings', icon: '⚙️', label: 'Settings', category: 'system', description: 'Configure your experience' },
 ];
 
