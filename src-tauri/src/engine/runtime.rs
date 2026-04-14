@@ -5,12 +5,12 @@
 use anyhow::Result;
 use serde_json::Value;
 
-use super::db::EngineDb;
 use super::cloud;
-use super::router::OpenAIMessage;
+use super::db::EngineDb;
 use super::router::ModelResponse;
-use super::tools;
+use super::router::OpenAIMessage;
 use super::state_events::ConfluxState;
+use super::tools;
 
 const MAX_TOOL_ITERATIONS: usize = 3;
 
@@ -38,7 +38,8 @@ pub async fn process_turn(
     max_tokens: Option<i64>,
 ) -> Result<ModelResponse> {
     // 1. Load agent config
-    let agent = db.get_agent(agent_id)?
+    let agent = db
+        .get_agent(agent_id)?
         .ok_or_else(|| anyhow::anyhow!("Agent not found: {}", agent_id))?;
 
     // 2. Load recent conversation history (last 20 messages)
@@ -47,7 +48,8 @@ pub async fn process_turn(
     // 3. Load relevant memories
     let memories = db.search_memory(agent_id, user_message, 5)?;
     let memory_context = if !memories.is_empty() {
-        let mem_lines: Vec<String> = memories.iter()
+        let mem_lines: Vec<String> = memories
+            .iter()
             .map(|m| format!("[{}] {}", m.memory_type, m.content))
             .collect();
         format!("\n\nRelevant memories:\n{}", mem_lines.join("\n"))
@@ -61,7 +63,8 @@ pub async fn process_turn(
     // System prompt: agent soul + instructions + memory + skills
     let skill_context = match db.get_skills_for_agent(agent_id) {
         Ok(skills) if !skills.is_empty() => {
-            let skill_lines: Vec<String> = skills.iter()
+            let skill_lines: Vec<String> = skills
+                .iter()
                 .map(|s| format!("{} {}: {}", s.emoji, s.name, s.instructions))
                 .collect();
             format!("\n\nActive skills:\n{}", skill_lines.join("\n\n"))
@@ -102,7 +105,11 @@ pub async fn process_turn(
 
         messages.push(OpenAIMessage {
             role: msg.role.clone(),
-            content: if msg.content.is_empty() { None } else { Some(msg.content.clone()) },
+            content: if msg.content.is_empty() {
+                None
+            } else {
+                Some(msg.content.clone())
+            },
             tool_call_id: msg.tool_call_id.clone(),
             tool_calls,
         });
@@ -148,8 +155,13 @@ pub async fn process_turn(
             messages.clone(),
             max_tokens,
             None,
-            if iteration == 0 || !tool_defs.is_empty() { Some(tool_defs.clone()) } else { None },
-        ).await?;
+            if iteration == 0 || !tool_defs.is_empty() {
+                Some(tool_defs.clone())
+            } else {
+                None
+            },
+        )
+        .await?;
 
         total_tokens += response.tokens_used;
 
@@ -161,7 +173,11 @@ pub async fn process_turn(
 
         // Execute tool calls
         for tool_call in &response.tool_calls {
-            log::info!("[Engine] Tool call: {}({})", tool_call.name, tool_call.arguments);
+            log::info!(
+                "[Engine] Tool call: {}({})",
+                tool_call.name,
+                tool_call.arguments
+            );
 
             // Parse arguments
             let args: Value = serde_json::from_str(&tool_call.arguments)
@@ -174,7 +190,12 @@ pub async fn process_turn(
             let result_content = if tool_result.success {
                 tool_result.output.clone()
             } else {
-                format!("Error: {}", tool_result.error.unwrap_or_else(|| "Unknown error".to_string()))
+                format!(
+                    "Error: {}",
+                    tool_result
+                        .error
+                        .unwrap_or_else(|| "Unknown error".to_string())
+                )
             };
 
             // Add assistant message with tool_calls to conversation
@@ -230,7 +251,10 @@ pub async fn process_turn(
                 Some(&result_content),
             )?;
 
-            log::info!("[Engine] Tool result: {}", &result_content[..result_content.len().min(200)]);
+            log::info!(
+                "[Engine] Tool result: {}",
+                &result_content[..result_content.len().min(200)]
+            );
         }
 
         // If this was the last iteration, force no tools
@@ -241,7 +265,8 @@ pub async fn process_turn(
                 max_tokens,
                 None,
                 None, // No tools on final pass
-            ).await?;
+            )
+            .await?;
             total_tokens += final_resp.tokens_used;
             final_response = Some(final_resp);
         }
@@ -261,20 +286,25 @@ pub async fn process_turn(
     )?;
 
     // 9. Extract memories from this exchange (fire and forget)
-    let _ = super::memory::extract_and_store(db, session_id, agent_id, user_message, &response.content).await;
+    let _ =
+        super::memory::extract_and_store(db, session_id, agent_id, user_message, &response.content)
+            .await;
 
     // 10. Log telemetry
     let _ = db.log_event(
         "message_processed",
         Some(agent_id),
         Some(session_id),
-        Some(&serde_json::json!({
-            "model": response.model,
-            "provider": response.provider_id,
-            "tokens": total_tokens,
-            "latency_ms": response.latency_ms,
-            "tool_calls": response.tool_calls.len(),
-        }).to_string()),
+        Some(
+            &serde_json::json!({
+                "model": response.model,
+                "provider": response.provider_id,
+                "tokens": total_tokens,
+                "latency_ms": response.latency_ms,
+                "tool_calls": response.tool_calls.len(),
+            })
+            .to_string(),
+        ),
     );
 
     // 11. Session compaction (if over threshold)
@@ -295,7 +325,8 @@ pub async fn process_turn_stream(
     on_chunk: &mut dyn FnMut(&str) -> Result<()>,
 ) -> Result<ModelResponse> {
     // 1. Load agent config
-    let agent = db.get_agent(agent_id)?
+    let agent = db
+        .get_agent(agent_id)?
         .ok_or_else(|| anyhow::anyhow!("Agent not found: {}", agent_id))?;
 
     // 2. Load recent conversation history
@@ -304,7 +335,8 @@ pub async fn process_turn_stream(
     // 3. Load relevant memories
     let memories = db.search_memory(agent_id, user_message, 5)?;
     let memory_context = if !memories.is_empty() {
-        let mem_lines: Vec<String> = memories.iter()
+        let mem_lines: Vec<String> = memories
+            .iter()
             .map(|m| format!("[{}] {}", m.memory_type, m.content))
             .collect();
         format!("\n\nRelevant memories:\n{}", mem_lines.join("\n"))
@@ -317,7 +349,8 @@ pub async fn process_turn_stream(
 
     let skill_context = match db.get_skills_for_agent(agent_id) {
         Ok(skills) if !skills.is_empty() => {
-            let skill_lines: Vec<String> = skills.iter()
+            let skill_lines: Vec<String> = skills
+                .iter()
                 .map(|s| format!("{} {}: {}", s.emoji, s.name, s.instructions))
                 .collect();
             format!("\n\nActive skills:\n{}", skill_lines.join("\n\n"))
@@ -334,7 +367,9 @@ pub async fn process_turn_stream(
 
     let mut prev_had_tool_calls_stream = false;
     for msg in &history {
-        if msg.role == "tool" && !prev_had_tool_calls_stream { continue; }
+        if msg.role == "tool" && !prev_had_tool_calls_stream {
+            continue;
+        }
         prev_had_tool_calls_stream = msg.role == "assistant" && msg.tool_name.is_some();
         let tool_calls = if msg.role == "assistant" && msg.tool_name.is_some() {
             let args = msg.tool_args.as_deref().unwrap_or("{}");
@@ -349,7 +384,11 @@ pub async fn process_turn_stream(
         };
         messages.push(OpenAIMessage {
             role: msg.role.clone(),
-            content: if msg.content.is_empty() { None } else { Some(msg.content.clone()) },
+            content: if msg.content.is_empty() {
+                None
+            } else {
+                Some(msg.content.clone())
+            },
             tool_call_id: msg.tool_call_id.clone(),
             tool_calls,
         });
@@ -383,7 +422,8 @@ pub async fn process_turn_stream(
             max_tokens,
             None,
             Some(tool_defs.clone()),
-        ).await?;
+        )
+        .await?;
 
         // If no tool calls, stream the final response
         if response.tool_calls.is_empty() {
@@ -396,7 +436,11 @@ pub async fn process_turn_stream(
 
         // Execute tool calls
         for tool_call in &response.tool_calls {
-            log::info!("[Engine/Stream] Tool call: {}({})", tool_call.name, tool_call.arguments);
+            log::info!(
+                "[Engine/Stream] Tool call: {}({})",
+                tool_call.name,
+                tool_call.arguments
+            );
 
             let args: Value = serde_json::from_str(&tool_call.arguments)
                 .unwrap_or_else(|_| serde_json::json!({}));
@@ -420,11 +464,20 @@ pub async fn process_turn_stream(
             let result_content = if tool_result.success {
                 tool_result.output.clone()
             } else {
-                format!("Error: {}", tool_result.error.unwrap_or_else(|| "Unknown error".to_string()))
+                format!(
+                    "Error: {}",
+                    tool_result
+                        .error
+                        .unwrap_or_else(|| "Unknown error".to_string())
+                )
             };
 
             // Notify the frontend about the tool call
-            on_chunk(&format!("\n🔧 *{}*\n{}\n", tool_call.name, &result_content[..result_content.len().min(500)]))?;
+            on_chunk(&format!(
+                "\n🔧 *{}*\n{}\n",
+                tool_call.name,
+                &result_content[..result_content.len().min(500)]
+            ))?;
 
             // Add assistant message with tool_calls
             messages.push(OpenAIMessage {
@@ -450,9 +503,33 @@ pub async fn process_turn_stream(
             });
 
             // Store assistant message with tool_calls
-            db.add_message_with_tools(session_id, "assistant", &response.content, 0, Some(&response.model), Some(&response.provider_id), Some(response.latency_ms), Some(&tool_call.id), Some(&tool_call.name), Some(&tool_call.arguments), None)?;
+            db.add_message_with_tools(
+                session_id,
+                "assistant",
+                &response.content,
+                0,
+                Some(&response.model),
+                Some(&response.provider_id),
+                Some(response.latency_ms),
+                Some(&tool_call.id),
+                Some(&tool_call.name),
+                Some(&tool_call.arguments),
+                None,
+            )?;
             // Store tool result
-            db.add_message_with_tools(session_id, "tool", &result_content, 0, None, None, None, Some(&tool_call.id), Some(&tool_call.name), Some(&tool_call.arguments), Some(&result_content))?;
+            db.add_message_with_tools(
+                session_id,
+                "tool",
+                &result_content,
+                0,
+                None,
+                None,
+                None,
+                Some(&tool_call.id),
+                Some(&tool_call.name),
+                Some(&tool_call.arguments),
+                Some(&result_content),
+            )?;
         }
 
         // Last iteration — force no tools, get final text
@@ -463,7 +540,8 @@ pub async fn process_turn_stream(
                 max_tokens,
                 None,
                 None,
-            ).await?;
+            )
+            .await?;
             on_chunk(&final_resp.content)?;
             final_response = Some(final_resp);
         }
@@ -494,10 +572,7 @@ fn build_system_prompt(
     let mut prompt = String::new();
 
     // Agent identity
-    prompt.push_str(&format!(
-        "You are {}, {}.\n\n",
-        agent.name, agent.role
-    ));
+    prompt.push_str(&format!("You are {}, {}.\n\n", agent.name, agent.role));
 
     // Soul (personality)
     if let Some(soul) = &agent.soul {
@@ -521,17 +596,22 @@ fn build_system_prompt(
     }
 
     // Tool usage instructions
-    prompt.push_str("\nYou have access to tools. Use them when they would help you answer accurately. ");
-    prompt.push_str("Always prefer searching the web for current information rather than guessing. ");
+    prompt.push_str(
+        "\nYou have access to tools. Use them when they would help you answer accurately. ",
+    );
+    prompt
+        .push_str("Always prefer searching the web for current information rather than guessing. ");
     prompt.push_str("Use the calculator for math. Use file tools to read/write when asked.\n");
-    prompt.push_str("\nBe helpful, concise, and in-character. If you don't know something, say so honestly.");
+    prompt.push_str(
+        "\nBe helpful, concise, and in-character. If you don't know something, say so honestly.",
+    );
 
     prompt
 }
 
 // ── Session Compaction ──
 
-const COMPACTION_THRESHOLD: i64 = 50;  // compact when session has 50+ messages
+const COMPACTION_THRESHOLD: i64 = 50; // compact when session has 50+ messages
 const COMPACTION_KEEP_RECENT: i64 = 20; // always keep last 20 messages raw
 
 /// Check if a session needs compaction and run it if so.
@@ -545,7 +625,11 @@ async fn maybe_compact_session(
         return Ok(());
     }
 
-    log::info!("[Compaction] Session {} has {} messages, compacting...", session_id, count);
+    log::info!(
+        "[Compaction] Session {} has {} messages, compacting...",
+        session_id,
+        count
+    );
 
     // Get old messages (everything except last 20)
     let old_messages = db.get_old_messages(session_id, COMPACTION_KEEP_RECENT)?;
@@ -570,17 +654,24 @@ async fn maybe_compact_session(
     let message_ids: Vec<String> = old_messages.iter().map(|m| m.id.clone()).collect();
     let deleted = db.delete_messages(&message_ids)?;
 
-    log::info!("[Compaction] Compacted {} messages into memory for session {}", deleted, session_id);
+    log::info!(
+        "[Compaction] Compacted {} messages into memory for session {}",
+        deleted,
+        session_id
+    );
 
     // Log telemetry
     let _ = db.log_event(
         "session_compacted",
         Some(agent_id),
         Some(session_id),
-        Some(&serde_json::json!({
-            "messages_compacted": deleted,
-            "summary_length": summary.len(),
-        }).to_string()),
+        Some(
+            &serde_json::json!({
+                "messages_compacted": deleted,
+                "summary_length": summary.len(),
+            })
+            .to_string(),
+        ),
     );
 
     Ok(())

@@ -4,7 +4,6 @@
 
 pub mod capture;
 pub mod model;
+pub mod openai;
 pub mod stream;
 pub mod synth;
-pub mod openai;
-

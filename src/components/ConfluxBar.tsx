@@ -34,6 +34,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   studio: { icon: '✨', label: 'Studio' },
   'api-dashboard': { icon: '📊', label: 'API Dashboard' },
   security: { icon: '🛡️', label: 'Security' },
+  aegis: { icon: '🛡️', label: 'Aegis' },
   settings: { icon: '⚙️', label: 'Settings' },
   onboarding: { icon: '👋', label: 'Onboarding' },
 };

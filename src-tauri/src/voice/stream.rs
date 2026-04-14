@@ -2,13 +2,15 @@
 // Replaces the blocking local Whisper inference with a real-time streaming transcription.
 
 use anyhow::{Context, Result};
+use base64::Engine;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use tokio::sync::mpsc;
-use tokio_tungstenite::{connect_async, tungstenite::protocol::Message, tungstenite::client::IntoClientRequest};
 use tauri::{Emitter, Window};
-use base64::Engine;
+use tokio::sync::mpsc;
+use tokio_tungstenite::{
+    connect_async, tungstenite::client::IntoClientRequest, tungstenite::protocol::Message,
+};
 
 /// Configuration for the ElevenLabs streaming session.
 #[derive(Debug, Clone)]
@@ -24,10 +26,30 @@ impl Default for StreamConfig {
         Self {
             api_key: {
                 let engine = crate::engine::get_engine();
-                engine.db().get_config("elevenlabs_key").ok().flatten().filter(|k| !k.is_empty())
-                    .or_else(|| engine.db().get_config("studio_elevenlabs_key").ok().flatten().filter(|k| !k.is_empty()))
-                    .or_else(|| std::env::var("ELEVENLABS_API_KEY").ok().filter(|k| !k.is_empty()))
-                    .or_else(|| option_env!("ELEVENLABS_API_KEY").map(|s| s.to_string()).filter(|k| !k.is_empty()))
+                engine
+                    .db()
+                    .get_config("elevenlabs_key")
+                    .ok()
+                    .flatten()
+                    .filter(|k| !k.is_empty())
+                    .or_else(|| {
+                        engine
+                            .db()
+                            .get_config("studio_elevenlabs_key")
+                            .ok()
+                            .flatten()
+                            .filter(|k| !k.is_empty())
+                    })
+                    .or_else(|| {
+                        std::env::var("ELEVENLABS_API_KEY")
+                            .ok()
+                            .filter(|k| !k.is_empty())
+                    })
+                    .or_else(|| {
+                        option_env!("ELEVENLABS_API_KEY")
+                            .map(|s| s.to_string())
+                            .filter(|k| !k.is_empty())
+                    })
                     .unwrap_or_default()
             },
             sample_rate: 16000,
@@ -74,16 +96,24 @@ pub async fn start_stream(
     println!("[ElevenLabs STT] Connecting to {}", url);
 
     use tokio_tungstenite::tungstenite::client::IntoClientRequest;
-    
-    let mut request = url.into_client_request()
+
+    let mut request = url
+        .into_client_request()
         .map_err(|e| anyhow::anyhow!("Failed to create client request: {}", e))?;
-    
+
     // Add ElevenLabs specific headers
-    request.headers_mut().insert("xi-api-key", api_key.parse().unwrap());
-    request.headers_mut().insert("Content-Type", "application/octet-stream".parse().unwrap());
-    
-    println!("[ElevenLabs STT] Request prepared with API key starting with: {}", &api_key[..8]);
-    
+    request
+        .headers_mut()
+        .insert("xi-api-key", api_key.parse().unwrap());
+    request
+        .headers_mut()
+        .insert("Content-Type", "application/octet-stream".parse().unwrap());
+
+    println!(
+        "[ElevenLabs STT] Request prepared with API key starting with: {}",
+        &api_key[..8]
+    );
+
     let (socket, response) = connect_async(request).await.map_err(|e| {
         println!("[ElevenLabs STT] Connection failed: {}", e);
         anyhow::anyhow!("WebSocket connection failed: {}", e)
@@ -96,7 +126,7 @@ pub async fn start_stream(
     let (mut ws_sender, mut ws_receiver) = socket.split();
 
     let (audio_tx, mut audio_rx) = mpsc::channel::<StreamMessage>(64);
-    
+
     // Set up a task to send initial ping/keepalive if needed, or start streaming immediately
     // (Sending empty audio or a "start" signal is usually not required for ElevenLabs STT,
     // but waiting for the first audio frame is standard.)
@@ -110,14 +140,21 @@ pub async fn start_stream(
                     // Parse JSON response from ElevenLabs
                     if let Ok(transcript) = serde_json::from_str::<serde_json::Value>(&text) {
                         if let Some(text_val) = transcript.get("text").and_then(|v| v.as_str()) {
-                            let is_final = transcript.get("is_final").and_then(|v| v.as_bool()).unwrap_or(false);
-                            
+                            let is_final = transcript
+                                .get("is_final")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(false);
+
                             let chunk = TranscriptChunk {
                                 text: text_val.to_string(),
                                 is_final,
                             };
 
-                            log::debug!("[ElevenLabs STT] Chunk: {:?} (final: {})", chunk.text, chunk.is_final);
+                            log::debug!(
+                                "[ElevenLabs STT] Chunk: {:?} (final: {})",
+                                chunk.text,
+                                chunk.is_final
+                            );
 
                             // Emit to frontend for the Fairy to react
                             let event_payload = serde_json::json!({

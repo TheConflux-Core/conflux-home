@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::engine::db::EngineDb;
-use crate::engine::security::events::{self, EventType, EventCategory};
+use crate::engine::security::events::{self, EventCategory, EventType};
 
 /// Permission actions
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -92,7 +92,7 @@ pub struct AgentSecurityProfile {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermissionCheckResult {
     pub allowed: bool,
-    pub action: String,       // 'allow' | 'deny' | 'prompt'
+    pub action: String, // 'allow' | 'deny' | 'prompt'
     pub rule_id: Option<String>,
     pub reason: String,
     pub prompt_id: Option<String>, // if action='prompt', the pending prompt ID
@@ -118,78 +118,97 @@ pub fn check_permission(
     let mut stmt = conn.prepare(
         "SELECT id, action, scope, description FROM permission_rules
          WHERE agent_id = ?1 AND resource_type = ?2
-         ORDER BY is_system DESC, created_at ASC"
+         ORDER BY is_system DESC, created_at ASC",
     )?;
 
     let rules: Vec<(String, String, String, Option<String>)> = stmt
         .query_map(rusqlite::params![agent_id, resource_type], |row| {
-            Ok((
-                row.get(0)?,
-                row.get(1)?,
-                row.get(2)?,
-                row.get(3)?,
-            ))
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
 
     // 3. Check each rule against the resource value
     for (rule_id, action, rule_scope, description) in &rules {
-        if scope_matches(rule_scope, scope) && resource_matches(resource_value, &get_rule_pattern(db, rule_id)?) {
+        if scope_matches(rule_scope, scope)
+            && resource_matches(resource_value, &get_rule_pattern(db, rule_id)?)
+        {
             let perm_action = PermissionAction::from_str(action);
-            
+
             let result = match perm_action {
                 PermissionAction::Allow => {
                     // Log allowed event
                     let _ = events::log_security_event(
-                        db, agent_id, session_id,
+                        db,
+                        agent_id,
+                        session_id,
                         event_type_for_resource(resource_type),
                         EventCategory::Info,
                         Some(tool_name),
                         Some(resource_value),
-                        Some(&format!("Allowed by rule: {}", description.as_deref().unwrap_or("matched"))),
+                        Some(&format!(
+                            "Allowed by rule: {}",
+                            description.as_deref().unwrap_or("matched")
+                        )),
                         0,
                         true,
                     );
-                    
+
                     PermissionCheckResult {
                         allowed: true,
                         action: "allow".to_string(),
                         rule_id: Some(rule_id.clone()),
-                        reason: description.clone().unwrap_or_else(|| "Allowed by rule".to_string()),
+                        reason: description
+                            .clone()
+                            .unwrap_or_else(|| "Allowed by rule".to_string()),
                         prompt_id: None,
                     }
                 }
                 PermissionAction::Deny => {
                     // Log denied event
                     let _ = events::log_security_event(
-                        db, agent_id, session_id,
+                        db,
+                        agent_id,
+                        session_id,
                         EventType::PermissionDenied,
                         EventCategory::Warning,
                         Some(tool_name),
                         Some(resource_value),
-                        Some(&format!("Denied by rule: {}", description.as_deref().unwrap_or("blocked"))),
+                        Some(&format!(
+                            "Denied by rule: {}",
+                            description.as_deref().unwrap_or("blocked")
+                        )),
                         50,
                         false,
                     );
-                    
+
                     PermissionCheckResult {
                         allowed: false,
                         action: "deny".to_string(),
                         rule_id: Some(rule_id.clone()),
-                        reason: description.clone().unwrap_or_else(|| "Blocked by rule".to_string()),
+                        reason: description
+                            .clone()
+                            .unwrap_or_else(|| "Blocked by rule".to_string()),
                         prompt_id: None,
                     }
                 }
                 PermissionAction::Prompt => {
                     // Create a permission prompt for the user
                     let prompt_id = create_permission_prompt(
-                        db, agent_id, session_id, Some(rule_id),
-                        resource_type, resource_value, tool_name, None,
+                        db,
+                        agent_id,
+                        session_id,
+                        Some(rule_id),
+                        resource_type,
+                        resource_value,
+                        tool_name,
+                        None,
                     )?;
-                    
+
                     // Log prompt event
                     let _ = events::log_security_event(
-                        db, agent_id, session_id,
+                        db,
+                        agent_id,
+                        session_id,
                         event_type_for_resource(resource_type),
                         EventCategory::Warning,
                         Some(tool_name),
@@ -198,7 +217,7 @@ pub fn check_permission(
                         30,
                         false, // not yet allowed
                     );
-                    
+
                     PermissionCheckResult {
                         allowed: false, // block until user decides
                         action: "prompt".to_string(),
@@ -208,7 +227,7 @@ pub fn check_permission(
                     }
                 }
             };
-            
+
             return Ok(result);
         }
     }
@@ -225,7 +244,9 @@ pub fn check_permission(
         "open" | "full" => {
             // Log the access but allow it
             let _ = events::log_security_event(
-                db, agent_id, session_id,
+                db,
+                agent_id,
+                session_id,
                 event_type_for_resource(resource_type),
                 EventCategory::Info,
                 Some(tool_name),
@@ -244,8 +265,14 @@ pub fn check_permission(
         }
         "prompt_all" => {
             let prompt_id = create_permission_prompt(
-                db, agent_id, session_id, None,
-                resource_type, resource_value, tool_name, None,
+                db,
+                agent_id,
+                session_id,
+                None,
+                resource_type,
+                resource_value,
+                tool_name,
+                None,
             )?;
             Ok(PermissionCheckResult {
                 allowed: false,
@@ -258,7 +285,9 @@ pub fn check_permission(
         _ => {
             // "allowlist" or "denylist" with no match = deny
             let _ = events::log_security_event(
-                db, agent_id, session_id,
+                db,
+                agent_id,
+                session_id,
                 EventType::PermissionDenied,
                 EventCategory::Warning,
                 Some(tool_name),
@@ -291,7 +320,7 @@ fn create_permission_prompt(
 ) -> Result<String> {
     let id = Uuid::new_v4().to_string();
     let conn = db.conn();
-    
+
     conn.execute(
         "INSERT INTO permission_prompts (id, agent_id, session_id, rule_id, request_type, target, tool_name, tool_args)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
@@ -319,15 +348,19 @@ pub fn resolve_permission_prompt(
     // If "always", create a permanent rule
     if decision == "allow_always" || decision == "deny_always" {
         let mut stmt = conn.prepare(
-            "SELECT agent_id, request_type, target, rule_id FROM permission_prompts WHERE id = ?1"
+            "SELECT agent_id, request_type, target, rule_id FROM permission_prompts WHERE id = ?1",
         )?;
         let (agent_id, request_type, target, rule_id): (String, String, String, Option<String>) =
             stmt.query_row(rusqlite::params![prompt_id], |row| {
                 Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
             })?;
 
-        let action = if decision == "allow_always" { "allow" } else { "deny" };
-        
+        let action = if decision == "allow_always" {
+            "allow"
+        } else {
+            "deny"
+        };
+
         // If there's already a rule, update it; otherwise create new
         if let Some(rid) = rule_id {
             conn.execute(
@@ -355,16 +388,19 @@ pub fn resolve_permission_prompt(
 }
 
 /// Get pending permission prompts for the user.
-pub fn get_pending_prompts(db: &EngineDb, agent_id: Option<&str>) -> Result<Vec<serde_json::Value>> {
+pub fn get_pending_prompts(
+    db: &EngineDb,
+    agent_id: Option<&str>,
+) -> Result<Vec<serde_json::Value>> {
     let conn = db.conn();
-    
+
     let mut query = String::from(
         "SELECT pp.id, pp.agent_id, a.name, a.emoji, pp.request_type, pp.target, pp.tool_name, pp.created_at
          FROM permission_prompts pp
          JOIN agents a ON pp.agent_id = a.id
          WHERE pp.status = 'pending'"
     );
-    
+
     let mut params_vec: Vec<String> = Vec::new();
     if let Some(aid) = agent_id {
         query.push_str(" AND pp.agent_id = ?");
@@ -445,7 +481,10 @@ pub fn update_security_profile(
 
     if let Some(v) = sandbox_enabled {
         sets.push("sandbox_enabled = ?".to_string());
-        params_vec.push(("sandbox_enabled".to_string(), if v { "1" } else { "0" }.to_string()));
+        params_vec.push((
+            "sandbox_enabled".to_string(),
+            if v { "1" } else { "0" }.to_string(),
+        ));
     }
     if let Some(v) = file_access_mode {
         sets.push("file_access_mode = ?".to_string());
@@ -509,7 +548,7 @@ pub fn get_permission_rules(db: &EngineDb, agent_id: &str) -> Result<Vec<Permiss
         "SELECT id, agent_id, resource_type, resource_value, action, scope, description, is_system, created_at, updated_at
          FROM permission_rules WHERE agent_id = ?1 ORDER BY resource_type, created_at"
     )?;
-    
+
     let rules = stmt
         .query_map(rusqlite::params![agent_id], |row| {
             Ok(PermissionRule {
@@ -542,7 +581,7 @@ pub fn add_permission_rule(
 ) -> Result<String> {
     let id = Uuid::new_v4().to_string();
     let conn = db.conn();
-    
+
     conn.execute(
         "INSERT INTO permission_rules (id, agent_id, resource_type, resource_value, action, scope, description)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",

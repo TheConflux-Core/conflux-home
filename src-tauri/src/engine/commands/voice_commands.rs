@@ -1,6 +1,6 @@
-use tauri::{AppHandle, Emitter, Manager, Window};
 #[cfg(not(target_os = "android"))]
-use crate::voice::{capture, stream, synth, openai};
+use crate::voice::{capture, openai, stream, synth};
+use tauri::{AppHandle, Emitter, Manager, Window};
 #[cfg(not(target_os = "android"))]
 use tokio::fs::File;
 #[cfg(not(target_os = "android"))]
@@ -20,11 +20,11 @@ pub async fn voice_start_stream(window: Window) -> Result<String, String> {
 #[cfg(not(target_os = "android"))]
 pub async fn voice_synthesize(text: String, window: Window) -> Result<String, String> {
     println!("[TTS] voice_synthesize called with text: {}", text);
-    
+
     // Get AppHandle for emitting events on failure (before any clones)
     let app = window.app_handle();
     let window_clone = window.clone();
-    
+
     // Try OpenAI first (works on free tier with usage-based billing)
     let openai_config = openai::OpenAIConfig::default();
     if !openai_config.api_key.is_empty() {
@@ -40,11 +40,14 @@ pub async fn voice_synthesize(text: String, window: Window) -> Result<String, St
         Ok(_) => return Ok("Speech synthesized via ElevenLabs".to_string()),
         Err(e) => {
             // All TTS providers failed — emit Idle so Conflux fairy doesn't get stuck
-            let _ = app.emit("conflux:state", serde_json::json!({
-                "state": "Idle",
-                "source": "backend",
-                "message": "TTS unavailable"
-            }));
+            let _ = app.emit(
+                "conflux:state",
+                serde_json::json!({
+                    "state": "Idle",
+                    "source": "backend",
+                    "message": "TTS unavailable"
+                }),
+            );
             return Err(format!("All TTS providers failed: {}", e));
         }
     }

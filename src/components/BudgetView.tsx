@@ -43,6 +43,14 @@ export default function BudgetView() {
   const [showTour, setShowTour] = useState(!bootDone ? false : !hasTakenTour);
   const [tourComplete, setTourComplete] = useState(false);
 
+  // After onboarding completes, refresh data so newly saved buckets appear immediately
+  useEffect(() => {
+    if (onboardingComplete) {
+      console.log('[BudgetView] Onboarding complete — reloading data from DB');
+      refreshData();
+    }
+  }, [onboardingComplete, refreshData]);
+
   // Debug: Force reload on mount to ensure we see manual DB entries
   useEffect(() => {
     console.log('[BudgetView] Mounting - user:', authUser?.id, 'settings:', settings, 'buckets:', buckets.length);

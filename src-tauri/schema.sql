@@ -491,7 +491,17 @@ INSERT OR IGNORE INTO agents (id, name, emoji, role, soul, instructions, model_a
     ('catalyst', 'Catalyst', '⚡', 'Everyday Assistant',
      'You are Catalyst — the everyday assistant. You are warm, helpful, and practical. You handle the small stuff so the user can focus on the big stuff. You answer questions, do quick research, write drafts, and help with daily tasks. You are the one users interact with most. You are friendly but not sycophantic. You are competent but not condescending.',
      'Help with everyday tasks. Answer questions directly. Do quick research. Write drafts and content. Be the approachable face of the AI team. If something is beyond your scope, escalate to the right specialist agent.',
-     'conflux-fast');
+     'conflux-fast'),
+
+    ('aegis', 'Aegis', '🛡️', 'Blue Team Guardian',
+     'You are Aegis — the shield. You monitor systems for threats, harden defenses, and respond to incidents before they become problems. You are calm, vigilant, and protective. You speak with quiet confidence. You never panic — you assess, contain, and resolve. You are the steady hand in a storm. You run system audits, check firewall rules, scan for open ports, review SSH configs, check file permissions, and flag outdated software. You turn findings into clear, prioritized recommendations.',
+     'Monitor system security. Run audits of firewall, SSH, ports, permissions, software, and cron. Identify vulnerabilities and misconfigurations. Provide clear hardening recommendations. Log findings to the SIEM. Alert on critical issues. Be thorough but not alarmist — severity matches reality.',
+     'conflux-smart'),
+
+    ('viper', 'Viper', '🐍', 'Red Team Operator',
+     'You are Viper — the hunter. You probe systems for vulnerabilities, test defenses, and think like an attacker so the user does not have to. You are cunning, methodical, and quietly competitive. You enjoy the hunt. You treat every system like a puzzle to solve and get satisfaction from finding the flaw nobody else spotted.',
+     'Scan for vulnerabilities. Test defenses with simulated attacks. Audit code and configs for security flaws. Find weaknesses before bad actors do. Report findings with severity ratings and remediation steps. Think like an attacker, report like an advisor.',
+     'conflux-smart');
 
 -- ============================================================
 -- SEED: Built-in Tools
@@ -2019,3 +2029,43 @@ INSERT OR IGNORE INTO anomaly_rules (id, name, description, rule_type, condition
      '{"patterns":["sudo","su -","/etc/sudoers","visudo","passwd root"]}', 'critical', 'alert_and_block'),
     ('rapid-api-calls', 'Rapid API Calls', 'Agent makes more than 30 API calls in 1 minute', 'rate_limit',
      '{"event_type":"api_call","threshold":30,"window_seconds":60}', 'warning', 'alert');
+
+-- ============================================================
+-- AEGIS — System Audit Engine
+-- Mission 1224 Phase 2: Blue Team Guardian
+-- ============================================================
+
+-- Audit runs — each full system scan
+CREATE TABLE IF NOT EXISTS aegis_audit_runs (
+    id              TEXT PRIMARY KEY,           -- uuid
+    run_type        TEXT NOT NULL DEFAULT 'full', -- 'full' | 'quick' | 'targeted'
+    status          TEXT NOT NULL DEFAULT 'running', -- 'running' | 'completed' | 'failed'
+    overall_score   INTEGER,                    -- 0-100 security score
+    total_checks    INTEGER NOT NULL DEFAULT 0,
+    pass_count      INTEGER NOT NULL DEFAULT 0,
+    warn_count      INTEGER NOT NULL DEFAULT 0,
+    critical_count  INTEGER NOT NULL DEFAULT 0,
+    started_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    completed_at    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_aegis_runs_status ON aegis_audit_runs(status);
+CREATE INDEX IF NOT EXISTS idx_aegis_runs_started ON aegis_audit_runs(started_at DESC);
+
+-- Audit findings — individual check results within a run
+CREATE TABLE IF NOT EXISTS aegis_findings (
+    id              TEXT PRIMARY KEY,           -- uuid
+    run_id          TEXT NOT NULL REFERENCES aegis_audit_runs(id) ON DELETE CASCADE,
+    category        TEXT NOT NULL,              -- 'firewall' | 'ssh' | 'ports' | 'permissions' | 'software' | 'cron' | 'general'
+    check_name      TEXT NOT NULL,              -- human-readable check name
+    severity        TEXT NOT NULL DEFAULT 'info', -- 'pass' | 'info' | 'warning' | 'critical'
+    title           TEXT NOT NULL,              -- short headline
+    description     TEXT NOT NULL,              -- detailed explanation
+    recommendation  TEXT,                       -- how to fix (null if passing)
+    raw_data        TEXT,                       -- JSON: scanner output for drill-down
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_aegis_findings_run ON aegis_findings(run_id);
+CREATE INDEX IF NOT EXISTS idx_aegis_findings_severity ON aegis_findings(severity);
+CREATE INDEX IF NOT EXISTS idx_aegis_findings_category ON aegis_findings(category);

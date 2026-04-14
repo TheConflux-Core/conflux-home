@@ -1,18 +1,23 @@
 // Audio capture via cpal
 // Records 16kHz mono f32 samples from the default input device.
 
+use crate::engine::state_events::ConfluxState;
+use crate::voice::stream::{start_stream, StreamConfig, StreamMessage};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use once_cell::sync::Lazy;
-use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 use std::time::Duration;
 use tauri::{Emitter, Window};
 use tokio::sync::mpsc::Sender;
-use crate::voice::stream::{StreamMessage, start_stream, StreamConfig};
-use crate::engine::state_events::ConfluxState;
 
-pub static AUDIO_BUFFER: Lazy<Arc<Mutex<Vec<f32>>>> = Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
+pub static AUDIO_BUFFER: Lazy<Arc<Mutex<Vec<f32>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
 static IS_RECORDING: Lazy<Arc<AtomicBool>> = Lazy::new(|| Arc::new(AtomicBool::new(false)));
-static ELEVENLABS_SENDER: Lazy<Arc<Mutex<Option<Sender<StreamMessage>>>>> = Lazy::new(|| Arc::new(Mutex::new(None)));
+static ELEVENLABS_SENDER: Lazy<Arc<Mutex<Option<Sender<StreamMessage>>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(None)));
 // cpal::Stream is not Send, so we use a thread-local holder instead
 thread_local! {
     static STREAM_HANDLE: std::cell::RefCell<Option<cpal::Stream>> = std::cell::RefCell::new(None);
@@ -111,30 +116,31 @@ pub fn start_recording(window: Window) -> Result<String, String> {
     }
 
     let host = cpal::default_host();
-    let device = host
-        .default_input_device()
-        .ok_or_else(|| {
-            #[cfg(target_os = "windows")]
-            return format!(
-                "No microphone found on Windows. To fix:\n\
+    let device = host.default_input_device().ok_or_else(|| {
+        #[cfg(target_os = "windows")]
+        return format!(
+            "No microphone found on Windows. To fix:\n\
                  1. Open Windows Settings (Win+I)\n\
                  2. Go to Privacy & Security → Microphone\n\
                  3. Turn ON 'Microphone access'\n\
                  4. Turn ON 'Let desktop apps access your microphone'\n\
                  5. Restart this app\n\
                  Note: This app captures audio directly (not through the browser)."
-            );
-            #[cfg(not(target_os = "windows"))]
-            return "No input device available. Check your microphone.".to_string();
-        })?;
+        );
+        #[cfg(not(target_os = "windows"))]
+        return "No input device available. Check your microphone.".to_string();
+    })?;
 
     let device_name = device.name().unwrap_or_else(|_| "unknown".to_string());
 
     // Emit Listening state (capture started)
-    let _ = window.emit("conflux:state", serde_json::json!({
-        "state": "Listening",
-        "timestamp": chrono::Utc::now().to_rfc3339(),
-    }));
+    let _ = window.emit(
+        "conflux:state",
+        serde_json::json!({
+            "state": "Listening",
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+        }),
+    );
 
     // Find a supported config: prefer 16000 Hz mono f32
     let supported_configs = device
@@ -156,9 +162,10 @@ pub fn start_recording(window: Window) -> Result<String, String> {
                 }
                 // Even if exact 16kHz isn't supported, take this config (we'll resample)
                 if found.is_none() {
-                    found = Some(config_range.with_sample_rate(cpal::SampleRate(
-                        std::cmp::min(max_rate, 48000),
-                    )));
+                    found = Some(
+                        config_range
+                            .with_sample_rate(cpal::SampleRate(std::cmp::min(max_rate, 48000))),
+                    );
                 }
             }
         }
@@ -222,11 +229,14 @@ pub fn start_recording(window: Window) -> Result<String, String> {
                 // Send audio data to ElevenLabs stream sender
                 // Convert f32 samples to 16-bit PCM bytes for ElevenLabs
                 if let Some(tx) = ELEVENLABS_SENDER.lock().ok().and_then(|s| s.clone()) {
-                    let pcm_bytes: Vec<u8> = resampled.iter().flat_map(|&s| {
-                        let clamped = s.max(-1.0).min(1.0);
-                        let i16_val = (clamped * i16::MAX as f32) as i16;
-                        i16_val.to_le_bytes()
-                    }).collect();
+                    let pcm_bytes: Vec<u8> = resampled
+                        .iter()
+                        .flat_map(|&s| {
+                            let clamped = s.max(-1.0).min(1.0);
+                            let i16_val = (clamped * i16::MAX as f32) as i16;
+                            i16_val.to_le_bytes()
+                        })
+                        .collect();
                     let _ = tx.try_send(StreamMessage::Audio(pcm_bytes));
                 }
             },
@@ -237,7 +247,9 @@ pub fn start_recording(window: Window) -> Result<String, String> {
         )
         .map_err(|e| format!("Failed to build input stream: {}", e))?;
 
-    stream.play().map_err(|e| format!("Failed to start stream: {}", e))?;
+    stream
+        .play()
+        .map_err(|e| format!("Failed to start stream: {}", e))?;
 
     IS_RECORDING.store(true, Ordering::Relaxed);
 
@@ -246,7 +258,12 @@ pub fn start_recording(window: Window) -> Result<String, String> {
         *cell.borrow_mut() = Some(stream);
     });
 
-    log::info!("Voice recording started on '{}' ({}Hz, {}ch)", device_name, sample_rate, channels);
+    log::info!(
+        "Voice recording started on '{}' ({}Hz, {}ch)",
+        device_name,
+        sample_rate,
+        channels
+    );
     Ok(format!("Recording started on '{}'", device_name))
 }
 
@@ -260,8 +277,6 @@ pub fn stop_recording(window: Window) -> Result<u64, String> {
 
     // Don't emit Idle state here - let the backend handle the transition to thinking
     // This prevents the fairy from dropping to the dock before thinking starts
-
-
 
     // Signal ElevenLabs stream to close
     if let Some(tx) = ELEVENLABS_SENDER.lock().unwrap().take() {
@@ -324,9 +339,12 @@ pub fn start_volume_monitor(window: Window) {
             let pulse = (rms * 80.0).min(10.0).max(0.0);
 
             // Emit the event — ignore errors if the window was closed
-            let _ = window.emit("conflux:state", serde_json::json!({
-                "pulseImpulse": pulse
-            }));
+            let _ = window.emit(
+                "conflux:state",
+                serde_json::json!({
+                    "pulseImpulse": pulse
+                }),
+            );
 
             // ~30 fps
             std::thread::sleep(Duration::from_millis(33));

@@ -1,16 +1,16 @@
 // Conflux Home — Tauri Entry Point
 // Initializes the Conflux Engine and exposes commands to the frontend.
 
-pub mod engine;
 pub mod budget;
+mod commands;
+pub mod engine;
+mod stripe;
 #[cfg(not(target_os = "android"))]
 pub mod voice;
-mod commands;
-mod stripe;
 use dotenvy;
 
-use tauri::{Manager, Emitter};
 use std::sync::Arc;
+use tauri::{Emitter, Manager};
 use tokio::sync::mpsc;
 
 /// Scheduler command channel: sender端 for instant-interval-change from commands.
@@ -42,13 +42,11 @@ pub fn run() {
         builder = builder.plugin(tauri_plugin_notification::init());
     }
 
-    let mut builder = builder
-        .plugin(tauri_plugin_deep_link::init())
-        .plugin(
-            tauri_plugin_log::Builder::default()
-                .level(log::LevelFilter::Info)
-                .build(),
-        );
+    let mut builder = builder.plugin(tauri_plugin_deep_link::init()).plugin(
+        tauri_plugin_log::Builder::default()
+            .level(log::LevelFilter::Info)
+            .build(),
+    );
 
     // Single-instance plugin only works on desktop (not Android/iOS)
     #[cfg(desktop)]
@@ -594,6 +592,11 @@ pub fn run() {
             commands::security_run_anomaly_scan,
             commands::security_get_anomaly_rules,
             commands::security_cleanup_events,
+            commands::aegis_run_audit,
+            commands::aegis_get_runs,
+            commands::aegis_get_findings,
+            commands::aegis_get_latest_summary,
+            commands::aegis_delete_run,
             // Stripe — Subscription Management
             stripe::stripe_create_checkout_session,
             stripe::stripe_create_credit_pack_session,
