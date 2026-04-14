@@ -2069,3 +2069,45 @@ CREATE TABLE IF NOT EXISTS aegis_findings (
 CREATE INDEX IF NOT EXISTS idx_aegis_findings_run ON aegis_findings(run_id);
 CREATE INDEX IF NOT EXISTS idx_aegis_findings_severity ON aegis_findings(severity);
 CREATE INDEX IF NOT EXISTS idx_aegis_findings_category ON aegis_findings(category);
+
+-- ============================================================
+-- VIPER — Vulnerability Scanner (Red Team)
+-- Mission 1224 Phase 3: Red Team Operator
+-- ============================================================
+
+-- Vulnerability scans
+CREATE TABLE IF NOT EXISTS viper_scans (
+    id              TEXT PRIMARY KEY,           -- uuid
+    scan_type       TEXT NOT NULL DEFAULT 'full', -- 'full' | 'quick' | 'targeted'
+    status          TEXT NOT NULL DEFAULT 'running', -- 'running' | 'completed' | 'failed'
+    risk_score      INTEGER,                    -- 0-100 (100 = most vulnerable)
+    total_checks    INTEGER NOT NULL DEFAULT 0,
+    pass_count      INTEGER NOT NULL DEFAULT 0,
+    info_count      INTEGER NOT NULL DEFAULT 0,
+    warn_count      INTEGER NOT NULL DEFAULT 0,
+    critical_count  INTEGER NOT NULL DEFAULT 0,
+    started_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    completed_at    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_viper_scans_status ON viper_scans(status);
+CREATE INDEX IF NOT EXISTS idx_viper_scans_started ON viper_scans(started_at DESC);
+
+-- Vulnerability findings
+CREATE TABLE IF NOT EXISTS viper_findings (
+    id              TEXT PRIMARY KEY,           -- uuid
+    scan_id         TEXT NOT NULL REFERENCES viper_scans(id) ON DELETE CASCADE,
+    category        TEXT NOT NULL,              -- 'misconfig' | 'network' | 'browser' | 'passwords' | 'code' | 'general'
+    check_name      TEXT NOT NULL,
+    severity        TEXT NOT NULL DEFAULT 'info', -- 'pass' | 'info' | 'warning' | 'critical'
+    title           TEXT NOT NULL,
+    description     TEXT NOT NULL,
+    remediation     TEXT,                       -- how to fix
+    cve_ids         TEXT,                       -- JSON array of CVE IDs if applicable
+    raw_data        TEXT,                       -- JSON: scanner output
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_viper_findings_scan ON viper_findings(scan_id);
+CREATE INDEX IF NOT EXISTS idx_viper_findings_severity ON viper_findings(severity);
+CREATE INDEX IF NOT EXISTS idx_viper_findings_category ON viper_findings(category);

@@ -466,3 +466,28 @@ pub async fn budget_get_allocations(
         })
         .map_err(|e| e.to_string())
 }
+
+// ── Delete Commands ─────────────────────────────────────────
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn budget_delete_transaction(id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let conn = engine.db().conn_async().await;
+    conn.execute("DELETE FROM budget_transactions WHERE id = ?1", rusqlite::params![id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn budget_delete_bucket(id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let conn = engine.db().conn_async().await;
+    let now = chrono::Utc::now().to_rfc3339();
+    // Soft-delete: mark inactive rather than hard-deleting (preserves transaction history)
+    conn.execute(
+        "UPDATE budget_buckets SET is_active = 0, updated_at = ?1 WHERE id = ?2",
+        rusqlite::params![now, id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
