@@ -29,6 +29,7 @@ const ALL_APPS: AppItem[] = [
   { id: 'settings', icon: '⚙️', label: 'Settings', category: 'system', description: 'Configure your experience' },
   { id: 'security', icon: '🛡️', label: 'Security Center', category: 'system', description: 'Agent security monitoring & controls' },
   { id: 'aegis', icon: '🛡️', label: 'Aegis System Audit', category: 'system', description: 'System hardening & vulnerability scanning' },
+  { id: 'viper', icon: '🐍', label: 'Viper Vuln Scanner', category: 'system', description: 'Attack surface analysis & vulnerability detection' },
 ];
 
 const CATEGORIES = [
