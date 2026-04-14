@@ -8937,14 +8937,12 @@ pub fn viper_get_findings(
 #[tauri::command]
 pub fn viper_get_latest_summary() -> Result<Option<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
-    super::engine::security::viper::get_latest_summary(engine.db())
-        .map_err(|e| e.to_string())
+    super::engine::security::viper::get_latest_summary(engine.db()).map_err(|e| e.to_string())
 }
 
 /// Delete a scan.
 #[tauri::command]
 pub fn viper_delete_scan(scan_id: String) -> Result<bool, String> {
     let engine = super::engine::get_engine();
-    super::engine::security::viper::delete_scan(engine.db(), &scan_id)
-        .map_err(|e| e.to_string())
+    super::engine::security::viper::delete_scan(engine.db(), &scan_id).map_err(|e| e.to_string())
 }
