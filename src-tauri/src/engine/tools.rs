@@ -240,7 +240,7 @@ fn check_security_gate(tool_name: &str, args: &Value, agent_id: &str) -> Result<
         _ => "open",
     };
 
-    match mode.as_str() {
+    match mode {
         "open" => Ok(()),
         "deny" => {
             log_tool_security_event(tool_name, args, false, agent_id);
