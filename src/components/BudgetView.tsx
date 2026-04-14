@@ -152,7 +152,7 @@ export default function BudgetView() {
         bucket_id: bucket.id,
         amount: nlpParsed.amount,
         date: new Date().toISOString().split('T')[0],
-        status: 'settled',
+        status: 'reconciled',
         description: nlpParsed.description,
         category: nlpParsed.category,
       });
@@ -482,7 +482,7 @@ export default function BudgetView() {
             bucket_id: data.bucketId,
             amount: data.amount,
             date: data.date,
-            status: 'settled',
+            status: 'reconciled',
           });
           setIsLogOpen(false);
         }}
