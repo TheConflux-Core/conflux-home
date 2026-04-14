@@ -82,7 +82,7 @@ pub fn log_security_event(
 ) -> Result<String> {
     let id = Uuid::new_v4().to_string();
     let conn = db.conn();
-    
+
     conn.execute(
         "INSERT INTO security_events (id, agent_id, session_id, event_type, category, tool_name, target, details, risk_score, was_allowed)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
@@ -123,7 +123,7 @@ pub fn get_security_events(
     offset: i64,
 ) -> Result<Vec<SecurityEvent>> {
     let conn = db.conn();
-    
+
     let mut query = String::from(
         "SELECT id, agent_id, session_id, event_type, category, tool_name, target, details, risk_score, was_allowed, created_at
          FROM security_events WHERE 1=1"
@@ -179,16 +179,12 @@ pub fn get_security_summary(db: &EngineDb) -> Result<serde_json::Value> {
     let conn = db.conn();
 
     // Total events
-    let total: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM security_events",
-        [],
-        |row| row.get(0),
-    )?;
+    let total: i64 =
+        conn.query_row("SELECT COUNT(*) FROM security_events", [], |row| row.get(0))?;
 
     // Events by category
-    let mut cat_stmt = conn.prepare(
-        "SELECT category, COUNT(*) FROM security_events GROUP BY category"
-    )?;
+    let mut cat_stmt =
+        conn.prepare("SELECT category, COUNT(*) FROM security_events GROUP BY category")?;
     let categories: Vec<(String, i64)> = cat_stmt
         .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -218,7 +214,7 @@ pub fn get_security_summary(db: &EngineDb) -> Result<serde_json::Value> {
     // Recent anomalies
     let mut anomaly_stmt = conn.prepare(
         "SELECT id, agent_id, target, risk_score, created_at FROM security_events
-         WHERE event_type = 'anomaly' ORDER BY created_at DESC LIMIT 5"
+         WHERE event_type = 'anomaly' ORDER BY created_at DESC LIMIT 5",
     )?;
     let anomalies: Vec<serde_json::Value> = anomaly_stmt
         .query_map([], |row| {
@@ -267,6 +263,10 @@ pub fn cleanup_security_events(db: &EngineDb, days: i64) -> Result<i64> {
         "DELETE FROM security_events WHERE created_at < datetime('now', ?)",
         rusqlite::params![format!("-{} days", days)],
     )?;
-    log::info!("[Security] Cleaned up {} old security events (older than {} days)", deleted, days);
+    log::info!(
+        "[Security] Cleaned up {} old security events (older than {} days)",
+        deleted,
+        days
+    );
     Ok(deleted as i64)
 }

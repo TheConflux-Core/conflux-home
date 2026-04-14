@@ -5,7 +5,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::engine::db::EngineDb;
-use crate::engine::security::events::{self, EventType, EventCategory};
+use crate::engine::security::events::{self, EventCategory, EventType};
 
 /// Anomaly rule definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,9 +25,9 @@ pub fn get_anomaly_rules(db: &EngineDb) -> Result<Vec<AnomalyRule>> {
     let conn = db.conn();
     let mut stmt = conn.prepare(
         "SELECT id, name, description, rule_type, condition_json, severity, action, is_enabled
-         FROM anomaly_rules ORDER BY severity DESC, name"
+         FROM anomaly_rules ORDER BY severity DESC, name",
     )?;
-    
+
     let rules = stmt
         .query_map([], |row| {
             Ok(AnomalyRule {
@@ -94,15 +94,19 @@ pub struct TriggeredAnomaly {
 }
 
 /// Check rate limit anomaly.
-fn check_rate_limit(db: &EngineDb, agent_id: &str, rule: &AnomalyRule) -> Result<Option<TriggeredAnomaly>> {
+fn check_rate_limit(
+    db: &EngineDb,
+    agent_id: &str,
+    rule: &AnomalyRule,
+) -> Result<Option<TriggeredAnomaly>> {
     let condition: serde_json::Value = serde_json::from_str(&rule.condition_json)?;
-    
+
     let event_type = condition["event_type"].as_str().unwrap_or("");
     let threshold = condition["threshold"].as_i64().unwrap_or(100);
     let window_seconds = condition["window_seconds"].as_i64().unwrap_or(300);
 
     let conn = db.conn();
-    
+
     // Count events in the window
     let count: i64 = conn.query_row(
         "SELECT COUNT(*) FROM security_events
@@ -115,7 +119,9 @@ fn check_rate_limit(db: &EngineDb, agent_id: &str, rule: &AnomalyRule) -> Result
     if count >= threshold {
         // Log the anomaly
         let _ = events::log_security_event(
-            db, agent_id, None,
+            db,
+            agent_id,
+            None,
             EventType::Anomaly,
             severity_to_category(&rule.severity),
             None,
@@ -150,23 +156,27 @@ fn check_rate_limit(db: &EngineDb, agent_id: &str, rule: &AnomalyRule) -> Result
 }
 
 /// Check pattern match anomaly (recent events match suspicious patterns).
-fn check_pattern_match(db: &EngineDb, agent_id: &str, rule: &AnomalyRule) -> Result<Option<TriggeredAnomaly>> {
+fn check_pattern_match(
+    db: &EngineDb,
+    agent_id: &str,
+    rule: &AnomalyRule,
+) -> Result<Option<TriggeredAnomaly>> {
     let condition: serde_json::Value = serde_json::from_str(&rule.condition_json)?;
-    
+
     let event_type = condition["event_type"].as_str().unwrap_or("");
     let patterns = condition["patterns"].as_array();
 
     if let Some(patterns) = patterns {
         let conn = db.conn();
-        
+
         // Get recent events of this type
         let mut stmt = conn.prepare(
             "SELECT target, details FROM security_events
              WHERE agent_id = ?1 AND event_type = ?2
              AND created_at >= datetime('now', '-1 hour')
-             ORDER BY created_at DESC LIMIT 50"
+             ORDER BY created_at DESC LIMIT 50",
         )?;
-        
+
         let events: Vec<(Option<String>, Option<String>)> = stmt
             .query_map(rusqlite::params![agent_id, event_type], |row| {
                 Ok((row.get(0)?, row.get(1)?))
@@ -179,7 +189,9 @@ fn check_pattern_match(db: &EngineDb, agent_id: &str, rule: &AnomalyRule) -> Res
                     if let Some(p) = pattern.as_str() {
                         if t.to_lowercase().contains(&p.to_lowercase()) {
                             let _ = events::log_security_event(
-                                db, agent_id, None,
+                                db,
+                                agent_id,
+                                None,
                                 EventType::Anomaly,
                                 severity_to_category(&rule.severity),
                                 None,
@@ -218,22 +230,26 @@ fn check_pattern_match(db: &EngineDb, agent_id: &str, rule: &AnomalyRule) -> Res
 }
 
 /// Check privilege escalation anomaly.
-fn check_privilege_escalation(db: &EngineDb, agent_id: &str, rule: &AnomalyRule) -> Result<Option<TriggeredAnomaly>> {
+fn check_privilege_escalation(
+    db: &EngineDb,
+    agent_id: &str,
+    rule: &AnomalyRule,
+) -> Result<Option<TriggeredAnomaly>> {
     let condition: serde_json::Value = serde_json::from_str(&rule.condition_json)?;
-    
+
     let patterns = condition["patterns"].as_array();
 
     if let Some(patterns) = patterns {
         let conn = db.conn();
-        
+
         // Check recent exec commands
         let mut stmt = conn.prepare(
             "SELECT target FROM security_events
              WHERE agent_id = ?1 AND event_type = 'exec_command'
              AND created_at >= datetime('now', '-1 hour')
-             ORDER BY created_at DESC LIMIT 50"
+             ORDER BY created_at DESC LIMIT 50",
         )?;
-        
+
         let commands: Vec<Option<String>> = stmt
             .query_map(rusqlite::params![agent_id], |row| row.get(0))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -244,7 +260,9 @@ fn check_privilege_escalation(db: &EngineDb, agent_id: &str, rule: &AnomalyRule)
                     if let Some(p) = pattern.as_str() {
                         if c.to_lowercase().contains(&p.to_lowercase()) {
                             let _ = events::log_security_event(
-                                db, agent_id, None,
+                                db,
+                                agent_id,
+                                None,
                                 EventType::Anomaly,
                                 EventCategory::Critical,
                                 Some("exec"),
@@ -284,7 +302,7 @@ fn check_privilege_escalation(db: &EngineDb, agent_id: &str, rule: &AnomalyRule)
 /// Run anomaly check and log results. Called periodically.
 pub fn run_anomaly_scan(db: &EngineDb) -> Result<Vec<TriggeredAnomaly>> {
     let conn = db.conn();
-    
+
     // Get all active agents
     let mut stmt = conn.prepare("SELECT id FROM agents WHERE is_active = 1")?;
     let agents: Vec<String> = stmt
@@ -292,14 +310,18 @@ pub fn run_anomaly_scan(db: &EngineDb) -> Result<Vec<TriggeredAnomaly>> {
         .collect::<std::result::Result<Vec<_>, _>>()?;
 
     let mut all_anomalies = Vec::new();
-    
+
     for agent_id in &agents {
         let anomalies = check_anomalies(db, agent_id)?;
         all_anomalies.extend(anomalies);
     }
 
     if !all_anomalies.is_empty() {
-        log::warn!("[Anomaly] {} anomalies detected across {} agents", all_anomalies.len(), agents.len());
+        log::warn!(
+            "[Anomaly] {} anomalies detected across {} agents",
+            all_anomalies.len(),
+            agents.len()
+        );
     }
 
     Ok(all_anomalies)
