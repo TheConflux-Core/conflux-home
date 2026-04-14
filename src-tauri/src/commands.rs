@@ -6055,3 +6055,258 @@ pub fn echo_counselor_set_evening_reminder(req: SetEveningReminderRequest) -> Re
         &task_message,
     ).map_err(|e| e.to_string())
 }
+
+// ============================================================
+// SECURITY — Mission 1224: Agent Security & SIEM
+// ============================================================
+
+/// Get security events with optional filters.
+#[tauri::command]
+pub fn security_get_events(
+    agent_id: Option<String>,
+    event_type: Option<String>,
+    category: Option<String>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let db = engine.db();
+    let events = super::engine::security::events::get_security_events(
+        db,
+        agent_id.as_deref(),
+        event_type.as_deref(),
+        category.as_deref(),
+        limit.unwrap_or(50),
+        offset.unwrap_or(0),
+    ).map_err(|e| e.to_string())?;
+
+    Ok(events.iter().map(|e| serde_json::json!({
+        "id": e.id,
+        "agent_id": e.agent_id,
+        "session_id": e.session_id,
+        "event_type": e.event_type,
+        "category": e.category,
+        "tool_name": e.tool_name,
+        "target": e.target,
+        "details": e.details,
+        "risk_score": e.risk_score,
+        "was_allowed": e.was_allowed,
+        "created_at": e.created_at,
+    })).collect())
+}
+
+/// Get SIEM dashboard summary.
+#[tauri::command]
+pub fn security_get_summary() -> Result<serde_json::Value, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::events::get_security_summary(engine.db())
+        .map_err(|e| e.to_string())
+}
+
+/// Get security events for a specific agent.
+#[tauri::command]
+pub fn security_get_agent_activity(agent_id: String, limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let events = super::engine::security::events::get_agent_activity(
+        engine.db(), &agent_id, limit.unwrap_or(30)
+    ).map_err(|e| e.to_string())?;
+
+    Ok(events.iter().map(|e| serde_json::json!({
+        "id": e.id,
+        "agent_id": e.agent_id,
+        "event_type": e.event_type,
+        "category": e.category,
+        "tool_name": e.tool_name,
+        "target": e.target,
+        "risk_score": e.risk_score,
+        "was_allowed": e.was_allowed,
+        "created_at": e.created_at,
+    })).collect())
+}
+
+/// Get critical security events.
+#[tauri::command]
+pub fn security_get_critical_events(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let events = super::engine::security::events::get_critical_events(
+        engine.db(), limit.unwrap_or(20)
+    ).map_err(|e| e.to_string())?;
+
+    Ok(events.iter().map(|e| serde_json::json!({
+        "id": e.id,
+        "agent_id": e.agent_id,
+        "event_type": e.event_type,
+        "target": e.target,
+        "risk_score": e.risk_score,
+        "was_allowed": e.was_allowed,
+        "created_at": e.created_at,
+    })).collect())
+}
+
+/// Get agent security profile.
+#[tauri::command]
+pub fn security_get_profile(agent_id: String) -> Result<serde_json::Value, String> {
+    let engine = super::engine::get_engine();
+    let profile = super::engine::security::permissions::get_security_profile(
+        engine.db(), &agent_id
+    ).map_err(|e| e.to_string())?;
+
+    Ok(serde_json::json!({
+        "agent_id": profile.agent_id,
+        "sandbox_enabled": profile.sandbox_enabled,
+        "file_access_mode": profile.file_access_mode,
+        "network_mode": profile.network_mode,
+        "exec_mode": profile.exec_mode,
+        "max_file_reads_per_min": profile.max_file_reads_per_min,
+        "max_file_writes_per_min": profile.max_file_writes_per_min,
+        "max_exec_per_min": profile.max_exec_per_min,
+        "max_network_per_min": profile.max_network_per_min,
+        "anomaly_threshold": profile.anomaly_threshold,
+    }))
+}
+
+/// Update agent security profile.
+#[tauri::command]
+pub fn security_update_profile(
+    agent_id: String,
+    sandbox_enabled: Option<bool>,
+    file_access_mode: Option<String>,
+    network_mode: Option<String>,
+    exec_mode: Option<String>,
+    max_file_reads: Option<i64>,
+    max_file_writes: Option<i64>,
+    max_exec: Option<i64>,
+    max_network: Option<i64>,
+    anomaly_threshold: Option<i64>,
+) -> Result<(), String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::permissions::update_security_profile(
+        engine.db(),
+        &agent_id,
+        sandbox_enabled,
+        file_access_mode.as_deref(),
+        network_mode.as_deref(),
+        exec_mode.as_deref(),
+        max_file_reads,
+        max_file_writes,
+        max_exec,
+        max_network,
+        anomaly_threshold,
+    ).map_err(|e| e.to_string())
+}
+
+/// Get permission rules for an agent.
+#[tauri::command]
+pub fn security_get_rules(agent_id: String) -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let rules = super::engine::security::permissions::get_permission_rules(
+        engine.db(), &agent_id
+    ).map_err(|e| e.to_string())?;
+
+    Ok(rules.iter().map(|r| serde_json::json!({
+        "id": r.id,
+        "agent_id": r.agent_id,
+        "resource_type": r.resource_type,
+        "resource_value": r.resource_value,
+        "action": r.action,
+        "scope": r.scope,
+        "description": r.description,
+        "is_system": r.is_system,
+        "created_at": r.created_at,
+        "updated_at": r.updated_at,
+    })).collect())
+}
+
+/// Add a permission rule.
+#[tauri::command]
+pub fn security_add_rule(
+    agent_id: String,
+    resource_type: String,
+    resource_value: String,
+    action: String,
+    scope: Option<String>,
+    description: Option<String>,
+) -> Result<String, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::permissions::add_permission_rule(
+        engine.db(),
+        &agent_id,
+        &resource_type,
+        &resource_value,
+        &action,
+        scope.as_deref().unwrap_or("all"),
+        description.as_deref(),
+    ).map_err(|e| e.to_string())
+}
+
+/// Delete a permission rule.
+#[tauri::command]
+pub fn security_delete_rule(rule_id: String) -> Result<bool, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::permissions::delete_permission_rule(
+        engine.db(), &rule_id
+    ).map_err(|e| e.to_string())
+}
+
+/// Get pending permission prompts.
+#[tauri::command]
+pub fn security_get_pending_prompts(agent_id: Option<String>) -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::permissions::get_pending_prompts(
+        engine.db(), agent_id.as_deref()
+    ).map_err(|e| e.to_string())
+}
+
+/// Resolve a permission prompt (user decision).
+#[tauri::command]
+pub fn security_resolve_prompt(prompt_id: String, decision: String) -> Result<(), String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::permissions::resolve_permission_prompt(
+        engine.db(), &prompt_id, &decision
+    ).map_err(|e| e.to_string())
+}
+
+/// Run anomaly scan across all agents.
+#[tauri::command]
+pub fn security_run_anomaly_scan() -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let anomalies = super::engine::security::anomaly::run_anomaly_scan(engine.db())
+        .map_err(|e| e.to_string())?;
+
+    Ok(anomalies.iter().map(|a| serde_json::json!({
+        "rule_id": a.rule_id,
+        "rule_name": a.rule_name,
+        "severity": a.severity,
+        "action": a.action,
+        "description": a.description,
+        "details": a.details,
+    })).collect())
+}
+
+/// Get anomaly rules.
+#[tauri::command]
+pub fn security_get_anomaly_rules() -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let rules = super::engine::security::anomaly::get_anomaly_rules(engine.db())
+        .map_err(|e| e.to_string())?;
+
+    Ok(rules.iter().map(|r| serde_json::json!({
+        "id": r.id,
+        "name": r.name,
+        "description": r.description,
+        "rule_type": r.rule_type,
+        "condition_json": r.condition_json,
+        "severity": r.severity,
+        "action": r.action,
+        "is_enabled": r.is_enabled,
+    })).collect())
+}
+
+/// Cleanup old security events.
+#[tauri::command]
+pub fn security_cleanup_events(days: Option<i64>) -> Result<i64, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::events::cleanup_security_events(
+        engine.db(), days.unwrap_or(90)
+    ).map_err(|e| e.to_string())
+}

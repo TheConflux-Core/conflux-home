@@ -579,6 +579,21 @@ pub fn run() {
             commands::route_get_reliable_tool_models,
             // Cross-App Synthesis for Orbit
             commands::orbit_get_cross_app_insights,
+            // Security — Mission 1224: Agent Security & SIEM
+            commands::security_get_events,
+            commands::security_get_summary,
+            commands::security_get_agent_activity,
+            commands::security_get_critical_events,
+            commands::security_get_profile,
+            commands::security_update_profile,
+            commands::security_get_rules,
+            commands::security_add_rule,
+            commands::security_delete_rule,
+            commands::security_get_pending_prompts,
+            commands::security_resolve_prompt,
+            commands::security_run_anomaly_scan,
+            commands::security_get_anomaly_rules,
+            commands::security_cleanup_events,
             // Stripe — Subscription Management
             stripe::stripe_create_checkout_session,
             stripe::stripe_create_credit_pack_session,

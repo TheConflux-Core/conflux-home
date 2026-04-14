@@ -18,8 +18,6 @@ import CookingModeEnhanced from './CookingModeEnhanced';
 import RestaurantMenu from './RestaurantMenu';
 import BrowseCards from './BrowseCards';
 import { MicButton } from './voice';
-import TonightsTable from './TonightsTable';
-import MenuGenerator from './MenuGenerator';
 import KitchenBoot from './KitchenBoot';
 import HearthOnboarding, { hasCompletedHearthOnboarding } from './HearthOnboarding';
 import HearthTour, { hasCompletedHearthTour } from './HearthTour';
@@ -38,30 +36,7 @@ function formatCost(n: number | null): string {
   return `$${n.toFixed(2)}`;
 }
 
-// ── Tonight's Table helper ───────────────────────────────────────────────
-function getTonightsMeal(plan: any, meals: Meal[]) {
-  if (!plan) return null;
-  const today = new Date();
-  const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon...
-  const dayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Mon=0
-  const dayData = plan.days?.[dayIndex];
-  if (!dayData) return null;
-  // Find dinner first, then lunch, then breakfast
-  for (const slot of ['dinner', 'lunch', 'breakfast']) {
-    const slotData = dayData.slots?.find((s: any) => s.meal_slot === slot);
-    if (slotData?.meal) {
-      return {
-        day_name: dayNames[dayIndex],
-        slot,
-        meal: slotData.meal,
-        missing_ingredients: [],
-      };
-    }
-  }
-  return null;
-}
-
-const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const SLOTS = ['breakfast', 'lunch', 'dinner'] as const;
 
 export default function KitchenView() {
   const { user } = useAuth();
@@ -88,8 +63,6 @@ export default function KitchenView() {
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [tourComplete, setTourComplete] = useState(false);
   const [showAddPantryItem, setShowAddPantryItem] = useState(false);
-  const [showMenuGenerator, setShowMenuGenerator] = useState(false);
-  const [inventoryFilter, setInventoryFilter] = useState<'all' | 'expiring' | 'fridge' | 'pantry' | 'freezer'>('all');
 
   const weekStart = useMemo(getWeekStart, []);
 
@@ -199,7 +172,7 @@ export default function KitchenView() {
     else if (nudge.nudge_type === 'grocery') setTab('grocery');
   }, []);
 
-const SLOTS = ['breakfast', 'lunch', 'dinner'] as const;
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   return (
     <div className="kitchen-matrix">
@@ -305,49 +278,18 @@ const SLOTS = ['breakfast', 'lunch', 'dinner'] as const;
             />
           ) : (
             <>
-              {/* Tonight's Table — Hero Card */}
-              <TonightsTable
-                plannedMeal={getTonightsMeal(plan, meals)}
-                onStartCooking={(mealId) => setCookingMealId(mealId)}
-                onAddToPlan={(meal) => {
-                  const today = new Date();
-                  const dayOfWeek = today.getDay();
-                  const dayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-                  setEntry(dayIndex, 'dinner', meal.id);
-                  setTab('plan');
-                }}
-                onSeeAlternatives={() => setTab('library')}
+              {/* Restaurant Menu — Main Home View */}
+              <RestaurantMenu
+                chefsSpecials={homeMenu}
+                yourRegulars={meals.filter(m => m.is_favorite).slice(0, 6)}
+                onSelect={(id) => setCookingMealId(id)}
+                loading={menuLoading}
               />
 
-              {/* Quick Stats Row */}
-              <div className="hearth-stats-row">
-                <div className="hearth-stat-chip">
-                  <span className="hearth-stat-emoji">📖</span>
-                  <span className="hearth-stat-val">{meals.length}</span>
-                  <span className="hearth-stat-label">Recipes</span>
-                </div>
-                <div className="hearth-stat-chip">
-                  <span className="hearth-stat-emoji">🍽️</span>
-                  <span className="hearth-stat-val">{plan?.meal_count ?? 0}</span>
-                  <span className="hearth-stat-label">Planned</span>
-                </div>
-                <div className="hearth-stat-chip">
-                  <span className="hearth-stat-emoji">🛒</span>
-                  <span className="hearth-stat-val">{groceryItems.length}</span>
-                  <span className="hearth-stat-label">Grocery</span>
-                </div>
-                {digest && (
-                  <div className="hearth-stat-chip">
-                    <span className="hearth-stat-emoji">🔥</span>
-                    <span className="hearth-stat-val">{digest.meals_cooked}</span>
-                    <span className="hearth-stat-label">Cooked</span>
-                  </div>
-                )}
-              </div>
+              <KitchenNudges nudges={nudges} onAction={handleNudgeAction} />
 
-              {/* Smart Nudges */}
-              {nudges.length > 0 && (
-                <KitchenNudges nudges={nudges} onAction={handleNudgeAction} />
+              {digest && !digestLoading && (
+                <KitchenDigestCard digest={digest} />
               )}
             </>
           )}
@@ -450,13 +392,6 @@ const SLOTS = ['breakfast', 'lunch', 'dinner'] as const;
               <span>🍽️ {plan.meal_count} meals planned</span>
               <span>💰 Est. {formatCost(plan.total_estimated_cost)}</span>
             </div>
-            <button
-              className="btn-secondary"
-              style={{ fontSize: '0.82rem', padding: '6px 14px', gap: '4px' }}
-              onClick={() => setShowMenuGenerator(true)}
-            >
-              📋 Generate Menu
-            </button>
           </div>
 
           <div className="plan-grid">
@@ -522,96 +457,16 @@ const SLOTS = ['breakfast', 'lunch', 'dinner'] as const;
       )}
 
       {/* ── PANTRY TAB ── */}
-      {/* ── PANTRY TAB ── */}
       {tab === 'pantry' && (
         <div className="kitchen-pantry">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-            <h3>🌡️ Inventory</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h3>🌡️ Pantry</h3>
             <button className="btn-primary" onClick={() => setShowAddPantryItem(true)}>
               + Add Item
             </button>
           </div>
-
-          {/* NL Inventory Add — "Add a dozen eggs and a gallon of milk" */}
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-            <input
-              id="nl-inventory-input"
-              type="text"
-              placeholder='e.g. "Add a dozen eggs and a gallon of milk"'
-              style={{ flex: 1, padding: '0.6rem 0.875rem', borderRadius: '10px', border: '1px solid var(--hearth-surface)', background: 'var(--hearth-bg-input)', color: 'var(--hearth-100)', fontSize: '0.9rem', outline: 'none' }}
-              onKeyDown={async (e) => {
-                if (e.key === 'Enter') {
-                  const input = e.currentTarget;
-                  const text = input.value.trim();
-                  if (!text) return;
-                  input.disabled = true;
-                  try {
-                    const result = await invoke<any>('kitchen_nl_add_inventory', { text, member_id: user?.id || null });
-                    input.value = '';
-                    // Refresh inventory
-                    const inventory = await invoke<any[]>('kitchen_get_inventory', { location: null, member_id: user?.id || null });
-                    const today = new Date();
-                    const heatItems = inventory.map((item: any) => {
-                      let daysUntilExpiry: number | null = null;
-                      let freshness = 1.0;
-                      if (item.expiry_date) {
-                        const expiryDate = new Date(item.expiry_date);
-                        daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                        freshness = Math.max(0, Math.min(1, daysUntilExpiry / 30));
-                      }
-                      return { name: item.name, freshness, days_until_expiry: daysUntilExpiry, location: item.location || 'pantry' };
-                    });
-                    setPantryItems(heatItems);
-                  } catch (err) {
-                    console.error('NL add failed:', err);
-                  } finally {
-                    input.disabled = false;
-                  }
-                }
-              }}
-            />
-          </div>
-
           {pantryItems.length > 0 ? (
-            <>
-              {/* Location / Status Filter Chips */}
-              <div className="inventory-filter-row">
-                {([
-                  { key: 'all',      label: 'All' },
-                  { key: 'expiring', label: '⚠️ Expiring' },
-                  { key: 'fridge',   label: '🧊 Fridge' },
-                  { key: 'pantry',   label: '🏠 Pantry' },
-                  { key: 'freezer',  label: '❄️ Freezer' },
-                ] as const).map(f => (
-                  <button
-                    key={f.key}
-                    className={`inventory-filter-chip ${inventoryFilter === f.key ? 'active' : ''}`}
-                    onClick={() => setInventoryFilter(f.key)}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Filtered heatmap */}
-              {(() => {
-                const filtered = pantryItems.filter(item => {
-                  if (inventoryFilter === 'expiring') return item.days_until_expiry !== null && item.days_until_expiry <= 3;
-                  if (inventoryFilter === 'fridge')   return item.location === 'fridge';
-                  if (inventoryFilter === 'pantry')   return item.location === 'pantry';
-                  if (inventoryFilter === 'freezer')  return item.location === 'freezer';
-                  return true;
-                });
-                if (filtered.length === 0) {
-                  return (
-                    <div className="kitchen-empty" style={{ marginTop: '0.5rem' }}>
-                      <p>No items in this category. Try a different filter or add items above.</p>
-                    </div>
-                  );
-                }
-                return <PantryHeatmap items={filtered} />;
-              })()}
-            </>
+            <PantryHeatmap items={pantryItems} />
           ) : (
             <div className="kitchen-empty">
               <p>🌡️ Your pantry is empty. Add items to track freshness and get nudges when things are about to expire.</p>
@@ -720,14 +575,6 @@ const SLOTS = ['breakfast', 'lunch', 'dinner'] as const;
           onPrev={() => setCookingCurrentStep(prev => Math.max(prev - 1, 0))}
           onClose={() => setCookingMealId(null)}
           autoAdvance={true}
-        />
-      )}
-
-      {/* ── MENU GENERATOR MODAL ── */}
-      {showMenuGenerator && plan && (
-        <MenuGenerator
-          plan={plan}
-          onClose={() => setShowMenuGenerator(false)}
         />
       )}
     </div>
