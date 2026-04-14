@@ -19,6 +19,7 @@ import RestaurantMenu from './RestaurantMenu';
 import BrowseCards from './BrowseCards';
 import { MicButton } from './voice';
 import TonightsTable from './TonightsTable';
+import MenuGenerator from './MenuGenerator';
 import KitchenBoot from './KitchenBoot';
 import HearthOnboarding, { hasCompletedHearthOnboarding } from './HearthOnboarding';
 import HearthTour, { hasCompletedHearthTour } from './HearthTour';
@@ -87,6 +88,7 @@ export default function KitchenView() {
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [tourComplete, setTourComplete] = useState(false);
   const [showAddPantryItem, setShowAddPantryItem] = useState(false);
+  const [showMenuGenerator, setShowMenuGenerator] = useState(false);
   const [inventoryFilter, setInventoryFilter] = useState<'all' | 'expiring' | 'fridge' | 'pantry' | 'freezer'>('all');
 
   const weekStart = useMemo(getWeekStart, []);
@@ -448,6 +450,13 @@ const SLOTS = ['breakfast', 'lunch', 'dinner'] as const;
               <span>🍽️ {plan.meal_count} meals planned</span>
               <span>💰 Est. {formatCost(plan.total_estimated_cost)}</span>
             </div>
+            <button
+              className="btn-secondary"
+              style={{ fontSize: '0.82rem', padding: '6px 14px', gap: '4px' }}
+              onClick={() => setShowMenuGenerator(true)}
+            >
+              📋 Generate Menu
+            </button>
           </div>
 
           <div className="plan-grid">
@@ -711,6 +720,14 @@ const SLOTS = ['breakfast', 'lunch', 'dinner'] as const;
           onPrev={() => setCookingCurrentStep(prev => Math.max(prev - 1, 0))}
           onClose={() => setCookingMealId(null)}
           autoAdvance={true}
+        />
+      )}
+
+      {/* ── MENU GENERATOR MODAL ── */}
+      {showMenuGenerator && plan && (
+        <MenuGenerator
+          plan={plan}
+          onClose={() => setShowMenuGenerator(false)}
         />
       )}
     </div>
