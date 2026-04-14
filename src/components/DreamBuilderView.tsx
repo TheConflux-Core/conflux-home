@@ -34,7 +34,7 @@ const CATEGORY_CONFIG: Record<string, { emoji: string; color: string; label: str
 export default function DreamBuilderView() {
   const {
     dashboard, loading, load,
-    addDream, deleteDream,
+    addDream, deleteDream, prependDream,
     completeMilestone, completeTask,
     addProgress, addMilestone, addTask,
     getVelocity, updateProgressManual, narrate,
@@ -136,20 +136,16 @@ export default function DreamBuilderView() {
 
   const activeDreams = dashboard?.dreams.filter(d => d.status === 'active') ?? [];
 
-  // After onboarding completes, mark the current dreams as "newly lit" for star animation
-  const handleOnboardingComplete = useCallback(() => {
-    // Give dashboard a moment to load the new dream from onboarding
-    setTimeout(() => {
-      if (dashboard?.dreams) {
-        const newIds = new Set(dashboard.dreams.map(d => d.id));
-        setNewlyLitDreams(newIds);
-        // Remove "newly lit" status after 8 seconds
-        setTimeout(() => setNewlyLitDreams(new Set()), 8000);
-      }
-    }, 500);
+  // After onboarding completes, prepend the created dream directly and highlight it
+  const handleOnboardingComplete = useCallback((createdDream?: Dream) => {
+    if (createdDream) {
+      prependDream(createdDream);
+      setNewlyLitDreams(new Set([createdDream.id]));
+      setTimeout(() => setNewlyLitDreams(new Set()), 8000);
+    }
     setShowOnboarding(false);
     if (!hasTakenTour) setShowTour(true);
-  }, [dashboard, hasTakenTour]);
+  }, [prependDream, hasTakenTour]);
   if (!bootDone) {
     return <HorizonBoot onComplete={() => { localStorage.setItem('horizon-boot-done', 'true'); setBootDone(true); }} />;
   }

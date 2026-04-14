@@ -22,6 +22,7 @@ export function useMeals(category?: string, cuisine?: string, favoritesOnly = fa
         favoritesOnly,
         member_id: memberId,
       });
+      console.log('[useMeals] load() returned', data.length, 'meals, memberId:', memberId);
       setMeals(data);
     } catch (e) {
       console.error('Failed to load meals:', e);
@@ -33,7 +34,9 @@ export function useMeals(category?: string, cuisine?: string, favoritesOnly = fa
   useEffect(() => { load(); }, [load]);
 
   const addWithAI = useCallback(async (description: string) => {
+    console.log('[useMeals] addWithAI called, memberId:', memberId);
     const result = await invoke<MealWithIngredients>('kitchen_ai_add_meal', { description, member_id: memberId });
+    console.log('[useMeals] addWithAI result.meal:', result?.meal?.name ?? 'NULL/UNDEFINED');
     setMeals(prev => [result.meal, ...prev]);
     return result;
   }, [memberId]);
@@ -43,7 +46,7 @@ export function useMeals(category?: string, cuisine?: string, favoritesOnly = fa
     setMeals(prev => prev.map(m => m.id === id ? { ...m, is_favorite: !m.is_favorite } : m));
   }, [memberId]);
 
-  return { meals, loading, addWithAI, toggleFavorite, reload: load };
+  return { meals, loading, addWithAI, toggleFavorite, reload: load, setMeals };
 }
 
 export function useMealDetail(mealId: string | null) {
