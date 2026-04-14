@@ -379,6 +379,8 @@ pub fn run() {
             budget::budget_update_allocation,
             budget::budget_log_transaction,
             budget::budget_get_transactions,
+            budget::budget_delete_transaction,
+            budget::budget_delete_bucket,
             // Content Feed
             commands::feed_get_items,
             commands::feed_mark_read,
@@ -597,6 +599,11 @@ pub fn run() {
             commands::aegis_get_findings,
             commands::aegis_get_latest_summary,
             commands::aegis_delete_run,
+            commands::viper_run_scan,
+            commands::viper_get_scans,
+            commands::viper_get_findings,
+            commands::viper_get_latest_summary,
+            commands::viper_delete_scan,
             // Stripe — Subscription Management
             stripe::stripe_create_checkout_session,
             stripe::stripe_create_credit_pack_session,

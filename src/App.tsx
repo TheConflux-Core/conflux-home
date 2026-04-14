@@ -50,6 +50,7 @@ import VaultView from './components/VaultView';
 import StudioView from './components/StudioView';
 import SecurityDashboard from './components/SecurityDashboard';
 import AegisDashboard from './components/AegisDashboard';
+import ViperDashboard from './components/ViperDashboard';
 import GuidedTour from './components/GuidedTour';
 
 // Phase 0.3+: Global AI Input, Agent Status
@@ -933,6 +934,7 @@ const [activeSnake, setActiveSnake] = useState(false);
           {immersiveView === 'settings' && <Settings />}
           {immersiveView === 'security' && <SecurityDashboard />}
           {immersiveView === 'aegis' && <AegisDashboard />}
+          {immersiveView === 'viper' && <ViperDashboard />}
           {immersiveView === 'api-dashboard' && <ApiDashboard />}
           {immersiveView === 'dashboard' && (
             <div>

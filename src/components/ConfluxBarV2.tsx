@@ -74,6 +74,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   'api-dashboard': { icon: '📊', label: 'API' },
   security: { icon: '🛡️', label: 'Security' },
   aegis: { icon: '🛡️', label: 'Aegis' },
+  viper: { icon: '🐍', label: 'Viper' },
 };
 
 const ALL_APPS: AppItem[] = [

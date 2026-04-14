@@ -8858,3 +8858,93 @@ pub fn aegis_delete_run(run_id: String) -> Result<bool, String> {
     super::engine::security::aegis::delete_audit_run(engine.db(), &run_id)
         .map_err(|e| e.to_string())
 }
+
+// ============================================================
+// VIPER — Vulnerability Scanner (Mission 1224 Phase 3)
+// ============================================================
+
+/// Run a vulnerability scan.
+#[tauri::command]
+pub fn viper_run_scan(scan_type: Option<String>) -> Result<String, String> {
+    let engine = super::engine::get_engine();
+    match scan_type.as_deref() {
+        Some("quick") => super::engine::security::viper::run_quick_scan(engine.db()),
+        _ => super::engine::security::viper::run_full_scan(engine.db()),
+    }
+    .map_err(|e| e.to_string())
+}
+
+/// Get recent scans.
+#[tauri::command]
+pub fn viper_get_scans(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let scans = super::engine::security::viper::get_scans(engine.db(), limit.unwrap_or(10))
+        .map_err(|e| e.to_string())?;
+    Ok(scans
+        .iter()
+        .map(|s| {
+            serde_json::json!({
+                "id": s.id,
+                "scan_type": s.scan_type,
+                "status": s.status,
+                "risk_score": s.risk_score,
+                "total_checks": s.total_checks,
+                "pass_count": s.pass_count,
+                "info_count": s.info_count,
+                "warn_count": s.warn_count,
+                "critical_count": s.critical_count,
+                "started_at": s.started_at,
+                "completed_at": s.completed_at,
+            })
+        })
+        .collect())
+}
+
+/// Get findings for a scan.
+#[tauri::command]
+pub fn viper_get_findings(
+    scan_id: String,
+    category: Option<String>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let findings = if let Some(cat) = category {
+        super::engine::security::viper::get_findings_by_category(engine.db(), &scan_id, &cat)
+    } else {
+        super::engine::security::viper::get_findings(engine.db(), &scan_id)
+    }
+    .map_err(|e| e.to_string())?;
+
+    Ok(findings
+        .iter()
+        .map(|f| {
+            serde_json::json!({
+                "id": f.id,
+                "scan_id": f.scan_id,
+                "category": f.category,
+                "check_name": f.check_name,
+                "severity": f.severity,
+                "title": f.title,
+                "description": f.description,
+                "remediation": f.remediation,
+                "cve_ids": f.cve_ids,
+                "raw_data": f.raw_data,
+            })
+        })
+        .collect())
+}
+
+/// Get latest scan summary.
+#[tauri::command]
+pub fn viper_get_latest_summary() -> Result<Option<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::viper::get_latest_summary(engine.db())
+        .map_err(|e| e.to_string())
+}
+
+/// Delete a scan.
+#[tauri::command]
+pub fn viper_delete_scan(scan_id: String) -> Result<bool, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::viper::delete_scan(engine.db(), &scan_id)
+        .map_err(|e| e.to_string())
+}

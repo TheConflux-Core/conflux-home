@@ -1,4 +1,4 @@
-// Conflux Home — Budget View (The Matrix v2 - Clean + Onboarding)
+// Conflux Home - Budget View (The Matrix v2 - Clean + Onboarding)
 // Zero-based budgeting with a "Spreadsheet-on-Steroids" UI.
 
 import { useState, useMemo, useEffect } from 'react';
@@ -22,16 +22,20 @@ function formatMoney(n: number): string {
 export default function BudgetView() {
   const { user: authUser } = useAuth();
   const { period, prevPeriod, nextPeriod } = useBudget();
-  const { 
-    settings, 
-    buckets, 
-    allocations, 
+  const {
+    settings,
+    buckets,
+    allocations,
     transactions,
-    updateSettings, 
+    updateSettings,
     logTransaction,
     createBucket,
+    updateBucket,
+    deleteBucket,
+    deleteTransaction,
+    parseNatural,
     refreshData,
-    loading 
+    loading
   } = useBudgetEngine();
 
   // Boot → Onboarding → Tour state
@@ -46,7 +50,7 @@ export default function BudgetView() {
   // After onboarding completes, refresh data so newly saved buckets appear immediately
   useEffect(() => {
     if (onboardingComplete) {
-      console.log('[BudgetView] Onboarding complete — reloading data from DB');
+      console.log('[BudgetView] Onboarding complete - reloading data from DB');
       refreshData();
     }
   }, [onboardingComplete, refreshData]);
@@ -61,14 +65,17 @@ export default function BudgetView() {
   useEffect(() => {
     console.log('[BudgetView] Data updated - settings:', JSON.stringify(settings), 'buckets:', buckets.length, 'loading:', loading);
   }, [settings, buckets, loading]);
-  
+
   const [activeBucket, setActiveBucket] = useState<string | null>(null);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [isLogOpen, setIsLogOpen] = useState(false);
   const [nlpInput, setNlpInput] = useState('');
+  const [nlpParsed, setNlpParsed] = useState<{ entry_type: string; category: string; amount: number; description: string } | null>(null);
+  const [nlpConfirming, setNlpConfirming] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success'>('idle');
-  
-  // Proactive nudge placeholder — shown when there's not much data yet
+  const [showTxHistory, setShowTxHistory] = useState(false);
+
+  // Proactive nudge placeholder - shown when there's not much data yet
   const showNudgePlaceholder = buckets.length < 3 || !settings?.income_amount;
 
   // Derived State for the Matrix
@@ -80,7 +87,7 @@ export default function BudgetView() {
   const getAllocation = (bucketId: string, p: number) => {
     const bucket = buckets.find(b => b.id === bucketId);
     if (!bucket) return 0;
-    
+
     const goal = bucket.monthly_goal || 0;
     const freq = settings?.pay_frequency;
 
@@ -95,7 +102,7 @@ export default function BudgetView() {
     if (freq === 'monthly') {
       return p === 1 ? goal : 0;
     }
-    
+
     // Default: Semi-monthly (24 pays)
     return goal / 2;
   };
@@ -118,6 +125,48 @@ export default function BudgetView() {
   const handleCellEdit = async (bucketId: string, period: 'p1' | 'p2', val: number) => {
     // Placeholder for updateAllocation call
     setEditingCell(null);
+  };
+
+  // ── NLP Input Handler ──────────────────────────────────────
+  const handleNlpSubmit = async () => {
+    if (!nlpInput.trim()) return;
+    try {
+      const parsed = await parseNatural(nlpInput);
+      setNlpParsed(parsed);
+      setNlpConfirming(true);
+    } catch (err) {
+      console.error('[BudgetView] NLP parse failed:', err);
+    }
+  };
+
+  const handleNlpConfirm = async () => {
+    if (!nlpParsed) return;
+    try {
+      const bucketName = nlpParsed.category;
+      const bucket = buckets.find(b => b.name.toLowerCase().includes(bucketName));
+      if (!bucket) {
+        alert(`No bucket found for category "${bucketName}". Add a bucket first in Config.`);
+        return;
+      }
+      await logTransaction({
+        bucket_id: bucket.id,
+        amount: nlpParsed.amount,
+        date: new Date().toISOString().split('T')[0],
+        status: 'settled',
+        description: nlpParsed.description,
+        category: nlpParsed.category,
+      });
+      setNlpInput('');
+      setNlpParsed(null);
+      setNlpConfirming(false);
+    } catch (err) {
+      console.error('[BudgetView] NLP confirm failed:', err);
+    }
+  };
+
+  const handleNlpCancel = () => {
+    setNlpParsed(null);
+    setNlpConfirming(false);
   };
 
   // Save config from onboarding setup flow
@@ -199,6 +248,37 @@ export default function BudgetView() {
         </div>
       </div>
 
+      {/* ── Natural Language Input ── */}
+      <div className="pulse-nlp-bar">
+        <div className="nlp-input-wrap">
+          <span className="nlp-icon">💬</span>
+          <input
+            className="nlp-input"
+            placeholder="Tell Pulse what happened... e.g. spent $47 at Costco"
+            value={nlpInput}
+            onChange={e => setNlpInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleNlpSubmit()}
+          />
+          <button className="nlp-submit-btn" onClick={handleNlpSubmit} disabled={!nlpInput.trim()}>
+            Send
+          </button>
+        </div>
+        {nlpConfirming && nlpParsed && (
+          <div className="nlp-confirm-card">
+            <div className="nlp-confirm-label">Did Pulse understand correctly?</div>
+            <div className="nlp-confirm-detail">
+              <span className="nlp-type-badge">{nlpParsed.entry_type.toUpperCase()}</span>
+              <span className="nlp-amount">${nlpParsed.amount.toFixed(2)}</span>
+              <span className="nlp-category">for <strong>{nlpParsed.category}</strong></span>
+            </div>
+            <div className="nlp-confirm-actions">
+              <button className="nlp-yes-btn" onClick={handleNlpConfirm}>✓ Yes, log it</button>
+              <button className="nlp-no-btn" onClick={handleNlpCancel}>✕ Cancel</button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* ── Matrix Header ── */}
       <div className="matrix-header">
         <div className="matrix-nav">
@@ -208,6 +288,9 @@ export default function BudgetView() {
         </div>
         <div className="matrix-controls">
           <button className="btn-primary" onClick={() => setIsLogOpen(true)}>⚡ LOG PAYMENT</button>
+          <button className="btn-secondary" onClick={() => setShowTxHistory(v => !v)}>
+            {showTxHistory ? '▲ HIDE HISTORY' : `📋 HISTORY (${transactions.length})`}
+          </button>
           <button className="btn-secondary" onClick={() => setIsConfigOpen(true)}>⚙️ CONFIG</button>
         </div>
       </div>
@@ -234,10 +317,10 @@ export default function BudgetView() {
             const goal = bucket.monthly_goal || 0;
             const pct = goal > 0 ? Math.min((totalPaid / goal) * 100, 100) : 0;
             const isFull = totalPaid >= goal;
-            
+
             return (
-              <div 
-                key={bucket.id} 
+              <div
+                key={bucket.id}
                 className={`grid-row data-row ${activeBucket === bucket.id ? 'active' : ''}`}
                 style={{ '--row-index': index } as React.CSSProperties}
                 onMouseEnter={() => setActiveBucket(bucket.id)}
@@ -247,10 +330,10 @@ export default function BudgetView() {
                   <span className="bucket-icon" style={{ color: bucket.color || undefined }}>{bucket.icon || '💳'}</span>
                   <span className="bucket-label">{bucket.name}</span>
                 </div>
-                
+
                 <div className="grid-cell col-pay interactive" onClick={() => handleCellClick(bucket.id, 'p1', p1Alloc)}>
                   {editingCell?.id === bucket.id && editingCell?.period === 'p1' ? (
-                    <input 
+                    <input
                       autoFocus
                       className="cell-edit-input"
                       value={editValue}
@@ -268,10 +351,10 @@ export default function BudgetView() {
                     {formatMoney(totalPaid >= p1Alloc ? p1Alloc : totalPaid)}
                   </span>
                 </div>
-                
+
                 <div className="grid-cell col-pay interactive" onClick={() => handleCellClick(bucket.id, 'p2', p2Alloc)}>
                   {editingCell?.id === bucket.id && editingCell?.period === 'p2' ? (
-                    <input 
+                    <input
                       autoFocus
                       className="cell-edit-input"
                       value={editValue}
@@ -298,8 +381,8 @@ export default function BudgetView() {
                     </span>
                   </div>
                   <div className="meter-track">
-                    <div 
-                      className="meter-fill" 
+                    <div
+                      className="meter-fill"
                       style={{ width: `${pct}%`, backgroundColor: isFull ? '#10b981' : (bucket.color || '#10b981') }}
                     />
                   </div>
@@ -310,63 +393,89 @@ export default function BudgetView() {
         </div>
       </div>
 
-      <BudgetConfigModal 
+      <BudgetConfigModal
         isOpen={isConfigOpen}
+        settings={settings}
+        buckets={buckets}
         onClose={() => setIsConfigOpen(false)}
-        saveStatus={saveStatus}
-        onSave={async (config) => {
-          console.log('💾 Config Save Triggered:', config);
+        onSaveSettings={async (config) => {
           setSaveStatus('saving');
           try {
-            // 1. Update Global Settings
-            console.log('📡 Sending settings to backend...');
             await updateSettings({
-              pay_frequency: config.payFrequency,
-              pay_dates: [config.payDates.p1, config.payDates.p2],
-              income_amount: config.monthlyIncome,
+              pay_frequency: config.pay_frequency,
+              pay_dates: config.pay_dates,
+              income_amount: config.income_amount,
             });
-            console.log('✅ Settings saved.');
-
-            // 2. Sync Buckets
-            const existingIds = new Set(buckets.map(b => b.id));
-            console.log('🪣 Existing DB buckets:', existingIds);
-            
-            for (const bucket of config.buckets) {
-              if (!existingIds.has(bucket.id)) {
-                console.log('➕ Creating new bucket:', bucket.name);
-                await createBucket({
-                  name: bucket.name,
-                  icon: bucket.icon,
-                  monthly_goal: bucket.monthly_goal,
-                  color: bucket.color
-                });
-              }
-            }
-
-            setSaveStatus('success');
-            console.log('🔄 Refreshing data from DB...');
-            await refreshData();
-            console.log('💾 Data refreshed. New bucket count:', buckets.length);
-            
-            setTimeout(() => {
-              setSaveStatus('idle');
-              setIsConfigOpen(false);
-            }, 1500);
           } catch (err) {
-            console.error('❌ Failed to save config:', err);
+            console.error('❌ Failed to save settings:', err);
+            throw err;
+          } finally {
             setSaveStatus('idle');
           }
         }}
+        onUpdateBucket={async (id, bucket) => {
+          await updateBucket(id, bucket);
+        }}
+        onCreateBucket={async (bucket) => {
+          await createBucket(bucket);
+        }}
+        onDeleteBucket={async (id) => {
+          await deleteBucket(id);
+        }}
+        saveStatus={saveStatus}
       />
+
+      {/* ── Transaction History ── */}
+      {showTxHistory && (
+        <div className="tx-history-panel">
+          <div className="tx-history-header">TRANSACTION LOG</div>
+          {transactions.length === 0 ? (
+            <div className="tx-history-empty">No transactions logged yet.</div>
+          ) : (
+            <div className="tx-history-list">
+              {[...transactions].reverse().map(tx => {
+                const bucket = buckets.find(b => b.id === tx.bucket_id);
+                return (
+                  <div key={tx.id} className="tx-history-row">
+                    <div className="tx-row-left">
+                      <span className="tx-icon">{bucket?.icon || '💳'}</span>
+                      <div className="tx-row-info">
+                        <span className="tx-row-bucket">{bucket?.name || 'Uncategorized'}</span>
+                        <span className="tx-row-desc">{tx.description || tx.merchant || '—'}</span>
+                        <span className="tx-row-date">{tx.date}</span>
+                      </div>
+                    </div>
+                    <div className="tx-row-right">
+                      <span className={`tx-amount ${tx.amount >= 0 ? 'income' : ''}`}>
+                        {tx.amount >= 0 ? '+' : ''}{formatMoney(tx.amount)}
+                      </span>
+                      <span className={`tx-status ${tx.status}`}>{tx.status}</span>
+                      <button
+                        className="tx-delete-btn"
+                        onClick={async () => {
+                          if (confirm(`Delete this ${formatMoney(tx.amount)} transaction?`)) {
+                            await deleteTransaction(tx.id);
+                          }
+                        }}
+                        title="Delete transaction"
+                      >✕</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       <TransactionLogModal
         isOpen={isLogOpen}
         onClose={() => setIsLogOpen(false)}
-        buckets={buckets.map(b => ({ 
-          id: b.id, 
-          name: b.name, 
-          icon: b.icon || '💳', 
-          color: b.color || '#10b981' 
+        buckets={buckets.map(b => ({
+          id: b.id,
+          name: b.name,
+          icon: b.icon || '💳',
+          color: b.color || '#10b981'
         }))}
         onSave={async (data: { bucketId: string; amount: number; date: string }) => {
           await logTransaction({

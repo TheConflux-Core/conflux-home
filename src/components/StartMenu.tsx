@@ -28,6 +28,7 @@ const ALL_APPS: AppItem[] = [
   { id: 'marketplace', icon: '🛒', label: 'Marketplace', category: 'system', description: 'Discover new apps & agents' },
   { id: 'settings', icon: '⚙️', label: 'Settings', category: 'system', description: 'Configure your experience' },
   { id: 'security', icon: '🛡️', label: 'Security Center', category: 'system', description: 'Agent security monitoring & controls' },
+  { id: 'aegis', icon: '🛡️', label: 'Aegis System Audit', category: 'system', description: 'System hardening & vulnerability scanning' },
 ];
 
 const CATEGORIES = [
