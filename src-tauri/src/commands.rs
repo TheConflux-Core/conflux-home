@@ -1736,10 +1736,35 @@ pub async fn kitchen_nl_add_inventory(text: String, member_id: Option<String>) -
         .await
         .map_err(|e| format!("Failed to resolve family member: {}", e))?;
 
-    // Prompt to LLM — extract items and infer expiry dates from standard grocery data
-    let prompt = format!(r#"You are Hearth inventory parser. Extract grocery items from: "{}"
-For each item return JSON: name, quantity (number/null), unit (string/null), category (dairy/meat/produce/pantry/etc), expiry_date (YYYY-MM-DD or null).
-Use standard shelf life: eggs=30d, milk=7d, chicken=2d, beef=2d, pork=3d, fish=1d, bread=5d, cheese=21d, yogurt=10d, rice_dry=730d, pasta=730d, canned=365d, butter=30d, vegetables=5-14d.
+    // Prompt to LLM — extract items and infer expiry dates from Helix's research data
+    let prompt = format!(r#"You are Hearth's inventory parser. Extract grocery items from natural language input.
+For each item return a JSON object: name, quantity (number or null), unit (string or null), category (produce/dairy/meat/seafood/bakery/pantry/frozen/beverage/condiment/other), expiry_date (YYYY-MM-DD from today or null).
+Use standard shelf life from USDA FoodKeeper guidelines:
+- eggs (in shell): refrigerator 30d
+- milk: refrigerator 7d
+- chicken breast/pieces: refrigerator 2d, freezer 270d
+- ground chicken/turkey/beef/pork: refrigerator 2d, freezer 90-120d
+- fish (fatty like salmon): refrigerator 1d, freezer 90d
+- fish (lean like cod): refrigerator 1d, freezer 180d
+- shrimp: refrigerator 2d, freezer 180d
+- butter: refrigerator 30d
+- cheese (hard like cheddar): refrigerator 60d
+- cheese (soft like brie): refrigerator 5d
+- yogurt: refrigerator 14d
+- bread: refrigerator 5d
+- rice (cooked): refrigerator 4d
+- pasta (cooked): refrigerator 4d
+- fresh produce (lettuce/spinach/broccoli): refrigerator 5d
+- root vegetables (carrots/onions/potatoes): refrigerator 21d
+- berries: refrigerator 5d
+- mushrooms: refrigerator 5d
+- canned tomatoes/beans (opened): refrigerator 3d
+- olive oil: pantry 365d
+- dried pasta/rice: pantry 730d
+- canned goods: pantry 365d
+- frozen vegetables/fruit: freezer 180d
+If the user says "leftover" or "cooked", use the cooked shelf life, not fresh.
+If the item is in the freezer, multiply fridge life by 10-12x.
 Return ONLY a JSON array. Example: [{{"name":"eggs","quantity":12,"unit":"pieces","category":"dairy","expiry_date":null}}]"#, text);
 
     let messages = vec![engine::router::OpenAIMessage { role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None }];
