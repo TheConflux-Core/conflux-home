@@ -512,14 +512,56 @@ const SLOTS = ['breakfast', 'lunch', 'dinner'] as const;
       )}
 
       {/* ── PANTRY TAB ── */}
+      {/* ── PANTRY TAB ── */}
       {tab === 'pantry' && (
         <div className="kitchen-pantry">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h3>🌡️ Pantry</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <h3>🌡️ Inventory</h3>
             <button className="btn-primary" onClick={() => setShowAddPantryItem(true)}>
               + Add Item
             </button>
           </div>
+
+          {/* NL Inventory Add — "Add a dozen eggs and a gallon of milk" */}
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+            <input
+              id="nl-inventory-input"
+              type="text"
+              placeholder='e.g. "Add a dozen eggs and a gallon of milk"'
+              style={{ flex: 1, padding: '0.6rem 0.875rem', borderRadius: '10px', border: '1px solid var(--hearth-surface)', background: 'var(--hearth-bg-input)', color: 'var(--hearth-100)', fontSize: '0.9rem', outline: 'none' }}
+              onKeyDown={async (e) => {
+                if (e.key === 'Enter') {
+                  const input = e.currentTarget;
+                  const text = input.value.trim();
+                  if (!text) return;
+                  input.disabled = true;
+                  try {
+                    const result = await invoke<any>('kitchen_nl_add_inventory', { text, member_id: user?.id || null });
+                    input.value = '';
+                    // Refresh inventory
+                    const inventory = await invoke<any[]>('kitchen_get_inventory', { location: null, member_id: user?.id || null });
+                    const today = new Date();
+                    const heatItems = inventory.map((item: any) => {
+                      let daysUntilExpiry: number | null = null;
+                      let freshness = 1.0;
+                      if (item.expiry_date) {
+                        const expiryDate = new Date(item.expiry_date);
+                        daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                        freshness = Math.max(0, Math.min(1, daysUntilExpiry / 30));
+                      }
+                      return { name: item.name, freshness, days_until_expiry: daysUntilExpiry, location: item.location || 'pantry' };
+                    });
+                    setPantryItems(heatItems);
+                  } catch (err) {
+                    console.error('NL add failed:', err);
+                  } finally {
+                    input.disabled = false;
+                  }
+                }
+              }}
+            />
+          </div>
+
           {pantryItems.length > 0 ? (
             <PantryHeatmap items={pantryItems} />
           ) : (
