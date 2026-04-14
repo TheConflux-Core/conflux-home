@@ -472,7 +472,15 @@ fn scan_misconfig() -> Result<Vec<FindingInput>> {
 
     // Check for unnecessary SUID binaries
     if let Ok(output) = Command::new("find")
-        .args(["/usr/bin", "/usr/sbin", "/usr/local/bin", "-perm", "/4000", "-type", "f"])
+        .args([
+            "/usr/bin",
+            "/usr/sbin",
+            "/usr/local/bin",
+            "-perm",
+            "/4000",
+            "-type",
+            "f",
+        ])
         .output()
     {
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -591,10 +599,7 @@ fn scan_network() -> Result<Vec<FindingInput>> {
     // Check for promiscuous mode interfaces
     if let Ok(output) = Command::new("ip").args(["link"]).output() {
         let stdout = String::from_utf8_lossy(&output.stdout);
-        let promisc: Vec<&str> = stdout
-            .lines()
-            .filter(|l| l.contains("PROMISC"))
-            .collect();
+        let promisc: Vec<&str> = stdout.lines().filter(|l| l.contains("PROMISC")).collect();
 
         if !promisc.is_empty() {
             findings.push(FindingInput {
@@ -639,8 +644,12 @@ fn scan_network() -> Result<Vec<FindingInput>> {
                 check_name: "suspicious_hosts_entries".into(),
                 severity: "critical".into(),
                 title: "Suspicious Entries in /etc/hosts".into(),
-                description: "/etc/hosts contains entries pointing to known C2/exfiltration domains.".into(),
-                remediation: Some("Remove suspicious lines from /etc/hosts. Investigate how they were added.".into()),
+                description:
+                    "/etc/hosts contains entries pointing to known C2/exfiltration domains.".into(),
+                remediation: Some(
+                    "Remove suspicious lines from /etc/hosts. Investigate how they were added."
+                        .into(),
+                ),
                 cve_ids: None,
                 raw_data: Some(serde_json::json!({"entries": found})),
             });
@@ -684,7 +693,9 @@ fn scan_network() -> Result<Vec<FindingInput>> {
                 check_name: "avahi_running".into(),
                 severity: "info".into(),
                 title: "mDNS/Avahi Discovery Active".into(),
-                description: "avahi-daemon is running, advertising services on the local network via mDNS.".into(),
+                description:
+                    "avahi-daemon is running, advertising services on the local network via mDNS."
+                        .into(),
                 remediation: Some(
                     "Disable if not needed: sudo systemctl disable --now avahi-daemon".into(),
                 ),
@@ -763,10 +774,7 @@ fn scan_browser() -> Result<Vec<FindingInput>> {
 
     // Check for browser extensions with excessive permissions
     let ext_dirs = [
-        format!(
-            "{}/.config/google-chrome/Default/Extensions",
-            home
-        ),
+        format!("{}/.config/google-chrome/Default/Extensions", home),
         format!("{}/.config/chromium/Default/Extensions", home),
         format!("{}/.mozilla/firefox", home),
     ];
@@ -898,10 +906,20 @@ fn scan_passwords() -> Result<Vec<FindingInput>> {
         for line in content.lines() {
             let trimmed = line.trim();
             if trimmed.starts_with("PASS_MAX_DAYS") {
-                max_days = trimmed.split_whitespace().last().unwrap_or("0").parse().unwrap_or(0);
+                max_days = trimmed
+                    .split_whitespace()
+                    .last()
+                    .unwrap_or("0")
+                    .parse()
+                    .unwrap_or(0);
             }
             if trimmed.starts_with("PASS_MIN_DAYS") {
-                min_days = trimmed.split_whitespace().last().unwrap_or("0").parse().unwrap_or(0);
+                min_days = trimmed
+                    .split_whitespace()
+                    .last()
+                    .unwrap_or("0")
+                    .parse()
+                    .unwrap_or(0);
             }
         }
         if max_days == 0 || max_days > 365 {
@@ -912,11 +930,16 @@ fn scan_passwords() -> Result<Vec<FindingInput>> {
                 title: "No Password Expiration Policy".into(),
                 description: format!(
                     "PASS_MAX_DAYS is {} — passwords never expire or expire after {} days.",
-                    if max_days == 0 { "unlimited".into() } else { max_days.to_string() },
+                    if max_days == 0 {
+                        "unlimited".into()
+                    } else {
+                        max_days.to_string()
+                    },
                     max_days
                 ),
                 remediation: Some(
-                    "Set PASS_MAX_DAYS 90 in /etc/login.defs to enforce periodic password changes.".into(),
+                    "Set PASS_MAX_DAYS 90 in /etc/login.defs to enforce periodic password changes."
+                        .into(),
                 ),
                 cve_ids: None,
                 raw_data: Some(serde_json::json!({"max_days": max_days, "min_days": min_days})),
@@ -928,13 +951,17 @@ fn scan_passwords() -> Result<Vec<FindingInput>> {
     let home = std::env::var("HOME").unwrap_or_default();
     let ssh_config = format!("{}/.ssh/config", home);
     if let Ok(content) = std::fs::read_to_string(&ssh_config) {
-        if content.to_lowercase().contains("passwordauthentication yes") {
+        if content
+            .to_lowercase()
+            .contains("passwordauthentication yes")
+        {
             findings.push(FindingInput {
                 category: "passwords".into(),
                 check_name: "ssh_password_in_config".into(),
                 severity: "warning".into(),
                 title: "SSH Client Config Allows Password Auth".into(),
-                description: "Your SSH client config explicitly enables password authentication.".into(),
+                description: "Your SSH client config explicitly enables password authentication."
+                    .into(),
                 remediation: Some(
                     "Set 'PasswordAuthentication no' in ~/.ssh/config for sensitive hosts.".into(),
                 ),
@@ -964,7 +991,9 @@ fn scan_code_config() -> Result<Vec<FindingInput>> {
         if let Ok(content) = std::fs::read_to_string(path) {
             let has_secrets = content.lines().any(|l| {
                 let lower = l.to_lowercase();
-                (lower.contains("password") || lower.contains("secret") || lower.contains("api_key"))
+                (lower.contains("password")
+                    || lower.contains("secret")
+                    || lower.contains("api_key"))
                     && l.contains('=')
                     && !l.trim().starts_with('#')
                     && l.split('=').last().unwrap_or("").trim().len() > 3
@@ -1041,7 +1070,12 @@ fn scan_code_config() -> Result<Vec<FindingInput>> {
     if let Ok(entries) = std::fs::read_dir(&ssh_dir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
-            if name.ends_with(".pem") || name.ends_with("_rsa") || name.ends_with("_ed25519") || name == "id_rsa" || name == "id_ed25519" {
+            if name.ends_with(".pem")
+                || name.ends_with("_rsa")
+                || name.ends_with("_ed25519")
+                || name == "id_rsa"
+                || name == "id_ed25519"
+            {
                 if let Ok(metadata) = std::fs::metadata(entry.path()) {
                     use std::os::unix::fs::PermissionsExt;
                     let mode = metadata.permissions().mode();
@@ -1182,7 +1216,13 @@ fn scan_general() -> Result<Vec<FindingInput>> {
 
     // Check for writable systemd service files
     if let Ok(output) = Command::new("find")
-        .args(["/etc/systemd/system", "/lib/systemd/system", "-writable", "-name", "*.service"])
+        .args([
+            "/etc/systemd/system",
+            "/lib/systemd/system",
+            "-writable",
+            "-name",
+            "*.service",
+        ])
         .output()
     {
         let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
