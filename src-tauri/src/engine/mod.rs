@@ -1,21 +1,21 @@
 // Conflux Engine — Module Root
 // The agent operating system. Everything ties together here.
 
-pub mod db;
-pub mod types;
-pub mod router;
-pub mod deterministic;
-pub mod runtime;
-pub mod tools;
-pub mod memory;
-pub mod google;
-pub mod cron;
-pub mod orbit_prompts;
 pub mod cloud;
+pub mod cron;
+pub mod db;
+pub mod deterministic;
+pub mod echo_counselor;
+pub mod google;
+pub mod memory;
+pub mod orbit_prompts;
+pub mod router;
+pub mod runtime;
+pub mod security;
 pub mod state_events;
 pub mod state_manager;
-pub mod echo_counselor;
-pub mod security;
+pub mod tools;
+pub mod types;
 pub mod commands {
     pub mod voice_commands;
 }
@@ -49,7 +49,13 @@ pub fn init_engine(db_path: &Path) -> Result<()> {
 
     // Load Studio API keys from environment variables (if not already in DB)
     // These are for Studio features (Replicate, ElevenLabs), not inference
-    if engine.db.get_config("studio_replicate_key").ok().flatten().is_none() {
+    if engine
+        .db
+        .get_config("studio_replicate_key")
+        .ok()
+        .flatten()
+        .is_none()
+    {
         if let Ok(key) = std::env::var("REPLICATE_API_KEY") {
             if !key.is_empty() {
                 engine.db.set_config("studio_replicate_key", &key).ok();
@@ -57,7 +63,13 @@ pub fn init_engine(db_path: &Path) -> Result<()> {
             }
         }
     }
-    if engine.db.get_config("studio_elevenlabs_key").ok().flatten().is_none() {
+    if engine
+        .db
+        .get_config("studio_elevenlabs_key")
+        .ok()
+        .flatten()
+        .is_none()
+    {
         // Try runtime env var first, then compile-time embedded key
         let key = std::env::var("ELEVENLABS_API_KEY")
             .ok()
@@ -70,7 +82,8 @@ pub fn init_engine(db_path: &Path) -> Result<()> {
         }
     }
 
-    ENGINE.set(engine)
+    ENGINE
+        .set(engine)
         .map_err(|_| anyhow::anyhow!("Engine already initialized"))?;
 
     // Auto-create system cron jobs (idempotent — skips if they already exist)
@@ -134,14 +147,17 @@ impl ConfluxEngine {
         instructions: Option<&str>,
         model_alias: Option<&str>,
     ) -> Result<()> {
-        self.db.update_agent(id, name, emoji, role, soul, instructions, model_alias)
+        self.db
+            .update_agent(id, name, emoji, role, soul, instructions, model_alias)
     }
 
     // ── Sessions ──
 
     pub fn create_session(&self, agent_id: &str, user_id: &str) -> Result<types::Session> {
         let session = self.db.create_session(agent_id, user_id)?;
-        let _ = self.db.log_event("session_created", Some(agent_id), Some(&session.id), None);
+        let _ = self
+            .db
+            .log_event("session_created", Some(agent_id), Some(&session.id), None);
         Ok(session)
     }
 
@@ -177,7 +193,10 @@ impl ConfluxEngine {
         max_tokens: Option<i64>,
         on_chunk: &mut dyn FnMut(&str) -> Result<()>,
     ) -> Result<router::ModelResponse> {
-        runtime::process_turn_stream(&self.db, session_id, agent_id, message, max_tokens, on_chunk).await
+        runtime::process_turn_stream(
+            &self.db, session_id, agent_id, message, max_tokens, on_chunk,
+        )
+        .await
     }
 
     // ── Memory ──
@@ -190,10 +209,16 @@ impl ConfluxEngine {
         content: &str,
         source: Option<&str>,
     ) -> Result<String> {
-        self.db.store_memory(agent_id, memory_type, key, content, source)
+        self.db
+            .store_memory(agent_id, memory_type, key, content, source)
     }
 
-    pub fn search_memory(&self, agent_id: &str, query: &str, limit: i64) -> Result<Vec<types::Memory>> {
+    pub fn search_memory(
+        &self,
+        agent_id: &str,
+        query: &str,
+        limit: i64,
+    ) -> Result<Vec<types::Memory>> {
         self.db.search_memory(agent_id, query, limit)
     }
 
@@ -222,7 +247,16 @@ impl ConfluxEngine {
         priority: i32,
         is_enabled: bool,
     ) -> Result<()> {
-        self.db.upsert_provider(id, name, base_url, api_key, model_id, model_alias, priority, is_enabled)
+        self.db.upsert_provider(
+            id,
+            name,
+            base_url,
+            api_key,
+            model_id,
+            model_alias,
+            priority,
+            is_enabled,
+        )
     }
 
     pub fn delete_provider(&self, id: &str) -> Result<()> {
@@ -235,8 +269,15 @@ impl ConfluxEngine {
         self.db.get_provider_templates()
     }
 
-    pub fn install_provider_template(&self, template_id: &str, api_key: Option<&str>, model: Option<&str>) -> Result<String> {
-        let template = self.db.get_provider_template(template_id)?
+    pub fn install_provider_template(
+        &self,
+        template_id: &str,
+        api_key: Option<&str>,
+        model: Option<&str>,
+    ) -> Result<String> {
+        let template = self
+            .db
+            .get_provider_template(template_id)?
             .ok_or_else(|| anyhow::anyhow!("Template not found: {}", template_id))?;
 
         // Free tier doesn't need installation (already active)
@@ -263,7 +304,10 @@ impl ConfluxEngine {
             true,
         )?;
 
-        Ok(format!("{} connected with model {}", template.name, model_id))
+        Ok(format!(
+            "{} connected with model {}",
+            template.name, model_id
+        ))
     }
 
     pub fn is_template_installed(&self, template_id: &str) -> Result<bool> {
@@ -308,7 +352,7 @@ impl ConfluxEngine {
     /// Get a masked API key for display.
     fn get_key_masked(&self, config_key: &str) -> Result<String> {
         match self.db.get_config(config_key)? {
-            Some(key) if key.len() > 8 => Ok(format!("{}...{}", &key[..4], &key[key.len()-4..])),
+            Some(key) if key.len() > 8 => Ok(format!("{}...{}", &key[..4], &key[key.len() - 4..])),
             Some(_) => Ok("••••".to_string()),
             None => Ok(String::new()),
         }
@@ -351,14 +395,26 @@ impl ConfluxEngine {
 
     // ── Inter-Agent Communication ──
 
-    pub async fn agent_ask(&self, from_agent: &str, to_agent: &str, question: &str, session_id: Option<&str>) -> Result<String> {
+    pub async fn agent_ask(
+        &self,
+        from_agent: &str,
+        to_agent: &str,
+        question: &str,
+        session_id: Option<&str>,
+    ) -> Result<String> {
         // Check permissions
         if !self.can_agent_talk_to(from_agent, to_agent)? {
-            anyhow::bail!("{} does not have permission to talk to {}", from_agent, to_agent);
+            anyhow::bail!(
+                "{} does not have permission to talk to {}",
+                from_agent,
+                to_agent
+            );
         }
 
         // Log the communication
-        let comm_id = self.db.create_communication(from_agent, to_agent, "ask", question, session_id)?;
+        let comm_id = self
+            .db
+            .create_communication(from_agent, to_agent, "ask", question, session_id)?;
 
         // Create a temporary session for the target agent
         let temp_session = self.db.create_session(to_agent, "system")?;
@@ -376,31 +432,64 @@ impl ConfluxEngine {
         );
 
         // Process through the runtime's async process_turn
-        let response = runtime::process_turn(&self.db, &temp_session.id, to_agent, &verified_question, None).await?;
+        let response = runtime::process_turn(
+            &self.db,
+            &temp_session.id,
+            to_agent,
+            &verified_question,
+            None,
+        )
+        .await?;
 
         // Complete the communication
-        self.db.complete_communication(&comm_id, &response.content, response.tokens_used)?;
+        self.db
+            .complete_communication(&comm_id, &response.content, response.tokens_used)?;
 
         Ok(response.content)
     }
 
     // ── Verification (Anti-Hallucination Enforcement) ──
 
-    pub fn create_verification_claim(&self, agent_id: &str, session_id: Option<&str>, claim_type: &str, claim: &str) -> Result<String> {
-        self.db.create_verification(agent_id, session_id, claim_type, claim)
+    pub fn create_verification_claim(
+        &self,
+        agent_id: &str,
+        session_id: Option<&str>,
+        claim_type: &str,
+        claim: &str,
+    ) -> Result<String> {
+        self.db
+            .create_verification(agent_id, session_id, claim_type, claim)
     }
 
-    pub fn complete_verification_claim(&self, id: &str, verified_by: &str, result: &str, evidence: Option<&str>) -> Result<()> {
-        self.db.complete_verification(id, verified_by, result, evidence)
+    pub fn complete_verification_claim(
+        &self,
+        id: &str,
+        verified_by: &str,
+        result: &str,
+        evidence: Option<&str>,
+    ) -> Result<()> {
+        self.db
+            .complete_verification(id, verified_by, result, evidence)
     }
 
-    pub fn get_unverified_claims(&self, agent_id: Option<&str>) -> Result<Vec<types::VerificationRecord>> {
+    pub fn get_unverified_claims(
+        &self,
+        agent_id: Option<&str>,
+    ) -> Result<Vec<types::VerificationRecord>> {
         self.db.get_unverified_claims(agent_id)
     }
 
     // ── Tasks ──
 
-    pub fn create_task(&self, title: &str, description: Option<&str>, agent_id: &str, created_by: &str, priority: &str, requires_verify: bool) -> Result<String> {
+    pub fn create_task(
+        &self,
+        title: &str,
+        description: Option<&str>,
+        agent_id: &str,
+        created_by: &str,
+        priority: &str,
+        requires_verify: bool,
+    ) -> Result<String> {
         // Check if creator can create tasks
         let perms = self.db.get_agent_permissions(created_by)?;
         if let Some(p) = perms {
@@ -408,10 +497,22 @@ impl ConfluxEngine {
                 anyhow::bail!("{} does not have permission to create tasks", created_by);
             }
         }
-        self.db.create_task(title, description, agent_id, created_by, priority, requires_verify)
+        self.db.create_task(
+            title,
+            description,
+            agent_id,
+            created_by,
+            priority,
+            requires_verify,
+        )
     }
 
-    pub fn update_task_status(&self, task_id: &str, status: &str, result: Option<&str>) -> Result<()> {
+    pub fn update_task_status(
+        &self,
+        task_id: &str,
+        status: &str,
+        result: Option<&str>,
+    ) -> Result<()> {
         self.db.update_task_status(task_id, status, result)
     }
 
@@ -419,14 +520,26 @@ impl ConfluxEngine {
         self.db.get_task(task_id)
     }
 
-    pub fn get_tasks_for_agent(&self, agent_id: &str, status_filter: Option<&str>) -> Result<Vec<types::Task>> {
+    pub fn get_tasks_for_agent(
+        &self,
+        agent_id: &str,
+        status_filter: Option<&str>,
+    ) -> Result<Vec<types::Task>> {
         self.db.get_tasks_for_agent(agent_id, status_filter)
     }
 
     // ── Lessons Learned ──
 
-    pub fn add_lesson(&self, agent_id: Option<&str>, category: &str, lesson: &str, evidence: Option<&str>, action: Option<&str>) -> Result<String> {
-        self.db.add_lesson(agent_id, category, lesson, evidence, action)
+    pub fn add_lesson(
+        &self,
+        agent_id: Option<&str>,
+        category: &str,
+        lesson: &str,
+        evidence: Option<&str>,
+        action: Option<&str>,
+    ) -> Result<String> {
+        self.db
+            .add_lesson(agent_id, category, lesson, evidence, action)
     }
 
     pub fn get_active_lessons(&self, category: Option<&str>) -> Result<Vec<types::LessonLearned>> {
@@ -435,8 +548,17 @@ impl ConfluxEngine {
 
     // ── Cron Jobs ──
 
-    pub fn create_cron_job(&self, name: &str, agent_id: &str, schedule: &str, timezone: &str, task_message: &str) -> Result<String> {
-        let id = self.db.create_cron_job(name, agent_id, schedule, timezone, task_message)?;
+    pub fn create_cron_job(
+        &self,
+        name: &str,
+        agent_id: &str,
+        schedule: &str,
+        timezone: &str,
+        task_message: &str,
+    ) -> Result<String> {
+        let id = self
+            .db
+            .create_cron_job(name, agent_id, schedule, timezone, task_message)?;
 
         // Compute initial next run time
         if let Some(next) = cron::next_run(schedule, chrono::Utc::now()) {
@@ -445,7 +567,12 @@ impl ConfluxEngine {
         }
 
         // Emit event
-        self.db.emit_event("cron_created", Some("system"), None, Some(&serde_json::json!({"id": id, "name": name}).to_string()))?;
+        self.db.emit_event(
+            "cron_created",
+            Some("system"),
+            None,
+            Some(&serde_json::json!({"id": id, "name": name}).to_string()),
+        )?;
 
         Ok(id)
     }
@@ -468,14 +595,21 @@ impl ConfluxEngine {
         let mut executed = 0i64;
 
         for job in due_jobs {
-            log::info!("[Cron] Running job '{}' ({}) → agent {}", job.name, job.id, job.agent_id);
+            log::info!(
+                "[Cron] Running job '{}' ({}) → agent {}",
+                job.name,
+                job.id,
+                job.agent_id
+            );
 
             // Create a temp session for this cron run
             let session = match self.db.create_session(&job.agent_id, "cron") {
                 Ok(s) => s,
                 Err(e) => {
                     log::error!("[Cron] Failed to create session for {}: {}", job.id, e);
-                    let _ = self.db.update_cron_run(&job.id, "error", 0, Some(&e.to_string()));
+                    let _ = self
+                        .db
+                        .update_cron_run(&job.id, "error", 0, Some(&e.to_string()));
                     continue;
                 }
             };
@@ -492,18 +626,32 @@ impl ConfluxEngine {
             );
 
             // Execute through the runtime
-            match runtime::process_turn(&self.db, &session.id, &job.agent_id, &message, None).await {
+            match runtime::process_turn(&self.db, &session.id, &job.agent_id, &message, None).await
+            {
                 Ok(response) => {
                     let tokens = response.tokens_used;
                     let _ = self.db.update_cron_run(&job.id, "success", tokens, None);
-                    self.db.emit_event("cron_fired", Some(&job.agent_id), None,
-                        Some(&serde_json::json!({"job_id": job.id, "tokens": tokens}).to_string()))?;
+                    self.db.emit_event(
+                        "cron_fired",
+                        Some(&job.agent_id),
+                        None,
+                        Some(&serde_json::json!({"job_id": job.id, "tokens": tokens}).to_string()),
+                    )?;
                 }
                 Err(e) => {
                     log::error!("[Cron] Job {} failed: {}", job.id, e);
-                    let _ = self.db.update_cron_run(&job.id, "error", 0, Some(&e.to_string()));
-                    self.db.emit_event("cron_error", Some(&job.agent_id), None,
-                        Some(&serde_json::json!({"job_id": job.id, "error": e.to_string()}).to_string()))?;
+                    let _ = self
+                        .db
+                        .update_cron_run(&job.id, "error", 0, Some(&e.to_string()));
+                    self.db.emit_event(
+                        "cron_error",
+                        Some(&job.agent_id),
+                        None,
+                        Some(
+                            &serde_json::json!({"job_id": job.id, "error": e.to_string()})
+                                .to_string(),
+                        ),
+                    )?;
                 }
             }
 
@@ -517,7 +665,8 @@ impl ConfluxEngine {
     /// Called once at startup — idempotent (skips jobs that already exist by name).
     pub fn ensure_system_cron_jobs(&self) -> Result<()> {
         let existing = self.db.get_cron_jobs(false)?;
-        let existing_names: std::collections::HashSet<String> = existing.iter().map(|j| j.name.clone()).collect();
+        let existing_names: std::collections::HashSet<String> =
+            existing.iter().map(|j| j.name.clone()).collect();
 
         let system_jobs: Vec<(&str, &str, &str, &str, &str)> = vec![
             ("morning-brief", "conflux", "0 7 * * *", "local",
@@ -576,7 +725,9 @@ impl ConfluxEngine {
 
         for (name, agent_id, schedule, tz, message) in system_jobs {
             if !existing_names.contains(name) {
-                let id = self.db.create_cron_job(name, agent_id, schedule, tz, message)?;
+                let id = self
+                    .db
+                    .create_cron_job(name, agent_id, schedule, tz, message)?;
                 log::info!("[SystemCron] Created job '{}' (id={})", name, id);
                 if let Some(next) = cron::next_run(schedule, chrono::Utc::now()) {
                     let next_str = next.format("%Y-%m-%dT%H:%M:%SZ").to_string();
@@ -590,8 +741,16 @@ impl ConfluxEngine {
 
     // ── Webhooks ──
 
-    pub fn create_webhook(&self, name: &str, agent_id: &str, path: &str, secret: Option<&str>, task_template: &str) -> Result<String> {
-        self.db.create_webhook(name, agent_id, path, secret, task_template)
+    pub fn create_webhook(
+        &self,
+        name: &str,
+        agent_id: &str,
+        path: &str,
+        secret: Option<&str>,
+        task_template: &str,
+    ) -> Result<String> {
+        self.db
+            .create_webhook(name, agent_id, path, secret, task_template)
     }
 
     pub fn get_webhooks(&self) -> Result<Vec<types::Webhook>> {
@@ -603,8 +762,15 @@ impl ConfluxEngine {
     }
 
     /// Process an incoming webhook request. Returns the agent's response.
-    pub async fn handle_webhook(&self, path: &str, body: &str, auth_header: Option<&str>) -> Result<String> {
-        let webhook = self.db.get_webhook_by_path(path)?
+    pub async fn handle_webhook(
+        &self,
+        path: &str,
+        body: &str,
+        auth_header: Option<&str>,
+    ) -> Result<String> {
+        let webhook = self
+            .db
+            .get_webhook_by_path(path)?
             .ok_or_else(|| anyhow::anyhow!("No webhook registered for path: {}", path))?;
 
         // Verify secret if set
@@ -619,7 +785,8 @@ impl ConfluxEngine {
         self.db.record_webhook_call(path)?;
 
         // Build message from template
-        let message = webhook.task_template
+        let message = webhook
+            .task_template
             .replace("{{body}}", body)
             .replace("{{path}}", path);
 
@@ -635,18 +802,35 @@ impl ConfluxEngine {
 
         // Execute through the runtime
         let session = self.db.create_session(&webhook.agent_id, "webhook")?;
-        let response = runtime::process_turn(&self.db, &session.id, &webhook.agent_id, &full_message, None).await?;
+        let response = runtime::process_turn(
+            &self.db,
+            &session.id,
+            &webhook.agent_id,
+            &full_message,
+            None,
+        )
+        .await?;
 
         // Emit event
-        self.db.emit_event("webhook_fired", Some(&webhook.agent_id), None,
-            Some(&serde_json::json!({"path": path, "tokens": response.tokens_used}).to_string()))?;
+        self.db.emit_event(
+            "webhook_fired",
+            Some(&webhook.agent_id),
+            None,
+            Some(&serde_json::json!({"path": path, "tokens": response.tokens_used}).to_string()),
+        )?;
 
         Ok(response.content)
     }
 
     // ── Events ──
 
-    pub fn emit_event(&self, event_type: &str, source: Option<&str>, target: Option<&str>, payload: Option<&str>) -> Result<String> {
+    pub fn emit_event(
+        &self,
+        event_type: &str,
+        source: Option<&str>,
+        target: Option<&str>,
+        payload: Option<&str>,
+    ) -> Result<String> {
         self.db.emit_event(event_type, source, target, payload)
     }
 
@@ -664,7 +848,12 @@ impl ConfluxEngine {
 
     // ── Heartbeats ──
 
-    pub fn record_heartbeat(&self, check_name: &str, status: &str, details: Option<&str>) -> Result<String> {
+    pub fn record_heartbeat(
+        &self,
+        check_name: &str,
+        status: &str,
+        details: Option<&str>,
+    ) -> Result<String> {
         self.db.record_heartbeat(check_name, status, details)
     }
 
@@ -683,8 +872,12 @@ impl ConfluxEngine {
                 results.insert("database".into(), serde_json::json!("ok"));
             }
             Err(e) => {
-                self.db.record_heartbeat("database", "error", Some(&e.to_string()))?;
-                results.insert("database".into(), serde_json::json!({"error": e.to_string()}));
+                self.db
+                    .record_heartbeat("database", "error", Some(&e.to_string()))?;
+                results.insert(
+                    "database".into(),
+                    serde_json::json!({"error": e.to_string()}),
+                );
             }
         }
 
@@ -692,42 +885,79 @@ impl ConfluxEngine {
         match self.db.get_providers() {
             Ok(providers) if !providers.is_empty() => {
                 let enabled = providers.iter().filter(|p| p.is_enabled).count();
-                self.db.record_heartbeat("providers", "ok", Some(&serde_json::json!({
-                    "total": providers.len(),
-                    "enabled": enabled
-                }).to_string()))?;
-                results.insert("providers".into(), serde_json::json!({"total": providers.len(), "enabled": enabled}));
+                self.db.record_heartbeat(
+                    "providers",
+                    "ok",
+                    Some(
+                        &serde_json::json!({
+                            "total": providers.len(),
+                            "enabled": enabled
+                        })
+                        .to_string(),
+                    ),
+                )?;
+                results.insert(
+                    "providers".into(),
+                    serde_json::json!({"total": providers.len(), "enabled": enabled}),
+                );
             }
             Ok(_) => {
-                self.db.record_heartbeat("providers", "warning", Some("No providers configured"))?;
-                results.insert("providers".into(), serde_json::json!("warning: no providers"));
+                self.db.record_heartbeat(
+                    "providers",
+                    "warning",
+                    Some("No providers configured"),
+                )?;
+                results.insert(
+                    "providers".into(),
+                    serde_json::json!("warning: no providers"),
+                );
             }
             Err(e) => {
-                self.db.record_heartbeat("providers", "error", Some(&e.to_string()))?;
-                results.insert("providers".into(), serde_json::json!({"error": e.to_string()}));
+                self.db
+                    .record_heartbeat("providers", "error", Some(&e.to_string()))?;
+                results.insert(
+                    "providers".into(),
+                    serde_json::json!({"error": e.to_string()}),
+                );
             }
         }
 
         // 3. Scheduler health (count active cron jobs)
         match self.db.get_cron_jobs(true) {
             Ok(jobs) => {
-                self.db.record_heartbeat("scheduler", "ok", Some(&serde_json::json!({"active_jobs": jobs.len()}).to_string()))?;
-                results.insert("scheduler".into(), serde_json::json!({"active_jobs": jobs.len()}));
+                self.db.record_heartbeat(
+                    "scheduler",
+                    "ok",
+                    Some(&serde_json::json!({"active_jobs": jobs.len()}).to_string()),
+                )?;
+                results.insert(
+                    "scheduler".into(),
+                    serde_json::json!({"active_jobs": jobs.len()}),
+                );
             }
             Err(e) => {
-                self.db.record_heartbeat("scheduler", "error", Some(&e.to_string()))?;
-                results.insert("scheduler".into(), serde_json::json!({"error": e.to_string()}));
+                self.db
+                    .record_heartbeat("scheduler", "error", Some(&e.to_string()))?;
+                results.insert(
+                    "scheduler".into(),
+                    serde_json::json!({"error": e.to_string()}),
+                );
             }
         }
 
         // 4. Agent health (count active agents)
         match self.db.get_active_agents() {
             Ok(agents) => {
-                self.db.record_heartbeat("agents", "ok", Some(&serde_json::json!({"active": agents.len()}).to_string()))?;
+                self.db.record_heartbeat(
+                    "agents",
+                    "ok",
+                    Some(&serde_json::json!({"active": agents.len()}).to_string()),
+                )?;
                 results.insert("agents".into(), serde_json::json!({"active": agents.len()}));
             }
             Err(e) => {
-                self.db.record_heartbeat("agents", "error", Some(&e.to_string()))?;
+                self.db
+                    .record_heartbeat("agents", "error", Some(&e.to_string()))?;
                 results.insert("agents".into(), serde_json::json!({"error": e.to_string()}));
             }
         }
@@ -759,7 +989,10 @@ impl ConfluxEngine {
 
         let mut ctx = String::from("\n## ACTIVE SKILLS\n\n");
         for skill in &skills {
-            ctx.push_str(&format!("### {} {} (v{})\n", skill.emoji, skill.name, skill.version));
+            ctx.push_str(&format!(
+                "### {} {} (v{})\n",
+                skill.emoji, skill.name, skill.version
+            ));
             ctx.push_str(&skill.instructions);
             ctx.push_str("\n\n");
         }
@@ -779,7 +1012,10 @@ impl ConfluxEngine {
         }
 
         if !needed_tools.is_empty() {
-            ctx.push_str(&format!("Skills require tools: {}\n\n", needed_tools.join(", ")));
+            ctx.push_str(&format!(
+                "Skills require tools: {}\n\n",
+                needed_tools.join(", ")
+            ));
         }
 
         Ok(ctx)
@@ -788,27 +1024,73 @@ impl ConfluxEngine {
     pub fn install_skill_from_json(&self, json: &str) -> Result<String> {
         let manifest: serde_json::Value = serde_json::from_str(json)?;
 
-        let id = manifest["id"].as_str().ok_or_else(|| anyhow::anyhow!("Missing 'id' in skill manifest"))?;
-        let name = manifest["name"].as_str().ok_or_else(|| anyhow::anyhow!("Missing 'name'"))?;
-        let instructions = manifest["instructions"].as_str()
+        let id = manifest["id"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("Missing 'id' in skill manifest"))?;
+        let name = manifest["name"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("Missing 'name'"))?;
+        let instructions = manifest["instructions"]
+            .as_str()
             .ok_or_else(|| anyhow::anyhow!("Missing 'instructions'"))?;
 
         let emoji = manifest["emoji"].as_str().unwrap_or("🔌");
         let version = manifest["version"].as_str().unwrap_or("1.0.0");
         let description = manifest["description"].as_str();
         let author = manifest["author"].as_str();
-        let triggers = manifest["triggers"].as_str().map(|s| s.to_string())
-            .or_else(|| if manifest["triggers"].is_null() { None } else { Some(manifest["triggers"].to_string()) });
-        let agents = manifest["agents"].as_str().map(|s| s.to_string())
-            .unwrap_or_else(|| if manifest["agents"].is_null() { "*".to_string() } else { manifest["agents"].to_string() });
-        let permissions = manifest["permissions"].as_str().map(|s| s.to_string())
-            .or_else(|| if manifest["permissions"].is_null() { None } else { Some(manifest["permissions"].to_string()) });
+        let triggers = manifest["triggers"]
+            .as_str()
+            .map(|s| s.to_string())
+            .or_else(|| {
+                if manifest["triggers"].is_null() {
+                    None
+                } else {
+                    Some(manifest["triggers"].to_string())
+                }
+            });
+        let agents = manifest["agents"]
+            .as_str()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| {
+                if manifest["agents"].is_null() {
+                    "*".to_string()
+                } else {
+                    manifest["agents"].to_string()
+                }
+            });
+        let permissions = manifest["permissions"]
+            .as_str()
+            .map(|s| s.to_string())
+            .or_else(|| {
+                if manifest["permissions"].is_null() {
+                    None
+                } else {
+                    Some(manifest["permissions"].to_string())
+                }
+            });
 
-        self.db.install_skill(id, name, description, emoji, version, author, instructions, triggers.as_deref(), &agents, permissions.as_deref(), "local", Some(json))?;
+        self.db.install_skill(
+            id,
+            name,
+            description,
+            emoji,
+            version,
+            author,
+            instructions,
+            triggers.as_deref(),
+            &agents,
+            permissions.as_deref(),
+            "local",
+            Some(json),
+        )?;
 
         // Emit event
-        self.db.emit_event("skill_installed", Some("system"), None,
-            Some(&serde_json::json!({"id": id, "name": name}).to_string()))?;
+        self.db.emit_event(
+            "skill_installed",
+            Some("system"),
+            None,
+            Some(&serde_json::json!({"id": id, "name": name}).to_string()),
+        )?;
 
         Ok(id.to_string())
     }
@@ -851,7 +1133,8 @@ impl ConfluxEngine {
 
     pub fn increment_quota(&self, user_id: &str, tokens: i64, provider_id: &str) -> Result<i64> {
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-        self.db.increment_quota(user_id, &today, tokens, provider_id)
+        self.db
+            .increment_quota(user_id, &today, tokens, provider_id)
     }
 
     pub async fn has_quota(&self, user_id: &str) -> Result<cloud::QuotaStatus> {
@@ -874,13 +1157,18 @@ impl ConfluxEngine {
                 }
             }
             Err(e) => {
-                log::warn!("[Engine] Cloud balance check failed, falling back to local: {}", e);
+                log::warn!(
+                    "[Engine] Cloud balance check failed, falling back to local: {}",
+                    e
+                );
             }
         }
 
         // Fallback: free tier daily limit (local SQLite)
         let quota = self.get_quota(user_id)?;
-        let limit: i64 = self.db.get_config("free_daily_limit")?
+        let limit: i64 = self
+            .db
+            .get_config("free_daily_limit")?
             .unwrap_or_else(|| "50".to_string())
             .parse()
             .unwrap_or(50);
