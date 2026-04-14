@@ -18,6 +18,7 @@ import CookingModeEnhanced from './CookingModeEnhanced';
 import RestaurantMenu from './RestaurantMenu';
 import BrowseCards from './BrowseCards';
 import { MicButton } from './voice';
+import TonightsTable from './TonightsTable';
 import KitchenBoot from './KitchenBoot';
 import HearthOnboarding, { hasCompletedHearthOnboarding } from './HearthOnboarding';
 import HearthTour, { hasCompletedHearthTour } from './HearthTour';
@@ -36,7 +37,30 @@ function formatCost(n: number | null): string {
   return `$${n.toFixed(2)}`;
 }
 
-const SLOTS = ['breakfast', 'lunch', 'dinner'] as const;
+// ── Tonight's Table helper ───────────────────────────────────────────────
+function getTonightsMeal(plan: any, meals: Meal[]) {
+  if (!plan) return null;
+  const today = new Date();
+  const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon...
+  const dayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Mon=0
+  const dayData = plan.days?.[dayIndex];
+  if (!dayData) return null;
+  // Find dinner first, then lunch, then breakfast
+  for (const slot of ['dinner', 'lunch', 'breakfast']) {
+    const slotData = dayData.slots?.find((s: any) => s.meal_slot === slot);
+    if (slotData?.meal) {
+      return {
+        day_name: dayNames[dayIndex],
+        slot,
+        meal: slotData.meal,
+        missing_ingredients: [],
+      };
+    }
+  }
+  return null;
+}
+
+const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default function KitchenView() {
   const { user } = useAuth();
@@ -172,7 +196,7 @@ export default function KitchenView() {
     else if (nudge.nudge_type === 'grocery') setTab('grocery');
   }, []);
 
-  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const SLOTS = ['breakfast', 'lunch', 'dinner'] as const;
 
   return (
     <div className="kitchen-matrix">
@@ -278,18 +302,49 @@ export default function KitchenView() {
             />
           ) : (
             <>
-              {/* Restaurant Menu — Main Home View */}
-              <RestaurantMenu
-                chefsSpecials={homeMenu}
-                yourRegulars={meals.filter(m => m.is_favorite).slice(0, 6)}
-                onSelect={(id) => setCookingMealId(id)}
-                loading={menuLoading}
+              {/* Tonight's Table — Hero Card */}
+              <TonightsTable
+                plannedMeal={getTonightsMeal(plan, meals)}
+                onStartCooking={(mealId) => setCookingMealId(mealId)}
+                onAddToPlan={(meal) => {
+                  const today = new Date();
+                  const dayOfWeek = today.getDay();
+                  const dayIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                  setEntry(dayIndex, 'dinner', meal.id);
+                  setTab('plan');
+                }}
+                onSeeAlternatives={() => setTab('library')}
               />
 
-              <KitchenNudges nudges={nudges} onAction={handleNudgeAction} />
+              {/* Quick Stats Row */}
+              <div className="hearth-stats-row">
+                <div className="hearth-stat-chip">
+                  <span className="hearth-stat-emoji">📖</span>
+                  <span className="hearth-stat-val">{meals.length}</span>
+                  <span className="hearth-stat-label">Recipes</span>
+                </div>
+                <div className="hearth-stat-chip">
+                  <span className="hearth-stat-emoji">🍽️</span>
+                  <span className="hearth-stat-val">{plan?.meal_count ?? 0}</span>
+                  <span className="hearth-stat-label">Planned</span>
+                </div>
+                <div className="hearth-stat-chip">
+                  <span className="hearth-stat-emoji">🛒</span>
+                  <span className="hearth-stat-val">{groceryItems.length}</span>
+                  <span className="hearth-stat-label">Grocery</span>
+                </div>
+                {digest && (
+                  <div className="hearth-stat-chip">
+                    <span className="hearth-stat-emoji">🔥</span>
+                    <span className="hearth-stat-val">{digest.meals_cooked}</span>
+                    <span className="hearth-stat-label">Cooked</span>
+                  </div>
+                )}
+              </div>
 
-              {digest && !digestLoading && (
-                <KitchenDigestCard digest={digest} />
+              {/* Smart Nudges */}
+              {nudges.length > 0 && (
+                <KitchenNudges nudges={nudges} onAction={handleNudgeAction} />
               )}
             </>
           )}
