@@ -75,6 +75,8 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   security: { icon: '🛡️', label: 'Security' },
   aegis: { icon: '🛡️', label: 'Aegis' },
   viper: { icon: '🐍', label: 'Viper' },
+  'agent-audit': { icon: '⚔️', label: 'Agent Audit' },
+  siem: { icon: '🛡️', label: 'SIEM' },
 };
 
 const ALL_APPS: AppItem[] = [

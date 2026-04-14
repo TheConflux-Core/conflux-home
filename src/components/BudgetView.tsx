@@ -107,6 +107,12 @@ export default function BudgetView() {
     return goal / 2;
   };
 
+  /** Strip $ and commas before parsing a money value */
+  const parseMoney = (val: string | number): number => {
+    if (typeof val === 'number') return val;
+    return parseFloat(val.replace(/[^0-9.]/g, '')) || 0;
+  };
+
   // Helper to get actual paid amount
   const getPaid = (bucketId: string) => {
     return transactions
@@ -338,8 +344,8 @@ export default function BudgetView() {
                       className="cell-edit-input"
                       value={editValue}
                       onChange={e => setEditValue(e.target.value)}
-                      onBlur={() => handleCellEdit(bucket.id, 'p1', parseFloat(editValue))}
-                      onKeyDown={e => e.key === 'Enter' && handleCellEdit(bucket.id, 'p1', parseFloat(editValue))}
+                      onBlur={() => handleCellEdit(bucket.id, 'p1', parseMoney(editValue))}
+                      onKeyDown={e => e.key === 'Enter' && handleCellEdit(bucket.id, 'p1', parseMoney(editValue))}
                     />
                   ) : (
                     <span className="pay-amount">{formatMoney(p1Alloc)}</span>
@@ -359,8 +365,8 @@ export default function BudgetView() {
                       className="cell-edit-input"
                       value={editValue}
                       onChange={e => setEditValue(e.target.value)}
-                      onBlur={() => handleCellEdit(bucket.id, 'p2', parseFloat(editValue))}
-                      onKeyDown={e => e.key === 'Enter' && handleCellEdit(bucket.id, 'p2', parseFloat(editValue))}
+                      onBlur={() => handleCellEdit(bucket.id, 'p2', parseMoney(editValue))}
+                      onKeyDown={e => e.key === 'Enter' && handleCellEdit(bucket.id, 'p2', parseMoney(editValue))}
                     />
                   ) : (
                     <span className="pay-amount">{formatMoney(p2Alloc)}</span>

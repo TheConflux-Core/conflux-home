@@ -46,6 +46,12 @@ function freqToKey(freq: string): string {
   return freq;
 }
 
+/** Strip $ and commas before parsing a money value */
+function parseMoney(val: string | number): number {
+  if (typeof val === 'number') return val;
+  return parseFloat(val.replace(/[^0-9.]/g, '')) || 0;
+}
+
 export default function BudgetConfigModal({
   isOpen,
   settings,
@@ -104,7 +110,7 @@ export default function BudgetConfigModal({
         id: Math.random().toString(36).substr(2, 9), // temp client-side id for new unsaved buckets
         name: newBucket.name,
         icon: newBucket.icon || '💳',
-        monthly_goal: parseFloat(newBucket.monthly_goal.toString()),
+        monthly_goal: parseMoney(newBucket.monthly_goal),
         color: newBucket.color || '#8b5cf6',
       },
     ]);
@@ -219,7 +225,7 @@ export default function BudgetConfigModal({
               <input
                 type="number"
                 value={monthlyIncome}
-                onChange={e => setMonthlyIncome(parseFloat(e.target.value) || 0)}
+                onChange={e => setMonthlyIncome(parseMoney(e.target.value))}
               />
             </div>
           </div>
@@ -250,7 +256,7 @@ export default function BudgetConfigModal({
                       className="bucket-edit-goal"
                       type="number"
                       value={bucket.monthly_goal || ''}
-                      onChange={e => updateBucketField(key, 'monthly_goal', parseFloat(e.target.value) || 0)}
+                      onChange={e => updateBucketField(key, 'monthly_goal', parseMoney(e.target.value))}
                       placeholder="0"
                     />
                     <input
@@ -284,7 +290,7 @@ export default function BudgetConfigModal({
                   type="number"
                   placeholder="Monthly $"
                   value={newBucket.monthly_goal || ''}
-                  onChange={e => setNewBucket({ ...newBucket, monthly_goal: parseFloat(e.target.value) || 0 })}
+                  onChange={e => setNewBucket({ ...newBucket, monthly_goal: parseMoney(e.target.value) })}
                 />
                 <button className="add-bucket-btn" onClick={addBucket}>+</button>
               </div>

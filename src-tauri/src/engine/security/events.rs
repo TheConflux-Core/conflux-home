@@ -13,6 +13,7 @@ pub enum EventCategory {
     Info,
     Warning,
     Critical,
+    Security,
 }
 
 impl EventCategory {
@@ -21,6 +22,7 @@ impl EventCategory {
             EventCategory::Info => "info",
             EventCategory::Warning => "warning",
             EventCategory::Critical => "critical",
+            EventCategory::Security => "security",
         }
     }
 }
@@ -35,6 +37,7 @@ pub enum EventType {
     BrowserAction,
     PermissionDenied,
     Anomaly,
+    SecurityAudit,
 }
 
 impl EventType {
@@ -47,6 +50,7 @@ impl EventType {
             EventType::BrowserAction => "browser_action",
             EventType::PermissionDenied => "permission_denied",
             EventType::Anomaly => "anomaly",
+            EventType::SecurityAudit => "security_audit",
         }
     }
 }
@@ -65,6 +69,39 @@ pub struct SecurityEvent {
     pub risk_score: i64,
     pub was_allowed: bool,
     pub created_at: String,
+}
+
+/// Wrapper for agent_audit to log security audit events.
+pub fn log_event(
+    db: &EngineDb,
+    category: EventCategory,
+    event_type: EventType,
+    message: &str,
+    details: Option<serde_json::Value>,
+) -> Result<String> {
+    let id = Uuid::new_v4().to_string();
+    let conn = db.conn();
+
+    conn.execute(
+        "INSERT INTO security_events (id, agent_id, session_id, event_type, category, tool_name, target, details, risk_score, was_allowed)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        rusqlite::params![
+            id,
+            "system",
+            Option::<String>::None,
+            event_type.as_str(),
+            category.as_str(),
+            Option::<String>::None,
+            Option::<String>::None,
+            details.map(|d| d.to_string()),
+            0,
+            1,
+        ],
+    )?;
+
+    log::info!("[Security] {}: {}", category.as_str(), message);
+
+    Ok(id)
 }
 
 /// Log a security event to the SIEM.
