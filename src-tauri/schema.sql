@@ -2111,3 +2111,133 @@ CREATE TABLE IF NOT EXISTS viper_findings (
 CREATE INDEX IF NOT EXISTS idx_viper_findings_scan ON viper_findings(scan_id);
 CREATE INDEX IF NOT EXISTS idx_viper_findings_severity ON viper_findings(severity);
 CREATE INDEX IF NOT EXISTS idx_viper_findings_category ON viper_findings(category);
+
+-- ============================================================
+-- AGENT AUDIT — Agent-vs-Agent Security (Red Team vs Agents)
+-- Mission 1224 Phase 4: Viper attacks other agents, scores defense
+-- ============================================================
+
+-- Audit run — one per "Run Agent Audit" click
+CREATE TABLE IF NOT EXISTS agent_audit_runs (
+    id              TEXT PRIMARY KEY,           -- uuid
+    run_type        TEXT NOT NULL DEFAULT 'full', -- 'full' | 'targeted'
+    status          TEXT NOT NULL DEFAULT 'running', -- 'running' | 'completed' | 'failed'
+    overall_score   INTEGER,                    -- 0-100 average across agents (100 = perfect defense)
+    total_agents    INTEGER NOT NULL DEFAULT 0,
+    agents_passed   INTEGER NOT NULL DEFAULT 0, -- score >= 70
+    agents_warning  INTEGER NOT NULL DEFAULT 0, -- score 40-69
+    agents_failed   INTEGER NOT NULL DEFAULT 0, -- score < 40
+    started_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    completed_at    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_audit_runs_status ON agent_audit_runs(status);
+CREATE INDEX IF NOT EXISTS idx_agent_audit_runs_started ON agent_audit_runs(started_at DESC);
+
+-- Per-agent results within an audit run
+CREATE TABLE IF NOT EXISTS agent_audit_results (
+    id              TEXT PRIMARY KEY,           -- uuid
+    run_id          TEXT NOT NULL REFERENCES agent_audit_runs(id) ON DELETE CASCADE,
+    agent_id        TEXT NOT NULL,              -- 'conflux', 'forge', 'helix', etc.
+    agent_name      TEXT NOT NULL,              -- display name
+    agent_emoji     TEXT NOT NULL DEFAULT '🤖',
+    defense_score   INTEGER NOT NULL DEFAULT 0, -- 0-100 (100 = perfect defense)
+    total_attacks   INTEGER NOT NULL DEFAULT 0,
+    blocked_count   INTEGER NOT NULL DEFAULT 0, -- agent refused/handled correctly
+    partial_count   INTEGER NOT NULL DEFAULT 0, -- agent partially leaked
+    breached_count  INTEGER NOT NULL DEFAULT 0, -- agent fully complied with attack
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_audit_results_run ON agent_audit_results(run_id);
+CREATE INDEX IF NOT EXISTS idx_agent_audit_results_agent ON agent_audit_results(agent_id);
+CREATE INDEX IF NOT EXISTS idx_agent_audit_results_score ON agent_audit_results(defense_score);
+
+-- Individual attack findings within an agent result
+CREATE TABLE IF NOT EXISTS agent_audit_findings (
+    id              TEXT PRIMARY KEY,           -- uuid
+    result_id       TEXT NOT NULL REFERENCES agent_audit_results(id) ON DELETE CASCADE,
+    attack_type     TEXT NOT NULL,              -- 'prompt_injection' | 'data_exfil' | 'priv_escalation' | 'instruction_override' | 'social_engineering'
+    attack_name     TEXT NOT NULL,              -- human-readable name
+    severity        TEXT NOT NULL DEFAULT 'info', -- 'pass' | 'partial' | 'breach'
+    attack_prompt   TEXT NOT NULL,              -- the prompt Viper sent
+    agent_response  TEXT,                       -- what the agent said (truncated)
+    indicator       TEXT,                       -- what signal was detected
+    description     TEXT NOT NULL,
+    remediation     TEXT,                       -- how to harden the agent
+    raw_data        TEXT,                       -- JSON: full attack context
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_audit_findings_result ON agent_audit_findings(result_id);
+CREATE INDEX IF NOT EXISTS idx_agent_audit_findings_type ON agent_audit_findings(attack_type);
+CREATE INDEX IF NOT EXISTS idx_agent_audit_findings_severity ON agent_audit_findings(severity);
+
+-- ============================================================
+-- SIEM — Security Information & Event Management
+-- Mission 1224 Phase 5: Cross-agent correlation, risk scoring, alerts
+-- ============================================================
+
+-- Correlated events — cross-source pattern matches
+CREATE TABLE IF NOT EXISTS siem_correlations (
+    id              TEXT PRIMARY KEY,           -- uuid
+    correlation_type TEXT NOT NULL,             -- 'agent_breach_with_vuln' | 'repeated_denials' | 'vuln_with_anomaly' | 'defense_degradation' | 'multi_agent_risk'
+    severity        TEXT NOT NULL DEFAULT 'warning', -- 'info' | 'warning' | 'critical'
+    title           TEXT NOT NULL,
+    description     TEXT NOT NULL,
+    source_1_type   TEXT NOT NULL,              -- 'security_events' | 'aegis_findings' | 'viper_findings' | 'agent_audit_findings'
+    source_1_id     TEXT,                       -- primary key in source table
+    source_2_type   TEXT,                       -- nullable (single-source correlations)
+    source_2_id     TEXT,
+    agent_ids       TEXT NOT NULL,              -- JSON array of affected agent IDs
+    risk_score      INTEGER NOT NULL DEFAULT 0, -- 0-100
+    raw_data        TEXT,                       -- JSON: full correlation context
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_siem_correlations_type ON siem_correlations(correlation_type);
+CREATE INDEX IF NOT EXISTS idx_siem_correlations_severity ON siem_correlations(severity);
+CREATE INDEX IF NOT EXISTS idx_siem_correlations_created ON siem_correlations(created_at DESC);
+
+-- Alerts — actionable notifications from correlations or direct detection
+CREATE TABLE IF NOT EXISTS siem_alerts (
+    id              TEXT PRIMARY KEY,           -- uuid
+    alert_type      TEXT NOT NULL,              -- 'correlation' | 'threshold' | 'anomaly' | 'audit_failure'
+    severity        TEXT NOT NULL DEFAULT 'warning', -- 'info' | 'warning' | 'critical'
+    title           TEXT NOT NULL,
+    description     TEXT NOT NULL,
+    source          TEXT NOT NULL,              -- what generated this alert
+    agent_id        TEXT,                       -- affected agent (nullable for system-wide)
+    correlation_id  TEXT REFERENCES siem_correlations(id),
+    status          TEXT NOT NULL DEFAULT 'active', -- 'active' | 'acknowledged' | 'resolved' | 'dismissed'
+    acknowledged_at TEXT,
+    resolved_at     TEXT,
+    raw_data        TEXT,                       -- JSON
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_siem_alerts_status ON siem_alerts(status);
+CREATE INDEX IF NOT EXISTS idx_siem_alerts_severity ON siem_alerts(severity);
+CREATE INDEX IF NOT EXISTS idx_siem_alerts_created ON siem_alerts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_siem_alerts_agent ON siem_alerts(agent_id);
+
+-- Weekly security reports
+CREATE TABLE IF NOT EXISTS siem_weekly_reports (
+    id              TEXT PRIMARY KEY,           -- uuid
+    week_start      TEXT NOT NULL,              -- ISO date (Monday)
+    week_end        TEXT NOT NULL,              -- ISO date (Sunday)
+    risk_score      INTEGER NOT NULL DEFAULT 0, -- aggregate risk for the week
+    risk_trend      TEXT NOT NULL DEFAULT 'stable', -- 'improving' | 'stable' | 'degrading'
+    total_events    INTEGER NOT NULL DEFAULT 0,
+    critical_events INTEGER NOT NULL DEFAULT 0,
+    alerts_generated INTEGER NOT NULL DEFAULT 0,
+    alerts_resolved INTEGER NOT NULL DEFAULT 0,
+    aegis_score     INTEGER,                    -- latest Aegis audit score
+    viper_score     INTEGER,                    -- latest Viper risk score
+    agent_audit_score INTEGER,                  -- latest agent audit defense score
+    summary         TEXT NOT NULL,              -- AI-generated narrative summary
+    findings_json   TEXT NOT NULL DEFAULT '[]', -- JSON: key findings for the week
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_siem_reports_week ON siem_weekly_reports(week_start DESC);

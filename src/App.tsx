@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import { soundManager } from './lib/sound';
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
 import { Agent, View } from './types';
@@ -23,7 +22,6 @@ import Settings from './components/Settings';
 import SplashScreen from './components/SplashScreen';
 import ToastContainer from './components/Toast';
 import UpdateBanner from './components/UpdateBanner';
-import FamilySwitcher from './components/FamilySwitcher';
 import FamilySetup from './components/FamilySetup';
 import GameLauncher from './components/GameLauncher';
 import GamesHub from './components/GamesHub';
@@ -50,11 +48,12 @@ import VaultView from './components/VaultView';
 import StudioView from './components/StudioView';
 import SecurityDashboard from './components/SecurityDashboard';
 import AegisDashboard from './components/AegisDashboard';
-import ViperDashboard from './components/ViperDashboard';
+import ViperDashboard from './components/ViperDashboard'
+import AgentAuditDashboard from './components/AgentAuditDashboard';
+import SIEMDashboard from './components/SIEMDashboard';
 import GuidedTour from './components/GuidedTour';
 
 // Phase 0.3+: Global AI Input, Agent Status
-import GlobalAIInput from './components/GlobalAIInput';
 import AgentStatusPanel from './components/AgentStatusPanel';
 import { useAgentStatus } from './hooks/useAgentStatus';
 import './styles-agent-introductions.css';
@@ -70,14 +69,12 @@ import { useToast } from './hooks/useToast';
 import { useFamily } from './hooks/useFamily';
 import { useAuth } from './hooks/useAuth';
 import { useSubscription } from './hooks/useSubscription';
-import FeatureGate from './components/FeatureGate';
 import { AuthProvider } from './contexts/AuthContext';
 import { useStoryGames, useStoryGame, useStorySeeds } from './hooks/useStoryGame';
 import { useLearningProgress, useLearningGoals } from './hooks/useLearning';
 import { initTheme, getSavedWallpaper, getSavedColorTheme, BASE_THEMES, COLOR_THEMES } from './lib/theme';
 import { registerShortcuts } from './lib/shortcuts';
 import { trackEvent } from './lib/telemetry';
-import type { IntentResult } from './hooks/useIntentRouter';
 import './styles/animations.css';
 import './styles-global-ai-input.css';
 import './styles/tour.css';
@@ -935,6 +932,8 @@ const [activeSnake, setActiveSnake] = useState(false);
           {immersiveView === 'security' && <SecurityDashboard />}
           {immersiveView === 'aegis' && <AegisDashboard />}
           {immersiveView === 'viper' && <ViperDashboard />}
+          {immersiveView === 'agent-audit' && <AgentAuditDashboard />}
+          {immersiveView === 'siem' && <SIEMDashboard />}
           {immersiveView === 'api-dashboard' && <ApiDashboard />}
           {immersiveView === 'dashboard' && (
             <div>

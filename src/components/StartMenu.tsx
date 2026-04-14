@@ -30,6 +30,8 @@ const ALL_APPS: AppItem[] = [
   { id: 'security', icon: '🛡️', label: 'Security Center', category: 'system', description: 'Agent security monitoring & controls' },
   { id: 'aegis', icon: '🛡️', label: 'Aegis System Audit', category: 'system', description: 'System hardening & vulnerability scanning' },
   { id: 'viper', icon: '🐍', label: 'Viper Vuln Scanner', category: 'system', description: 'Attack surface analysis & vulnerability detection' },
+  { id: 'agent-audit', icon: '⚔️', label: 'Agent Audit', category: 'system', description: 'Test your agents against prompt injection & social engineering attacks' },
+  { id: 'siem', icon: '🛡️', label: 'SIEM Command Center', category: 'system', description: 'Cross-agent correlation, risk scoring, alerts & weekly reports' },
 ];
 
 const CATEGORIES = [
