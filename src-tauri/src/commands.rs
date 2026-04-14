@@ -8946,3 +8946,278 @@ pub fn viper_delete_scan(scan_id: String) -> Result<bool, String> {
     let engine = super::engine::get_engine();
     super::engine::security::viper::delete_scan(engine.db(), &scan_id).map_err(|e| e.to_string())
 }
+
+// ═════════════════════════════════════════════════════════════════
+// AGENT AUDIT — Agent-vs-Agent Security (Phase 4)
+// ═════════════════════════════════════════════════════════════════
+
+/// Run a full agent audit against all active agents.
+#[tauri::command]
+pub fn agent_audit_run_full() -> Result<String, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::agent_audit::run_full_audit(engine.db()).map_err(|e| e.to_string())
+}
+
+/// Run a targeted audit against specific agents.
+#[tauri::command]
+pub fn agent_audit_run_targeted(agent_ids: Vec<String>) -> Result<String, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::agent_audit::run_targeted_audit(engine.db(), agent_ids)
+        .map_err(|e| e.to_string())
+}
+
+/// Get recent audit runs.
+#[tauri::command]
+pub fn agent_audit_get_runs(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let runs = super::engine::security::agent_audit::get_runs(engine.db(), limit.unwrap_or(10))
+        .map_err(|e| e.to_string())?;
+    Ok(runs
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.id,
+                "run_type": r.run_type,
+                "status": r.status,
+                "overall_score": r.overall_score,
+                "total_agents": r.total_agents,
+                "agents_passed": r.agents_passed,
+                "agents_warning": r.agents_warning,
+                "agents_failed": r.agents_failed,
+                "started_at": r.started_at,
+                "completed_at": r.completed_at,
+            })
+        })
+        .collect())
+}
+
+/// Get results for a specific audit run.
+#[tauri::command]
+pub fn agent_audit_get_results(run_id: String) -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let results = super::engine::security::agent_audit::get_results(engine.db(), &run_id)
+        .map_err(|e| e.to_string())?;
+    Ok(results
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.id,
+                "run_id": r.run_id,
+                "agent_id": r.agent_id,
+                "agent_name": r.agent_name,
+                "agent_emoji": r.agent_emoji,
+                "defense_score": r.defense_score,
+                "total_attacks": r.total_attacks,
+                "blocked_count": r.blocked_count,
+                "partial_count": r.partial_count,
+                "breached_count": r.breached_count,
+            })
+        })
+        .collect())
+}
+
+/// Get findings for a specific agent result.
+#[tauri::command]
+pub fn agent_audit_get_findings(
+    result_id: String,
+    attack_type: Option<String>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let findings = if let Some(at) = attack_type {
+        super::engine::security::agent_audit::get_findings_by_type(engine.db(), &result_id, &at)
+    } else {
+        super::engine::security::agent_audit::get_findings(engine.db(), &result_id)
+    }
+    .map_err(|e| e.to_string())?;
+
+    Ok(findings
+        .iter()
+        .map(|f| {
+            serde_json::json!({
+                "id": f.id,
+                "result_id": f.result_id,
+                "attack_type": f.attack_type,
+                "attack_name": f.attack_name,
+                "severity": f.severity,
+                "attack_prompt": f.attack_prompt,
+                "agent_response": f.agent_response,
+                "indicator": f.indicator,
+                "description": f.description,
+                "remediation": f.remediation,
+                "raw_data": f.raw_data,
+            })
+        })
+        .collect())
+}
+
+/// Get latest audit run summary.
+#[tauri::command]
+pub fn agent_audit_get_latest_summary() -> Result<Option<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::agent_audit::get_latest_summary(engine.db())
+        .map_err(|e| e.to_string())
+}
+
+/// Delete an audit run.
+#[tauri::command]
+pub fn agent_audit_delete_run(run_id: String) -> Result<bool, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::agent_audit::delete_run(engine.db(), &run_id)
+        .map_err(|e| e.to_string())
+}
+
+// ═════════════════════════════════════════════════════════════════
+// SIEM — Security Information & Event Management (Phase 5)
+// ═════════════════════════════════════════════════════════════════
+
+/// Run the correlation engine and generate alerts.
+#[tauri::command]
+pub fn siem_run_correlation() -> Result<i64, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::siem::run_correlation(engine.db()).map_err(|e| e.to_string())
+}
+
+/// Get the aggregate risk overview.
+#[tauri::command]
+pub fn siem_get_risk_overview() -> Result<serde_json::Value, String> {
+    let engine = super::engine::get_engine();
+    let overview = super::engine::security::siem::get_risk_overview(engine.db())
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({
+        "overall_score": overview.overall_score,
+        "trend": overview.trend,
+        "active_alerts": overview.active_alerts,
+        "critical_alerts": overview.critical_alerts,
+        "correlations_24h": overview.correlations_24h,
+        "events_24h": overview.events_24h,
+        "aegis_score": overview.aegis_score,
+        "viper_risk": overview.viper_risk,
+        "agent_defense": overview.agent_defense,
+        "top_risks": overview.top_risks,
+    }))
+}
+
+/// Get recent alerts.
+#[tauri::command]
+pub fn siem_get_alerts(status: Option<String>, limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let status_ref = status.as_deref();
+    let alerts = super::engine::security::siem::get_alerts(engine.db(), status_ref, limit.unwrap_or(50))
+        .map_err(|e| e.to_string())?;
+    Ok(alerts
+        .iter()
+        .map(|a| {
+            serde_json::json!({
+                "id": a.id,
+                "alert_type": a.alert_type,
+                "severity": a.severity,
+                "title": a.title,
+                "description": a.description,
+                "source": a.source,
+                "agent_id": a.agent_id,
+                "correlation_id": a.correlation_id,
+                "status": a.status,
+                "acknowledged_at": a.acknowledged_at,
+                "resolved_at": a.resolved_at,
+                "raw_data": a.raw_data,
+                "created_at": a.created_at,
+            })
+        })
+        .collect())
+}
+
+/// Acknowledge an alert.
+#[tauri::command]
+pub fn siem_acknowledge_alert(alert_id: String) -> Result<bool, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::siem::acknowledge_alert(engine.db(), &alert_id)
+        .map_err(|e| e.to_string())
+}
+
+/// Resolve an alert.
+#[tauri::command]
+pub fn siem_resolve_alert(alert_id: String) -> Result<bool, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::siem::resolve_alert(engine.db(), &alert_id)
+        .map_err(|e| e.to_string())
+}
+
+/// Dismiss an alert.
+#[tauri::command]
+pub fn siem_dismiss_alert(alert_id: String) -> Result<bool, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::siem::dismiss_alert(engine.db(), &alert_id)
+        .map_err(|e| e.to_string())
+}
+
+/// Get recent correlations.
+#[tauri::command]
+pub fn siem_get_correlations(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let correlations = super::engine::security::siem::get_correlations(engine.db(), limit.unwrap_or(30))
+        .map_err(|e| e.to_string())?;
+    Ok(correlations
+        .iter()
+        .map(|c| {
+            serde_json::json!({
+                "id": c.id,
+                "correlation_type": c.correlation_type,
+                "severity": c.severity,
+                "title": c.title,
+                "description": c.description,
+                "source_1_type": c.source_1_type,
+                "source_1_id": c.source_1_id,
+                "source_2_type": c.source_2_type,
+                "source_2_id": c.source_2_id,
+                "agent_ids": c.agent_ids,
+                "risk_score": c.risk_score,
+                "raw_data": c.raw_data,
+                "created_at": c.created_at,
+            })
+        })
+        .collect())
+}
+
+/// Get risk timeline (daily aggregates for 30 days).
+#[tauri::command]
+pub fn siem_get_risk_timeline() -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::siem::get_risk_timeline(engine.db()).map_err(|e| e.to_string())
+}
+
+/// Generate a weekly security report.
+#[tauri::command]
+pub fn siem_generate_weekly_report() -> Result<String, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::siem::generate_weekly_report(engine.db()).map_err(|e| e.to_string())
+}
+
+/// Get weekly reports.
+#[tauri::command]
+pub fn siem_get_weekly_reports(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let reports = super::engine::security::siem::get_weekly_reports(engine.db(), limit.unwrap_or(12))
+        .map_err(|e| e.to_string())?;
+    Ok(reports
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "id": r.id,
+                "week_start": r.week_start,
+                "week_end": r.week_end,
+                "risk_score": r.risk_score,
+                "risk_trend": r.risk_trend,
+                "total_events": r.total_events,
+                "critical_events": r.critical_events,
+                "alerts_generated": r.alerts_generated,
+                "alerts_resolved": r.alerts_resolved,
+                "aegis_score": r.aegis_score,
+                "viper_score": r.viper_score,
+                "agent_audit_score": r.agent_audit_score,
+                "summary": r.summary,
+                "findings": r.findings,
+                "created_at": r.created_at,
+            })
+        })
+        .collect())
+}
