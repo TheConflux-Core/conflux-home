@@ -2126,6 +2126,42 @@
   font-weight: 600;
 }
 
+/* ---- Inventory Filter Chips ---- */
+.inventory-filter-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  padding: 0 var(--hearth-space-md);
+}
+
+.inventory-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 14px;
+  border-radius: var(--hearth-radius-full);
+  font-size: 0.82rem;
+  font-weight: 500;
+  border: 1px solid var(--hearth-surface);
+  background: transparent;
+  color: var(--hearth-text-dim);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.inventory-filter-chip:hover {
+  border-color: rgba(245, 158, 11, 0.3);
+  color: var(--hearth-300);
+}
+
+.inventory-filter-chip.active {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: var(--hearth-400);
+  font-weight: 600;
+}
+
 /* ---- PantryHeatmap ---- */
 .pantry-heatmap {
   padding: 0 var(--hearth-space-md);
@@ -2152,10 +2188,21 @@
   border-radius: var(--hearth-radius-md);
   border-left: 3px solid var(--hearth-surface);
   display: flex;
-  align-items: center;
-  gap: var(--hearth-space-sm);
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
   overflow: hidden;
   transition: border-color var(--hearth-duration) var(--hearth-ease);
+}
+
+.pantry-heat-item.urgent {
+  border-left-color: var(--hearth-500) !important;
+  background: rgba(245, 158, 11, 0.06);
+}
+
+.pantry-heat-item.expired {
+  border-left-color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.06);
 }
 
 .pantry-heat-bar {
@@ -2167,6 +2214,13 @@
   transition: width var(--hearth-duration-slow) var(--hearth-ease);
 }
 
+.pantry-heat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hearth-space-sm);
+}
+
 .pantry-heat-name {
   flex: 1;
   font-size: 0.9rem;
@@ -2174,11 +2228,25 @@
   color: var(--hearth-text);
 }
 
+.pantry-heat-location {
+  font-size: 0.75rem;
+  color: var(--hearth-text-dim);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .pantry-heat-days {
   font-size: 0.8rem;
   color: var(--hearth-text-muted);
   font-weight: 500;
-  flex-shrink: 0;
+}
+
+.pantry-heat-item.urgent .pantry-heat-days {
+  color: var(--hearth-500);
+}
+
+.pantry-heat-item.expired .pantry-heat-days {
+  color: #ef4444;
 }
 
 /* ---- SmartGrocery ---- */

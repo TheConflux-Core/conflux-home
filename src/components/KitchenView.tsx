@@ -87,6 +87,7 @@ export default function KitchenView() {
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [tourComplete, setTourComplete] = useState(false);
   const [showAddPantryItem, setShowAddPantryItem] = useState(false);
+  const [inventoryFilter, setInventoryFilter] = useState<'all' | 'expiring' | 'fridge' | 'pantry' | 'freezer'>('all');
 
   const weekStart = useMemo(getWeekStart, []);
 
@@ -563,7 +564,45 @@ const SLOTS = ['breakfast', 'lunch', 'dinner'] as const;
           </div>
 
           {pantryItems.length > 0 ? (
-            <PantryHeatmap items={pantryItems} />
+            <>
+              {/* Location / Status Filter Chips */}
+              <div className="inventory-filter-row">
+                {([
+                  { key: 'all',      label: 'All' },
+                  { key: 'expiring', label: '⚠️ Expiring' },
+                  { key: 'fridge',   label: '🧊 Fridge' },
+                  { key: 'pantry',   label: '🏠 Pantry' },
+                  { key: 'freezer',  label: '❄️ Freezer' },
+                ] as const).map(f => (
+                  <button
+                    key={f.key}
+                    className={`inventory-filter-chip ${inventoryFilter === f.key ? 'active' : ''}`}
+                    onClick={() => setInventoryFilter(f.key)}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Filtered heatmap */}
+              {(() => {
+                const filtered = pantryItems.filter(item => {
+                  if (inventoryFilter === 'expiring') return item.days_until_expiry !== null && item.days_until_expiry <= 3;
+                  if (inventoryFilter === 'fridge')   return item.location === 'fridge';
+                  if (inventoryFilter === 'pantry')   return item.location === 'pantry';
+                  if (inventoryFilter === 'freezer')  return item.location === 'freezer';
+                  return true;
+                });
+                if (filtered.length === 0) {
+                  return (
+                    <div className="kitchen-empty" style={{ marginTop: '0.5rem' }}>
+                      <p>No items in this category. Try a different filter or add items above.</p>
+                    </div>
+                  );
+                }
+                return <PantryHeatmap items={filtered} />;
+              })()}
+            </>
           ) : (
             <div className="kitchen-empty">
               <p>🌡️ Your pantry is empty. Add items to track freshness and get nudges when things are about to expire.</p>
