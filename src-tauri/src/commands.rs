@@ -1710,6 +1710,75 @@ pub async fn kitchen_add_inventory(req: AddInventoryRequest, member_id: Option<S
     ).await.map_err(|e| e.to_string())
 }
 
+// ── NL Inventory Add (Smart Defaults) ─────────────────────────────────────────
+
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct NlInventoryResult {
+    items_added: usize,
+    items: Vec<NlInventoryItem>,
+    message: String,
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct NlInventoryItem {
+    name: String,
+    quantity: Option<f64>,
+    unit: Option<String>,
+    expiry_date: Option<String>,
+    category: Option<String>,
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn kitchen_nl_add_inventory(text: String, member_id: Option<String>) -> Result<NlInventoryResult, String> {
+    let user_id = member_id.unwrap_or_else(|| get_supabase_user_id());
+    let engine = engine::get_engine();
+    let family_member_id = engine.db().get_or_create_family_member_id(&user_id)
+        .await
+        .map_err(|e| format!("Failed to resolve family member: {}", e))?;
+
+    // Prompt to LLM — extract items and infer expiry dates from standard grocery data
+    let prompt = format!(r#"You are Hearth inventory parser. Extract grocery items from: "{}"
+For each item return JSON: name, quantity (number/null), unit (string/null), category (dairy/meat/produce/pantry/etc), expiry_date (YYYY-MM-DD or null).
+Use standard shelf life: eggs=30d, milk=7d, chicken=2d, beef=2d, pork=3d, fish=1d, bread=5d, cheese=21d, yogurt=10d, rice_dry=730d, pasta=730d, canned=365d, butter=30d, vegetables=5-14d.
+Return ONLY a JSON array. Example: [{{"name":"eggs","quantity":12,"unit":"pieces","category":"dairy","expiry_date":null}}]"#, text);
+
+    let messages = vec![engine::router::OpenAIMessage { role: "user".to_string(), content: Some(prompt), tool_call_id: None, tool_calls: None }];
+    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(1500), None, None)
+        .await.map_err(|e| format!("AI failed: {}", e))?;
+
+    let response_content = response.content.trim();
+    let json_str = if response_content.starts_with("```json") {
+        response_content.trim_start_matches("```json").trim_start_matches("```").trim()
+    } else if response_content.starts_with("```") {
+        response_content.trim_start_matches("```").trim()
+    } else {
+        response_content
+    };
+
+    let parsed: Vec<NlInventoryItem> = serde_json::from_str(json_str)
+        .map_err(|e| format!("Failed to parse inventory: {} — raw: {}", e, json_str))?;
+
+    let mut items_added = 0;
+    for item in &parsed {
+        let id = uuid::Uuid::new_v4().to_string();
+        let expiry = item.expiry_date.clone();
+        engine.db().add_inventory_item(
+            &id, &family_member_id, &item.name, item.quantity,
+            item.unit.as_deref(), item.category.as_deref(), expiry.as_deref(), None,
+        ).await.map_err(|e| e.to_string())?;
+        items_added += 1;
+    }
+
+    let item_names: Vec<_> = parsed.iter().map(|i| i.name.clone()).collect();
+    let message = if items_added == 1 {
+        format!("✅ Added {} to your inventory.", item_names[0])
+    } else {
+        format!("✅ Added {} items: {}.", items_added, item_names.join(", "))
+    };
+
+    Ok(NlInventoryResult { items_added, items: parsed, message })
+}
+
 #[tauri::command]
 pub async fn kitchen_get_inventory(location: Option<String>, member_id: Option<String>) -> Result<Vec<engine::types::KitchenInventoryItem>, String> {
     let user_id = member_id.unwrap_or_else(|| get_supabase_user_id());
