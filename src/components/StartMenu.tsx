@@ -27,6 +27,7 @@ const ALL_APPS: AppItem[] = [
   { id: 'games', icon: '📖', label: 'Stories', category: 'fun', description: 'Interactive adventure games' },
   { id: 'marketplace', icon: '🛒', label: 'Marketplace', category: 'system', description: 'Discover new apps & agents' },
   { id: 'settings', icon: '⚙️', label: 'Settings', category: 'system', description: 'Configure your experience' },
+  { id: 'security', icon: '🛡️', label: 'Security Center', category: 'system', description: 'Agent security monitoring & controls' },
 ];
 
 const CATEGORIES = [

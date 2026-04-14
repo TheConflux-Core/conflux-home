@@ -48,6 +48,7 @@ import ApiDashboard from './components/ApiDashboard';
 import ControlRoom from './components/ControlRoom';
 import VaultView from './components/VaultView';
 import StudioView from './components/StudioView';
+import SecurityDashboard from './components/SecurityDashboard';
 import GuidedTour from './components/GuidedTour';
 
 // Phase 0.3+: Global AI Input, Agent Status
@@ -96,6 +97,7 @@ const VIEW_BACKGROUNDS: Record<string, string> = {
   settings: '/backgrounds/settings-bg.webp',
   dashboard: '/backgrounds/dashboard-bg.webp',
   'api-dashboard': '/backgrounds/dashboard-bg.webp', // Re-using an existing dashboard background
+  security: '/backgrounds/dashboard-bg.webp', // Re-using dashboard background
 };
 
 // Default wallpapers — uses color theme if set
@@ -928,6 +930,7 @@ const [activeSnake, setActiveSnake] = useState(false);
           {immersiveView === 'vault' && <VaultView />}
           {immersiveView === 'studio' && <StudioView />}
           {immersiveView === 'settings' && <Settings />}
+          {immersiveView === 'security' && <SecurityDashboard />}
           {immersiveView === 'api-dashboard' && <ApiDashboard />}
           {immersiveView === 'dashboard' && (
             <div>
