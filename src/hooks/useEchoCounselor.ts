@@ -247,9 +247,22 @@ export function useEchoCounselor() {
   }, []);
 
   // -- Evening Reminder --------------------------------------
+  const getEveningReminder = useCallback(async () => {
+    try {
+      return await invoke<{ enabled: boolean; hour: number; minute: number } | null>('echo_counselor_get_evening_reminder');
+    } catch (e) {
+      console.error('Failed to get evening reminder:', e);
+      return null;
+    }
+  }, []);
+
   const setEveningReminder = useCallback(async (settings: EchoEveningReminderSettings) => {
     try {
-      await invoke<string>('echo_counselor_set_evening_reminder', { req: settings });
+      await invoke<string>('echo_counselor_set_evening_reminder', {
+        enabled: settings.enabled,
+        hour: settings.hour ?? null,
+        minute: settings.minute ?? null,
+      });
     } catch (e) {
       console.error('Failed to set evening reminder:', e);
     }
@@ -276,6 +289,7 @@ export function useEchoCounselor() {
     generateWeeklyLetter,
     getWeeklyLetter,
     getWeeklyLetterHistory,
+    getEveningReminder,
     setEveningReminder,
     setCurrentSessionData,
     refresh: loadState,
