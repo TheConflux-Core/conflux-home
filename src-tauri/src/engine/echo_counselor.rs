@@ -15,7 +15,7 @@ fn to_string(err: rusqlite::Error) -> String {
 }
 
 // Mirror's system prompt
-const MIRROR_SYSTEM_PROMPT: &str = r#"You are Mirror, a reflective wellness companion in the Conflux Home app. You are NOT a licensed therapist. You are a warm, present, and insightful conversation partner who helps people reflect on their life, manage stress, and find clarity.
+pub const MIRROR_SYSTEM_PROMPT: &str = r#"You are Mirror, a reflective wellness companion in the Conflux Home app. You are NOT a licensed therapist. You are a warm, present, and insightful conversation partner who helps people reflect on their life, manage stress, and find clarity.
 
 ## Your Identity
 - Name: Mirror
@@ -667,6 +667,67 @@ pub fn end_session(session_id: &str) -> Result<(), String> {
     let conn = engine.db.conn();
     let now = Utc::now().to_rfc3339();
 
+    // Get session messages for reflection generation
+    let messages: Vec<EchoCounselorMessage> = conn
+        .prepare("SELECT * FROM echo_counselor_messages WHERE session_id = ? ORDER BY timestamp ASC")
+        .map_err(to_string)?
+        .query_map([session_id], |row| {
+            Ok(EchoCounselorMessage {
+                id: row.get(0)?,
+                session_id: row.get(1)?,
+                role: row.get(2)?,
+                content: row.get(3)?,
+                timestamp: row.get(4)?,
+            })
+        })
+        .map_err(to_string)?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    // Build a summary prompt for reflection
+    let conversation_summary = messages
+        .iter()
+        .map(|m| format!("[{}]: {}", m.role, m.content))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let reflection_prompt = format!(
+        "You are Echo, a reflective wellness companion. A session just ended. Write a private journal reflection (2-4 sentences) capturing the key themes, emotional patterns, and anything worth revisiting next time. Write only the reflection — no preamble.\n\nSession transcript:\n{}",
+        conversation_summary
+    );
+
+    // Spawn a blocking task to generate the reflection asynchronously
+    let sid = session_id.to_string();
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let reflection_text_opt = rt.block_on(async {
+            let response = crate::engine::router::chat(
+                "mirror",
+                vec![crate::engine::router::OpenAIMessage {
+                    role: "user".to_string(),
+                    content: Some(reflection_prompt),
+                    tool_call_id: None,
+                    tool_calls: None,
+                }],
+                None,
+                None,
+                None,
+            ).await;
+            response.ok().and_then(|r| r.content.into())
+        });
+
+        if let Some(reflection_text) = reflection_text_opt {
+            let engine = crate::engine::get_engine();
+            let conn = engine.db().conn();
+            let now = chrono::Utc::now().to_rfc3339();
+            conn.execute(
+                "UPDATE echo_counselor_sessions SET counselor_reflection = ?, ended_at = ? WHERE id = ?",
+                rusqlite::params![&reflection_text, &now, &sid],
+            ).ok();
+        }
+    });
+
+    // Mark session as completed immediately (reflection writes async)
     conn.execute(
         "UPDATE echo_counselor_sessions SET status = 'completed', ended_at = ? WHERE id = ?",
         [&now, session_id],
