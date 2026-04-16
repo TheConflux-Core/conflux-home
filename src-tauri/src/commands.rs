@@ -3829,7 +3829,7 @@ Provide a helpful, specific answer based on the information above. If you don't 
 
 // ── Life Autopilot: Orbit Commands ──
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn life_add_task(
     user_id: String,
     title: String,
@@ -3839,12 +3839,13 @@ pub async fn life_add_task(
     energy_type: Option<String>,
 ) -> Result<(), String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     let id = uuid::Uuid::new_v4().to_string();
     engine
         .db()
         .add_life_task(
             &id,
-            &user_id,
+            &member_id,
             &title,
             category.as_deref(),
             priority.as_deref().unwrap_or("medium"),
@@ -3855,35 +3856,38 @@ pub async fn life_add_task(
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn life_get_tasks(
     user_id: String,
     status: Option<String>,
 ) -> Result<Vec<engine::types::LifeTask>, String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     engine
         .db()
-        .get_life_tasks(&user_id, status.as_deref())
+        .get_life_tasks(&member_id, status.as_deref())
         .await
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn life_complete_task(user_id: String, task_id: String) -> Result<(), String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     engine
         .db()
-        .update_life_task_status(&user_id, &task_id, "completed")
+        .update_life_task_status(&member_id, &task_id, "completed")
         .await
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn life_delete_task(user_id: String, task_id: String) -> Result<(), String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     engine
         .db()
-        .delete_life_task(&user_id, &task_id)
+        .delete_life_task(&member_id, &task_id)
         .await
         .map_err(|e| e.to_string())
 }
@@ -3897,12 +3901,13 @@ pub async fn life_add_habit(
     target_count: Option<i64>,
 ) -> Result<(), String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     let id = uuid::Uuid::new_v4().to_string();
     engine
         .db()
         .add_life_habit(
             &id,
-            &user_id,
+            &member_id,
             &name,
             category.as_deref(),
             frequency.as_deref().unwrap_or("daily"),
@@ -3912,87 +3917,140 @@ pub async fn life_add_habit(
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn life_get_habits(
     user_id: String,
     active_only: Option<bool>,
 ) -> Result<Vec<engine::types::LifeHabit>, String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     engine
         .db()
-        .get_life_habits(&user_id, active_only.unwrap_or(true))
+        .get_life_habits(&member_id, active_only.unwrap_or(true))
         .await
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn life_log_habit(user_id: String, habit_id: String) -> Result<(), String> {
     let engine = engine::get_engine();
+    let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     let id = uuid::Uuid::new_v4().to_string();
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
     engine
         .db()
-        .log_life_habit(&id, &habit_id, &user_id, &today, 1)
+        .log_life_habit(&id, &habit_id, &member_id, &today, 1)
         .await
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn life_get_orbit_dashboard(
     user_id: String,
 ) -> Result<engine::types::OrbitDashboard, String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     engine
         .db()
-        .get_orbit_dashboard(&user_id)
+        .get_orbit_dashboard(&member_id)
         .await
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn life_add_daily_focus(
     user_id: String,
     task_id: String,
     position: Option<i64>,
 ) -> Result<(), String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     let id = uuid::Uuid::new_v4().to_string();
     engine
         .db()
-        .add_daily_focus(&id, &user_id, &task_id, position.unwrap_or(0))
+        .add_daily_focus(&id, &member_id, &task_id, position.unwrap_or(0))
         .await
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn life_morning_brief(user_id: String) -> Result<String, String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     let dashboard = engine
         .db()
-        .get_orbit_dashboard(&user_id)
+        .get_orbit_dashboard(&member_id)
         .await
         .map_err(|e| e.to_string())?;
-    let mut brief = String::from("☀️ Good morning!\n\n");
+
+    let hour = chrono::Local::now().hour();
+    let greeting = if hour < 12 {
+        "☀️ Good morning!"
+    } else if hour < 17 {
+        "🌤️ Good afternoon!"
+    } else {
+        "🌙 Good evening!"
+    };
+
+    let today = chrono::Local::now().format("%A, %B %d").to_string();
+    let mut brief = format!("{} — {}\n\n", greeting, today);
+
+    // Today's focus
     if !dashboard.today_focus.is_empty() {
-        brief.push_str("🎯 Today's Focus:\n");
-        for (i, f) in dashboard.today_focus.iter().enumerate() {
+        brief.push_str("🎯 ON DECK:\n");
+        for (i, f) in dashboard.today_focus.iter().enumerate().take(3) {
             if let Some(ref task) = f.task {
-                brief.push_str(&format!("  {}. {}\n", i + 1, task.title));
+                let emoji = match task.priority.as_str() {
+                    "urgent" => "🔴",
+                    "high" => "🟠",
+                    _ => "▸",
+                };
+                brief.push_str(&format!("  {} {} \n", emoji, task.title));
             }
         }
+        brief.push('\n');
     }
-    if !dashboard.pending_tasks.is_empty() {
+
+    // Urgent/high pending tasks
+    let urgent: Vec<_> = dashboard
+        .pending_tasks
+        .iter()
+        .filter(|t| t.priority == "urgent" || t.priority == "high")
+        .take(3)
+        .collect();
+    if !urgent.is_empty() {
+        brief.push_str("⚡ PRIORITIES:\n");
+        for task in &urgent {
+            brief.push_str(&format!("  ▸ {} \n", task.title));
+        }
+        brief.push('\n');
+    }
+
+    // Overall status
+    let total_pending = dashboard.pending_tasks.len();
+    if total_pending == 0 {
+        brief.push_str("✨ Nothing pending — enjoy the clearsky.\n");
+    } else {
         brief.push_str(&format!(
-            "\n📋 {} pending tasks\n",
-            dashboard.pending_tasks.len()
+            "📋 {} task{} in your orbit\n",
+            total_pending,
+            if total_pending == 1 { "" } else { "s" }
         ));
     }
+
     if dashboard.streak_total > 0 {
-        brief.push_str(&format!(
-            "🔥 {} total habit streaks\n",
-            dashboard.streak_total
-        ));
+        let streak_msg = if dashboard.streak_total >= 7 {
+            format!("🔥 {} — habit power! Keep the fire burning.", dashboard.streak_total)
+        } else {
+            format!("🔥 {} day streak — momentum is building.", dashboard.streak_total)
+        };
+        brief.push_str(&streak_msg);
+        brief.push('\n');
+    } else if !dashboard.active_habits.is_empty() {
+        brief.push_str("🔄 Habits active — log one today to start a streak!\n");
     }
+
     Ok(brief)
 }
 
@@ -4015,18 +4073,147 @@ pub async fn life_smart_reschedule(task_id: String) -> Result<engine::types::Lif
 #[tauri::command]
 pub async fn life_parse_input(input: String) -> Result<serde_json::Value, String> {
     let lower = input.to_lowercase();
+
+    // Action detection
     let action = if lower.contains("remind") || lower.contains("remember") {
         "reminder"
-    } else if lower.contains("habit") || lower.contains("daily") {
+    } else if lower.contains("habit") || lower.contains("daily") || lower.contains("every day") {
         "habit"
     } else {
         "task"
     };
+
+    // Priority detection
+    let priority = if lower.contains("urgent") || lower.contains("asap") || lower.contains("critical") {
+        Some("urgent".to_string())
+    } else if lower.contains("high priority") || lower.contains("important") || lower.contains("!") {
+        Some("high".to_string())
+    } else if lower.contains("low priority") || lower.contains("whenever") || lower.contains("someday") {
+        Some("low".to_string())
+    } else {
+        None
+    };
+
+    // Category detection
+    let category = if lower.contains("gym") || lower.contains("workout") || lower.contains("exercise") || lower.contains("run") || lower.contains("walk") {
+        Some("health".to_string())
+    } else if lower.contains("call") || lower.contains("email") || lower.contains("meeting") || lower.contains("presentation") {
+        Some("work".to_string())
+    } else if lower.contains("buy") || lower.contains("groceries") || lower.contains("shop") || lower.contains("store") {
+        Some("personal".to_string())
+    } else if lower.contains("pay") || lower.contains("bill") || lower.contains("budget") || lower.contains("money") {
+        Some("finance".to_string())
+    } else if lower.contains("learn") || lower.contains("read") || lower.contains("study") || lower.contains("course") {
+        Some("learning".to_string())
+    } else if lower.contains("write") || lower.contains("paint") || lower.contains("draw") || lower.contains("music") || lower.contains("song") {
+        Some("creative".to_string())
+    } else {
+        None
+    };
+
+    // Energy type detection
+    let energy_type = if lower.contains("high energy") || lower.contains("⚡") || lower.contains("intense") {
+        Some("high".to_string())
+    } else if lower.contains("low energy") || lower.contains("🌙") || lower.contains("chill") {
+        Some("low".to_string())
+    } else {
+        None
+    };
+
+    // Date extraction — look for patterns like "by 4/20", "tomorrow", "next friday", "in 3 days"
+    let due_date = extract_date(&input);
+
+    // Clean title: remove date phrases, priority words, category words for a cleaner title
+    let mut title = input.clone();
+    // Remove common date phrases
+    let date_patterns = [
+        r"by\s+\d{1,2}/\d{1,2}(/\d{2,4})?",
+        r"tomorrow",
+        r"today",
+        r"next\s+\w+",
+        r"in\s+\d+\s+days?",
+    ];
+    for pattern in &date_patterns {
+        let re = regex::Regex::new(&format!("(?i){}", pattern)).unwrap_or_else(|_| regex::Regex::new("(?i)..").unwrap());
+        title = re.replace_all(&title, "").to_string();
+    }
+    title = title.trim().to_string();
+    if title.is_empty() {
+        title = input.clone();
+    }
+
     Ok(serde_json::json!({
         "action": action,
-        "title": input,
-        "parsed": true,
+        "title": title,
+        "due_date": due_date,
+        "priority": priority,
+        "category": category,
+        "energy_type": energy_type,
+        "parsed": due_date.is_some() || category.is_some() || priority.is_some(),
     }))
+}
+
+fn extract_date(input: &str) -> Option<String> {
+    let lower = input.to_lowercase();
+
+    // "tomorrow"
+    if lower.contains("tomorrow") {
+        let d = chrono::Local::now() + chrono::Duration::days(1);
+        return Some(d.format("%Y-%m-%d").to_string());
+    }
+
+    // "today"
+    if lower.contains("today") {
+        let d = chrono::Local::now();
+        return Some(d.format("%Y-%m-%d").to_string());
+    }
+
+    // "in X days"
+    let re_days = regex::Regex::new(r"(?i)in\s+(\d+)\s+days?").ok()?;
+    if let Some(caps) = re_days.captures(&lower) {
+        if let Ok(days) = caps.get(1).unwrap().as_str().parse::<i64>() {
+            let d = chrono::Local::now() + chrono::Duration::days(days);
+            return Some(d.format("%Y-%m-%d").to_string());
+        }
+    }
+
+    // MM/DD or MM/DD/YYYY
+    let re_mdy = regex::Regex::new(r"(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?").ok()?;
+    if let Some(caps) = re_mdy.captures(&lower) {
+        let month: u32 = caps.get(1).unwrap().as_str().parse().ok()?;
+        let day: u32 = caps.get(2).unwrap().as_str().parse().ok()?;
+        let year = if let Some(yr) = caps.get(3) {
+            let y = yr.as_str();
+            if y.len() == 2 {
+                let y2: i32 = y.parse().ok()?;
+                if y2 < 50 { 2000 + y2 } else { 1900 + y2 }
+            } else {
+                y.parse().ok()?
+            }
+        } else {
+            chrono::Local::now().year()
+        };
+        if month >= 1 && month <= 12 && day >= 1 && day <= 31 {
+            if let Some(date) = chrono::NaiveDate::from_ymd_opt(year, month, day) {
+                return Some(date.format("%Y-%m-%d").to_string());
+            }
+        }
+    }
+
+    // "by MM/DD" (end of day)
+    let re_by = regex::Regex::new(r"(?i)by\s+(\d{1,2})/(\d{1,2})").ok()?;
+    if let Some(caps) = re_by.captures(&lower) {
+        let month: u32 = caps.get(1).unwrap().as_str().parse().ok()?;
+        let day: u32 = caps.get(2).unwrap().as_str().parse().ok()?;
+        let year = chrono::Local::now().year();
+        if month >= 1 && month <= 12 && day >= 1 && day <= 31 {
+            if let Some(date) = chrono::NaiveDate::from_ymd_opt(year, month, day) {
+                return Some(date.format("%Y-%m-%d").to_string());
+            }
+        }
+    }
+
+    None
 }
 
 #[tauri::command]
@@ -4037,12 +4224,13 @@ pub async fn life_decision_helper(options: String) -> Result<String, String> {
     ))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn life_get_heatmap(user_id: String) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     let tasks = engine
         .db()
-        .get_life_tasks(&user_id, None)
+        .get_life_tasks(&member_id, None)
         .await
         .unwrap_or_default();
     let mut days: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
@@ -4054,13 +4242,14 @@ pub async fn life_get_heatmap(user_id: String) -> Result<serde_json::Value, Stri
     Ok(serde_json::json!({ "days": days }))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn life_dismiss_nudge(user_id: String, nudge_id: String) -> Result<(), String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     let conn = engine.db().conn_async().await;
     conn.execute(
         "UPDATE life_nudges SET dismissed = 1 WHERE id = ?1 AND member_id = ?2",
-        rusqlite::params![nudge_id, user_id],
+        rusqlite::params![nudge_id, member_id],
     )
     .map_err(|e| e.to_string())?;
     Ok(())
@@ -5006,6 +5195,7 @@ pub async fn home_get_year_summary() -> Result<serde_json::Value, String> {
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn dream_add(
+    user_id: String,
     id: String,
     member_id: Option<String>,
     title: String,
@@ -5014,11 +5204,12 @@ pub async fn dream_add(
     target_date: Option<String>,
 ) -> Result<(), String> {
     let engine = engine::get_engine();
+    let resolved_member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     engine
         .db()
         .add_dream(
             &id,
-            member_id.as_deref(),
+            Some(&resolved_member_id),
             &title,
             description.as_deref(),
             &category,
@@ -5028,30 +5219,46 @@ pub async fn dream_add(
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn dream_get_all(
     user_id: String,
     status: Option<String>,
 ) -> Result<Vec<engine::types::Dream>, String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     engine
         .db()
-        .get_dreams(&user_id, status.as_deref())
+        .get_dreams(&member_id, status.as_deref())
         .await
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn dream_get_dashboard(user_id: String) -> Result<engine::types::DreamDashboard, String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     engine
         .db()
-        .get_dream_dashboard(&user_id)
+        .get_dream_dashboard(&member_id)
         .await
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
+pub async fn dream_get_milestones(
+    user_id: String,
+    dream_id: String,
+) -> Result<Vec<engine::types::DreamMilestone>, String> {
+    let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
+    engine
+        .db()
+        .get_milestones(&dream_id, &member_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command(rename_all = "snake_case")]
 pub async fn dream_add_milestone(
     user_id: String,
     id: String,
@@ -5062,12 +5269,13 @@ pub async fn dream_add_milestone(
     sort_order: i64,
 ) -> Result<(), String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     engine
         .db()
         .add_milestone(
             &id,
             &dream_id,
-            &user_id,
+            &member_id,
             &title,
             description.as_deref(),
             target_date.as_deref(),
@@ -5077,17 +5285,18 @@ pub async fn dream_add_milestone(
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn dream_complete_milestone(user_id: String, id: String) -> Result<(), String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     engine
         .db()
-        .complete_milestone(&user_id, &id)
+        .complete_milestone(&member_id, &id)
         .await
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn dream_add_task(
     user_id: String,
     id: String,
@@ -5099,13 +5308,14 @@ pub async fn dream_add_task(
     frequency: Option<String>,
 ) -> Result<(), String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     engine
         .db()
         .add_dream_task(
             &id,
             &dream_id,
             milestone_id.as_deref(),
-            &user_id,
+            &member_id,
             &title,
             description.as_deref(),
             due_date.as_deref(),
@@ -5115,30 +5325,32 @@ pub async fn dream_add_task(
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn dream_get_tasks(
     user_id: String,
     dream_id: String,
 ) -> Result<Vec<engine::types::DreamTask>, String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     engine
         .db()
-        .get_dream_tasks(&dream_id, &user_id)
+        .get_dream_tasks(&dream_id, &member_id)
         .await
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn dream_complete_task(user_id: String, id: String) -> Result<(), String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     engine
         .db()
-        .complete_dream_task(&user_id, &id)
+        .complete_dream_task(&member_id, &id)
         .await
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn dream_add_progress(
     user_id: String,
     id: String,
@@ -5148,12 +5360,13 @@ pub async fn dream_add_progress(
     ai_insight: Option<String>,
 ) -> Result<(), String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     engine
         .db()
         .add_dream_progress(
             &id,
             &dream_id,
-            &user_id,
+            &member_id,
             note.as_deref(),
             progress_change,
             ai_insight.as_deref(),
@@ -5162,17 +5375,43 @@ pub async fn dream_add_progress(
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-pub async fn dream_delete(user_id: String, id: String) -> Result<(), String> {
+#[tauri::command(rename_all = "snake_case")]
+pub async fn dream_update(
+    user_id: String,
+    id: String,
+    title: String,
+    description: Option<String>,
+    category: String,
+    target_date: Option<String>,
+) -> Result<(), String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     engine
         .db()
-        .delete_dream(&user_id, &id)
+        .update_dream(
+            &member_id,
+            &id,
+            &title,
+            description.as_deref(),
+            &category,
+            target_date.as_deref(),
+        )
         .await
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
+pub async fn dream_delete(user_id: String, id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
+    engine
+        .db()
+        .delete_dream(&member_id, &id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command(rename_all = "snake_case")]
 pub async fn dream_ai_plan(
     user_id: String,
     dream_id: String,
@@ -5182,6 +5421,7 @@ pub async fn dream_ai_plan(
     target_date: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     let prompt = format!(
         "You are a goal achievement AI. A family wants to achieve:\n\nTitle: {title}\nCategory: {category}\nDescription: {}\nTarget: {}\n\nReverse-engineer into concrete plan. Respond as JSON (no markdown):\n{{\"analysis\":\"...\",\"milestones\":[{{\"title\":\"...\",\"description\":\"...\",\"target_date\":\"2026-06-01\",\"sort_order\":0}}],\"immediate_tasks\":[{{\"title\":\"...\",\"description\":\"...\",\"due_date\":\"2026-03-25\",\"frequency\":\"one-time\"}}],\"habit\":{{\"title\":\"...\",\"description\":\"...\"}},\"metrics\":[\"...\"]}}",
         description.as_deref().unwrap_or("No description"), target_date.as_deref().unwrap_or("No deadline")
@@ -5219,7 +5459,7 @@ pub async fn dream_ai_plan(
                 .add_milestone(
                     &mid,
                     &dream_id,
-                    &user_id,
+                    &member_id,
                     m["title"].as_str().unwrap_or("Milestone"),
                     m["description"].as_str(),
                     m["target_date"].as_str(),
@@ -5238,7 +5478,7 @@ pub async fn dream_ai_plan(
                     &tid,
                     &dream_id,
                     None,
-                    &user_id,
+                    &member_id,
                     t["title"].as_str().unwrap_or("Task"),
                     t["description"].as_str(),
                     t["due_date"].as_str(),
@@ -5253,54 +5493,58 @@ pub async fn dream_ai_plan(
 
 // ── Dreams: Horizon Commands ──
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn dream_get_velocity(
     user_id: String,
     dream_id: String,
 ) -> Result<engine::types::DreamVelocity, String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     engine
         .db()
-        .get_dream_velocity(&dream_id, &user_id)
+        .get_dream_velocity(&dream_id, &member_id)
         .await
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn dream_get_timeline(
     user_id: String,
     dream_id: String,
 ) -> Result<engine::types::DreamTimeline, String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     engine
         .db()
-        .get_dream_timeline(&dream_id, &user_id)
+        .get_dream_timeline(&dream_id, &member_id)
         .await
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn dream_update_progress_manual(
     user_id: String,
     dream_id: String,
     progress_pct: f64,
 ) -> Result<(), String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     engine
         .db()
-        .set_dream_progress(&user_id, &dream_id, progress_pct)
+        .set_dream_progress(&member_id, &dream_id, progress_pct)
         .await
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn dream_get_all_active_with_velocity(
     user_id: String,
 ) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     let dreams_vel = engine
         .db()
-        .get_active_dreams_with_velocity(&user_id)
+        .get_active_dreams_with_velocity(&member_id)
         .await
         .map_err(|e| e.to_string())?;
     let result: Vec<serde_json::Value> = dreams_vel
@@ -5310,17 +5554,18 @@ pub async fn dream_get_all_active_with_velocity(
     Ok(serde_json::json!(result))
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn dream_ai_narrate(user_id: String, dream_id: String) -> Result<String, String> {
     let engine = engine::get_engine();
+    let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     let velocity = engine
         .db()
-        .get_dream_velocity(&dream_id, &user_id)
+        .get_dream_velocity(&dream_id, &member_id)
         .await
         .map_err(|e| e.to_string())?;
     let dreams = engine
         .db()
-        .get_dreams(&user_id, None)
+        .get_dreams(&member_id, None)
         .await
         .map_err(|e| e.to_string())?;
     let title = dreams
@@ -6104,32 +6349,48 @@ Be specific and actionable. Don't just describe — interpret."
     let analysis: serde_json::Value = serde_json::from_str(json_str)
         .map_err(|e| format!("Failed to parse: {}. Raw: {}", e, json_str))?;
 
+    // Serialize→deserialize to break any internal parent-reference chains that
+    // serde_json::Value preserves from the parsed tree. This guarantees a
+    // clean, cycle-free tree for Tauri IPC serialization.
+    let cat_dist = serde_json::from_value::<serde_json::Value>(
+        serde_json::to_string(&analysis["category_distribution"])
+            .map_err(|e| format!("category_distribution serialization failed: {}", e))?
+            .into(),
+    ).map_err(|e| e.to_string())?;
+    let blind_spots = serde_json::from_value::<serde_json::Value>(
+        serde_json::to_string(&analysis["blind_spots"])
+            .map_err(|e| format!("blind_spots serialization failed: {}", e))?
+            .into(),
+    ).map_err(|e| e.to_string())?;
+
+    let tone_trend = analysis["tone_trend"].as_str().unwrap_or("neutral").to_string();
+    let focus_shift = analysis["focus_shift"].as_str().unwrap_or("").to_string();
+    let recommendation = analysis["recommendation"].as_str().unwrap_or("").to_string();
+    let cat_json = serde_json::to_string(&cat_dist).unwrap_or_default();
+    let blind_json = serde_json::to_string(&blind_spots).unwrap_or_default();
+
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
     let tr = time_range.unwrap_or_else(|| "last_7_days".to_string());
-    let cat_json = serde_json::to_string(&analysis["category_distribution"]).unwrap_or_default();
-    let tone = analysis["tone_trend"]
-        .as_str()
-        .unwrap_or("neutral")
-        .to_string();
-    let blind_json = serde_json::to_string(&analysis["blind_spots"]).unwrap_or_default();
-    let focus = analysis["focus_shift"].as_str().unwrap_or("").to_string();
-    let rec = analysis["recommendation"]
-        .as_str()
-        .unwrap_or("")
-        .to_string();
 
     let conn = engine.db().conn_async().await;
     conn.execute(
         "INSERT INTO reading_patterns (id, member_id, time_range, category_distribution_json, tone_trend, blind_spots_json, focus_shift, recommendation, analyzed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-        rusqlite::params![id, member_id, tr, cat_json, tone, blind_json, focus, rec, now],
+        rusqlite::params![id, member_id, tr, cat_json, tone_trend, blind_json, focus_shift, recommendation, now],
     ).map_err(|e| e.to_string())?;
 
-    Ok(serde_json::json!({
-        "id": id, "time_range": tr, "category_distribution": analysis["category_distribution"],
-        "tone_trend": tone, "blind_spots": analysis["blind_spots"], "focus_shift": focus,
-        "recommendation": rec, "analyzed_at": now,
-    }))
+    // Build final value from plain primitives — no nested Values, no cycles
+    let mut obj = serde_json::Map::new();
+    obj.insert("id".to_string(), serde_json::Value::String(id));
+    obj.insert("time_range".to_string(), serde_json::Value::String(tr));
+    obj.insert("category_distribution".to_string(), cat_dist);
+    obj.insert("tone_trend".to_string(), serde_json::Value::String(tone_trend));
+    obj.insert("blind_spots".to_string(), blind_spots);
+    obj.insert("focus_shift".to_string(), serde_json::Value::String(focus_shift));
+    obj.insert("recommendation".to_string(), serde_json::Value::String(recommendation));
+    obj.insert("analyzed_at".to_string(), serde_json::Value::String(now));
+
+    Ok(serde_json::Value::Object(obj))
 }
 
 /// Synthesize multiple sources on a topic
@@ -8334,40 +8595,127 @@ use crate::engine::echo_counselor::{
 
 use super::engine::echo_counselor;
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn echo_counselor_get_state() -> Result<EchoCounselorState, String> {
     echo_counselor::get_state().map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn echo_counselor_start_session(
     req: EchoStartSessionRequest,
 ) -> Result<EchoCounselorSession, String> {
     echo_counselor::start_session(req).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn echo_counselor_get_messages(
     session_id: String,
 ) -> Result<Vec<EchoCounselorMessage>, String> {
     echo_counselor::get_messages(&session_id).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn echo_counselor_send_message(
-    req: EchoSendMessageRequest,
+    session_id: String,
+    content: String,
 ) -> Result<EchoCounselorMessage, String> {
-    echo_counselor::send_message(&req.session_id, &req.content)
+    use tokio::task;
+
+    // Clone for phases that need their own ownership
+    let session_id_clone = session_id.clone();
+    let content_clone = content.clone();
+    let session_id_for_phase2 = session_id.clone();
+    let session_id_for_db = session_id.clone();
+
+    // Phase 1: Insert user message into DB (sync, runs in blocking thread)
+    let user_msg_id = task::spawn_blocking(move || {
+        let engine = engine::get_engine();
+        let conn = engine.db().conn();
+        let now = chrono::Utc::now().to_rfc3339();
+        let uid = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO echo_counselor_messages (id, session_id, role, content, timestamp) VALUES (?, ?, 'user', ?, ?)",
+            [&uid, &session_id_clone, &content_clone, &now],
+        ).map_err(|e| e.to_string())?;
+        conn.execute(
+            "UPDATE echo_counselor_sessions SET message_count = message_count + 1 WHERE id = ?",
+            [&session_id_clone],
+        ).map_err(|e| e.to_string())?;
+        Ok::<_, String>(())
+    }).await.map_err(|e| e.to_string())??;
+
+    // Phase 2: Get conversation history for context (sync, blocking thread)
+    let messages = task::spawn_blocking(move || {
+        echo_counselor::get_messages(&session_id_for_phase2)
+    }).await.map_err(|e| e.to_string())??;
+
+    // Build OpenAI messages
+    let mut openai_messages: Vec<engine::router::OpenAIMessage> = vec![
+        engine::router::OpenAIMessage {
+            role: "system".to_string(),
+            content: Some(echo_counselor::MIRROR_SYSTEM_PROMPT.to_string()),
+            tool_call_id: None,
+            tool_calls: None,
+        },
+    ];
+    for msg in &messages {
+        let role = match msg.role.as_str() {
+            "counselor" => "assistant",
+            _ => &msg.role,
+        };
+        openai_messages.push(engine::router::OpenAIMessage {
+            role: role.to_string(),
+            content: Some(msg.content.clone()),
+            tool_call_id: None,
+            tool_calls: None,
+        });
+    }
+    openai_messages.push(engine::router::OpenAIMessage {
+        role: "user".to_string(),
+        content: Some(content),
+        tool_call_id: None,
+        tool_calls: None,
+    });
+
+    // Phase 3: Call LLM (async network call)
+    let response = engine::router::chat("mirror", openai_messages, None, None, None)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    // Phase 4: Insert counselor response into DB (sync, blocking thread)
+    let counselor_response_for_db = response.content.clone();
+    let session_id_for_db = session_id_for_db;
+    task::spawn_blocking(move || {
+        let engine = engine::get_engine();
+        let conn = engine.db().conn();
+        let now = chrono::Utc::now().to_rfc3339();
+        let cid = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO echo_counselor_messages (id, session_id, role, content, timestamp) VALUES (?, ?, 'counselor', ?, ?)",
+            [&cid, &session_id_for_db, &counselor_response_for_db, &now],
+        ).map_err(|e| e.to_string())?;
+        conn.execute(
+            "UPDATE echo_counselor_sessions SET message_count = message_count + 1 WHERE id = ?",
+            [&session_id_for_db],
+        ).map_err(|e| e.to_string())?;
+        Ok::<_, String>(())
+    }).await.map_err(|e| e.to_string())??;
+
+    Ok(EchoCounselorMessage {
+        id: uuid::Uuid::new_v4().to_string(),
+        session_id,
+        role: "counselor".to_string(),
+        content: response.content,
+        timestamp: chrono::Utc::now().to_rfc3339(),
+    })
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn echo_counselor_end_session(session_id: String) -> Result<(), String> {
     echo_counselor::end_session(&session_id).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn echo_counselor_flag_crisis(
     session_id: String,
     content: String,
@@ -8378,7 +8726,7 @@ pub fn echo_counselor_flag_crisis(
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn echo_counselor_write_gratitude(
     items: Vec<String>,
     context: Option<String>,
@@ -8386,62 +8734,57 @@ pub fn echo_counselor_write_gratitude(
     echo_counselor::write_gratitude(items, context).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn echo_counselor_get_gratitude(limit: Option<i64>) -> Result<Vec<EchoGratitudeEntry>, String> {
     echo_counselor::get_gratitude(limit).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn echo_counselor_get_exercises() -> Result<Vec<EchoGroundingExercise>, String> {
     echo_counselor::get_exercises().map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn echo_counselor_complete_exercise(exercise_id: String) -> Result<(), String> {
     echo_counselor::complete_exercise(&exercise_id).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn echo_counselor_get_reflections(
     limit: Option<i64>,
 ) -> Result<Vec<EchoCounselorSession>, String> {
     echo_counselor::get_reflections(limit).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn echo_counselor_mark_reflection_read(session_id: String) -> Result<(), String> {
     echo_counselor::mark_reflection_read(&session_id).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn echo_counselor_generate_weekly_letter() -> Result<EchoWeeklyLetter, String> {
     echo_counselor::generate_weekly_letter()
         .await
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn echo_counselor_get_weekly_letter() -> Result<Option<EchoWeeklyLetter>, String> {
     echo_counselor::get_weekly_letter().map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn echo_counselor_get_weekly_letter_history(
     limit: Option<i64>,
 ) -> Result<Vec<EchoWeeklyLetter>, String> {
     echo_counselor::get_weekly_letter_history(limit).map_err(|e| e.to_string())
 }
 
-#[derive(Debug, Deserialize)]
-pub struct SetEveningReminderRequest {
-    pub enabled: bool,
-    pub hour: Option<i32>,   // 0-23, default 20 (8 PM)
-    pub minute: Option<i32>, // 0-59, default 0
-}
-
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn echo_counselor_set_evening_reminder(
-    req: SetEveningReminderRequest,
+    enabled: bool,
+    hour: Option<i32>,
+    minute: Option<i32>,
 ) -> Result<String, String> {
     let engine = engine::get_engine();
 
@@ -8457,12 +8800,12 @@ pub fn echo_counselor_set_evening_reminder(
         engine.delete_cron_job(&job.id).map_err(|e| e.to_string())?;
     }
 
-    if !req.enabled {
+    if !enabled {
         return Ok("Evening reminder disabled".to_string());
     }
 
-    let hour = req.hour.unwrap_or(20);
-    let minute = req.minute.unwrap_or(0);
+    let hour = hour.unwrap_or(20);
+    let minute = minute.unwrap_or(0);
     let schedule = format!("{} {} * * *", minute, hour); // e.g. "0 20 * * *" = 8 PM daily
 
     let task_message = "Evening ritual check-in for Mirror counseling sessions. If there is an active or recent session, do nothing and respond briefly. If no session has occurred today, send a gentle reminder to the user via the desktop notification system to check in with Mirror tonight.".to_string();
@@ -8470,12 +8813,39 @@ pub fn echo_counselor_set_evening_reminder(
     engine
         .create_cron_job(
             "mirror-evening-ritual",
-            "mirror",
+            "conflux", // mirror agent not in DB, use conflux
             &schedule,
             "America/Denver",
             &task_message,
         )
         .map_err(|e| e.to_string())
+}
+
+/// Get evening reminder status
+#[tauri::command(rename_all = "snake_case")]
+pub fn echo_counselor_get_evening_reminder() -> Result<Option<EchoEveningReminderStatus>, String> {
+    let engine = engine::get_engine();
+    let jobs = engine.get_cron_jobs(false).map_err(|e| e.to_string())?;
+    let job = jobs.into_iter().find(|j| j.name == "mirror-evening-ritual");
+    match job {
+        Some(j) => {
+            let parts: Vec<&str> = j.schedule.split_whitespace().collect();
+            let (hour, minute) = if parts.len() >= 2 {
+                let m = parts[0].parse::<i32>().unwrap_or(0);
+                let h = parts[1].parse::<i32>().unwrap_or(20);
+                (h, m)
+            } else { (20, 0) };
+            Ok(Some(EchoEveningReminderStatus { enabled: j.is_enabled, hour, minute }))
+        }
+        None => Ok(None),
+    }
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct EchoEveningReminderStatus {
+    pub enabled: bool,
+    pub hour: i32,
+    pub minute: i32,
 }
 
 // ============================================================

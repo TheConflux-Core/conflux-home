@@ -91,7 +91,15 @@ pub fn run() {
 
             let db_path = app_data_dir.join("conflux.db");
             match engine::init_engine(&db_path) {
-                Ok(_) => log::info!("Conflux Engine initialized at {:?}", db_path),
+                Ok(_) => {
+                    log::info!("Conflux Engine initialized at {:?}", db_path);
+                    // Initialize Echo Counselor tables
+                    if let Err(e) = engine::echo_counselor::init() {
+                        log::error!("[Setup] Failed to initialize Echo Counselor: {}", e);
+                    } else {
+                        log::info!("[Setup] Echo Counselor tables initialized");
+                    }
+                }
                 Err(e) => log::error!("[Setup] Failed to initialize engine: {} — app will run without engine", e),
             }
 
@@ -443,6 +451,7 @@ pub fn run() {
             commands::dream_add,
             commands::dream_get_all,
             commands::dream_get_dashboard,
+            commands::dream_get_milestones,
             commands::dream_add_milestone,
             commands::dream_complete_milestone,
             commands::dream_add_task,
@@ -450,6 +459,7 @@ pub fn run() {
             commands::dream_complete_task,
             commands::dream_add_progress,
             commands::dream_delete,
+            commands::dream_update,
             commands::dream_ai_plan,
             commands::dream_get_velocity,
             commands::dream_get_timeline,
@@ -487,6 +497,7 @@ pub fn run() {
             commands::echo_counselor_get_weekly_letter,
             commands::echo_counselor_get_weekly_letter_history,
             commands::echo_counselor_set_evening_reminder,
+            commands::echo_counselor_get_evening_reminder,
             // Current — Intelligence Briefing
             commands::current_daily_briefing,
             commands::current_detect_ripples,
