@@ -27,9 +27,17 @@ const TABS: { key: Tab; label: string }[] = [
 
 const workAgents = AGENT_PROFILES.filter((a) => !a.comingSoon);
 
+// Core agents shown as \"active\" by default (onboarding selection)
+const DEFAULT_ACTIVE_AGENTS = ['conflux', 'helix', 'pulse', 'aegis', 'viper'];
+
 function loadSelectedIds(): string[] {
-  try { return JSON.parse(localStorage.getItem('conflux-selected-agents') || '[]'); }
-  catch { return []; }
+  try {
+    const saved = localStorage.getItem('conflux-selected-agents');
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  // First visit — default to core onboarding agents
+  localStorage.setItem('conflux-selected-agents', JSON.stringify(DEFAULT_ACTIVE_AGENTS));
+  return DEFAULT_ACTIVE_AGENTS;
 }
 
 // ── Agent Selector Row (shared by Persona & Files tabs) ──
@@ -114,20 +122,39 @@ export default function AgentsView() {
     finally { setSaving(false); }
   }
 
-  const resetAll = () => {
-    if (!window.confirm('Reset all agents? This clears selections and reloads.')) return;
-    localStorage.removeItem('conflux-selected-agents');
+  const resetAll = async () => {
+    if (!window.confirm('Reset all agents to defaults? This will restore original names, emojis, and personality values.')) return;
+    try {
+      await invoke('engine_reset_agents_to_defaults');
+    } catch (err) {
+      console.error('[AgentsView] Reset failed:', err);
+      alert('Reset failed. Check console for error.');
+      return;
+    }
+    localStorage.setItem('conflux-selected-agents', JSON.stringify(DEFAULT_ACTIVE_AGENTS));
     window.location.reload();
   };
 
   const exportConfig = () => {
-    const data = agents.map(({ id, name, emoji, role, soul, instructions, model_alias, tier }) =>
-      ({ id, name, emoji, role, soul, instructions, model_alias, tier }));
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url;
-    a.download = `conflux-agents-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click(); URL.revokeObjectURL(url);
+    if (agents.length === 0) {
+      alert('No agents loaded yet. Please wait for the page to finish loading and try again.');
+      return;
+    }
+    try {
+      const data = agents.map(({ id, name, emoji, role, soul, instructions, model_alias, tier }) =>
+        ({ id, name, emoji, role, soul: soul ?? '', instructions: instructions ?? '', model_alias, tier }));
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url;
+      a.download = `conflux-agents-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('[AgentsView] Export failed:', err);
+      alert('Export failed. Check console for error.');
+    }
   };
 
   const navigateToMarketplace = () =>
