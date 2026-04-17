@@ -105,6 +105,8 @@ export default function AgentsView() {
     setSelectedIds((prev) => {
       const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
       localStorage.setItem('conflux-selected-agents', JSON.stringify(next));
+      // Tell App.tsx to refresh its selectedAgentIds state
+      window.dispatchEvent(new CustomEvent('conflux:agents-selected', { detail: next }));
       return next;
     });
   };
