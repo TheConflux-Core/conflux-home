@@ -21,8 +21,8 @@ pub struct AnomalyRule {
 }
 
 /// Get all anomaly rules.
-pub fn get_anomaly_rules(db: &EngineDb) -> Result<Vec<AnomalyRule>> {
-    let conn = db.conn();
+pub async fn get_anomaly_rules(db: &EngineDb) -> Result<Vec<AnomalyRule>> {
+    let conn = db.conn_async().await;
     let mut stmt = conn.prepare(
         "SELECT id, name, description, rule_type, condition_json, severity, action, is_enabled
          FROM anomaly_rules ORDER BY severity DESC, name",
@@ -48,8 +48,8 @@ pub fn get_anomaly_rules(db: &EngineDb) -> Result<Vec<AnomalyRule>> {
 
 /// Run all anomaly checks against recent events for an agent.
 /// Returns a list of triggered anomalies.
-pub fn check_anomalies(db: &EngineDb, agent_id: &str) -> Result<Vec<TriggeredAnomaly>> {
-    let rules = get_anomaly_rules(db)?;
+pub async fn check_anomalies(db: &EngineDb, agent_id: &str) -> Result<Vec<TriggeredAnomaly>> {
+    let rules = get_anomaly_rules(db).await?;
     let mut triggered = Vec::new();
 
     for rule in rules {
@@ -59,17 +59,17 @@ pub fn check_anomalies(db: &EngineDb, agent_id: &str) -> Result<Vec<TriggeredAno
 
         match rule.rule_type.as_str() {
             "rate_limit" => {
-                if let Some(anomaly) = check_rate_limit(db, agent_id, &rule)? {
+                if let Some(anomaly) = check_rate_limit(db, agent_id, &rule).await? {
                     triggered.push(anomaly);
                 }
             }
             "pattern_match" => {
-                if let Some(anomaly) = check_pattern_match(db, agent_id, &rule)? {
+                if let Some(anomaly) = check_pattern_match(db, agent_id, &rule).await? {
                     triggered.push(anomaly);
                 }
             }
             "privilege_escalation" => {
-                if let Some(anomaly) = check_privilege_escalation(db, agent_id, &rule)? {
+                if let Some(anomaly) = check_privilege_escalation(db, agent_id, &rule).await? {
                     triggered.push(anomaly);
                 }
             }
@@ -94,7 +94,7 @@ pub struct TriggeredAnomaly {
 }
 
 /// Check rate limit anomaly.
-fn check_rate_limit(
+async fn check_rate_limit(
     db: &EngineDb,
     agent_id: &str,
     rule: &AnomalyRule,
@@ -105,7 +105,7 @@ fn check_rate_limit(
     let threshold = condition["threshold"].as_i64().unwrap_or(100);
     let window_seconds = condition["window_seconds"].as_i64().unwrap_or(300);
 
-    let conn = db.conn();
+    let conn = db.conn_async().await;
 
     // Count events in the window
     let count: i64 = conn.query_row(
@@ -156,7 +156,7 @@ fn check_rate_limit(
 }
 
 /// Check pattern match anomaly (recent events match suspicious patterns).
-fn check_pattern_match(
+async fn check_pattern_match(
     db: &EngineDb,
     agent_id: &str,
     rule: &AnomalyRule,
@@ -167,7 +167,7 @@ fn check_pattern_match(
     let patterns = condition["patterns"].as_array();
 
     if let Some(patterns) = patterns {
-        let conn = db.conn();
+        let conn = db.conn_async().await;
 
         // Get recent events of this type
         let mut stmt = conn.prepare(
@@ -230,7 +230,7 @@ fn check_pattern_match(
 }
 
 /// Check privilege escalation anomaly.
-fn check_privilege_escalation(
+async fn check_privilege_escalation(
     db: &EngineDb,
     agent_id: &str,
     rule: &AnomalyRule,
@@ -240,7 +240,7 @@ fn check_privilege_escalation(
     let patterns = condition["patterns"].as_array();
 
     if let Some(patterns) = patterns {
-        let conn = db.conn();
+        let conn = db.conn_async().await;
 
         // Check recent exec commands
         let mut stmt = conn.prepare(
@@ -300,19 +300,21 @@ fn check_privilege_escalation(
 }
 
 /// Run anomaly check and log results. Called periodically.
-pub fn run_anomaly_scan(db: &EngineDb) -> Result<Vec<TriggeredAnomaly>> {
-    let conn = db.conn();
-
-    // Get all active agents
-    let mut stmt = conn.prepare("SELECT id FROM agents WHERE is_active = 1")?;
-    let agents: Vec<String> = stmt
-        .query_map([], |row| row.get(0))?
-        .collect::<std::result::Result<Vec<_>, _>>()?;
+pub async fn run_anomaly_scan(db: &EngineDb) -> Result<Vec<TriggeredAnomaly>> {
+    // Get all active agents — conn dropped before .await loop
+    let agents: Vec<String> = {
+        let conn = db.conn_async().await;
+        let mut stmt = conn.prepare("SELECT id FROM agents WHERE is_active = 1")?;
+        let results: Vec<String> = stmt
+            .query_map([], |row| row.get(0))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        results
+    };
 
     let mut all_anomalies = Vec::new();
 
     for agent_id in &agents {
-        let anomalies = check_anomalies(db, agent_id)?;
+        let anomalies = check_anomalies(db, agent_id).await?;
         all_anomalies.extend(anomalies);
     }
 

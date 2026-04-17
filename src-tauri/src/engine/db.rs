@@ -4438,6 +4438,22 @@ impl EngineDb {
             .get_life_tasks(member_id, Some("pending"))
             .await
             .unwrap_or_default();
+        let all_tasks = self
+            .get_life_tasks(member_id, None)
+            .await
+            .unwrap_or_default();
+        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        let completed_tasks: Vec<_> = all_tasks
+            .into_iter()
+            .filter(|t| {
+                if let Some(ref completed_at) = t.completed_at {
+                    completed_at.starts_with(&today)
+                } else {
+                    false
+                }
+            })
+            .collect();
+        let completed_today = completed_tasks.len() as i64;
         let habits = self
             .get_life_habits(member_id, true)
             .await
@@ -4446,10 +4462,11 @@ impl EngineDb {
         Ok(super::types::OrbitDashboard {
             today_focus: focus,
             pending_tasks: tasks,
+            completed_tasks,
             active_habits: habits,
             nudges: Vec::new(),
             streak_total,
-            completed_today: 0,
+            completed_today,
         })
     }
 
@@ -5486,7 +5503,29 @@ impl EngineDb {
     pub async fn complete_milestone(&self, member_id: &str, id: &str) -> Result<()> {
         let conn = self.conn_async().await;
         let now = Self::now();
+        let dream_id: String = conn.query_row(
+            "SELECT dream_id FROM dream_milestones WHERE id = ?1 AND member_id = ?2",
+            params![id, member_id],
+            |row| row.get(0),
+        ).with_context(|| format!("milestone {} not found", id))?;
         conn.execute("UPDATE dream_milestones SET is_completed = 1, completed_at = ?1 WHERE id = ?2 AND member_id = ?3", params![now, id, member_id])?;
+        let total: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM dream_milestones WHERE dream_id = ?1 AND member_id = ?2",
+            params![&dream_id, member_id],
+            |row| row.get(0),
+        ).unwrap_or(0);
+        let completed: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM dream_milestones WHERE dream_id = ?1 AND member_id = ?2 AND is_completed = 1",
+            params![&dream_id, member_id],
+            |row| row.get(0),
+        ).unwrap_or(0);
+        if total > 0 {
+            let progress = (completed as f64 / total as f64) * 100.0;
+            conn.execute(
+                "UPDATE dreams SET progress = ?1, updated_at = ?2 WHERE id = ?3 AND member_id = ?4",
+                params![progress, now, &dream_id, member_id],
+            )?;
+        }
         Ok(())
     }
     pub async fn add_dream_task(
@@ -5686,6 +5725,25 @@ impl EngineDb {
         )?;
         Ok(())
     }
+    pub async fn update_dream(
+        &self,
+        member_id: &str,
+        id: &str,
+        title: &str,
+        description: Option<&str>,
+        category: &str,
+        target_date: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.conn_async().await;
+        let desc = description.map(String::from);
+        let td = target_date.map(String::from);
+        conn.execute(
+            "UPDATE dreams SET title = ?1, description = ?2, category = ?3, target_date = ?4, updated_at = ?5 WHERE id = ?6 AND member_id = ?7",
+            params![title, desc, category, td, Self::now(), id, member_id],
+        )?;
+        Ok(())
+    }
+
     pub async fn delete_dream(&self, member_id: &str, id: &str) -> Result<()> {
         let conn = self.conn_async().await;
         conn.execute(
@@ -6414,6 +6472,29 @@ pub fn vault_remove_file_from_project(project_id: &str, file_id: &str) -> Result
 pub fn vault_delete_project(id: &str) -> Result<()> {
     let conn = get_conn();
     conn.execute("DELETE FROM vault_projects WHERE id = ?", params![id])?;
+    Ok(())
+}
+
+pub fn vault_update_project(id: &str, name: Option<&str>, description: Option<&str>, project_type: Option<&str>) -> Result<()> {
+    let conn = get_conn();
+    if let Some(n) = name {
+        conn.execute(
+            "UPDATE vault_projects SET name = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
+            params![n, id],
+        )?;
+    }
+    if let Some(d) = description {
+        conn.execute(
+            "UPDATE vault_projects SET description = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
+            params![d, id],
+        )?;
+    }
+    if let Some(t) = project_type {
+        conn.execute(
+            "UPDATE vault_projects SET project_type = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
+            params![t, id],
+        )?;
+    }
     Ok(())
 }
 

@@ -104,7 +104,6 @@ export default function EchoCounselorView() {
   const handleCloseSession = async () => {
     if (!state?.current_session?.id) return;
     await endSession(state.current_session.id);
-    await loadState();
   };
 
   const handleViewChange = async (mode: ViewMode) => {
@@ -444,7 +443,7 @@ function GratitudeWidget({
   getGratitudeEntries,
 }: {
   writeGratitude: (items: string[], context?: string) => Promise<void>;
-  getGratitudeEntries: (limit?: number) => Promise<{ id: string; items: string; context: string; created_at: string }[]>;
+  getGratitudeEntries: (limit?: number) => Promise<{ id: string; items: string[]; context: string | null; created_at: string }[]>;
 }) {
   const [item1, setItem1] = useState('');
   const [item2, setItem2] = useState('');
@@ -452,7 +451,7 @@ function GratitudeWidget({
   const [context, setContext] = useState('');
   const [saved, setSaved] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [history, setHistory] = useState<{ id: string; items: string; context: string; created_at: string }[]>([]);
+  const [history, setHistory] = useState<{ id: string; items: string[]; context: string | null; created_at: string }[]>([]);
 
   const saveGratitude = async () => {
     const items = [item1, item2, item3].filter(Boolean);
@@ -521,15 +520,13 @@ function GratitudeWidget({
             <p className="echo-gratitude-history-empty">No entries yet.</p>
           ) : (
             history.map(entry => {
-              let items: string[] = [];
-              try { items = JSON.parse(entry.items); } catch {}
               return (
                 <div key={entry.id} className="echo-gratitude-history-entry">
                   <div className="echo-gratitude-history-date">
                     {new Date(entry.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </div>
                   <ul className="echo-gratitude-history-items">
-                    {items.map((item, i) => <li key={i}>{item}</li>)}
+                    {entry.items.map((item: string, i: number) => <li key={i}>{item}</li>)}
                   </ul>
                   {entry.context && <p className="echo-gratitude-history-context">{entry.context}</p>}
                 </div>

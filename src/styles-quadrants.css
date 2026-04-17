@@ -642,9 +642,16 @@
   transition: background 0.4s ease;
 }
 
+/* Default: color themes use --theme-accent for category card accents */
 .category-card-accent-themed {
   background: linear-gradient(180deg, var(--theme-accent, #818cf8), transparent);
   transition: background 0.4s ease;
+}
+
+/* Base themes (Conflux, Nexus): category cards use their own --cat-color */
+body[data-color-theme="conflux"] .category-card-accent-themed,
+body[data-color-theme="nexus"] .category-card-accent-themed {
+  background: linear-gradient(180deg, var(--cat-color, #6366f1), transparent);
 }
 
 /* ── Folder expansion tiles ── */

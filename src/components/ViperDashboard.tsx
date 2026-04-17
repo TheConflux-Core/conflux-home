@@ -1,7 +1,17 @@
-// Conflux Home — Viper Vulnerability Scanner Dashboard
-// Mission 1224 Phase 3: Red Team Operator
+// Conflux Home — Viper Vulnerability Scanner Dashboard (Consumer Redesign)
+// Mission 1224: Red Team Operator — Think like a hacker, before they do
 
 import React, { useState, useEffect, useCallback } from 'react';
+
+// ── Timeout wrapper — prevents invoke calls from hanging forever ──
+function invokeTimeout<T>(cmd: string, args?: Record<string, unknown>, ms = 5000): Promise<T> {
+  return Promise.race([
+    invoke<T>(cmd, args),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Command '${cmd}' timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
 import { invoke } from '@tauri-apps/api/core';
 
 // ── Types ──
@@ -33,16 +43,43 @@ interface VulnFinding {
   raw_data: unknown;
 }
 
-// ── Category Icons ──
+// ── Plain-Language Category Mapping ──
 
-const CATEGORY_ICONS: Record<string, string> = {
-  misconfig: '⚙️',
-  network: '🌐',
-  browser: '🌍',
-  passwords: '🔐',
-  code: '📝',
-  general: '🐍',
+const CATEGORY_META: Record<string, { icon: string; label: string; color: string; tagline: string }> = {
+  misconfig: { icon: '⚙️', label: 'System Weaknesses', color: '#f97316', tagline: 'Risky settings that could let attackers in' },
+  network: { icon: '🌐', label: 'Network Exposure', color: '#06b6d4', tagline: 'How visible your system is on the network' },
+  browser: { icon: '🌍', label: 'Browser Security', color: '#8b5cf6', tagline: 'Saved passwords and data in your browser' },
+  passwords: { icon: '🔐', label: 'Password Safety', color: '#ec4899', tagline: 'System password strength and policies' },
+  code: { icon: '📝', label: 'Secrets & Config', color: '#eab308', tagline: 'Accidentally exposed API keys, tokens, or private data' },
+  general: { icon: '🐍', label: 'General Hardening', color: '#22c55e', tagline: 'Overall security posture and best practices' },
 };
+
+// ── Severity Helpers ──
+
+function severityMeta(severity: string) {
+  switch (severity) {
+    case 'critical': return { icon: '🚨', label: 'Critical', color: '#ef4444', bg: '#ef444418' };
+    case 'warning': return { icon: '⚠️', label: 'Warning', color: '#f59e0b', bg: '#f59e0b18' };
+    case 'info': return { icon: 'ℹ️', label: 'FYI', color: '#3b82f6', bg: '#3b82f618' };
+    case 'pass': return { icon: '✅', label: 'Good', color: '#22c55e', bg: '#22c55e18' };
+    default: return { icon: '📋', label: 'Unknown', color: '#64748b', bg: '#64748b18' };
+  }
+}
+
+function riskLabel(score: number | null): string {
+  if (score === null) return 'No scan yet';
+  if (score <= 15) return 'Low Risk — looks good';
+  if (score <= 40) return 'Moderate Risk — some concerns';
+  if (score <= 70) return 'High Risk — needs attention';
+  return 'Critical Risk — act now';
+}
+
+function riskColor(score: number | null): string {
+  if (score === null) return '#64748b';
+  if (score <= 15) return '#22c55e';
+  if (score <= 40) return '#f59e0b';
+  return '#ef4444';
+}
 
 // ── Component ──
 
@@ -54,7 +91,7 @@ export default function ViperDashboard() {
   const [filterSeverity, setFilterSeverity] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'findings' | 'history'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'details' | 'history'>('overview');
 
   const loadScans = useCallback(async () => {
     try {
@@ -100,188 +137,237 @@ export default function ViperDashboard() {
   };
 
   const filteredFindings = filterSeverity
-    ? findings.filter((f) => f.severity === filterSeverity)
+    ? findings.filter(f => f.severity === filterSeverity)
     : findings;
 
-  const findingsByCategory = findings.reduce(
-    (acc, f) => {
-      if (!acc[f.category]) acc[f.category] = [];
-      acc[f.category].push(f);
-      return acc;
-    },
-    {} as Record<string, VulnFinding[]>
-  );
+  const findingsByCategory = findings.reduce((acc, f) => {
+    if (!acc[f.category]) acc[f.category] = [];
+    acc[f.category].push(f);
+    return acc;
+  }, {} as Record<string, VulnFinding[]>);
 
   if (loading) {
     return (
-      <div style={styles.loading}>
-        <div style={styles.loadingSpinner}>🐍</div>
-        <div style={styles.loadingText}>Loading Viper Vulnerability Scanner...</div>
+      <div style={s.container}>
+        <div style={s.loading}>
+          <div style={s.loadingIcon}>🐍</div>
+          <div style={s.loadingText}>Scanning for vulnerabilities...</div>
+        </div>
       </div>
     );
   }
 
+  const risk = selectedScan?.risk_score ?? null;
+  const criticalCount = selectedScan?.critical_count ?? 0;
+  const warnCount = selectedScan?.warn_count ?? 0;
+  const infoCount = selectedScan?.info_count ?? 0;
+  const passCount = selectedScan?.pass_count ?? 0;
+
   return (
-    <div style={styles.container}>
-      {/* Header */}
-      <div style={styles.header}>
-        <div style={styles.headerLeft}>
-          <span style={styles.headerIcon}>🐍</span>
+    <div style={s.container}>
+      {/* ── Header ── */}
+      <div style={s.header}>
+        <div style={s.headerLeft}>
+          <span style={s.headerIcon}>🐍</span>
           <div>
-            <h1 style={styles.title}>Viper — Vulnerability Scanner</h1>
-            <p style={styles.subtitle}>Red Team Operator • Attack Surface Analysis</p>
+            <h1 style={s.title}>Viper</h1>
+            <p style={s.subtitle}>Think like a hacker — find weak spots before they do</p>
           </div>
         </div>
-        <div style={styles.headerRight}>
+        <div style={s.headerRight}>
           <button
-            style={{ ...styles.scanButton, opacity: scanning ? 0.5 : 1 }}
+            style={{ ...s.scanBtn, ...(scanning ? s.scanBtnDisabled : {}) }}
             onClick={() => handleRunScan('quick')}
             disabled={scanning}
           >
             ⚡ Quick Scan
           </button>
           <button
-            style={{
-              ...styles.scanButton,
-              backgroundColor: '#22c55e',
-              borderColor: '#22c55e',
-              opacity: scanning ? 0.5 : 1,
-            }}
+            style={{ ...s.scanBtn, background: '#ef4444', borderColor: '#ef4444', ...(scanning ? s.scanBtnDisabled : {}) }}
             onClick={() => handleRunScan('full')}
             disabled={scanning}
           >
-            {scanning ? '🔄 Scanning...' : '🐍 Full Scan'}
+            {scanning ? '🔄 Scanning...' : '🐍 Full Vulnerability Scan'}
           </button>
         </div>
       </div>
 
-      {/* Risk Score */}
+      {/* ── Hero Risk Card ── */}
       {selectedScan && (
-        <div style={styles.scoreSection}>
-          <div style={styles.scoreCard}>
-            <div
-              style={{
-                ...styles.scoreCircle,
-                borderColor: riskColor(selectedScan.risk_score),
-              }}
-            >
-              <span style={{ ...styles.scoreValue, color: riskColor(selectedScan.risk_score) }}>
-                {selectedScan.risk_score ?? '—'}
-              </span>
-              <span style={styles.scoreLabel}>Risk</span>
+        <div style={{ ...s.heroRisk, borderTop: `4px solid ${riskColor(risk)}` }}>
+          <div style={s.heroLeft}>
+            <div style={s.heroRing}>
+              <svg width="110" height="110" viewBox="0 0 110 110">
+                <circle cx="55" cy="55" r="48" fill="none" stroke="#1e293b" strokeWidth="7" />
+                <circle
+                  cx="55" cy="55" r="48" fill="none"
+                  stroke={riskColor(risk)}
+                  strokeWidth="7"
+                  strokeLinecap="round"
+                  strokeDasharray={`${((risk ?? 0) / 100) * 301.59} 301.59`}
+                  transform="rotate(-90 55 55)"
+                  style={{ transition: 'stroke-dasharray 0.8s ease' }}
+                />
+                <text x="55" y="48" textAnchor="middle" fill={riskColor(risk)} fontSize="28" fontWeight="bold">
+                  {risk ?? '—'}
+                </text>
+                <text x="55" y="68" textAnchor="middle" fill="#64748b" fontSize="10">
+                  RISK
+                </text>
+              </svg>
             </div>
-            <div style={styles.scoreMeta}>
-              <div style={styles.scoreMetaRow}>
-                <span style={styles.metaLabel}>Scan Type</span>
-                <span style={styles.metaValue}>{selectedScan.scan_type}</span>
+            <div style={s.heroInfo}>
+              <div style={{ ...s.heroLabel, color: riskColor(risk) }}>
+                {riskLabel(risk)}
               </div>
-              <div style={styles.scoreMetaRow}>
-                <span style={styles.metaLabel}>Status</span>
-                <span style={styles.metaValue}>{selectedScan.status}</span>
+              <div style={s.heroSub}>
+                {selectedScan.total_checks} checks run · {formatAge(selectedScan.started_at)}
               </div>
-              <div style={styles.scoreMetaRow}>
-                <span style={styles.metaLabel}>Started</span>
-                <span style={styles.metaValue}>{formatTime(selectedScan.started_at)}</span>
-              </div>
+              {criticalCount === 0 && warnCount === 0 && (
+                <div style={s.heroGood}>
+                  ✨ No vulnerabilities found — you're in good shape
+                </div>
+              )}
+              {criticalCount > 0 && (
+                <div style={s.heroAlert}>
+                  🚨 {criticalCount} critical vulnerability finding{criticalCount !== 1 ? 's' : ''} — address these first
+                </div>
+              )}
             </div>
           </div>
 
-          <div style={styles.countCards}>
-            <div style={{ ...styles.countCard, borderTopColor: '#22c55e' }}>
-              <div style={{ ...styles.countValue, color: '#22c55e' }}>{selectedScan.pass_count}</div>
-              <div style={styles.countLabel}>Passed</div>
-            </div>
-            <div style={{ ...styles.countCard, borderTopColor: '#3b82f6' }}>
-              <div style={{ ...styles.countValue, color: '#3b82f6' }}>{selectedScan.info_count}</div>
-              <div style={styles.countLabel}>Info</div>
-            </div>
-            <div style={{ ...styles.countCard, borderTopColor: '#f59e0b' }}>
-              <div style={{ ...styles.countValue, color: '#f59e0b' }}>{selectedScan.warn_count}</div>
-              <div style={styles.countLabel}>Warnings</div>
-            </div>
-            <div style={{ ...styles.countCard, borderTopColor: '#ef4444' }}>
-              <div style={{ ...styles.countValue, color: '#ef4444' }}>{selectedScan.critical_count}</div>
-              <div style={styles.countLabel}>Critical</div>
-            </div>
+          <div style={s.heroStats}>
+            {passCount > 0 && (
+              <div style={{ ...s.statChip, borderColor: '#22c55e' }}>
+                <span style={{ ...s.statNum, color: '#22c55e' }}>{passCount}</span>
+                <span style={s.statLabel}>Passed</span>
+              </div>
+            )}
+            {infoCount > 0 && (
+              <div style={{ ...s.statChip, borderColor: '#3b82f6' }}>
+                <span style={{ ...s.statNum, color: '#3b82f6' }}>{infoCount}</span>
+                <span style={s.statLabel}>FYI</span>
+              </div>
+            )}
+            {warnCount > 0 && (
+              <div style={{ ...s.statChip, borderColor: '#f59e0b' }}>
+                <span style={{ ...s.statNum, color: '#f59e0b' }}>{warnCount}</span>
+                <span style={s.statLabel}>Warnings</span>
+              </div>
+            )}
+            {criticalCount > 0 && (
+              <div style={{ ...s.statChip, borderColor: '#ef4444' }}>
+                <span style={{ ...s.statNum, color: '#ef4444' }}>{criticalCount}</span>
+                <span style={s.statLabel}>Critical</span>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Tabs */}
-      <div style={styles.tabs}>
-        {(['overview', 'findings', 'history'] as const).map((tab) => (
-          <button
-            key={tab}
-            style={{ ...styles.tab, ...(activeTab === tab ? styles.tabActive : {}) }}
-            onClick={() => setActiveTab(tab)}
-          >
-            {tab === 'overview' && '📊 Overview'}
-            {tab === 'findings' && `🔍 Findings (${filteredFindings.length})`}
-            {tab === 'history' && `📋 History (${scans.length})`}
+      {!selectedScan && (
+        <div style={s.noScan}>
+          <div style={s.noScanIcon}>🐍</div>
+          <h3 style={s.noScanTitle}>No Scan Yet</h3>
+          <p style={s.noScanText}>
+            Viper hunts for the same weaknesses an attacker would look for — saved passwords in your browser, risky network settings, accidentally exposed secrets, and more.
+          </p>
+          <button style={{ ...s.scanBtn, background: '#ef4444', borderColor: '#ef4444' }} onClick={() => handleRunScan('quick')}>
+            🐍 Run Your First Scan
           </button>
-        ))}
-      </div>
+        </div>
+      )}
 
-      {/* Tab Content */}
-      <div style={styles.tabContent}>
-        {activeTab === 'overview' && <OverviewTab findingsByCategory={findingsByCategory} />}
-        {activeTab === 'findings' && (
-          <FindingsTab
-            findings={filteredFindings}
-            filterCategory={filterCategory}
-            filterSeverity={filterSeverity}
-            onFilterCategory={setFilterCategory}
-            onFilterSeverity={setFilterSeverity}
-          />
-        )}
-        {activeTab === 'history' && (
-          <HistoryTab scans={scans} selectedScan={selectedScan} onSelect={setSelectedScan} />
-        )}
-      </div>
+      {/* ── Tabs ── */}
+      {selectedScan && (
+        <div style={s.tabs}>
+          {[
+            { key: 'overview', label: `📋 Category Overview` },
+            { key: 'details', label: `🔍 All Findings (${filteredFindings.length})` },
+            { key: 'history', label: `📜 Scan History (${scans.length})` },
+          ].map(tab => (
+            <button
+              key={tab.key}
+              style={{ ...s.tab, ...(activeTab === tab.key ? s.tabActive : {}) }}
+              onClick={() => setActiveTab(tab.key as typeof activeTab)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Tab Content ── */}
+      {selectedScan && activeTab === 'overview' && (
+        <OverviewTab findingsByCategory={findingsByCategory} />
+      )}
+      {selectedScan && activeTab === 'details' && (
+        <DetailsTab
+          findings={filteredFindings}
+          filterCategory={filterCategory}
+          filterSeverity={filterSeverity}
+          onFilterCategory={setFilterCategory}
+          onFilterSeverity={setFilterSeverity}
+        />
+      )}
+      {selectedScan && activeTab === 'history' && (
+        <HistoryTab scans={scans} selectedScan={selectedScan} onSelect={setSelectedScan} onLoadFindings={() => { loadFindings(); }} />
+      )}
     </div>
   );
 }
 
 // ── Overview Tab ──
 
-function OverviewTab({
-  findingsByCategory,
-}: {
-  findingsByCategory: Record<string, VulnFinding[]>;
-}) {
+function OverviewTab({ findingsByCategory }: { findingsByCategory: Record<string, VulnFinding[]> }) {
   const categories = Object.keys(findingsByCategory).sort();
+
   if (categories.length === 0) {
     return (
-      <div style={styles.emptyState}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>🐍</div>
-        <div>No scan data yet. Run a vulnerability scan to see results.</div>
+      <div style={s.emptyState}>
+        <div style={s.emptyIcon}>✅</div>
+        <h3 style={s.emptyTitle}>All Clear</h3>
+        <p style={s.emptyText}>No vulnerabilities found. Viper didn't find any weaknesses.</p>
       </div>
     );
   }
 
   return (
-    <div>
-      {categories.map((cat) => {
+    <div style={s.catGrid}>
+      {categories.map(cat => {
+        const meta = CATEGORY_META[cat] ?? { icon: '📋', label: cat, color: '#6366f1', tagline: '' };
         const catFindings = findingsByCategory[cat];
-        const critical = catFindings.filter((f) => f.severity === 'critical').length;
-        const warnings = catFindings.filter((f) => f.severity === 'warning').length;
-        const passes = catFindings.filter((f) => f.severity === 'pass').length;
+        const critical = catFindings.filter(f => f.severity === 'critical').length;
+        const warnings = catFindings.filter(f => f.severity === 'warning').length;
+        const passes = catFindings.filter(f => f.severity === 'pass').length;
+        const infos = catFindings.filter(f => f.severity === 'info').length;
+        const overall = critical > 0 ? '🚨' : warnings > 0 ? '⚠️' : '✅';
 
         return (
-          <div key={cat} style={styles.section}>
-            <div style={styles.categoryHeader}>
-              <span style={styles.categoryIcon}>{CATEGORY_ICONS[cat] || '📋'}</span>
-              <h3 style={styles.sectionTitle}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</h3>
-              <div style={styles.categoryCounts}>
-                {passes > 0 && <span style={{ color: '#22c55e' }}>✓ {passes}</span>}
-                {warnings > 0 && <span style={{ color: '#f59e0b' }}>⚠ {warnings}</span>}
-                {critical > 0 && <span style={{ color: '#ef4444' }}>🔴 {critical}</span>}
+          <div key={cat} style={s.catCard}>
+            <div style={s.catCardHeader}>
+              <div style={s.catIconWrap}>
+                <span style={s.catIcon}>{meta.icon}</span>
               </div>
+              <div style={s.catTitleGroup}>
+                <h3 style={s.catTitle}>{meta.label}</h3>
+                <p style={s.catTagline}>{meta.tagline}</p>
+              </div>
+              <div style={s.catBadge}>{overall}</div>
             </div>
-            <div style={styles.findingList}>
-              {catFindings.map((f) => (
-                <FindingCard key={f.id} finding={f} />
-              ))}
+
+            <div style={s.catCounts}>
+              {passes > 0 && <span style={{ ...s.catCountChip, color: '#22c55e', borderColor: '#22c55e44', background: '#22c55e18' }}>✅ {passes} passed</span>}
+              {infos > 0 && <span style={{ ...s.catCountChip, color: '#3b82f6', borderColor: '#3b82f644', background: '#3b82f618' }}>ℹ️ {infos} info</span>}
+              {warnings > 0 && <span style={{ ...s.catCountChip, color: '#f59e0b', borderColor: '#f59e0b44', background: '#f59e0b18' }}>⚠️ {warnings} warnings</span>}
+              {critical > 0 && <span style={{ ...s.catCountChip, color: '#ef4444', borderColor: '#ef444444', background: '#ef444418' }}>🚨 {critical} critical</span>}
+            </div>
+
+            <div style={s.catFindings}>
+              {catFindings.slice(0, 3).map(f => <FindingRow key={f.id} finding={f} />)}
+              {catFindings.length > 3 && (
+                <div style={s.catMore}>+ {catFindings.length - 3} more findings</div>
+              )}
             </div>
           </div>
         );
@@ -290,42 +376,41 @@ function OverviewTab({
   );
 }
 
-// ── Findings Tab ──
+// ── Details Tab ──
 
-function FindingsTab({
-  findings,
-  filterCategory,
-  filterSeverity,
-  onFilterCategory,
-  onFilterSeverity,
-}: {
+function DetailsTab({ findings, filterCategory, filterSeverity, onFilterCategory, onFilterSeverity }: {
   findings: VulnFinding[];
-  filterCategory: string;
-  filterSeverity: string;
-  onFilterCategory: (v: string) => void;
-  onFilterSeverity: (v: string) => void;
+  filterCategory: string; filterSeverity: string;
+  onFilterCategory: (v: string) => void; onFilterSeverity: (v: string) => void;
 }) {
-  const categories = [...new Set(findings.map((f) => f.category))];
+  const categories = [...new Set(findings.map(f => f.category))];
+
   return (
     <div>
-      <div style={styles.filters}>
-        <select style={styles.filterSelect} value={filterCategory} onChange={(e) => onFilterCategory(e.target.value)}>
+      <div style={s.filterRow}>
+        <select style={s.filter} value={filterCategory} onChange={e => onFilterCategory(e.target.value)}>
           <option value="">All Categories</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>{CATEGORY_ICONS[c] || '📋'} {c}</option>
+          {categories.map(c => (
+            <option key={c} value={c}>{CATEGORY_META[c]?.icon ?? '📋'} {CATEGORY_META[c]?.label ?? c}</option>
           ))}
         </select>
-        <select style={styles.filterSelect} value={filterSeverity} onChange={(e) => onFilterSeverity(e.target.value)}>
+        <select style={s.filter} value={filterSeverity} onChange={e => onFilterSeverity(e.target.value)}>
           <option value="">All Severities</option>
-          <option value="critical">🔴 Critical</option>
-          <option value="warning">🟡 Warning</option>
+          <option value="critical">🚨 Critical</option>
+          <option value="warning">⚠️ Warning</option>
           <option value="info">ℹ️ Info</option>
           <option value="pass">✅ Pass</option>
         </select>
       </div>
-      <div style={styles.findingList}>
-        {findings.map((f) => <FindingCard key={f.id} finding={f} />)}
-        {findings.length === 0 && <div style={styles.emptyState}>No findings match the current filters.</div>}
+      <div style={s.findingList}>
+        {findings.map(f => <FindingCard key={f.id} finding={f} />)}
+        {findings.length === 0 && (
+          <div style={s.emptyState}>
+            <div style={s.emptyIcon}>✅</div>
+            <h3 style={s.emptyTitle}>No findings match</h3>
+            <p style={s.emptyText}>Try a different filter combination.</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -333,72 +418,91 @@ function FindingsTab({
 
 // ── History Tab ──
 
-function HistoryTab({
-  scans,
-  selectedScan,
-  onSelect,
-}: {
-  scans: VulnScan[];
-  selectedScan: VulnScan | null;
-  onSelect: (scan: VulnScan) => void;
+function HistoryTab({ scans, selectedScan, onSelect, onLoadFindings }: {
+  scans: VulnScan[]; selectedScan: VulnScan | null; onSelect: (s: VulnScan) => void; onLoadFindings: () => void;
 }) {
   return (
-    <div style={styles.historyList}>
-      {scans.map((scan) => (
+    <div style={s.historyList}>
+      {scans.map(scan => (
         <div
           key={scan.id}
-          style={{
-            ...styles.historyRow,
-            ...(selectedScan?.id === scan.id ? styles.historyRowActive : {}),
-          }}
-          onClick={() => onSelect(scan)}
+          style={{ ...s.historyRow, ...(selectedScan?.id === scan.id ? s.historyRowActive : {}) }}
+          onClick={() => { onSelect(scan); setTimeout(onLoadFindings, 50); }}
         >
-          <div style={styles.historyInfo}>
-            <div style={styles.historyType}>
-              {scan.scan_type === 'full' ? '🐍' : '⚡'} {scan.scan_type} scan
+          <div style={s.historyLeft}>
+            <div style={s.historyTypeIcon}>{scan.scan_type === 'full' ? '🐍' : '⚡'}</div>
+            <div>
+              <div style={s.historyType}>
+                {scan.scan_type === 'full' ? 'Full Vulnerability Scan' : 'Quick Scan'}
+              </div>
+              <div style={s.historyTime}>{formatAge(scan.started_at)}</div>
             </div>
-            <div style={styles.historyTime}>{formatTime(scan.started_at)}</div>
           </div>
-          <div style={styles.historyStats}>
+          <div style={s.historyStats}>
             <span style={{ color: '#22c55e' }}>✓{scan.pass_count}</span>
-            <span style={{ color: '#f59e0b' }}>⚠{scan.warn_count}</span>
-            <span style={{ color: '#ef4444' }}>🔴{scan.critical_count}</span>
+            {scan.warn_count > 0 && <span style={{ color: '#f59e0b' }}>⚠{scan.warn_count}</span>}
+            {scan.critical_count > 0 && <span style={{ color: '#ef4444' }}>🚨{scan.critical_count}</span>}
           </div>
-          <div style={{ ...styles.historyScore, color: riskColor(scan.risk_score) }}>
+          <div style={{ ...s.historyScore, color: riskColor(scan.risk_score) }}>
             {scan.risk_score ?? '—'}
           </div>
         </div>
       ))}
-      {scans.length === 0 && <div style={styles.emptyState}>No scans yet. Click "Full Scan" to start.</div>}
     </div>
   );
 }
 
-// ── Finding Card ──
+// ── Finding Row (compact) ──
+
+function FindingRow({ finding }: { finding: VulnFinding }) {
+  const meta = severityMeta(finding.severity);
+  return (
+    <div style={s.findingRow}>
+      <span style={s.findingRowIcon}>{meta.icon}</span>
+      <span style={s.findingRowTitle}>{finding.title}</span>
+    </div>
+  );
+}
+
+// ── Finding Card (expanded) ──
 
 function FindingCard({ finding }: { finding: VulnFinding }) {
   const [expanded, setExpanded] = useState(false);
+  const meta = severityMeta(finding.severity);
+  const catMeta = CATEGORY_META[finding.category] ?? { icon: '📋', label: finding.category };
+
   return (
-    <div style={{ ...styles.findingCard, borderLeftColor: severityColor(finding.severity) }}>
-      <div style={styles.findingHeader} onClick={() => setExpanded(!expanded)}>
-        <span style={styles.findingSeverity}>{severityIcon(finding.severity)}</span>
-        <div style={styles.findingInfo}>
-          <div style={styles.findingTitle}>{finding.title}</div>
-          <div style={styles.findingCategory}>{CATEGORY_ICONS[finding.category] || '📋'} {finding.category}</div>
+    <div style={{ ...s.findingCard, borderLeft: `3px solid ${meta.color}` }}>
+      <div style={s.findingCardHeader} onClick={() => setExpanded(!expanded)}>
+        <div style={s.findingCardLeft}>
+          <span style={s.findingCardIcon}>{meta.icon}</span>
+          <div>
+            <div style={s.findingCardTitle}>{finding.title}</div>
+            <div style={s.findingCardMeta}>
+              {catMeta.icon} {catMeta.label} · <span style={{ color: meta.color }}>{meta.label}</span>
+            </div>
+          </div>
         </div>
-        <span style={styles.expandIcon}>{expanded ? '▼' : '▶'}</span>
+        <span style={s.expandIcon}>{expanded ? '▼' : '▶'}</span>
       </div>
       {expanded && (
-        <div style={styles.findingDetails}>
-          <div style={styles.findingDesc}>{finding.description}</div>
+        <div style={s.findingCardBody}>
+          <p style={s.findingCardDesc}>
+            <strong style={{ color: '#94a3b8' }}>What this means:</strong><br />
+            {finding.description}
+          </p>
           {finding.remediation && (
-            <div style={styles.findingRec}>
-              <strong>🔧 Remediation:</strong> {finding.remediation}
+            <div style={s.findingCardRec}>
+              <div style={{ color: '#fca5a5', fontWeight: 600, marginBottom: 4 }}>🔧 How to fix it:</div>
+              {finding.remediation}
             </div>
           )}
           {finding.cve_ids && finding.cve_ids.length > 0 && (
-            <div style={styles.findingCve}>
-              <strong>CVEs:</strong> {finding.cve_ids.join(', ')}
+            <div style={s.findingCardCve}>
+              <span style={{ color: '#fca5a5', fontWeight: 600 }}>Related CVEs:</span>{' '}
+              {finding.cve_ids.map(cve => (
+                <span key={cve} style={s.cveChip}>{cve}</span>
+              ))}
             </div>
           )}
         </div>
@@ -409,34 +513,7 @@ function FindingCard({ finding }: { finding: VulnFinding }) {
 
 // ── Helpers ──
 
-function riskColor(score: number | null): string {
-  if (score === null) return '#64748b';
-  if (score <= 20) return '#22c55e';
-  if (score <= 50) return '#f59e0b';
-  return '#ef4444';
-}
-
-function severityColor(severity: string): string {
-  switch (severity) {
-    case 'critical': return '#ef4444';
-    case 'warning': return '#f59e0b';
-    case 'info': return '#3b82f6';
-    case 'pass': return '#22c55e';
-    default: return '#64748b';
-  }
-}
-
-function severityIcon(severity: string): string {
-  switch (severity) {
-    case 'critical': return '🔴';
-    case 'warning': return '🟡';
-    case 'info': return 'ℹ️';
-    case 'pass': return '✅';
-    default: return '📋';
-  }
-}
-
-function formatTime(iso: string): string {
+function formatAge(iso: string): string {
   try {
     const d = new Date(iso);
     const now = new Date();
@@ -451,61 +528,98 @@ function formatTime(iso: string): string {
 
 // ── Styles ──
 
-const styles: Record<string, React.CSSProperties> = {
-  container: { padding: 24, maxWidth: 1200, margin: '0 auto', color: '#e2e8f0', fontFamily: 'system-ui, -apple-system, sans-serif' },
-  loading: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', color: '#94a3b8' },
-  loadingSpinner: { fontSize: 48, animation: 'pulse 2s infinite' },
-  loadingText: { marginTop: 16, fontSize: 16 },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, paddingBottom: 16, borderBottom: '1px solid #1e293b' },
+const s: Record<string, React.CSSProperties> = {
+  container: { padding: '24px 28px', maxWidth: '900px', margin: '0 auto', color: '#e2e8f0', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
+  loading: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: 12 },
+  loadingIcon: { fontSize: 52, animation: 'pulse 2s infinite' },
+  loadingText: { color: '#64748b', fontSize: 15 },
+
+  // Header
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 },
   headerLeft: { display: 'flex', alignItems: 'center', gap: 12 },
-  headerIcon: { fontSize: 32 },
-  title: { fontSize: 24, fontWeight: 700, margin: 0, color: '#f1f5f9' },
-  subtitle: { fontSize: 14, color: '#64748b', margin: 0 },
-  headerRight: { display: 'flex', alignItems: 'center', gap: 12 },
-  scanButton: { padding: '8px 16px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#e2e8f0', cursor: 'pointer', fontSize: 14 },
-  scoreSection: { display: 'flex', gap: 24, marginBottom: 24 },
-  scoreCard: { display: 'flex', alignItems: 'center', gap: 24, padding: 24, backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: 12, flex: 1 },
-  scoreCircle: { width: 100, height: 100, borderRadius: '50%', border: '4px solid', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  scoreValue: { fontSize: 32, fontWeight: 700 },
-  scoreLabel: { fontSize: 11, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: 1 },
-  scoreMeta: { display: 'flex', flexDirection: 'column', gap: 8 },
-  scoreMetaRow: { display: 'flex', gap: 12 },
-  metaLabel: { color: '#64748b', fontSize: 13, width: 80 },
-  metaValue: { color: '#e2e8f0', fontSize: 13, textTransform: 'capitalize' as const },
-  countCards: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, flex: 1 },
-  countCard: { padding: 16, backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: 12, textAlign: 'center' as const, borderTop: '3px solid' },
-  countValue: { fontSize: 28, fontWeight: 700 },
-  countLabel: { fontSize: 11, color: '#64748b', marginTop: 4, textTransform: 'uppercase' as const, letterSpacing: 1 },
-  tabs: { display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid #1e293b' },
-  tab: { padding: '10px 20px', backgroundColor: 'transparent', border: 'none', borderBottom: '2px solid transparent', color: '#64748b', cursor: 'pointer', fontSize: 14, fontWeight: 500 },
-  tabActive: { color: '#f1f5f9', borderBottomColor: '#22c55e' },
-  tabContent: { minHeight: 300 },
-  section: { marginBottom: 24 },
-  categoryHeader: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 },
-  categoryIcon: { fontSize: 20 },
-  sectionTitle: { fontSize: 16, fontWeight: 600, color: '#94a3b8', margin: 0 },
-  categoryCounts: { display: 'flex', gap: 12, fontSize: 13, fontWeight: 600, marginLeft: 'auto' },
+  headerIcon: { fontSize: 36 },
+  title: { fontSize: 26, fontWeight: 700, margin: 0, color: '#f1f5f9' },
+  subtitle: { fontSize: 14, color: '#64748b', margin: '2px 0 0 0' },
+  headerRight: { display: 'flex', gap: 10 },
+  scanBtn: { padding: '9px 18px', background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#e2e8f0', cursor: 'pointer', fontSize: 14, fontWeight: 600, transition: 'all 0.15s' },
+  scanBtnDisabled: { opacity: 0.5, cursor: 'not-allowed' },
+
+  // Hero Risk
+  heroRisk: { background: '#0f172a', border: '1px solid #1e293b', borderRadius: 16, padding: '24px 28px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap' as const },
+  heroLeft: { display: 'flex', alignItems: 'center', gap: 20, flex: 1, minWidth: 0 },
+  heroRing: { flexShrink: 0 },
+  heroInfo: { minWidth: 0 },
+  heroLabel: { fontSize: 20, fontWeight: 700, marginBottom: 4 },
+  heroSub: { fontSize: 13, color: '#64748b' },
+  heroGood: { marginTop: 8, fontSize: 13, color: '#22c55e', background: '#22c55e18', borderRadius: 6, padding: '4px 10px', display: 'inline-block' },
+  heroAlert: { marginTop: 8, fontSize: 13, color: '#ef4444', background: '#ef444418', borderRadius: 6, padding: '4px 10px', display: 'inline-block', fontWeight: 600 },
+  heroStats: { display: 'flex', gap: 10 },
+  statChip: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', padding: '10px 16px', background: '#0f172a', border: '1px solid', borderRadius: 10, minWidth: 72 },
+  statNum: { fontSize: 24, fontWeight: 700 },
+  statLabel: { fontSize: 11, color: '#64748b', marginTop: 2 },
+
+  // No scan
+  noScan: { textAlign: 'center' as const, padding: '48px 24px', background: '#0f172a', border: '1px solid #1e293b', borderRadius: 16 },
+  noScanIcon: { fontSize: 56, marginBottom: 16 },
+  noScanTitle: { fontSize: 18, fontWeight: 700, color: '#f1f5f9', marginBottom: 8 },
+  noScanText: { fontSize: 14, color: '#64748b', maxWidth: 400, margin: '0 auto 20px', lineHeight: 1.6 },
+
+  // Tabs
+  tabs: { display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid #1e293b', paddingBottom: 12 },
+  tab: { padding: '8px 16px', background: 'transparent', border: 'none', borderBottom: '2px solid transparent', color: '#64748b', cursor: 'pointer', fontSize: 14, fontWeight: 500, borderRadius: 6 },
+  tabActive: { color: '#f1f5f9', borderBottomColor: '#ef4444', background: '#1e293b' },
+
+  // Category Grid
+  catGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 12 },
+  catCard: { background: '#0f172a', border: '1px solid #1e293b', borderRadius: 14, padding: 18, display: 'flex', flexDirection: 'column' as const, gap: 12 },
+  catCardHeader: { display: 'flex', alignItems: 'flex-start', gap: 12 },
+  catIconWrap: { fontSize: 28, flexShrink: 0 },
+  catIcon: {},
+  catTitleGroup: { flex: 1, minWidth: 0 },
+  catTitle: { fontSize: 16, fontWeight: 700, color: '#f1f5f9', margin: 0 },
+  catTagline: { fontSize: 12, color: '#64748b', margin: '2px 0 0 0', lineHeight: 1.4 },
+  catBadge: { fontSize: 20, flexShrink: 0 },
+  catCounts: { display: 'flex', gap: 6, flexWrap: 'wrap' as const },
+  catCountChip: { fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 6, border: '1px solid' },
+  catFindings: { display: 'flex', flexDirection: 'column' as const, gap: 4 },
+  findingRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 },
+  findingRowIcon: { fontSize: 14, flexShrink: 0 },
+  findingRowTitle: { color: '#94a3b8' },
+  catMore: { fontSize: 12, color: '#475569', fontStyle: 'italic' },
+
+  // Filters
+  filterRow: { display: 'flex', gap: 10, marginBottom: 14 },
+  filter: { padding: '7px 12px', background: '#1e293b', border: '1px solid #334155', borderRadius: 7, color: '#e2e8f0', fontSize: 13 },
+
+  // Finding List
   findingList: { display: 'flex', flexDirection: 'column' as const, gap: 6 },
-  findingCard: { backgroundColor: '#0f172a', borderRadius: 8, borderLeft: '3px solid', overflow: 'hidden' },
-  findingHeader: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer' },
-  findingSeverity: { fontSize: 16, width: 24, textAlign: 'center' as const },
-  findingInfo: { flex: 1, minWidth: 0 },
-  findingTitle: { fontSize: 14, fontWeight: 500, color: '#e2e8f0' },
-  findingCategory: { fontSize: 12, color: '#64748b', marginTop: 2 },
-  expandIcon: { fontSize: 10, color: '#475569', flexShrink: 0 },
-  findingDetails: { padding: '0 14px 12px 48px' },
-  findingDesc: { fontSize: 13, color: '#94a3b8', lineHeight: 1.5, marginBottom: 8 },
-  findingRec: { fontSize: 13, color: '#a5b4fc', backgroundColor: '#1e293b', padding: '8px 12px', borderRadius: 6, lineHeight: 1.5, marginBottom: 6 },
-  findingCve: { fontSize: 12, color: '#fca5a5', backgroundColor: '#1e293b', padding: '6px 12px', borderRadius: 6 },
-  filters: { display: 'flex', gap: 12, marginBottom: 16 },
-  filterSelect: { padding: '6px 12px', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 6, color: '#e2e8f0', fontSize: 13 },
+  findingCard: { background: '#0f172a', borderRadius: 10, overflow: 'hidden' },
+  findingCardHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', cursor: 'pointer', gap: 12 },
+  findingCardLeft: { display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 },
+  findingCardIcon: { fontSize: 20, flexShrink: 0 },
+  findingCardTitle: { fontSize: 14, fontWeight: 500, color: '#e2e8f0' },
+  findingCardMeta: { fontSize: 12, color: '#64748b', marginTop: 2 },
+  expandIcon: { fontSize: 11, color: '#475569', flexShrink: 0 },
+  findingCardBody: { padding: '0 16px 16px 44px' },
+  findingCardDesc: { fontSize: 13, color: '#94a3b8', lineHeight: 1.6, margin: '0 0 10px 0' },
+  findingCardRec: { background: '#1e293b', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#fca5a5', lineHeight: 1.5, marginBottom: 8 },
+  findingCardCve: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const, fontSize: 12, background: '#1e293b', borderRadius: 6, padding: '6px 12px' },
+  cveChip: { background: '#ef444422', color: '#fca5a5', padding: '2px 8px', borderRadius: 4, fontFamily: 'monospace', fontSize: 11, marginRight: 4 },
+
+  // History
   historyList: { display: 'flex', flexDirection: 'column' as const, gap: 6 },
-  historyRow: { display: 'flex', alignItems: 'center', gap: 16, padding: '12px 16px', backgroundColor: '#0f172a', borderRadius: 8, cursor: 'pointer', border: '1px solid transparent' },
-  historyRowActive: { borderColor: '#22c55e', backgroundColor: '#052e16' },
-  historyInfo: { flex: 1 },
-  historyType: { fontSize: 14, fontWeight: 500, textTransform: 'capitalize' as const },
-  historyTime: { fontSize: 12, color: '#64748b', marginTop: 2 },
-  historyStats: { display: 'flex', gap: 12, fontSize: 13, fontWeight: 600 },
-  historyScore: { fontSize: 24, fontWeight: 700, width: 50, textAlign: 'right' as const },
-  emptyState: { textAlign: 'center' as const, color: '#64748b', padding: 48, fontSize: 14 },
+  historyRow: { display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: '#0f172a', borderRadius: 10, cursor: 'pointer', border: '1px solid transparent' },
+  historyRowActive: { borderColor: '#ef4444', background: '#2d0a0a' },
+  historyLeft: { display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 },
+  historyTypeIcon: { fontSize: 20, flexShrink: 0 },
+  historyType: { fontSize: 14, fontWeight: 500, color: '#e2e8f0' },
+  historyTime: { fontSize: 12, color: '#64748b', marginTop: 1 },
+  historyStats: { display: 'flex', gap: 10, fontSize: 13, fontWeight: 600 },
+  historyScore: { fontSize: 24, fontWeight: 700, width: 40, textAlign: 'right' as const },
+
+  // Empty
+  emptyState: { textAlign: 'center' as const, padding: '48px 24px' },
+  emptyIcon: { fontSize: 52, marginBottom: 14 },
+  emptyTitle: { fontSize: 17, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 },
+  emptyText: { fontSize: 14, color: '#64748b', lineHeight: 1.5 },
 };

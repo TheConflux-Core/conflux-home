@@ -33,8 +33,8 @@ export function useOrbit() {
         title,
         category: category ?? null,
         priority: priority ?? null,
-        dueDate: dueDate ?? null,
-        energyType: energyType ?? null,
+        due_date: dueDate ?? null,
+        energy_type: energyType ?? null,
       });
       await loadDashboard();
     },
@@ -64,7 +64,7 @@ export function useOrbit() {
         name,
         category: category ?? null,
         frequency: frequency ?? null,
-        targetCount: targetCount ?? null,
+        target_count: targetCount ?? null,
       });
       await loadDashboard();
     },
@@ -73,7 +73,7 @@ export function useOrbit() {
 
   const logHabit = useCallback(
     async (habitId: string) => {
-      await invoke('life_log_habit', { user_id, habitId });
+      await invoke('life_log_habit', { user_id, habit_id: habitId });
       await loadDashboard();
     },
     [user_id, loadDashboard]
@@ -96,7 +96,15 @@ export function useOrbit() {
   }, []);
 
   const parseInput = useCallback(async (input: string) => {
-    return await invoke<{ action: string; title: string; parsed: boolean }>('life_parse_input', { input });
+    return await invoke<{
+      action: string;
+      title: string;
+      due_date?: string;
+      priority?: string;
+      category?: string;
+      energy_type?: string;
+      parsed: boolean;
+    }>('life_parse_input', { input });
   }, []);
 
   const dismissNudge = useCallback(

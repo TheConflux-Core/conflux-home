@@ -40,7 +40,8 @@ pub fn try_get_engine() -> Option<&'static ConfluxEngine> {
 }
 
 /// Initialize the global engine. Call once during app setup.
-pub fn init_engine(db_path: &Path) -> Result<()> {
+/// Returns a reference to the engine for immediate post-init setup.
+pub fn init_engine(db_path: &Path) -> Result<&'static ConfluxEngine> {
     let engine = ConfluxEngine::new(db_path)?;
 
     // NOTE: All provider API keys have been removed. Inference now routes through
@@ -91,12 +92,15 @@ pub fn init_engine(db_path: &Path) -> Result<()> {
         log::warn!("[Engine] Failed to ensure system cron jobs: {}", e);
     }
 
-    Ok(())
+    Ok(get_engine())
 }
 
 /// The Conflux Engine — manages all agent state and inference.
 pub struct ConfluxEngine {
     db: EngineDb,
+    /// Stored AppHandle for emitting Tauri events and sending notifications.
+    /// Set once at startup via `set_app_handle()`.
+    app_handle: std::sync::Mutex<Option<tauri::AppHandle>>,
 }
 
 impl std::fmt::Debug for ConfluxEngine {
@@ -109,21 +113,50 @@ impl ConfluxEngine {
     /// Initialize the engine with a database file path.
     pub fn new(db_path: &Path) -> Result<Self> {
         let db = EngineDb::open(db_path)?;
-
-        // Rebuild FTS index for existing memories (idempotent)
-        match db.rebuild_memory_fts() {
-            Ok(count) => log::info!("Memory FTS index: {} entries", count),
-            Err(e) => log::warn!("Memory FTS rebuild failed: {}", e),
-        }
-
-        log::info!("Conflux Engine initialized at {:?}", db_path);
-        Ok(ConfluxEngine { db })
+        Ok(Self { db, app_handle: std::sync::Mutex::new(None) })
     }
+
+    /// Store the Tauri app handle. Call once at startup from lib.rs.
+    pub fn set_app_handle(&self, handle: tauri::AppHandle) {
+        let mut guard = self.app_handle.lock().unwrap();
+        *guard = Some(handle);
+        log::info!("[Engine] AppHandle registered for real-time events");
+    }
+
+    /// Emit a Tauri event to all listeners.
+    pub fn emit_tauri_event(&self, event: &str, payload: impl serde::Serialize + Clone) {
+        use tauri::Emitter;
+        if let Some(handle) = self.app_handle.lock().unwrap().as_ref() {
+            if let Err(e) = handle.emit(event, payload) {
+                log::warn!("[Engine] Failed to emit {}: {}", event, e);
+            }
+        }
+    }
+
+    /// Send a desktop notification AND emit a Tauri event for UI reactivity.
+    pub fn send_security_notification(&self, title: &str, body: &str) {
+        // Emit Tauri event for frontend listeners (works on all platforms)
+        self.emit_tauri_event("security:permission_prompt", serde_json::json!({
+            "title": title,
+            "body": body,
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+        }));
+
+        // Fire OS desktop notification (desktop only)
+        #[cfg(desktop)]
+        {
+            use tauri_plugin_notification::NotificationExt;
+            if let Some(ref handle) = *self.app_handle.lock().unwrap() {
+                let _ = handle.notification().builder().title(title).body(body).show();
+            }
+        }
+    }
+
 
     /// Initialize with in-memory database (for testing).
     pub fn new_in_memory() -> Result<Self> {
         let db = EngineDb::open_in_memory()?;
-        Ok(ConfluxEngine { db })
+        Ok(Self { db, app_handle: std::sync::Mutex::new(None) })
     }
 
     /// Get a reference to the database.
@@ -721,6 +754,17 @@ impl ConfluxEngine {
               Reference the dream title and the specific task name. \
               If no upcoming tasks, check if any milestones were recently completed and celebrate briefly. \
               If nothing notable, stay silent — do not generate output."),
+
+            ("security-scan", "conflux", "0 2 * * *", "local",
+             "Run a scheduled security scan. \
+              1. Use aegis_run_audit with run_type='scheduled' to check system hardening. \
+              2. Use viper_run_scan with scan_type='scheduled' to check for vulnerabilities. \
+              3. Use security_run_anomaly_scan to check for anomalous agent behavior. \
+              4. Use siem_run_correlation to update the risk overview. \
+              If any critical findings are found, store a memory with category 'security-alert' and alert the user in the Security Hub. \
+              If all scans are clean, store a brief memory with category 'security-status' noting the clean scan. \
+              Do NOT send a notification to the user unless there is a critical finding. \
+              Keep output minimal — just the scan results summary."),
         ];
 
         for (name, agent_id, schedule, tz, message) in system_jobs {
