@@ -816,7 +816,8 @@ const [activeSnake, setActiveSnake] = useState(false);
     setActiveNaniSolitaire(false);
     setActiveJohnnySolitaire(false);
     setActiveGameId(null);
-    setImmersiveView('marketplace');
+    // Go back to the GamesHub grid, not marketplace
+    setImmersiveView('games');
   }, []);
 
   // Check if any game is active
@@ -1023,7 +1024,7 @@ const [activeSnake, setActiveSnake] = useState(false);
           )}
           {immersiveView === 'games' && !activeGameId && !activeMinesweeper && !activeSnake && !activePacman && !activeSolitaire && !activeNaniSolitaire && !activeJohnnySolitaire && (
             <GamesHub
-              onBack={() => handleNavigate('marketplace')}
+              onBack={() => setImmersiveView(null)}
               onOpenGame={(gameId) => {
                 if (gameId === 'minesweeper') {
                   setActiveMinesweeper(true);
