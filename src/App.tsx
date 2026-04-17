@@ -787,6 +787,10 @@ const [activeSnake, setActiveSnake] = useState(false);
     } else if (v === 'marketplace') {
       // Discover → open marketplace
       setImmersiveView('marketplace');
+    } else if (v === 'games') {
+      // Open the games hub grid
+      setImmersiveView('games');
+      setChatOpen(false);
     } else if (v === 'chat') {
       if (!selectedAgent) {
         // Default to last-used agent, then "Conflux", then first active
@@ -801,8 +805,8 @@ const [activeSnake, setActiveSnake] = useState(false);
       // We do NOT set immersiveView to null here
       setChatOpen(true);
     } else {
-      // Open immersive view for all other navigation
-      setImmersiveView(v);
+      // All other apps — close any immersive game/marketplace overlay
+      setImmersiveView(null);
       setChatOpen(false);
     }
   }, [agents, selectedAgent]);
