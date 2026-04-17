@@ -50,8 +50,8 @@ const GAMES: GameDef[] = [
   {
     id: 'johnny-solitaire',
     name: "Johnny C's Solitaire",
-    icon: '🃏',
-    subtitle: 'FreeCell Variant · Classic',
+    icon: '🀄',
+    subtitle: 'FreeCell Variant · 8 Columns',
     status: 'available',
     size: 'normal',
   },

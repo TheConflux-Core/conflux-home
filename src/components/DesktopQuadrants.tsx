@@ -361,6 +361,8 @@ const FOLDER_APPS: Record<string, { title: string; icon: string; items: FolderIt
       { id: 'solitaire', name: 'Solitaire', icon: '🃏', subtitle: 'Classic Card Game', status: 'available' },
       { id: 'pacman', name: 'Pac-Man', icon: '🟡', subtitle: 'Arcade Classic', status: 'available' },
       { id: 'snake', name: 'Snake', icon: '🐍', subtitle: 'Arcade Classic', status: 'available' },
+      { id: 'nani-solitaire', name: "Nani's Solitaire", icon: '🎴', subtitle: 'Family Tradition · 4×4', status: 'available' },
+      { id: 'johnny-solitaire', name: "Johnny C's Solitaire", icon: '🀄', subtitle: 'FreeCell · 8 Columns', status: 'available' },
       { id: 'stories', name: 'Conflux Stories', icon: '📖', subtitle: 'Interactive Fiction', status: 'coming-soon' },
     ],
   },
