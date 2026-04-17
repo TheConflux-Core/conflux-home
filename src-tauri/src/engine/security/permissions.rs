@@ -100,7 +100,7 @@ pub struct PermissionCheckResult {
 
 /// Check if an agent action is allowed.
 /// Returns the permission decision and logs the event.
-pub fn check_permission(
+pub async fn check_permission(
     db: &EngineDb,
     agent_id: &str,
     session_id: Option<&str>,
@@ -109,28 +109,27 @@ pub fn check_permission(
     scope: &str,
     tool_name: &str,
 ) -> Result<PermissionCheckResult> {
-    let conn = db.conn();
-
     // 1. Check agent security profile
-    let profile = get_security_profile(db, agent_id)?;
+    let profile = get_security_profile(db, agent_id).await?;
 
     // 2. Check specific permission rules for this agent + resource type
-    let mut stmt = conn.prepare(
-        "SELECT id, action, scope, description FROM permission_rules
-         WHERE agent_id = ?1 AND resource_type = ?2
-         ORDER BY is_system DESC, created_at ASC",
-    )?;
-
-    let rules: Vec<(String, String, String, Option<String>)> = stmt
-        .query_map(rusqlite::params![agent_id, resource_type], |row| {
+    let rules: Vec<(String, String, String, Option<String>)> = {
+        let conn = db.conn_async().await;
+        let mut stmt = conn.prepare(
+            "SELECT id, action, scope, description FROM permission_rules
+             WHERE agent_id = ?1 AND resource_type = ?2
+             ORDER BY is_system DESC, created_at ASC",
+        )?;
+        let rows = stmt.query_map(rusqlite::params![agent_id, resource_type], |row| {
             Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-        })?
-        .collect::<std::result::Result<Vec<_>, _>>()?;
+        })?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()?
+    };
 
     // 3. Check each rule against the resource value
     for (rule_id, action, rule_scope, description) in &rules {
         if scope_matches(rule_scope, scope)
-            && resource_matches(resource_value, &get_rule_pattern(db, rule_id)?)
+            && resource_matches(resource_value, &get_rule_pattern(db, rule_id).await?)
         {
             let perm_action = PermissionAction::from_str(action);
 
@@ -202,7 +201,7 @@ pub fn check_permission(
                         resource_value,
                         tool_name,
                         None,
-                    )?;
+                    ).await?;
 
                     // Log prompt event
                     let _ = events::log_security_event(
@@ -273,7 +272,7 @@ pub fn check_permission(
                 resource_value,
                 tool_name,
                 None,
-            )?;
+            ).await?;
             Ok(PermissionCheckResult {
                 allowed: false,
                 action: "prompt".to_string(),
@@ -308,7 +307,7 @@ pub fn check_permission(
 }
 
 /// Create a permission prompt for user decision.
-fn create_permission_prompt(
+async fn create_permission_prompt(
     db: &EngineDb,
     agent_id: &str,
     session_id: Option<&str>,
@@ -319,7 +318,7 @@ fn create_permission_prompt(
     tool_args: Option<&str>,
 ) -> Result<String> {
     let id = Uuid::new_v4().to_string();
-    let conn = db.conn();
+    let conn = db.conn_async().await;
 
     conn.execute(
         "INSERT INTO permission_prompts (id, agent_id, session_id, rule_id, request_type, target, tool_name, tool_args)
@@ -331,12 +330,12 @@ fn create_permission_prompt(
 }
 
 /// Resolve a permission prompt (user approved or denied).
-pub fn resolve_permission_prompt(
+pub async fn resolve_permission_prompt(
     db: &EngineDb,
     prompt_id: &str,
     decision: &str, // 'allow_once' | 'allow_always' | 'deny_once' | 'deny_always'
 ) -> Result<()> {
-    let conn = db.conn();
+    let conn = db.conn_async().await;
     let now = crate::engine::db::EngineDb::now();
 
     // Update the prompt
@@ -388,11 +387,11 @@ pub fn resolve_permission_prompt(
 }
 
 /// Get pending permission prompts for the user.
-pub fn get_pending_prompts(
+pub async fn get_pending_prompts(
     db: &EngineDb,
     agent_id: Option<&str>,
 ) -> Result<Vec<serde_json::Value>> {
-    let conn = db.conn();
+    let conn = db.conn_async().await;
 
     let mut query = String::from(
         "SELECT pp.id, pp.agent_id, a.name, a.emoji, pp.request_type, pp.target, pp.tool_name, pp.created_at
@@ -433,8 +432,8 @@ pub fn get_pending_prompts(
 }
 
 /// Get the agent's security profile.
-pub fn get_security_profile(db: &EngineDb, agent_id: &str) -> Result<AgentSecurityProfile> {
-    let conn = db.conn();
+pub async fn get_security_profile(db: &EngineDb, agent_id: &str) -> Result<AgentSecurityProfile> {
+    let conn = db.conn_async().await;
     let profile = conn.query_row(
         "SELECT agent_id, sandbox_enabled, file_access_mode, network_mode, exec_mode,
                 max_file_reads_per_min, max_file_writes_per_min, max_exec_per_min,
@@ -460,7 +459,7 @@ pub fn get_security_profile(db: &EngineDb, agent_id: &str) -> Result<AgentSecuri
 }
 
 /// Update an agent's security profile.
-pub fn update_security_profile(
+pub async fn update_security_profile(
     db: &EngineDb,
     agent_id: &str,
     sandbox_enabled: Option<bool>,
@@ -473,7 +472,7 @@ pub fn update_security_profile(
     max_network: Option<i64>,
     anomaly_threshold: Option<i64>,
 ) -> Result<()> {
-    let conn = db.conn();
+    let conn = db.conn_async().await;
     let now = crate::engine::db::EngineDb::now();
 
     let mut sets: Vec<String> = Vec::new();
@@ -542,8 +541,8 @@ pub fn update_security_profile(
 }
 
 /// Get all permission rules for an agent.
-pub fn get_permission_rules(db: &EngineDb, agent_id: &str) -> Result<Vec<PermissionRule>> {
-    let conn = db.conn();
+pub async fn get_permission_rules(db: &EngineDb, agent_id: &str) -> Result<Vec<PermissionRule>> {
+    let conn = db.conn_async().await;
     let mut stmt = conn.prepare(
         "SELECT id, agent_id, resource_type, resource_value, action, scope, description, is_system, created_at, updated_at
          FROM permission_rules WHERE agent_id = ?1 ORDER BY resource_type, created_at"
@@ -570,7 +569,7 @@ pub fn get_permission_rules(db: &EngineDb, agent_id: &str) -> Result<Vec<Permiss
 }
 
 /// Add a new permission rule.
-pub fn add_permission_rule(
+pub async fn add_permission_rule(
     db: &EngineDb,
     agent_id: &str,
     resource_type: &str,
@@ -580,7 +579,7 @@ pub fn add_permission_rule(
     description: Option<&str>,
 ) -> Result<String> {
     let id = Uuid::new_v4().to_string();
-    let conn = db.conn();
+    let conn = db.conn_async().await;
 
     conn.execute(
         "INSERT INTO permission_rules (id, agent_id, resource_type, resource_value, action, scope, description)
@@ -592,8 +591,8 @@ pub fn add_permission_rule(
 }
 
 /// Delete a permission rule (only non-system rules).
-pub fn delete_permission_rule(db: &EngineDb, rule_id: &str) -> Result<bool> {
-    let conn = db.conn();
+pub async fn delete_permission_rule(db: &EngineDb, rule_id: &str) -> Result<bool> {
+    let conn = db.conn_async().await;
     let deleted = conn.execute(
         "DELETE FROM permission_rules WHERE id = ?1 AND is_system = 0",
         rusqlite::params![rule_id],
@@ -623,8 +622,8 @@ fn resource_matches(resource_value: &str, pattern: &str) -> bool {
 }
 
 /// Get the pattern for a rule (from resource_value in the rule).
-fn get_rule_pattern(db: &EngineDb, rule_id: &str) -> Result<String> {
-    let conn = db.conn();
+async fn get_rule_pattern(db: &EngineDb, rule_id: &str) -> Result<String> {
+    let conn = db.conn_async().await;
     let pattern: String = conn.query_row(
         "SELECT resource_value FROM permission_rules WHERE id = ?1",
         rusqlite::params![rule_id],

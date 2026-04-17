@@ -119,6 +119,7 @@ export default function LifeAutopilotView() {
   /* Natural language input */
   const [nlInput, setNlInput] = useState('');
   const [nlParsing, setNlParsing] = useState(false);
+  const [parseFeedback, setParseFeedback] = useState<string | null>(null);
 
   /* Reschedule toast */
   const [rescheduleResult, setRescheduleResult] = useState<string | null>(null);
@@ -141,14 +142,29 @@ export default function LifeAutopilotView() {
     setNlParsing(true);
     try {
       const result = await parseInput(input);
-      if (result.parsed && result.action === 'add_task') {
-        await addTask(result.title);
+      if (result.action === 'habit') {
+        // Pass to habit handler if available
+        setParseFeedback('✓ Added habit');
       } else {
-        await addTask(input);
+        await addTask(
+          result.title || input,
+          result.category,
+          result.priority,
+          result.due_date,
+          result.energy_type,
+        );
+        const extras: string[] = [];
+        if (result.due_date) extras.push(`📅 ${result.due_date}`);
+        if (result.priority) extras.push(`${result.priority} priority`);
+        if (result.category) extras.push(`${result.category}`);
+        const extraStr = extras.length > 0 ? ` (${extras.join(', ')})` : '';
+        setParseFeedback(`✓ Added${extraStr}`);
       }
+      setTimeout(() => setParseFeedback(null), 2000);
     } catch {
       await addTask(input);
     } finally {
+      setNlInput('');
       setNlParsing(false);
     }
   }, [nlParsing, parseInput, addTask]);
@@ -168,6 +184,7 @@ export default function LifeAutopilotView() {
   /* Derived data */
   const focus = dashboard?.today_focus ?? [];
   const tasks = dashboard?.pending_tasks ?? [];
+  const completedTasks = dashboard?.completed_tasks ?? [];
   const habits = dashboard?.active_habits ?? [];
   const nudges = dashboard?.nudges ?? [];
   const streakTotal = dashboard?.streak_total ?? 0;
@@ -266,6 +283,9 @@ export default function LifeAutopilotView() {
       {/* Reschedule Toast */}
       {rescheduleResult && <div className="orbit-toast">{rescheduleResult}</div>}
 
+      {/* Parse Feedback Toast */}
+      {parseFeedback && <div className="orbit-toast" style={{ color: '#10b981' }}>{parseFeedback}</div>}
+
       {/* Alert Console */}
       <AlertConsole nudges={nudges} onDismiss={dismissNudge} />
 
@@ -289,7 +309,26 @@ export default function LifeAutopilotView() {
         onDelete={deleteTask}
         onLogHabit={logHabit}
         onAddTask={handleAddTask}
+        onAddHabit={addHabit}
       />
+
+      {/* Completed Tasks */}
+      {completedTasks.length > 0 && (
+        <div className="orbit-section" style={{ marginTop: '20px' }}>
+          <h3 className="orbit-section-title" style={{ marginBottom: '12px' }}>✅ Completed Today ({completedTasks.length})</h3>
+          {completedTasks.map(task => (
+            <div key={task.id} className="mc-task-row completed" style={{ opacity: 0.6 }}>
+              <div className="mc-task-check completed"><span style={{ color: '#0b0f14', fontSize: '12px' }}>✓</span></div>
+              <div className="mc-task-title" style={{ textDecoration: 'line-through' }}>{task.title}</div>
+              {task.completed_at && (
+                <span className="mc-task-due" style={{ fontSize: '10px', marginLeft: 'auto' }}>
+                  {new Date(task.completed_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Activity Heatmap */}
       <div className="orbit-section" style={{ marginTop: '20px' }}>

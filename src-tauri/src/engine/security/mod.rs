@@ -7,5 +7,6 @@ pub mod aegis;
 pub mod anomaly;
 pub mod events;
 pub mod permissions;
+pub mod platform;
 pub mod siem;
 pub mod viper;

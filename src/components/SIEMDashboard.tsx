@@ -1,9 +1,19 @@
-// Conflux Home — SIEM Dashboard
-// Mission 1224 Phase 5: Security Information & Event Management
-// Cross-agent correlation, risk scoring, alerting, weekly reports
+// Conflux Home — Watchtower Dashboard (Consumer Redesign)
+// Mission 1224: Security SIEM — Real-time eyes on everything
 
 import React, { useState, useEffect, useCallback } from 'react';
+
+// ── Timeout wrapper — prevents invoke calls from hanging forever ──
+function invokeTimeout<T>(cmd: string, args?: Record<string, unknown>, ms = 5000): Promise<T> {
+  return Promise.race([
+    invoke<T>(cmd, args),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Command '${cmd}' timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 
 // ── Types ──
 
@@ -35,66 +45,29 @@ interface SiemAlert {
   created_at: string;
 }
 
-interface SiemCorrelation {
-  id: string;
-  correlation_type: string;
-  severity: string;
-  title: string;
-  description: string;
-  source_1_type: string;
-  source_2_type: string | null;
-  agent_ids: string[];
-  risk_score: number;
-  created_at: string;
+// ── Severity ──
+
+function severityMeta(severity: string) {
+  switch (severity) {
+    case 'critical': return { icon: '🚨', label: 'Critical', color: '#ef4444', bg: '#ef444418' };
+    case 'warning': return { icon: '⚠️', label: 'Warning', color: '#f59e0b', bg: '#f59e0b18' };
+    case 'info': return { icon: 'ℹ️', label: 'Info', color: '#3b82f6', bg: '#3b82f618' };
+    default: return { icon: '📋', label: severity, color: '#64748b', bg: '#64748b18' };
+  }
 }
 
-interface WeeklyReport {
-  id: string;
-  week_start: string;
-  week_end: string;
-  risk_score: number;
-  risk_trend: string;
-  total_events: number;
-  critical_events: number;
-  alerts_generated: number;
-  alerts_resolved: number;
-  aegis_score: number | null;
-  viper_score: number | null;
-  agent_audit_score: number | null;
-  summary: string;
-  findings: string[];
-  created_at: string;
+function overallLabel(score: number): string {
+  if (score >= 80) return 'Healthy — all clear';
+  if (score >= 60) return 'Good — minor issues';
+  if (score >= 40) return 'Fair — some concerns';
+  return 'At Risk — action needed';
 }
 
-interface TimelinePoint {
-  date: string;
-  event_count: number;
-  critical_count: number;
-  avg_risk: number;
-}
-
-// ── Helpers ──
-
-function riskColor(score: number): string {
-  if (score <= 30) return '#22c55e';
-  if (score <= 60) return '#f59e0b';
+function scoreColor(score: number): string {
+  if (score >= 80) return '#22c55e';
+  if (score >= 60) return '#84cc16';
+  if (score >= 40) return '#f59e0b';
   return '#ef4444';
-}
-
-function severityIcon(s: string): string {
-  switch (s) {
-    case 'critical': return '🔴';
-    case 'warning': return '🟡';
-    default: return '🔵';
-  }
-}
-
-function trendIcon(t: string): string {
-  switch (t) {
-    case 'improving': return '📈';
-    case 'degrading': return '📉';
-    default: return '➡️';
-  }
 }
 
 // ── Component ──
@@ -102,346 +75,373 @@ function trendIcon(t: string): string {
 export default function SIEMDashboard() {
   const [overview, setOverview] = useState<RiskOverview | null>(null);
   const [alerts, setAlerts] = useState<SiemAlert[]>([]);
-  const [correlations, setCorrelations] = useState<SiemCorrelation[]>([]);
-  const [reports, setReports] = useState<WeeklyReport[]>([]);
-  const [timeline, setTimeline] = useState<TimelinePoint[]>([]);
   const [loading, setLoading] = useState(true);
-  const [correlating, setCorrelating] = useState(false);
-  const [reporting, setReporting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'alerts' | 'correlations' | 'reports'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'alerts'>('overview');
 
   const load = useCallback(async () => {
     try {
-      const [ov, al, co, re, tl] = await Promise.all([
+      const [overviewData, alertsData] = await Promise.all([
         invoke<RiskOverview>('siem_get_risk_overview'),
-        invoke<SiemAlert[]>('siem_get_alerts', { limit: 50 }),
-        invoke<SiemCorrelation[]>('siem_get_correlations', { limit: 30 }),
-        invoke<WeeklyReport[]>('siem_get_weekly_reports', { limit: 12 }),
-        invoke<TimelinePoint[]>('siem_get_risk_timeline'),
+        invoke<SiemAlert[]>('siem_get_alerts', { status: null, limit: 50 }),
       ]);
-      setOverview(ov);
-      setAlerts(al);
-      setCorrelations(co);
-      setReports(re);
-      setTimeline(tl);
+      setOverview(overviewData);
+      setAlerts(alertsData);
     } catch (err) {
       console.error('[SIEM] Load failed:', err);
+      // Try without alerts
+      try {
+        const overviewData = await invoke<RiskOverview>('siem_get_risk_overview');
+        setOverview(overviewData);
+      } catch { /* ignore */ }
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 15000);
+    return () => clearInterval(interval);
+  }, [load]);
 
-  const runCorrelation = async () => {
-    setCorrelating(true);
+  // Real-time: listen for new security events
+  useEffect(() => {
+    const unlisten = listen('security:event', (event) => {
+      const newEvent = event.payload as any;
+      if (newEvent.category === 'critical') {
+        setOverview(prev => prev ? {
+          ...prev,
+          events_24h: prev.events_24h + 1,
+          critical_alerts: prev.critical_alerts + 1,
+        } : prev);
+      }
+    });
+    return () => { unlisten.then(fn => fn()); };
+  }, []);
+
+  const handleRunCorrelation = async () => {
     try {
-      const count = await invoke<number>('siem_run_correlation');
-      console.log('[SIEM] Correlation generated', count, 'alerts');
+      await invokeTimeout('siem_run_correlation');
       await load();
     } catch (err) {
       console.error('[SIEM] Correlation failed:', err);
-    } finally {
-      setCorrelating(false);
     }
   };
 
-  const generateReport = async () => {
-    setReporting(true);
+  const handleAlertAction = async (alertId: string, action: 'acknowledge' | 'resolve' | 'dismiss') => {
     try {
-      const id = await invoke<string>('siem_generate_weekly_report');
-      console.log('[SIEM] Report generated:', id);
-      await load();
-    } catch (err) {
-      console.error('[SIEM] Report failed:', err);
-    } finally {
-      setReporting(false);
-    }
-  };
-
-  const handleAlert = async (id: string, action: 'acknowledge' | 'resolve' | 'dismiss') => {
-    try {
-      await invoke(`siem_${action}_alert`, { alertId: id });
+      if (action === 'acknowledge') await invokeTimeout('siem_acknowledge_alert', { alertId });
+      if (action === 'resolve') await invokeTimeout('siem_resolve_alert', { alertId });
+      if (action === 'dismiss') await invokeTimeout('siem_dismiss_alert', { alertId });
       await load();
     } catch (err) {
       console.error('[SIEM] Alert action failed:', err);
     }
   };
 
-  if (loading) return <div style={s.container}><div style={s.loading}>Loading SIEM data...</div></div>;
+  if (loading) {
+    return (
+      <div style={s.container}>
+        <div style={s.loading}>
+          <div style={s.loadingIcon}>📡</div>
+          <div style={s.loadingText}>Connecting to Watchtower...</div>
+        </div>
+      </div>
+    );
+  }
+
+  const score = overview?.overall_score ?? 50;
+  const criticalCount = overview?.critical_alerts ?? 0;
+  const activeAlerts = overview?.active_alerts ?? 0;
+  const events24h = overview?.events_24h ?? 0;
 
   return (
     <div style={s.container}>
-      {/* Header */}
+      {/* ── Header ── */}
       <div style={s.header}>
         <div style={s.headerLeft}>
-          <span style={s.headerIcon}>🛡️</span>
+          <span style={s.headerIcon}>📡</span>
           <div>
-            <h1 style={s.title}>SIEM Command Center</h1>
-            <p style={s.subtitle}>Security Intelligence & Event Management</p>
+            <h1 style={s.title}>Watchtower</h1>
+            <p style={s.subtitle}>Real-time eyes on all agent activity — what's happening right now</p>
           </div>
         </div>
-        <div style={s.headerActions}>
-          <button style={s.actionBtn} onClick={runCorrelation} disabled={correlating}>
-            {correlating ? '🔄 Analyzing...' : '🔗 Run Correlation'}
-          </button>
-          <button style={{...s.actionBtn, background: 'linear-gradient(135deg, #3b82f6, #2563eb)'}} onClick={generateReport} disabled={reporting}>
-            {reporting ? '📝 Generating...' : '📊 Generate Report'}
-          </button>
+        <button style={s.correlateBtn} onClick={handleRunCorrelation}>
+          🔄 Run Correlation
+        </button>
+      </div>
+
+      {/* ── Hero Overview ── */}
+      <div style={s.heroCard}>
+        <div style={s.heroLeft}>
+          <div style={s.heroRing}>
+            <svg width="110" height="110" viewBox="0 0 110 110">
+              <circle cx="55" cy="55" r="48" fill="none" stroke="#1e293b" strokeWidth="7" />
+              <circle
+                cx="55" cy="55" r="48" fill="none"
+                stroke={scoreColor(score)}
+                strokeWidth="7"
+                strokeLinecap="round"
+                strokeDasharray={`${(score / 100) * 301.59} 301.59`}
+                transform="rotate(-90 55 55)"
+                style={{ transition: 'stroke-dasharray 0.8s ease' }}
+              />
+              <text x="55" y="52" textAnchor="middle" fill={scoreColor(score)} fontSize="28" fontWeight="bold">
+                {score}
+              </text>
+              <text x="55" y="68" textAnchor="middle" fill="#64748b" fontSize="10">SECURITY</text>
+            </svg>
+          </div>
+          <div>
+            <div style={{ ...s.heroLabel, color: scoreColor(score) }}>
+              {overallLabel(score)}
+            </div>
+            <div style={s.heroSub}>
+              {events24h} events in last 24h · Last correlation: {overview?.trend ?? 'unknown'}
+            </div>
+            {criticalCount > 0 && (
+              <div style={s.heroAlert}>
+                🚨 {criticalCount} critical alert{criticalCount !== 1 ? 's' : ''} need attention
+              </div>
+            )}
+            {activeAlerts > 0 && criticalCount === 0 && (
+              <div style={s.heroWarning}>
+                ⚠️ {activeAlerts} active alert{activeAlerts !== 1 ? 's' : ''}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={s.heroStats}>
+          <div style={{ ...s.statChip, borderColor: '#22c55e' }}>
+            <span style={{ fontSize: 20, fontWeight: 700, color: '#22c55e' }}>🛡️</span>
+            <span style={s.statLabel}>Aegis Score</span>
+            <span style={{ fontSize: 18, fontWeight: 700, color: '#22c55e' }}>{overview?.aegis_score ?? '—'}</span>
+          </div>
+          <div style={{ ...s.statChip, borderColor: '#ef4444' }}>
+            <span style={{ fontSize: 20, fontWeight: 700, color: '#ef4444' }}>🐍</span>
+            <span style={s.statLabel}>Viper Risk</span>
+            <span style={{ fontSize: 18, fontWeight: 700, color: '#ef4444' }}>{overview?.viper_risk ?? '—'}</span>
+          </div>
+          <div style={{ ...s.statChip, borderColor: '#f59e0b' }}>
+            <span style={{ fontSize: 20, fontWeight: 700, color: '#f59e0b' }}>⚔️</span>
+            <span style={s.statLabel}>Agent Defense</span>
+            <span style={{ fontSize: 18, fontWeight: 700, color: '#f59e0b' }}>{overview?.agent_defense ?? '—'}</span>
+          </div>
         </div>
       </div>
 
-      {/* Risk Overview Strip */}
-      {overview && (
-        <div style={s.riskStrip}>
-          <div style={s.riskMain}>
-            <svg width="120" height="120" viewBox="0 0 120 120">
-              <circle cx="60" cy="60" r="52" fill="none" stroke="#1e293b" strokeWidth="10" />
-              <circle cx="60" cy="60" r="52" fill="none" stroke={riskColor(overview.overall_score)} strokeWidth="10" strokeLinecap="round" strokeDasharray={`${(overview.overall_score / 100) * 326.73} 326.73`} transform="rotate(-90 60 60)" />
-              <text x="60" y="55" textAnchor="middle" fill="white" fontSize="30" fontWeight="bold">{overview.overall_score}</text>
-              <text x="60" y="72" textAnchor="middle" fill="#94a3b8" fontSize="10">RISK</text>
-            </svg>
-            <div style={s.riskTrend}>{trendIcon(overview.trend)} {overview.trend}</div>
+      {/* ── What's Being Monitored ── */}
+      <div style={s.monitorGrid}>
+        <div style={s.monitorCard}>
+          <div style={s.monitorIcon}>🛡️</div>
+          <div>
+            <div style={s.monitorLabel}>Aegis</div>
+            <div style={s.monitorSub}>System hardening checks</div>
           </div>
-          <div style={s.riskMetrics}>
-            <div style={s.metric}>
-              <div style={{...s.metricValue, color: '#ef4444'}}>{overview.critical_alerts}</div>
-              <div style={s.metricLabel}>Critical Alerts</div>
-            </div>
-            <div style={s.metric}>
-              <div style={{...s.metricValue, color: '#f59e0b'}}>{overview.active_alerts}</div>
-              <div style={s.metricLabel}>Active Alerts</div>
-            </div>
-            <div style={s.metric}>
-              <div style={s.metricValue}>{overview.correlations_24h}</div>
-              <div style={s.metricLabel}>Correlations (24h)</div>
-            </div>
-            <div style={s.metric}>
-              <div style={s.metricValue}>{overview.events_24h}</div>
-              <div style={s.metricLabel}>Events (24h)</div>
-            </div>
+          <div style={{ ...s.monitorScore, color: scoreColor(overview?.aegis_score ?? 50) }}>
+            {overview?.aegis_score ?? '—'}/100
           </div>
-          <div style={s.riskSources}>
-            {overview.aegis_score != null && (
-              <div style={s.sourceChip}>
-                <span>🛡️</span>
-                <span>System Health: <b>{overview.aegis_score}/100</b></span>
-              </div>
-            )}
-            {overview.viper_risk != null && (
-              <div style={s.sourceChip}>
-                <span>🐍</span>
-                <span>Vuln Risk: <b>{overview.viper_risk}/100</b></span>
-              </div>
-            )}
-            {overview.agent_defense != null && (
-              <div style={s.sourceChip}>
-                <span>⚔️</span>
-                <span>Agent Defense: <b>{overview.agent_defense}/100</b></span>
-              </div>
-            )}
+        </div>
+        <div style={s.monitorCard}>
+          <div style={s.monitorIcon}>🐍</div>
+          <div>
+            <div style={s.monitorLabel}>Viper</div>
+            <div style={s.monitorSub}>Vulnerability scanning</div>
           </div>
-          {overview.top_risks.length > 0 && (
-            <div style={s.topRisks}>
-              {overview.top_risks.map((r, i) => (
-                <div key={i} style={s.riskItem}>⚠️ {r}</div>
-              ))}
+          <div style={{ ...s.monitorScore, color: scoreColor(100 - (overview?.viper_risk ?? 50)) }}>
+            {overview?.viper_risk ?? '—'} risk
+          </div>
+        </div>
+        <div style={s.monitorCard}>
+          <div style={s.monitorIcon}>⚔️</div>
+          <div>
+            <div style={s.monitorLabel}>Agent Armor</div>
+            <div style={s.monitorSub}>Red team vs. agents</div>
+          </div>
+          <div style={{ ...s.monitorScore, color: scoreColor(overview?.agent_defense ?? 50) }}>
+            {overview?.agent_defense ?? '—'}/100
+          </div>
+        </div>
+        <div style={s.monitorCard}>
+          <div style={s.monitorIcon}>🔔</div>
+          <div>
+            <div style={s.monitorLabel}>Anomaly Detection</div>
+            <div style={s.monitorSub}>Unusual pattern monitoring</div>
+          </div>
+          <div style={{ ...s.monitorScore, color: activeAlerts > 0 ? '#f59e0b' : '#22c55e' }}>
+            {activeAlerts > 0 ? `${activeAlerts} active` : '✓ Clear'}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Tabs ── */}
+      <div style={s.tabs}>
+        <button style={{ ...s.tab, ...(activeTab === 'overview' ? s.tabActive : {}) }} onClick={() => setActiveTab('overview')}>
+          📊 Risk Overview
+        </button>
+        <button style={{ ...s.tab, ...(activeTab === 'alerts' ? s.tabActive : {}) }} onClick={() => setActiveTab('alerts')}>
+          🔔 Alerts ({alerts.length})
+        </button>
+      </div>
+
+      {/* ── Overview Tab ── */}
+      {activeTab === 'overview' && (
+        <div style={s.overviewContent}>
+          {overview?.top_risks && overview.top_risks.length > 0 && (
+            <div style={s.risksSection}>
+              <h3 style={s.risksTitle}>🚨 Top Risks Detected</h3>
+              <div style={s.risksList}>
+                {overview.top_risks.map((risk, i) => (
+                  <div key={i} style={s.riskItem}>• {risk}</div>
+                ))}
+              </div>
+            </div>
+          )}
+          {(!overview?.top_risks || overview.top_risks.length === 0) && (
+            <div style={s.emptyState}>
+              <div style={s.emptyIcon}>✅</div>
+              <h3 style={s.emptyTitle}>All Clear</h3>
+              <p style={s.emptyText}>No active risks detected. Watchtower is monitoring all systems — run Aegis, Viper, or Agent Armor for more detail.</p>
             </div>
           )}
         </div>
       )}
 
-      {/* Mini Timeline */}
-      {timeline.length > 0 && (
-        <div style={s.timelineBar}>
-          {timeline.map((p, i) => {
-            const maxEvents = Math.max(...timeline.map(t => t.event_count), 1);
-            const height = Math.max(4, (p.event_count / maxEvents) * 40);
+      {/* ── Alerts Tab ── */}
+      {activeTab === 'alerts' && (
+        <div style={s.alertsList}>
+          {alerts.length === 0 && (
+            <div style={s.emptyState}>
+              <div style={s.emptyIcon}>🔔</div>
+              <h3 style={s.emptyTitle}>No Alerts</h3>
+              <p style={s.emptyText}>All quiet. Watchtower will alert you when something needs attention.</p>
+            </div>
+          )}
+          {alerts.map(alert => {
+            const meta = severityMeta(alert.severity);
             return (
-              <div key={i} style={s.timelineBar} title={`${p.date}: ${p.event_count} events`}>
-                <div style={{...s.timelineCol, height: `${height}px`, background: p.critical_count > 0 ? '#ef4444' : '#3b82f6'}} />
+              <div key={alert.id} style={{ ...s.alertCard, borderLeft: `3px solid ${meta.color}` }}>
+                <div style={s.alertHeader}>
+                  <div style={s.alertLeft}>
+                    <span style={s.alertIcon}>{meta.icon}</span>
+                    <div>
+                      <div style={s.alertTitle}>{alert.title}</div>
+                      <div style={s.alertMeta}>
+                        <span style={{ color: meta.color }}>{meta.label}</span>
+                        · {alert.source} · {formatAge(alert.created_at)}
+                        {alert.agent_id && <span> · Agent: {alert.agent_id}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={s.alertActions}>
+                    {alert.status === 'active' && (
+                      <>
+                        <button style={{ ...s.alertBtn, color: '#f59e0b', borderColor: '#f59e0b44' }} onClick={() => handleAlertAction(alert.id, 'acknowledge')}>Acknowledge</button>
+                        <button style={{ ...s.alertBtn, color: '#22c55e', borderColor: '#22c55e44' }} onClick={() => handleAlertAction(alert.id, 'resolve')}>Resolve</button>
+                      </>
+                    )}
+                    {alert.status === 'acknowledged' && (
+                      <button style={{ ...s.alertBtn, color: '#22c55e', borderColor: '#22c55e44' }} onClick={() => handleAlertAction(alert.id, 'resolve')}>Mark Resolved</button>
+                    )}
+                    {alert.status !== 'resolved' && (
+                      <button style={{ ...s.alertBtn, color: '#64748b', borderColor: '#334155' }} onClick={() => handleAlertAction(alert.id, 'dismiss')}>Dismiss</button>
+                    )}
+                    {alert.status === 'resolved' && (
+                      <span style={s.resolvedBadge}>✓ Resolved</span>
+                    )}
+                  </div>
+                </div>
+                <div style={s.alertDesc}>{alert.description}</div>
               </div>
             );
           })}
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div style={s.tabs}>
-        {(['overview', 'alerts', 'correlations', 'reports'] as const).map(tab => (
-          <button key={tab} style={{...s.tab, ...(activeTab === tab ? s.tabActive : {})}} onClick={() => setActiveTab(tab)}>
-            {tab === 'overview' ? '📊 Overview' : tab === 'alerts' ? `🔔 Alerts (${alerts.length})` : tab === 'correlations' ? '🔗 Correlations' : '📋 Reports'}
-          </button>
-        ))}
-      </div>
-
-      {/* Overview: Score Sources */}
-      {activeTab === 'overview' && (
-        <div style={s.overviewGrid}>
-          <div style={s.scoreCard}>
-            <div style={s.scoreHeader}>🛡️ Aegis — System Health</div>
-            <div style={{...s.scoreVal, color: riskColor(100 - (overview?.aegis_score ?? 50))}}>{overview?.aegis_score ?? '—'}</div>
-            <div style={s.scoreDesc}>Higher = healthier system configuration</div>
-          </div>
-          <div style={s.scoreCard}>
-            <div style={s.scoreHeader}>🐍 Viper — Vulnerability Risk</div>
-            <div style={{...s.scoreVal, color: riskColor(overview?.viper_risk ?? 50)}}>{overview?.viper_risk ?? '—'}</div>
-            <div style={s.scoreDesc}>Lower = fewer exploitable vulnerabilities</div>
-          </div>
-          <div style={s.scoreCard}>
-            <div style={s.scoreHeader}>⚔️ Agent Audit — Defense Score</div>
-            <div style={{...s.scoreVal, color: riskColor(100 - (overview?.agent_defense ?? 50))}}>{overview?.agent_defense ?? '—'}</div>
-            <div style={s.scoreDesc}>Higher = agents resist attacks better</div>
-          </div>
-        </div>
-      )}
-
-      {/* Alerts Tab */}
-      {activeTab === 'alerts' && (
-        <div style={s.list}>
-          {alerts.map(a => (
-            <div key={a.id} style={{...s.alertCard, borderLeftColor: a.severity === 'critical' ? '#ef4444' : a.severity === 'warning' ? '#f59e0b' : '#3b82f6'}}>
-              <div style={s.alertHeader}>
-                <span>{severityIcon(a.severity)}</span>
-                <div style={s.alertInfo}>
-                  <div style={s.alertTitle}>{a.title}</div>
-                  <div style={s.alertMeta}>{a.alert_type} • {a.source} • {new Date(a.created_at).toLocaleString()}</div>
-                </div>
-                <span style={{...s.statusBadge, background: a.status === 'active' ? '#ef444422' : '#22c55e22', color: a.status === 'active' ? '#ef4444' : '#22c55e'}}>{a.status}</span>
-              </div>
-              <div style={s.alertDesc}>{a.description}</div>
-              {a.status === 'active' && (
-                <div style={s.alertActions}>
-                  <button style={s.alertBtn} onClick={() => handleAlert(a.id, 'acknowledge')}>👁️ Acknowledge</button>
-                  <button style={s.alertBtn} onClick={() => handleAlert(a.id, 'resolve')}>✅ Resolve</button>
-                  <button style={s.alertBtn} onClick={() => handleAlert(a.id, 'dismiss')}>🗑️ Dismiss</button>
-                </div>
-              )}
-            </div>
-          ))}
-          {alerts.length === 0 && <div style={s.empty}>No alerts. Run a correlation to generate alerts from security data.</div>}
-        </div>
-      )}
-
-      {/* Correlations Tab */}
-      {activeTab === 'correlations' && (
-        <div style={s.list}>
-          {correlations.map(c => (
-            <div key={c.id} style={{...s.corrCard, borderLeftColor: c.severity === 'critical' ? '#ef4444' : c.severity === 'warning' ? '#f59e0b' : '#3b82f6'}}>
-              <div style={s.alertHeader}>
-                <span>{severityIcon(c.severity)}</span>
-                <div style={s.alertInfo}>
-                  <div style={s.alertTitle}>{c.title}</div>
-                  <div style={s.alertMeta}>{c.correlation_type} • Risk: {c.risk_score}/100 • {new Date(c.created_at).toLocaleString()}</div>
-                </div>
-              </div>
-              <div style={s.alertDesc}>{c.description}</div>
-              <div style={s.corrSources}>
-                <span style={s.sourceTag}>📌 {c.source_1_type}</span>
-                {c.source_2_type && <span style={s.sourceTag}>📌 {c.source_2_type}</span>}
-                {c.agent_ids.map(id => <span key={id} style={s.agentTag}>🤖 {id}</span>)}
-              </div>
-            </div>
-          ))}
-          {correlations.length === 0 && <div style={s.empty}>No correlations yet. Click "Run Correlation" to analyze cross-source patterns.</div>}
-        </div>
-      )}
-
-      {/* Reports Tab */}
-      {activeTab === 'reports' && (
-        <div style={s.list}>
-          {reports.map(r => (
-            <div key={r.id} style={s.reportCard}>
-              <div style={s.reportHeader}>
-                <div>
-                  <div style={s.reportTitle}>Week of {r.week_start}</div>
-                  <div style={s.reportMeta}>{r.week_start} — {r.week_end}</div>
-                </div>
-                <div style={{...s.reportScore, color: riskColor(r.risk_score)}}>{r.risk_score}/100</div>
-              </div>
-              <div style={s.reportSummary}>{r.summary}</div>
-              <div style={s.reportStats}>
-                <span>📊 {r.total_events} events</span>
-                <span>🔴 {r.critical_events} critical</span>
-                <span>🔔 {r.alerts_generated} alerts ({r.alerts_resolved} resolved)</span>
-                <span>{trendIcon(r.risk_trend)} {r.risk_trend}</span>
-              </div>
-              {r.findings.length > 0 && (
-                <div style={s.reportFindings}>
-                  {r.findings.map((f, i) => <div key={i} style={s.findingItem}>• {f}</div>)}
-                </div>
-              )}
-            </div>
-          ))}
-          {reports.length === 0 && <div style={s.empty}>No weekly reports yet. Click "Generate Report" to create your first security digest.</div>}
         </div>
       )}
     </div>
   );
 }
 
+// ── Helpers ──
+
+function formatAge(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    return d.toLocaleDateString();
+  } catch { return iso; }
+}
+
 // ── Styles ──
 
 const s: Record<string, React.CSSProperties> = {
-  container: { padding: '24px', maxWidth: '1200px', margin: '0 auto', color: '#e2e8f0', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
-  loading: { textAlign: 'center', padding: '48px', color: '#94a3b8' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
-  headerLeft: { display: 'flex', alignItems: 'center', gap: '12px' },
-  headerIcon: { fontSize: '32px' },
-  title: { fontSize: '24px', fontWeight: 'bold', margin: 0, color: '#f1f5f9' },
-  subtitle: { fontSize: '14px', color: '#94a3b8', margin: 0 },
-  headerActions: { display: 'flex', gap: '8px' },
-  actionBtn: { background: 'linear-gradient(135deg, #6366f1, #4f46e5)', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' },
+  container: { padding: '24px 28px', maxWidth: '900px', margin: '0 auto', color: '#e2e8f0', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
+  loading: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: 12 },
+  loadingIcon: { fontSize: 56, animation: 'pulse 2s infinite' },
+  loadingText: { color: '#64748b', fontSize: 15 },
 
-  riskStrip: { background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px', marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '24px', alignItems: 'center' },
-  riskMain: { textAlign: 'center' },
-  riskTrend: { fontSize: '13px', color: '#94a3b8', marginTop: '4px' },
-  riskMetrics: { display: 'flex', gap: '24px' },
-  metric: { textAlign: 'center' },
-  metricValue: { fontSize: '28px', fontWeight: 'bold', color: '#f1f5f9' },
-  metricLabel: { fontSize: '12px', color: '#64748b' },
-  riskSources: { display: 'flex', gap: '8px', flexWrap: 'wrap' },
-  sourceChip: { display: 'flex', alignItems: 'center', gap: '6px', background: '#1e293b', borderRadius: '6px', padding: '6px 12px', fontSize: '13px' },
-  topRisks: { flex: '1 1 100%', display: 'flex', flexDirection: 'column', gap: '4px' },
-  riskItem: { fontSize: '13px', color: '#fbbf24' },
+  // Header
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 },
+  headerLeft: { display: 'flex', alignItems: 'center', gap: 12 },
+  headerIcon: { fontSize: 36 },
+  title: { fontSize: 26, fontWeight: 700, margin: 0, color: '#f1f5f9' },
+  subtitle: { fontSize: 14, color: '#64748b', margin: '2px 0 0 0' },
+  correlateBtn: { padding: '9px 18px', background: '#1e293b', border: '1px solid #8b5cf6', borderRadius: 8, color: '#e2e8f0', cursor: 'pointer', fontSize: 14, fontWeight: 600 },
 
-  timelineBar: { display: 'flex', alignItems: 'flex-end', gap: '2px', height: '48px', background: '#0f172a', borderRadius: '8px', padding: '4px 8px', marginBottom: '20px' },
-  timelineCol: { width: '8px', borderRadius: '2px', minHeight: '4px' },
+  // Hero
+  heroCard: { background: '#0f172a', border: '1px solid #1e293b', borderRadius: 16, padding: '24px 28px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap' as const },
+  heroLeft: { display: 'flex', alignItems: 'center', gap: 20, flex: 1, minWidth: 0 },
+  heroRing: { flexShrink: 0 },
+  heroLabel: { fontSize: 20, fontWeight: 700, marginBottom: 4 },
+  heroSub: { fontSize: 13, color: '#64748b', marginTop: 4 },
+  heroAlert: { marginTop: 8, fontSize: 13, color: '#ef4444', background: '#ef444418', borderRadius: 6, padding: '4px 10px', display: 'inline-block', fontWeight: 600 },
+  heroWarning: { marginTop: 8, fontSize: 13, color: '#f59e0b', background: '#f59e0b18', borderRadius: 6, padding: '4px 10px', display: 'inline-block' },
+  heroStats: { display: 'flex', gap: 10 },
+  statChip: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', padding: '10px 14px', background: '#0f172a', border: '1px solid', borderRadius: 10, minWidth: 80 },
+  statLabel: { fontSize: 10, color: '#64748b', marginTop: 4, textAlign: 'center' as const },
 
-  tabs: { display: 'flex', gap: '4px', marginBottom: '20px', borderBottom: '1px solid #1e293b', paddingBottom: '12px' },
-  tab: { background: 'transparent', color: '#94a3b8', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' },
-  tabActive: { background: '#1e293b', color: '#f1f5f9' },
+  // Monitor Grid
+  monitorGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10, marginBottom: 16 },
+  monitorCard: { display: 'flex', alignItems: 'center', gap: 10, background: '#0f172a', border: '1px solid #1e293b', borderRadius: 12, padding: '12px 14px' },
+  monitorIcon: { fontSize: 22, flexShrink: 0 },
+  monitorLabel: { fontSize: 14, fontWeight: 600, color: '#f1f5f9' },
+  monitorSub: { fontSize: 11, color: '#64748b' },
+  monitorScore: { marginLeft: 'auto', fontSize: 16, fontWeight: 700, flexShrink: 0 },
 
-  overviewGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' },
-  scoreCard: { background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px', textAlign: 'center' },
-  scoreHeader: { fontSize: '14px', color: '#94a3b8', marginBottom: '8px' },
-  scoreVal: { fontSize: '36px', fontWeight: 'bold' },
-  scoreDesc: { fontSize: '12px', color: '#64748b', marginTop: '8px' },
+  // Tabs
+  tabs: { display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid #1e293b', paddingBottom: 12 },
+  tab: { padding: '8px 16px', background: 'transparent', border: 'none', borderBottom: '2px solid transparent', color: '#64748b', cursor: 'pointer', fontSize: 14, fontWeight: 500, borderRadius: 6 },
+  tabActive: { color: '#f1f5f9', borderBottomColor: '#8b5cf6', background: '#1e293b' },
 
-  list: { display: 'flex', flexDirection: 'column' as const, gap: '8px' },
-  empty: { textAlign: 'center', padding: '32px', color: '#64748b' },
+  // Overview
+  overviewContent: {},
+  risksSection: { background: '#0f172a', border: '1px solid #1e293b', borderRadius: 12, padding: 16 },
+  risksTitle: { fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 10 },
+  risksList: { display: 'flex', flexDirection: 'column' as const, gap: 6 },
+  riskItem: { fontSize: 13, color: '#94a3b8', lineHeight: 1.5 },
 
-  alertCard: { background: '#0f172a', border: '1px solid #1e293b', borderLeft: '4px solid', borderRadius: '8px', padding: '16px' },
-  corrCard: { background: '#0f172a', border: '1px solid #1e293b', borderLeft: '4px solid', borderRadius: '8px', padding: '16px' },
-  alertHeader: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' },
-  alertInfo: { flex: 1 },
-  alertTitle: { fontSize: '14px', fontWeight: 600, color: '#f1f5f9' },
-  alertMeta: { fontSize: '12px', color: '#64748b' },
-  alertDesc: { fontSize: '13px', color: '#94a3b8', lineHeight: 1.5, marginBottom: '8px' },
-  statusBadge: { padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 },
-  alertActions: { display: 'flex', gap: '8px' },
-  alertBtn: { background: '#1e293b', color: '#94a3b8', border: 'none', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer' },
-  corrSources: { display: 'flex', gap: '6px', flexWrap: 'wrap' as const, marginTop: '8px' },
-  sourceTag: { background: '#1e293b', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', color: '#94a3b8' },
-  agentTag: { background: '#1e3a5f', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', color: '#60a5fa' },
+  // Alerts
+  alertsList: { display: 'flex', flexDirection: 'column' as const, gap: 8 },
+  alertCard: { background: '#0f172a', borderRadius: 10, padding: '12px 16px' },
+  alertHeader: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 6 },
+  alertLeft: { display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1, minWidth: 0 },
+  alertIcon: { fontSize: 20, flexShrink: 0 },
+  alertTitle: { fontSize: 14, fontWeight: 500, color: '#e2e8f0' },
+  alertMeta: { fontSize: 12, color: '#64748b', marginTop: 2 },
+  alertActions: { display: 'flex', gap: 6, flexShrink: 0 },
+  alertBtn: { padding: '4px 10px', background: 'transparent', border: '1px solid', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 },
+  resolvedBadge: { fontSize: 12, color: '#22c55e', fontWeight: 600 },
+  alertDesc: { fontSize: 13, color: '#94a3b8', lineHeight: 1.5, paddingLeft: 30 },
 
-  reportCard: { background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '20px' },
-  reportHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' },
-  reportTitle: { fontSize: '16px', fontWeight: 600, color: '#f1f5f9' },
-  reportMeta: { fontSize: '12px', color: '#64748b' },
-  reportScore: { fontSize: '28px', fontWeight: 'bold' },
-  reportSummary: { fontSize: '14px', color: '#cbd5e1', lineHeight: 1.6, marginBottom: '12px' },
-  reportStats: { display: 'flex', gap: '16px', fontSize: '13px', color: '#94a3b8', marginBottom: '12px', flexWrap: 'wrap' as const },
-  reportFindings: { borderTop: '1px solid #1e293b', paddingTop: '12px' },
-  findingItem: { fontSize: '13px', color: '#94a3b8', marginBottom: '4px' },
+  // Empty
+  emptyState: { textAlign: 'center' as const, padding: '48px 24px' },
+  emptyIcon: { fontSize: 52, marginBottom: 14 },
+  emptyTitle: { fontSize: 17, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 },
+  emptyText: { fontSize: 14, color: '#64748b', lineHeight: 1.5 },
 };

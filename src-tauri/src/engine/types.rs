@@ -1069,6 +1069,7 @@ pub struct LifeNudge {
 pub struct OrbitDashboard {
     pub today_focus: Vec<LifeDailyFocus>,
     pub pending_tasks: Vec<LifeTask>,
+    pub completed_tasks: Vec<LifeTask>,
     pub active_habits: Vec<LifeHabit>,
     pub nudges: Vec<LifeNudge>,
     pub streak_total: i64,

@@ -346,7 +346,7 @@ pub async fn engine_chat_stream(window: tauri::Window, req: ChatRequest) -> Resu
 
 // ── Session Commands ──
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn engine_create_session(agent_id: String) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
     let user_id = get_supabase_user_id();
@@ -356,7 +356,7 @@ pub fn engine_create_session(agent_id: String) -> Result<serde_json::Value, Stri
     Ok(serde_json::to_value(session).map_err(|e| e.to_string())?)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn engine_get_sessions(limit: Option<i64>) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
     let user_id = get_supabase_user_id();
@@ -366,7 +366,7 @@ pub fn engine_get_sessions(limit: Option<i64>) -> Result<serde_json::Value, Stri
     Ok(serde_json::to_value(sessions).map_err(|e| e.to_string())?)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub fn engine_get_messages(
     session_id: String,
     limit: Option<i64>,
@@ -7083,6 +7083,11 @@ pub async fn vault_delete_project(id: String) -> Result<(), String> {
     engine::db::vault_delete_project(&id).map_err(|e| e.to_string())
 }
 
+#[tauri::command(rename_all = "snake_case")]
+pub async fn vault_edit_project(id: String, name: Option<String>, description: Option<String>, project_type: Option<String>) -> Result<(), String> {
+    engine::db::vault_update_project(&id, name.as_deref(), description.as_deref(), project_type.as_deref()).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn vault_get_tags() -> Result<Vec<engine::types::VaultTag>, String> {
     engine::db::vault_get_tags().map_err(|e| e.to_string())
@@ -8854,7 +8859,7 @@ pub struct EchoEveningReminderStatus {
 
 /// Get security events with optional filters.
 #[tauri::command]
-pub fn security_get_events(
+pub async fn security_get_events(
     agent_id: Option<String>,
     event_type: Option<String>,
     category: Option<String>,
@@ -8871,7 +8876,7 @@ pub fn security_get_events(
         limit.unwrap_or(50),
         offset.unwrap_or(0),
     )
-    .map_err(|e| e.to_string())?;
+    .await.map_err(|e| e.to_string())?;
 
     Ok(events
         .iter()
@@ -8895,14 +8900,14 @@ pub fn security_get_events(
 
 /// Get SIEM dashboard summary.
 #[tauri::command]
-pub fn security_get_summary() -> Result<serde_json::Value, String> {
+pub async fn security_get_summary() -> Result<serde_json::Value, String> {
     let engine = super::engine::get_engine();
-    super::engine::security::events::get_security_summary(engine.db()).map_err(|e| e.to_string())
+    super::engine::security::events::get_security_summary(engine.db()).await.map_err(|e| e.to_string())
 }
 
 /// Get security events for a specific agent.
 #[tauri::command]
-pub fn security_get_agent_activity(
+pub async fn security_get_agent_activity(
     agent_id: String,
     limit: Option<i64>,
 ) -> Result<Vec<serde_json::Value>, String> {
@@ -8912,7 +8917,7 @@ pub fn security_get_agent_activity(
         &agent_id,
         limit.unwrap_or(30),
     )
-    .map_err(|e| e.to_string())?;
+    .await.map_err(|e| e.to_string())?;
 
     Ok(events
         .iter()
@@ -8934,11 +8939,11 @@ pub fn security_get_agent_activity(
 
 /// Get critical security events.
 #[tauri::command]
-pub fn security_get_critical_events(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
+pub async fn security_get_critical_events(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
     let events =
         super::engine::security::events::get_critical_events(engine.db(), limit.unwrap_or(20))
-            .map_err(|e| e.to_string())?;
+            .await.map_err(|e| e.to_string())?;
 
     Ok(events
         .iter()
@@ -8958,11 +8963,11 @@ pub fn security_get_critical_events(limit: Option<i64>) -> Result<Vec<serde_json
 
 /// Get agent security profile.
 #[tauri::command]
-pub fn security_get_profile(agent_id: String) -> Result<serde_json::Value, String> {
+pub async fn security_get_profile(agent_id: String) -> Result<serde_json::Value, String> {
     let engine = super::engine::get_engine();
     let profile =
         super::engine::security::permissions::get_security_profile(engine.db(), &agent_id)
-            .map_err(|e| e.to_string())?;
+            .await.map_err(|e| e.to_string())?;
 
     Ok(serde_json::json!({
         "agent_id": profile.agent_id,
@@ -8980,7 +8985,7 @@ pub fn security_get_profile(agent_id: String) -> Result<serde_json::Value, Strin
 
 /// Update agent security profile.
 #[tauri::command]
-pub fn security_update_profile(
+pub async fn security_update_profile(
     agent_id: String,
     sandbox_enabled: Option<bool>,
     file_access_mode: Option<String>,
@@ -9006,15 +9011,15 @@ pub fn security_update_profile(
         max_network,
         anomaly_threshold,
     )
-    .map_err(|e| e.to_string())
+    .await.map_err(|e| e.to_string())
 }
 
 /// Get permission rules for an agent.
 #[tauri::command]
-pub fn security_get_rules(agent_id: String) -> Result<Vec<serde_json::Value>, String> {
+pub async fn security_get_rules(agent_id: String) -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
     let rules = super::engine::security::permissions::get_permission_rules(engine.db(), &agent_id)
-        .map_err(|e| e.to_string())?;
+        .await.map_err(|e| e.to_string())?;
 
     Ok(rules
         .iter()
@@ -9037,7 +9042,7 @@ pub fn security_get_rules(agent_id: String) -> Result<Vec<serde_json::Value>, St
 
 /// Add a permission rule.
 #[tauri::command]
-pub fn security_add_rule(
+pub async fn security_add_rule(
     agent_id: String,
     resource_type: String,
     resource_value: String,
@@ -9055,45 +9060,45 @@ pub fn security_add_rule(
         scope.as_deref().unwrap_or("all"),
         description.as_deref(),
     )
-    .map_err(|e| e.to_string())
+    .await.map_err(|e| e.to_string())
 }
 
 /// Delete a permission rule.
 #[tauri::command]
-pub fn security_delete_rule(rule_id: String) -> Result<bool, String> {
+pub async fn security_delete_rule(rule_id: String) -> Result<bool, String> {
     let engine = super::engine::get_engine();
     super::engine::security::permissions::delete_permission_rule(engine.db(), &rule_id)
-        .map_err(|e| e.to_string())
+        .await.map_err(|e| e.to_string())
 }
 
 /// Get pending permission prompts.
 #[tauri::command]
-pub fn security_get_pending_prompts(
+pub async fn security_get_pending_prompts(
     agent_id: Option<String>,
 ) -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
     super::engine::security::permissions::get_pending_prompts(engine.db(), agent_id.as_deref())
-        .map_err(|e| e.to_string())
+        .await.map_err(|e| e.to_string())
 }
 
 /// Resolve a permission prompt (user decision).
 #[tauri::command]
-pub fn security_resolve_prompt(prompt_id: String, decision: String) -> Result<(), String> {
+pub async fn security_resolve_prompt(prompt_id: String, decision: String) -> Result<(), String> {
     let engine = super::engine::get_engine();
     super::engine::security::permissions::resolve_permission_prompt(
         engine.db(),
         &prompt_id,
         &decision,
     )
-    .map_err(|e| e.to_string())
+    .await.map_err(|e| e.to_string())
 }
 
 /// Run anomaly scan across all agents.
 #[tauri::command]
-pub fn security_run_anomaly_scan() -> Result<Vec<serde_json::Value>, String> {
+pub async fn security_run_anomaly_scan() -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
     let anomalies = super::engine::security::anomaly::run_anomaly_scan(engine.db())
-        .map_err(|e| e.to_string())?;
+        .await.map_err(|e| e.to_string())?;
 
     Ok(anomalies
         .iter()
@@ -9112,10 +9117,10 @@ pub fn security_run_anomaly_scan() -> Result<Vec<serde_json::Value>, String> {
 
 /// Get anomaly rules.
 #[tauri::command]
-pub fn security_get_anomaly_rules() -> Result<Vec<serde_json::Value>, String> {
+pub async fn security_get_anomaly_rules() -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
     let rules = super::engine::security::anomaly::get_anomaly_rules(engine.db())
-        .map_err(|e| e.to_string())?;
+        .await.map_err(|e| e.to_string())?;
 
     Ok(rules
         .iter()
@@ -9136,10 +9141,10 @@ pub fn security_get_anomaly_rules() -> Result<Vec<serde_json::Value>, String> {
 
 /// Cleanup old security events.
 #[tauri::command]
-pub fn security_cleanup_events(days: Option<i64>) -> Result<i64, String> {
+pub async fn security_cleanup_events(days: Option<i64>) -> Result<i64, String> {
     let engine = super::engine::get_engine();
     super::engine::security::events::cleanup_security_events(engine.db(), days.unwrap_or(90))
-        .map_err(|e| e.to_string())
+        .await.map_err(|e| e.to_string())
 }
 
 // ============================================================
@@ -9148,21 +9153,21 @@ pub fn security_cleanup_events(days: Option<i64>) -> Result<i64, String> {
 
 /// Run a full system audit. Returns the audit run ID.
 #[tauri::command]
-pub fn aegis_run_audit(run_type: Option<String>) -> Result<String, String> {
+pub async fn aegis_run_audit(run_type: Option<String>) -> Result<String, String> {
     let engine = super::engine::get_engine();
     match run_type.as_deref() {
-        Some("quick") => super::engine::security::aegis::run_quick_audit(engine.db()),
-        _ => super::engine::security::aegis::run_full_audit(engine.db()),
+        Some("quick") => super::engine::security::aegis::run_quick_audit(engine.db()).await,
+        _ => super::engine::security::aegis::run_full_audit(engine.db()).await,
     }
     .map_err(|e| e.to_string())
 }
 
 /// Get recent audit runs.
 #[tauri::command]
-pub fn aegis_get_runs(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
+pub async fn aegis_get_runs(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
     let runs = super::engine::security::aegis::get_audit_runs(engine.db(), limit.unwrap_or(10))
-        .map_err(|e| e.to_string())?;
+        .await.map_err(|e| e.to_string())?;
     Ok(runs
         .iter()
         .map(|r| {
@@ -9184,15 +9189,15 @@ pub fn aegis_get_runs(limit: Option<i64>) -> Result<Vec<serde_json::Value>, Stri
 
 /// Get findings for a specific audit run.
 #[tauri::command]
-pub fn aegis_get_findings(
+pub async fn aegis_get_findings(
     run_id: String,
     category: Option<String>,
 ) -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
     let findings = if let Some(cat) = category {
-        super::engine::security::aegis::get_findings_by_category(engine.db(), &run_id, &cat)
+        super::engine::security::aegis::get_findings_by_category(engine.db(), &run_id, &cat).await
     } else {
-        super::engine::security::aegis::get_findings(engine.db(), &run_id)
+        super::engine::security::aegis::get_findings(engine.db(), &run_id).await
     }
     .map_err(|e| e.to_string())?;
 
@@ -9216,17 +9221,17 @@ pub fn aegis_get_findings(
 
 /// Get the latest audit summary.
 #[tauri::command]
-pub fn aegis_get_latest_summary() -> Result<Option<serde_json::Value>, String> {
+pub async fn aegis_get_latest_summary() -> Result<Option<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
-    super::engine::security::aegis::get_latest_audit_summary(engine.db()).map_err(|e| e.to_string())
+    super::engine::security::aegis::get_latest_audit_summary(engine.db()).await.map_err(|e| e.to_string())
 }
 
 /// Delete an audit run.
 #[tauri::command]
-pub fn aegis_delete_run(run_id: String) -> Result<bool, String> {
+pub async fn aegis_delete_run(run_id: String) -> Result<bool, String> {
     let engine = super::engine::get_engine();
     super::engine::security::aegis::delete_audit_run(engine.db(), &run_id)
-        .map_err(|e| e.to_string())
+        .await.map_err(|e| e.to_string())
 }
 
 // ============================================================
@@ -9235,21 +9240,21 @@ pub fn aegis_delete_run(run_id: String) -> Result<bool, String> {
 
 /// Run a vulnerability scan.
 #[tauri::command]
-pub fn viper_run_scan(scan_type: Option<String>) -> Result<String, String> {
+pub async fn viper_run_scan(scan_type: Option<String>) -> Result<String, String> {
     let engine = super::engine::get_engine();
     match scan_type.as_deref() {
-        Some("quick") => super::engine::security::viper::run_quick_scan(engine.db()),
-        _ => super::engine::security::viper::run_full_scan(engine.db()),
+        Some("quick") => super::engine::security::viper::run_quick_scan(engine.db()).await,
+        _ => super::engine::security::viper::run_full_scan(engine.db()).await,
     }
     .map_err(|e| e.to_string())
 }
 
 /// Get recent scans.
 #[tauri::command]
-pub fn viper_get_scans(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
+pub async fn viper_get_scans(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
     let scans = super::engine::security::viper::get_scans(engine.db(), limit.unwrap_or(10))
-        .map_err(|e| e.to_string())?;
+        .await.map_err(|e| e.to_string())?;
     Ok(scans
         .iter()
         .map(|s| {
@@ -9272,15 +9277,15 @@ pub fn viper_get_scans(limit: Option<i64>) -> Result<Vec<serde_json::Value>, Str
 
 /// Get findings for a scan.
 #[tauri::command]
-pub fn viper_get_findings(
+pub async fn viper_get_findings(
     scan_id: String,
     category: Option<String>,
 ) -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
     let findings = if let Some(cat) = category {
-        super::engine::security::viper::get_findings_by_category(engine.db(), &scan_id, &cat)
+        super::engine::security::viper::get_findings_by_category(engine.db(), &scan_id, &cat).await
     } else {
-        super::engine::security::viper::get_findings(engine.db(), &scan_id)
+        super::engine::security::viper::get_findings(engine.db(), &scan_id).await
     }
     .map_err(|e| e.to_string())?;
 
@@ -9305,16 +9310,16 @@ pub fn viper_get_findings(
 
 /// Get latest scan summary.
 #[tauri::command]
-pub fn viper_get_latest_summary() -> Result<Option<serde_json::Value>, String> {
+pub async fn viper_get_latest_summary() -> Result<Option<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
-    super::engine::security::viper::get_latest_summary(engine.db()).map_err(|e| e.to_string())
+    super::engine::security::viper::get_latest_summary(engine.db()).await.map_err(|e| e.to_string())
 }
 
 /// Delete a scan.
 #[tauri::command]
-pub fn viper_delete_scan(scan_id: String) -> Result<bool, String> {
+pub async fn viper_delete_scan(scan_id: String) -> Result<bool, String> {
     let engine = super::engine::get_engine();
-    super::engine::security::viper::delete_scan(engine.db(), &scan_id).map_err(|e| e.to_string())
+    super::engine::security::viper::delete_scan(engine.db(), &scan_id).await.map_err(|e| e.to_string())
 }
 
 // ═════════════════════════════════════════════════════════════════
@@ -9323,25 +9328,25 @@ pub fn viper_delete_scan(scan_id: String) -> Result<bool, String> {
 
 /// Run a full agent audit against all active agents.
 #[tauri::command]
-pub fn agent_audit_run_full() -> Result<String, String> {
+pub async fn agent_audit_run_full() -> Result<String, String> {
     let engine = super::engine::get_engine();
-    super::engine::security::agent_audit::run_full_audit(engine.db()).map_err(|e| e.to_string())
+    super::engine::security::agent_audit::run_full_audit(engine.db()).await.map_err(|e| e.to_string())
 }
 
 /// Run a targeted audit against specific agents.
 #[tauri::command]
-pub fn agent_audit_run_targeted(agent_ids: Vec<String>) -> Result<String, String> {
+pub async fn agent_audit_run_targeted(agent_ids: Vec<String>) -> Result<String, String> {
     let engine = super::engine::get_engine();
     super::engine::security::agent_audit::run_targeted_audit(engine.db(), agent_ids)
-        .map_err(|e| e.to_string())
+        .await.map_err(|e| e.to_string())
 }
 
 /// Get recent audit runs.
 #[tauri::command]
-pub fn agent_audit_get_runs(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
+pub async fn agent_audit_get_runs(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
     let runs = super::engine::security::agent_audit::get_runs(engine.db(), limit.unwrap_or(10))
-        .map_err(|e| e.to_string())?;
+        .await.map_err(|e| e.to_string())?;
     Ok(runs
         .iter()
         .map(|r| {
@@ -9363,10 +9368,10 @@ pub fn agent_audit_get_runs(limit: Option<i64>) -> Result<Vec<serde_json::Value>
 
 /// Get results for a specific audit run.
 #[tauri::command]
-pub fn agent_audit_get_results(run_id: String) -> Result<Vec<serde_json::Value>, String> {
+pub async fn agent_audit_get_results(run_id: String) -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
     let results = super::engine::security::agent_audit::get_results(engine.db(), &run_id)
-        .map_err(|e| e.to_string())?;
+        .await.map_err(|e| e.to_string())?;
     Ok(results
         .iter()
         .map(|r| {
@@ -9388,15 +9393,15 @@ pub fn agent_audit_get_results(run_id: String) -> Result<Vec<serde_json::Value>,
 
 /// Get findings for a specific agent result.
 #[tauri::command]
-pub fn agent_audit_get_findings(
+pub async fn agent_audit_get_findings(
     result_id: String,
     attack_type: Option<String>,
 ) -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
     let findings = if let Some(at) = attack_type {
-        super::engine::security::agent_audit::get_findings_by_type(engine.db(), &result_id, &at)
+        super::engine::security::agent_audit::get_findings_by_type(engine.db(), &result_id, &at).await
     } else {
-        super::engine::security::agent_audit::get_findings(engine.db(), &result_id)
+        super::engine::security::agent_audit::get_findings(engine.db(), &result_id).await
     }
     .map_err(|e| e.to_string())?;
 
@@ -9422,18 +9427,18 @@ pub fn agent_audit_get_findings(
 
 /// Get latest audit run summary.
 #[tauri::command]
-pub fn agent_audit_get_latest_summary() -> Result<Option<serde_json::Value>, String> {
+pub async fn agent_audit_get_latest_summary() -> Result<Option<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
     super::engine::security::agent_audit::get_latest_summary(engine.db())
-        .map_err(|e| e.to_string())
+        .await.map_err(|e| e.to_string())
 }
 
 /// Delete an audit run.
 #[tauri::command]
-pub fn agent_audit_delete_run(run_id: String) -> Result<bool, String> {
+pub async fn agent_audit_delete_run(run_id: String) -> Result<bool, String> {
     let engine = super::engine::get_engine();
     super::engine::security::agent_audit::delete_run(engine.db(), &run_id)
-        .map_err(|e| e.to_string())
+        .await.map_err(|e| e.to_string())
 }
 
 // ═════════════════════════════════════════════════════════════════
@@ -9442,17 +9447,17 @@ pub fn agent_audit_delete_run(run_id: String) -> Result<bool, String> {
 
 /// Run the correlation engine and generate alerts.
 #[tauri::command]
-pub fn siem_run_correlation() -> Result<i64, String> {
+pub async fn siem_run_correlation() -> Result<i64, String> {
     let engine = super::engine::get_engine();
-    super::engine::security::siem::run_correlation(engine.db()).map_err(|e| e.to_string())
+    super::engine::security::siem::run_correlation(engine.db()).await.map_err(|e| e.to_string())
 }
 
 /// Get the aggregate risk overview.
 #[tauri::command]
-pub fn siem_get_risk_overview() -> Result<serde_json::Value, String> {
+pub async fn siem_get_risk_overview() -> Result<serde_json::Value, String> {
     let engine = super::engine::get_engine();
     let overview = super::engine::security::siem::get_risk_overview(engine.db())
-        .map_err(|e| e.to_string())?;
+        .await.map_err(|e| e.to_string())?;
     Ok(serde_json::json!({
         "overall_score": overview.overall_score,
         "trend": overview.trend,
@@ -9469,11 +9474,11 @@ pub fn siem_get_risk_overview() -> Result<serde_json::Value, String> {
 
 /// Get recent alerts.
 #[tauri::command]
-pub fn siem_get_alerts(status: Option<String>, limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
+pub async fn siem_get_alerts(status: Option<String>, limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
     let status_ref = status.as_deref();
     let alerts = super::engine::security::siem::get_alerts(engine.db(), status_ref, limit.unwrap_or(50))
-        .map_err(|e| e.to_string())?;
+        .await.map_err(|e| e.to_string())?;
     Ok(alerts
         .iter()
         .map(|a| {
@@ -9498,34 +9503,34 @@ pub fn siem_get_alerts(status: Option<String>, limit: Option<i64>) -> Result<Vec
 
 /// Acknowledge an alert.
 #[tauri::command]
-pub fn siem_acknowledge_alert(alert_id: String) -> Result<bool, String> {
+pub async fn siem_acknowledge_alert(alert_id: String) -> Result<bool, String> {
     let engine = super::engine::get_engine();
     super::engine::security::siem::acknowledge_alert(engine.db(), &alert_id)
-        .map_err(|e| e.to_string())
+        .await.map_err(|e| e.to_string())
 }
 
 /// Resolve an alert.
 #[tauri::command]
-pub fn siem_resolve_alert(alert_id: String) -> Result<bool, String> {
+pub async fn siem_resolve_alert(alert_id: String) -> Result<bool, String> {
     let engine = super::engine::get_engine();
     super::engine::security::siem::resolve_alert(engine.db(), &alert_id)
-        .map_err(|e| e.to_string())
+        .await.map_err(|e| e.to_string())
 }
 
 /// Dismiss an alert.
 #[tauri::command]
-pub fn siem_dismiss_alert(alert_id: String) -> Result<bool, String> {
+pub async fn siem_dismiss_alert(alert_id: String) -> Result<bool, String> {
     let engine = super::engine::get_engine();
     super::engine::security::siem::dismiss_alert(engine.db(), &alert_id)
-        .map_err(|e| e.to_string())
+        .await.map_err(|e| e.to_string())
 }
 
 /// Get recent correlations.
 #[tauri::command]
-pub fn siem_get_correlations(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
+pub async fn siem_get_correlations(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
     let correlations = super::engine::security::siem::get_correlations(engine.db(), limit.unwrap_or(30))
-        .map_err(|e| e.to_string())?;
+        .await.map_err(|e| e.to_string())?;
     Ok(correlations
         .iter()
         .map(|c| {
@@ -9550,24 +9555,24 @@ pub fn siem_get_correlations(limit: Option<i64>) -> Result<Vec<serde_json::Value
 
 /// Get risk timeline (daily aggregates for 30 days).
 #[tauri::command]
-pub fn siem_get_risk_timeline() -> Result<Vec<serde_json::Value>, String> {
+pub async fn siem_get_risk_timeline() -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
-    super::engine::security::siem::get_risk_timeline(engine.db()).map_err(|e| e.to_string())
+    super::engine::security::siem::get_risk_timeline(engine.db()).await.map_err(|e| e.to_string())
 }
 
 /// Generate a weekly security report.
 #[tauri::command]
-pub fn siem_generate_weekly_report() -> Result<String, String> {
+pub async fn siem_generate_weekly_report() -> Result<String, String> {
     let engine = super::engine::get_engine();
-    super::engine::security::siem::generate_weekly_report(engine.db()).map_err(|e| e.to_string())
+    super::engine::security::siem::generate_weekly_report(engine.db()).await.map_err(|e| e.to_string())
 }
 
 /// Get weekly reports.
 #[tauri::command]
-pub fn siem_get_weekly_reports(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
+pub async fn siem_get_weekly_reports(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
     let reports = super::engine::security::siem::get_weekly_reports(engine.db(), limit.unwrap_or(12))
-        .map_err(|e| e.to_string())?;
+        .await.map_err(|e| e.to_string())?;
     Ok(reports
         .iter()
         .map(|r| {
@@ -9590,4 +9595,28 @@ pub fn siem_get_weekly_reports(limit: Option<i64>) -> Result<Vec<serde_json::Val
             })
         })
         .collect())
+}
+
+
+/// Test command — returns a hardcoded string, no DB access.
+#[tauri::command]
+pub fn test_ping() -> Result<String, String> {
+    Ok("pong".to_string())
+}
+
+
+
+/// Test command — spawn_blocking with fresh connection (avoids block_in_place deadlock).
+#[tauri::command]
+pub async fn test_db_ping() -> Result<String, String> {
+    let count = tokio::task::spawn_blocking(|| {
+        let conn = rusqlite::Connection::open("/home/calo/.local/share/com.conflux.home/conflux.db")
+            .map_err(|e| e.to_string())?;
+        let n: i64 = conn.query_row("SELECT COUNT(*) FROM agents", [], |row| row.get(0))
+            .map_err(|e| e.to_string())?;
+        Ok::<i64, String>(n)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    Ok(format!("agents: {}", count))
 }
