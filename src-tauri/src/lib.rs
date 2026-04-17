@@ -218,7 +218,6 @@ pub fn run() {
             // Agents
             commands::engine_get_agents,
             commands::engine_update_agent,
-            commands::engine_reset_agents_to_defaults,
             // Quota
             commands::engine_get_quota,
             // Memory
