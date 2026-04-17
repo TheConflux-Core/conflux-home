@@ -24,7 +24,6 @@ import ToastContainer from './components/Toast';
 import UpdateBanner from './components/UpdateBanner';
 import FamilySetup from './components/FamilySetup';
 import GameLauncher from './components/GameLauncher';
-import GamesHub from './components/GamesHub';
 import MinesweeperGame from './components/MinesweeperGame';
 import SnakeGame from './components/SnakeGame';
 import PacmanGame from './components/PacmanGame';
@@ -787,10 +786,6 @@ const [activeSnake, setActiveSnake] = useState(false);
     } else if (v === 'marketplace') {
       // Discover → open marketplace
       setImmersiveView('marketplace');
-    } else if (v === 'games') {
-      // Open the games hub grid
-      setImmersiveView('games');
-      setChatOpen(false);
     } else if (v === 'chat') {
       if (!selectedAgent) {
         // Default to last-used agent, then "Conflux", then first active
@@ -820,8 +815,8 @@ const [activeSnake, setActiveSnake] = useState(false);
     setActiveNaniSolitaire(false);
     setActiveJohnnySolitaire(false);
     setActiveGameId(null);
-    // Go back to the GamesHub grid, not marketplace
-    setImmersiveView('games');
+    // Return to desktop — user goes to Discover → Games to pick another
+    setImmersiveView(null);
   }, []);
 
   // Check if any game is active
@@ -1025,31 +1020,6 @@ const [activeSnake, setActiveSnake] = useState(false);
                 ))}
               </div>
             </div>
-          )}
-          {immersiveView === 'games' && !activeGameId && !activeMinesweeper && !activeSnake && !activePacman && !activeSolitaire && !activeNaniSolitaire && !activeJohnnySolitaire && (
-            <GamesHub
-              onBack={() => setImmersiveView(null)}
-              onOpenGame={(gameId) => {
-                if (gameId === 'minesweeper') {
-                  setActiveMinesweeper(true);
-                }
-                if (gameId === 'snake') {
-                  setActiveSnake(true);
-                }
-                if (gameId === 'pacman') {
-                  setActivePacman(true);
-                }
-                if (gameId === 'solitaire') {
-                  setActiveSolitaire(true);
-                }
-                if (gameId === 'nani-solitaire') {
-                  setActiveNaniSolitaire(true);
-                }
-                if (gameId === 'johnny-solitaire') {
-                  setActiveJohnnySolitaire(true);
-                }
-              }}
-            />
           )}
           {immersiveView === 'games' && activeMinesweeper && (
             <MinesweeperGame onBack={closeGame} />
