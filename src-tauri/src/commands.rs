@@ -416,6 +416,12 @@ pub fn engine_update_agent(req: AgentUpdateRequest) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub fn engine_reset_agents_to_defaults() -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.reset_agents_to_defaults().map_err(|e| e.to_string())
+}
+
 // ── Quota Commands ──
 
 #[tauri::command]
