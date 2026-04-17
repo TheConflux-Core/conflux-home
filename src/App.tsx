@@ -425,6 +425,16 @@ export default function App() {
     }
   });
 
+  // Listen for agent selection changes from AgentsView
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const customEvent = e as CustomEvent<string[]>;
+      setSelectedAgentIds(customEvent.detail);
+    };
+    window.addEventListener('conflux:agents-selected', handler);
+    return () => window.removeEventListener('conflux:agents-selected', handler);
+  }, []);
+
   // Restore onboarding state from Supabase if localStorage is empty
   useEffect(() => {
     if (!user || isOnboarded) return
