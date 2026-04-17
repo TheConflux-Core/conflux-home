@@ -184,6 +184,10 @@ impl ConfluxEngine {
             .update_agent(id, name, emoji, role, soul, instructions, model_alias)
     }
 
+    pub fn reset_agents_to_defaults(&self) -> Result<()> {
+        self.db.reset_agents_to_defaults()
+    }
+
     // ── Sessions ──
 
     pub fn create_session(&self, agent_id: &str, user_id: &str) -> Result<types::Session> {

@@ -797,6 +797,21 @@ const [activeSnake, setActiveSnake] = useState(false);
     }
   }, [agents, selectedAgent]);
 
+  // Close game and return to Marketplace (games tab) — keeps Marketplace mounted
+  const closeGame = useCallback(() => {
+    setActiveMinesweeper(false);
+    setActiveSnake(false);
+    setActivePacman(false);
+    setActiveSolitaire(false);
+    setActiveNaniSolitaire(false);
+    setActiveJohnnySolitaire(false);
+    setActiveGameId(null);
+    setImmersiveView('marketplace');
+  }, []);
+
+  // Check if any game is active
+  const anyGameActive = activeMinesweeper || activeSnake || activePacman || activeSolitaire || activeNaniSolitaire || activeJohnnySolitaire;
+
   // ── Keyboard shortcuts (FIX 10) ──
   useEffect(() => {
     if (!isOnboarded || showWelcome) return;
@@ -935,7 +950,11 @@ const [activeSnake, setActiveSnake] = useState(false);
           {immersiveView === 'home' && <HomeHealthView />}
           {immersiveView === 'dreams' && <DreamBuilderView />}
           {immersiveView === 'google' && <GoogleView />}
-          {immersiveView === 'marketplace' && <Marketplace />}
+          {(immersiveView === 'marketplace' || anyGameActive) && (
+            <div style={anyGameActive ? { display: 'none' } : undefined}>
+              <Marketplace />
+            </div>
+          )}
           {immersiveView === 'agents' && <AgentsView />}
           {immersiveView === 'echo' && <EchoView />}
           {immersiveView === 'vault' && <VaultView />}
@@ -1018,22 +1037,22 @@ const [activeSnake, setActiveSnake] = useState(false);
             />
           )}
           {immersiveView === 'games' && activeMinesweeper && (
-            <MinesweeperGame onBack={() => handleNavigate('marketplace')} />
+            <MinesweeperGame onBack={closeGame} />
           )}
           {immersiveView === 'games' && activeSnake && !activeMinesweeper && (
-            <SnakeGame onBack={() => handleNavigate('marketplace')} />
+            <SnakeGame onBack={closeGame} />
           )}
           {immersiveView === 'games' && activePacman && !activeMinesweeper && !activeSnake && (
-            <PacmanGame onBack={() => handleNavigate('marketplace')} />
+            <PacmanGame onBack={closeGame} />
           )}
           {immersiveView === 'games' && activeSolitaire && !activeMinesweeper && !activeSnake && !activePacman && (
-            <SolitaireGame onBack={() => handleNavigate('marketplace')} />
+            <SolitaireGame onBack={closeGame} />
           )}
           {immersiveView === 'games' && activeNaniSolitaire && !activeMinesweeper && !activeSnake && !activePacman && !activeSolitaire && (
-            <NaniSolitaireGame onBack={() => handleNavigate('marketplace')} />
+            <NaniSolitaireGame onBack={closeGame} />
           )}
           {immersiveView === 'games' && activeJohnnySolitaire && !activeMinesweeper && !activeSnake && !activePacman && !activeSolitaire && !activeNaniSolitaire && (
-            <JohnnySolitaireGame onBack={() => handleNavigate('marketplace')} />
+            <JohnnySolitaireGame onBack={closeGame} />
           )}
         </ImmersiveView>
       )}
