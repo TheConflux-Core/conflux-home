@@ -197,18 +197,20 @@ fn log_tool_security_event(tool_name: &str, args: &Value, success: bool, agent_i
     let risk = if !success { base_risk + 20 } else { base_risk };
 
     let db = super::get_engine().db();
-    if let Err(e) = log_security_event(
-        db,
-        agent_id,
-        None, // session_id — Phase 1 doesn't track per-session yet
-        event_type,
-        category,
-        Some(tool_name),
-        target.as_deref(),
-        None, // details
-        risk,
-        success,
-    ) {
+    if let Err(e) = tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(log_security_event(
+            db,
+            agent_id,
+            None, // session_id — Phase 1 doesn't track per-session yet
+            event_type,
+            category,
+            Some(tool_name),
+            target.as_deref(),
+            None, // details
+            risk,
+            success,
+        ))
+    }) {
         log::warn!(
             "[Security] Failed to log tool event for {}: {}",
             tool_name,
@@ -226,7 +228,7 @@ fn check_security_gate(tool_name: &str, args: &Value, agent_id: &str) -> Result<
     let db = super::get_engine().db();
 
     // Get agent security profile — if none, default to open
-    let profile = match get_security_profile(db, agent_id) {
+    let profile = match tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(get_security_profile(db, agent_id))) {
         Ok(p) => p,
         Err(_) => return Ok(()), // No profile = allow all
     };
@@ -8979,12 +8981,7 @@ fn execute_echo_counselor_set_evening_reminder(args: &Value) -> Result<ToolResul
         .and_then(|v| v.as_i64())
         .map(|m| m as i32);
 
-    let req = crate::commands::SetEveningReminderRequest {
-        enabled,
-        hour,
-        minute,
-    };
-    match crate::commands::echo_counselor_set_evening_reminder(req) {
+    match crate::commands::echo_counselor_set_evening_reminder(enabled, hour, minute) {
         Ok(msg) => Ok(ToolResult {
             success: true,
             output: msg,

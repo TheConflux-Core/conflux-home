@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::engine::db::EngineDb;
 use crate::engine::security::events::{self, EventCategory, EventType};
+use super::platform::*;
 
 /// A single vulnerability finding
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,18 +58,18 @@ struct FindingInput {
 // ── Public API ──────────────────────────────────────────────
 
 /// Run a full vulnerability scan.
-pub fn run_full_scan(db: &EngineDb) -> Result<String> {
-    run_scan(db, "full")
+pub async fn run_full_scan(db: &EngineDb) -> Result<String> {
+    run_scan(db, "full").await
 }
 
 /// Run a quick scan (misconfig + network only).
-pub fn run_quick_scan(db: &EngineDb) -> Result<String> {
-    run_scan(db, "quick")
+pub async fn run_quick_scan(db: &EngineDb) -> Result<String> {
+    run_scan(db, "quick").await
 }
 
 /// Get recent scans.
-pub fn get_scans(db: &EngineDb, limit: i64) -> Result<Vec<VulnScan>> {
-    let conn = db.conn();
+pub async fn get_scans(db: &EngineDb, limit: i64) -> Result<Vec<VulnScan>> {
+    let conn = db.conn_async().await;
     let mut stmt = conn.prepare(
         "SELECT id, scan_type, status, risk_score, total_checks, pass_count, info_count, warn_count, critical_count, started_at, completed_at
          FROM viper_scans ORDER BY started_at DESC LIMIT ?",
@@ -94,8 +95,8 @@ pub fn get_scans(db: &EngineDb, limit: i64) -> Result<Vec<VulnScan>> {
 }
 
 /// Get findings for a scan.
-pub fn get_findings(db: &EngineDb, scan_id: &str) -> Result<Vec<VulnFinding>> {
-    let conn = db.conn();
+pub async fn get_findings(db: &EngineDb, scan_id: &str) -> Result<Vec<VulnFinding>> {
+    let conn = db.conn_async().await;
     let mut stmt = conn.prepare(
         "SELECT id, scan_id, category, check_name, severity, title, description, remediation, cve_ids, raw_data
          FROM viper_findings WHERE scan_id = ? ORDER BY
@@ -124,12 +125,12 @@ pub fn get_findings(db: &EngineDb, scan_id: &str) -> Result<Vec<VulnFinding>> {
 }
 
 /// Get findings by category.
-pub fn get_findings_by_category(
+pub async fn get_findings_by_category(
     db: &EngineDb,
     scan_id: &str,
     category: &str,
 ) -> Result<Vec<VulnFinding>> {
-    let conn = db.conn();
+    let conn = db.conn_async().await;
     let mut stmt = conn.prepare(
         "SELECT id, scan_id, category, check_name, severity, title, description, remediation, cve_ids, raw_data
          FROM viper_findings WHERE scan_id = ? AND category = ?
@@ -157,8 +158,8 @@ pub fn get_findings_by_category(
 }
 
 /// Get latest scan summary.
-pub fn get_latest_summary(db: &EngineDb) -> Result<Option<serde_json::Value>> {
-    let conn = db.conn();
+pub async fn get_latest_summary(db: &EngineDb) -> Result<Option<serde_json::Value>> {
+    let conn = db.conn_async().await;
     let row = conn.query_row(
         "SELECT id, scan_type, status, risk_score, total_checks, pass_count, info_count, warn_count, critical_count, started_at, completed_at
          FROM viper_scans ORDER BY started_at DESC LIMIT 1",
@@ -187,8 +188,8 @@ pub fn get_latest_summary(db: &EngineDb) -> Result<Option<serde_json::Value>> {
 }
 
 /// Delete a scan.
-pub fn delete_scan(db: &EngineDb, scan_id: &str) -> Result<bool> {
-    let conn = db.conn();
+pub async fn delete_scan(db: &EngineDb, scan_id: &str) -> Result<bool> {
+    let conn = db.conn_async().await;
     let deleted = conn.execute(
         "DELETE FROM viper_scans WHERE id = ?",
         rusqlite::params![scan_id],
@@ -198,9 +199,9 @@ pub fn delete_scan(db: &EngineDb, scan_id: &str) -> Result<bool> {
 
 // ── Internal: Scan Runner ───────────────────────────────────
 
-fn run_scan(db: &EngineDb, scan_type: &str) -> Result<String> {
+async fn run_scan(db: &EngineDb, scan_type: &str) -> Result<String> {
     let scan_id = Uuid::new_v4().to_string();
-    let conn = db.conn();
+    let conn = db.conn_async().await;
 
     conn.execute(
         "INSERT INTO viper_scans (id, scan_type, status) VALUES (?1, ?2, 'running')",
@@ -356,198 +357,338 @@ fn run_scan(db: &EngineDb, scan_type: &str) -> Result<String> {
 fn scan_misconfig() -> Result<Vec<FindingInput>> {
     let mut findings = Vec::new();
 
-    // Check for world-readable /etc/shadow
-    if let Ok(metadata) = std::fs::metadata("/etc/shadow") {
-        use std::os::unix::fs::PermissionsExt;
-        let mode = metadata.permissions().mode();
-        if mode & 0o007 != 0 {
-            findings.push(FindingInput {
-                category: "misconfig".into(),
-                check_name: "shadow_world_readable".into(),
-                severity: "critical".into(),
-                title: "/etc/shadow Is World-Readable".into(),
-                description: format!(
-                    "/etc/shadow has mode {:o} — other users can read password hashes.",
-                    mode & 0o777
-                ),
-                remediation: Some("chmod 640 /etc/shadow".into()),
-                cve_ids: None,
-                raw_data: Some(serde_json::json!({"mode": format!("{:o}", mode & 0o777)})),
-            });
-        } else {
-            findings.push(FindingInput {
-                category: "misconfig".into(),
-                check_name: "shadow_world_readable".into(),
-                severity: "pass".into(),
-                title: "/etc/shadow Permissions OK".into(),
-                description: "/etc/shadow is not world-readable.".into(),
-                remediation: None,
-                cve_ids: None,
-                raw_data: None,
-            });
-        }
-    }
+    match current_os() {
+        OsType::Linux => {
+            // Check for world-readable /etc/shadow
+            if let Ok(metadata) = std::fs::metadata("/etc/shadow") {
+                use std::os::unix::fs::PermissionsExt;
+                let mode = metadata.permissions().mode();
+                if mode & 0o007 != 0 {
+                    findings.push(FindingInput {
+                        category: "misconfig".into(),
+                        check_name: "shadow_world_readable".into(),
+                        severity: "critical".into(),
+                        title: "/etc/shadow Is World-Readable".into(),
+                        description: format!(
+                            "/etc/shadow has mode {:o} — other users can read password hashes.",
+                            mode & 0o777
+                        ),
+                        remediation: Some("chmod 640 /etc/shadow".into()),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"mode": format!("{:o}", mode & 0o777)})),
+                    });
+                } else {
+                    findings.push(FindingInput {
+                        category: "misconfig".into(),
+                        check_name: "shadow_world_readable".into(),
+                        severity: "pass".into(),
+                        title: "/etc/shadow Permissions OK".into(),
+                        description: "/etc/shadow is not world-readable.".into(),
+                        remediation: None,
+                        cve_ids: None,
+                        raw_data: None,
+                    });
+                }
+            }
 
-    // Check for weak crypto in SSH config
-    if let Ok(content) = std::fs::read_to_string("/etc/ssh/sshd_config") {
-        let weak_ciphers = ["3des-cbc", "arcfour", "blowfish-cbc", "cast128-cbc"];
-        let weak_macs = ["hmac-md5", "hmac-sha1-96"];
-        let mut found_weak = Vec::new();
+            // Check for weak crypto in SSH config
+            if let Some(ssh_config_path) = get_ssh_config_path() {
+                if let Ok(content) = std::fs::read_to_string(&ssh_config_path) {
+                    let weak_ciphers = ["3des-cbc", "arcfour", "blowfish-cbc", "cast128-cbc"];
+                    let weak_macs = ["hmac-md5", "hmac-sha1-96"];
+                    let mut found_weak = Vec::new();
 
-        for line in content.lines() {
-            let lower = line.to_lowercase();
-            if lower.starts_with("ciphers") {
-                for weak in &weak_ciphers {
-                    if lower.contains(weak) {
-                        found_weak.push(format!("cipher: {}", weak));
+                    for line in content.lines() {
+                        let lower = line.to_lowercase();
+                        if lower.starts_with("ciphers") {
+                            for weak in &weak_ciphers {
+                                if lower.contains(weak) {
+                                    found_weak.push(format!("cipher: {}", weak));
+                                }
+                            }
+                        }
+                        if lower.starts_with("macs") {
+                            for weak in &weak_macs {
+                                if lower.contains(weak) {
+                                    found_weak.push(format!("mac: {}", weak));
+                                }
+                            }
+                        }
+                    }
+
+                    if !found_weak.is_empty() {
+                        findings.push(FindingInput {
+                            category: "misconfig".into(),
+                            check_name: "ssh_weak_crypto".into(),
+                            severity: "critical".into(),
+                            title: "SSH Uses Weak Cryptographic Algorithms".into(),
+                            description: format!(
+                                "SSH config includes weak algorithms: {}",
+                                found_weak.join(", ")
+                            ),
+                            remediation: Some(
+                                "Remove weak ciphers/MACs from /etc/ssh/sshd_config. Use only aes-256-gcm, chacha20-poly1305, hmac-sha2-256, hmac-sha2-512.".into(),
+                            ),
+                            cve_ids: None,
+                            raw_data: Some(serde_json::json!({"weak_algorithms": found_weak})),
+                        });
+                    } else {
+                        findings.push(FindingInput {
+                            category: "misconfig".into(),
+                            check_name: "ssh_weak_crypto".into(),
+                            severity: "pass".into(),
+                            title: "SSH Cryptographic Configuration OK".into(),
+                            description: "No weak ciphers or MACs detected in sshd_config.".into(),
+                            remediation: None,
+                            cve_ids: None,
+                            raw_data: None,
+                        });
                     }
                 }
             }
-            if lower.starts_with("macs") {
-                for weak in &weak_macs {
-                    if lower.contains(weak) {
-                        found_weak.push(format!("mac: {}", weak));
+
+            // Check for unattended-upgrades config
+            let ua_paths = [
+                "/etc/apt/apt.conf.d/20auto-upgrades",
+                "/etc/apt/apt.conf.d/50unattended-upgrades",
+            ];
+            let mut auto_updates_configured = false;
+            for path in &ua_paths {
+                if let Ok(content) = std::fs::read_to_string(path) {
+                    if content.contains("Unattended-Upgrade \"1\"")
+                        || content.contains("APT::Periodic::Unattended-Upgrade")
+                    {
+                        auto_updates_configured = true;
                     }
                 }
             }
-        }
+            if !auto_updates_configured {
+                findings.push(FindingInput {
+                    category: "misconfig".into(),
+                    check_name: "auto_updates_not_configured".into(),
+                    severity: "warning".into(),
+                    title: "Automatic Security Updates Not Configured".into(),
+                    description: "Unattended upgrades are not configured. Known vulnerabilities will persist until manually patched.".into(),
+                    remediation: Some("Run: sudo dpkg-reconfigure -plow unattended-upgrades".into()),
+                    cve_ids: None,
+                    raw_data: None,
+                });
+            }
 
-        if !found_weak.is_empty() {
-            findings.push(FindingInput {
-                category: "misconfig".into(),
-                check_name: "ssh_weak_crypto".into(),
-                severity: "critical".into(),
-                title: "SSH Uses Weak Cryptographic Algorithms".into(),
-                description: format!(
-                    "SSH config includes weak algorithms: {}",
-                    found_weak.join(", ")
-                ),
-                remediation: Some(
-                    "Remove weak ciphers/MACs from /etc/ssh/sshd_config. Use only aes-256-gcm, chacha20-poly1305, hmac-sha2-256, hmac-sha2-512.".into(),
-                ),
-                cve_ids: None,
-                raw_data: Some(serde_json::json!({"weak_algorithms": found_weak})),
-            });
-        } else {
-            findings.push(FindingInput {
-                category: "misconfig".into(),
-                check_name: "ssh_weak_crypto".into(),
-                severity: "pass".into(),
-                title: "SSH Cryptographic Configuration OK".into(),
-                description: "No weak ciphers or MACs detected in sshd_config.".into(),
-                remediation: None,
-                cve_ids: None,
-                raw_data: None,
-            });
-        }
-    }
-
-    // Check for unattended-upgrades config
-    let ua_paths = [
-        "/etc/apt/apt.conf.d/20auto-upgrades",
-        "/etc/apt/apt.conf.d/50unattended-upgrades",
-    ];
-    let mut auto_updates_configured = false;
-    for path in &ua_paths {
-        if let Ok(content) = std::fs::read_to_string(path) {
-            if content.contains("Unattended-Upgrade \"1\"")
-                || content.contains("APT::Periodic::Unattended-Upgrade")
+            // Check for unnecessary SUID binaries
+            if let Ok(output) = Command::new("find")
+                .args([
+                    "/usr/bin",
+                    "/usr/sbin",
+                    "/usr/local/bin",
+                    "-perm",
+                    "/4000",
+                    "-type",
+                    "f",
+                ])
+                .output()
             {
-                auto_updates_configured = true;
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let suid_files: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
+
+                let dangerous_suid: Vec<&&str> = suid_files
+                    .iter()
+                    .filter(|f| {
+                        let name = f.rsplit('/').next().unwrap_or("");
+                        ["pkexec", "mount.nfs", "wall", "write", "dmcrypt-setup"].contains(&name)
+                    })
+                    .collect();
+
+                if !dangerous_suid.is_empty() {
+                    findings.push(FindingInput {
+                        category: "misconfig".into(),
+                        check_name: "dangerous_suid_binaries".into(),
+                        severity: "warning".into(),
+                        title: format!("{} Potentially Dangerous SUID Binaries", dangerous_suid.len()),
+                        description: "SUID binaries with known privilege escalation vectors detected.".into(),
+                        remediation: Some("Remove SUID bit: chmod u-s <binary> if not needed for your workflow.".into()),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"binaries": dangerous_suid.iter().map(|f| f.to_string()).collect::<Vec<_>>()})),
+                    });
+                }
+
+                findings.push(FindingInput {
+                    category: "misconfig".into(),
+                    check_name: "suid_count".into(),
+                    severity: "info".into(),
+                    title: format!("{} SUID Binaries Found", suid_files.len()),
+                    description: "Total SUID binaries on the system.".into(),
+                    remediation: None,
+                    cve_ids: None,
+                    raw_data: Some(serde_json::json!({"count": suid_files.len()})),
+                });
+            }
+
+            // Check kernel.dmesg_restrict (info leak)
+            if let Ok(val) = std::fs::read_to_string("/proc/sys/kernel/dmesg_restrict") {
+                if val.trim() == "0" {
+                    findings.push(FindingInput {
+                        category: "misconfig".into(),
+                        check_name: "dmesg_unrestricted".into(),
+                        severity: "warning".into(),
+                        title: "Kernel Log (dmesg) Accessible to All Users".into(),
+                        description: "kernel.dmesg_restrict=0 allows any user to read kernel logs, which may leak sensitive hardware/memory info.".into(),
+                        remediation: Some("echo 1 | sudo tee /proc/sys/kernel/dmesg_restrict".into()),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"value": 0})),
+                    });
+                }
+            }
+
+            // Check kernel.kptr_restrict (kernel pointer leak)
+            if let Ok(val) = std::fs::read_to_string("/proc/sys/kernel/kptr_restrict") {
+                let v = val.trim().parse::<i64>().unwrap_or(0);
+                if v == 0 {
+                    findings.push(FindingInput {
+                        category: "misconfig".into(),
+                        check_name: "kptr_not_restricted".into(),
+                        severity: "warning".into(),
+                        title: "Kernel Pointers Exposed in /proc".into(),
+                        description: "kernel.kptr_restrict=0 exposes kernel addresses in /proc/kallsyms, aiding exploitation.".into(),
+                        remediation: Some("echo 2 | sudo tee /proc/sys/kernel/kptr_restrict".into()),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"value": v})),
+                    });
+                }
             }
         }
-    }
-    if !auto_updates_configured {
-        findings.push(FindingInput {
-            category: "misconfig".into(),
-            check_name: "auto_updates_not_configured".into(),
-            severity: "warning".into(),
-            title: "Automatic Security Updates Not Configured".into(),
-            description: "Unattended upgrades are not configured. Known vulnerabilities will persist until manually patched.".into(),
-            remediation: Some("Run: sudo dpkg-reconfigure -plow unattended-upgrades".into()),
-            cve_ids: None,
-            raw_data: None,
-        });
-    }
 
-    // Check for unnecessary SUID binaries
-    if let Ok(output) = Command::new("find")
-        .args([
-            "/usr/bin",
-            "/usr/sbin",
-            "/usr/local/bin",
-            "-perm",
-            "/4000",
-            "-type",
-            "f",
-        ])
-        .output()
-    {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let suid_files: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
+        OsType::MacOS => {
+            // Check SIP (System Integrity Protection) status
+            let sip = Command::new("csrutil")
+                .arg("status")
+                .output();
+            if let Ok(output) = sip {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                let enabled = stdout.contains("enabled") || stdout.contains("enabled (Internal)");
+                findings.push(FindingInput {
+                    category: "misconfig".into(),
+                    check_name: "macos_sip".into(),
+                    severity: if enabled { "pass" } else { "critical" }.into(),
+                    title: if enabled { "System Integrity Protection Enabled" } else { "System Integrity Protection Disabled" }.into(),
+                    description: if enabled {
+                        "SIP is active, protecting critical system files.".into()
+                    } else {
+                        "SIP is disabled. Critical system files are unprotected.".into()
+                    },
+                    remediation: if !enabled {
+                        Some("Enable SIP: boot into Recovery Mode and run: csrutil enable".into())
+                    } else {
+                        None
+                    },
+                    cve_ids: None,
+                    raw_data: Some(serde_json::json!({"status": stdout})),
+                });
+            }
 
-        let dangerous_suid: Vec<&&str> = suid_files
-            .iter()
-            .filter(|f| {
-                let name = f.rsplit('/').next().unwrap_or("");
-                ["pkexec", "mount.nfs", "wall", "write", "dmcrypt-setup"].contains(&name)
-            })
-            .collect();
+            // Check firewall status using platform function
+            let (active, product_name, _) = get_firewall_status();
+            if !active {
+                findings.push(FindingInput {
+                    category: "misconfig".into(),
+                    check_name: "macos_firewall".into(),
+                    severity: "warning".into(),
+                    title: "macOS Firewall is Disabled".into(),
+                    description: "The macOS firewall is not active.".into(),
+                    remediation: Some("Enable via System Settings > Network > Firewall".into()),
+                    cve_ids: None,
+                    raw_data: Some(serde_json::json!({"product": product_name})),
+                });
+            }
 
-        if !dangerous_suid.is_empty() {
-            findings.push(FindingInput {
-                category: "misconfig".into(),
-                check_name: "dangerous_suid_binaries".into(),
-                severity: "warning".into(),
-                title: format!("{} Potentially Dangerous SUID Binaries", dangerous_suid.len()),
-                description: "SUID binaries with known privilege escalation vectors detected.".into(),
-                remediation: Some("Remove SUID bit: chmod u-s <binary> if not needed for your workflow.".into()),
-                cve_ids: None,
-                raw_data: Some(serde_json::json!({"binaries": dangerous_suid.iter().map(|f| f.to_string()).collect::<Vec<_>>()})),
-            });
+            // Check for remote Apple events
+            let remote_apple_events = Command::new("defaults")
+                .args(["read", "/System/Library/SystemEvents/CoreTypes", "RemoteAppleEventsEnabled"])
+                .output();
+            if let Ok(output) = remote_apple_events {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if stdout == "1" {
+                    findings.push(FindingInput {
+                        category: "misconfig".into(),
+                        check_name: "remote_apple_events".into(),
+                        severity: "warning".into(),
+                        title: "Remote Apple Events Enabled".into(),
+                        description: "Remote Apple Events allow remote computer access to scripts.".into(),
+                        remediation: Some("Disable via System Settings > Sharing > Remote Apple Events".into()),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"enabled": true})),
+                    });
+                }
+            }
         }
 
-        findings.push(FindingInput {
-            category: "misconfig".into(),
-            check_name: "suid_count".into(),
-            severity: "info".into(),
-            title: format!("{} SUID Binaries Found", suid_files.len()),
-            description: "Total SUID binaries on the system.".into(),
-            remediation: None,
-            cve_ids: None,
-            raw_data: Some(serde_json::json!({"count": suid_files.len()})),
-        });
-    }
+        OsType::Windows => {
+            // Check Windows Firewall default policy
+            let (active, product_name, _) = get_firewall_status();
+            if !active {
+                findings.push(FindingInput {
+                    category: "misconfig".into(),
+                    check_name: "windows_firewall".into(),
+                    severity: "critical".into(),
+                    title: "Windows Firewall is Disabled".into(),
+                    description: "Windows Defender Firewall is not active.".into(),
+                    remediation: Some("Enable via Control Panel > System and Security > Windows Firewall".into()),
+                    cve_ids: None,
+                    raw_data: Some(serde_json::json!({"product": product_name})),
+                });
+            }
 
-    // Check kernel.dmesg_restrict (info leak)
-    if let Ok(val) = std::fs::read_to_string("/proc/sys/kernel/dmesg_restrict") {
-        if val.trim() == "0" {
-            findings.push(FindingInput {
-                category: "misconfig".into(),
-                check_name: "dmesg_unrestricted".into(),
-                severity: "warning".into(),
-                title: "Kernel Log (dmesg) Accessible to All Users".into(),
-                description: "kernel.dmesg_restrict=0 allows any user to read kernel logs, which may leak sensitive hardware/memory info.".into(),
-                remediation: Some("echo 1 | sudo tee /proc/sys/kernel/dmesg_restrict".into()),
-                cve_ids: None,
-                raw_data: Some(serde_json::json!({"value": 0})),
-            });
+            // Check if RDP is enabled
+            let rdp = Command::new("powershell")
+                .args(["-Command", r"Get-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty fDenyTSConnections"])
+                .output();
+            if let Ok(output) = rdp {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if stdout == "0" {
+                    findings.push(FindingInput {
+                        category: "misconfig".into(),
+                        check_name: "rdp_enabled".into(),
+                        severity: "critical".into(),
+                        title: "Remote Desktop (RDP) is Enabled".into(),
+                        description: "RDP is enabled and accessible. This is a common attack vector.".into(),
+                        remediation: Some("Disable RDP if not needed, or enforce NLA and strong passwords.".into()),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"rdp_enabled": true})),
+                    });
+                }
+            }
+
+            // Check UAC status
+            let uac = Command::new("powershell")
+                .args(["-Command", r"Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'EnableLUA' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty EnableLUA"])
+                .output();
+            if let Ok(output) = uac {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if stdout != "1" {
+                    findings.push(FindingInput {
+                        category: "misconfig".into(),
+                        check_name: "uac_disabled".into(),
+                        severity: "critical".into(),
+                        title: "UAC (User Account Control) is Disabled".into(),
+                        description: "UAC is turned off. Applications can run with full administrator privileges.".into(),
+                        remediation: Some("Enable UAC via Control Panel > User Accounts > User Accounts > Change UAC settings".into()),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"uac_enabled": false})),
+                    });
+                }
+            }
         }
-    }
 
-    // Check kernel.kptr_restrict (kernel pointer leak)
-    if let Ok(val) = std::fs::read_to_string("/proc/sys/kernel/kptr_restrict") {
-        let v = val.trim().parse::<i64>().unwrap_or(0);
-        if v == 0 {
+        OsType::Unknown => {
             findings.push(FindingInput {
                 category: "misconfig".into(),
-                check_name: "kptr_not_restricted".into(),
-                severity: "warning".into(),
-                title: "Kernel Pointers Exposed in /proc".into(),
-                description: "kernel.kptr_restrict=0 exposes kernel addresses in /proc/kallsyms, aiding exploitation.".into(),
-                remediation: Some("echo 2 | sudo tee /proc/sys/kernel/kptr_restrict".into()),
+                check_name: "platform_unknown".into(),
+                severity: "info".into(),
+                title: "Unknown Platform".into(),
+                description: "Cannot run misconfiguration checks for this platform.".into(),
+                remediation: None,
                 cve_ids: None,
-                raw_data: Some(serde_json::json!({"value": v})),
+                raw_data: None,
             });
         }
     }

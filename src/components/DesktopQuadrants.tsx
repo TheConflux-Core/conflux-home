@@ -10,7 +10,7 @@ import { View, Agent } from '../types';
 // ── App definitions ──
 
 interface AppDef {
-  id: View;
+  id: string;
   icon: string;
   label: string;
   preview: string;
@@ -31,15 +31,14 @@ const CATEGORIES: CategoryDef[] = [
     icon: '📱',
     label: 'My Apps',
     color: '#10b981',
-    desc: '7 daily apps',
+    desc: '6 daily apps',
     apps: [
       { id: 'kitchen', icon: '🍳', label: 'Kitchen', preview: 'Meal planning & recipes' },
       { id: 'budget', icon: '💰', label: 'Budget', preview: 'Track spending & goals' },
       { id: 'life', icon: '🧠', label: 'Life Autopilot', preview: 'Tasks, habits & reminders' },
       { id: 'dreams', icon: '🎯', label: 'Dreams', preview: 'Goal tracking & milestones' },
-      { id: 'home', icon: '🔧', label: 'Home Health', preview: 'Systems & maintenance' },
-      { id: 'feed', icon: '📰', label: 'Feed', preview: 'News & intelligence' },
-      { id: 'games', icon: '🎮', label: 'Games', preview: 'Play & learn' },
+      { id: 'echo', icon: '📝', label: 'Echo', preview: 'Journal & reflection' },
+      { id: 'security-hub', icon: '🛡️', label: 'Security', preview: 'Shield & monitor your home' },
     ],
   },
   {
@@ -51,6 +50,8 @@ const CATEGORIES: CategoryDef[] = [
     apps: [
       { id: 'marketplace', icon: '🛒', label: 'Marketplace', preview: 'Browse & install agents' },
       { id: 'agents', icon: '🧩', label: 'Agents', preview: 'Manage your AI team' },
+      { id: 'games', icon: '🎮', label: 'Games', preview: 'Play & learn' },
+      { id: 'news-intelligence', icon: '📡', label: 'News & Intelligence', preview: 'Daily briefing & signals' },
     ],
   },
   {
@@ -62,7 +63,6 @@ const CATEGORIES: CategoryDef[] = [
     apps: [
       { id: 'studio', icon: '🎨', label: 'Studio', preview: 'AI creative generation' },
       { id: 'vault', icon: '📦', label: 'Vault', preview: 'Files & projects' },
-      { id: 'echo', icon: '📝', label: 'Echo', preview: 'Journal & reflection' },
     ],
   },
 ];
@@ -364,6 +364,13 @@ const FOLDER_APPS: Record<string, { title: string; icon: string; items: FolderIt
       { id: 'stories', name: 'Conflux Stories', icon: '📖', subtitle: 'Interactive Fiction', status: 'coming-soon' },
     ],
   },
+  'news-intelligence': {
+    title: 'News & Intelligence',
+    icon: '📡',
+    items: [
+      { id: 'feed', name: 'Feed', icon: '📰', subtitle: 'Daily briefing & signal radar', status: 'coming-soon' },
+    ],
+  },
 };
 
 // ── Expanded Category View ──
@@ -477,7 +484,7 @@ function ExpandedView({ category, onBack, onNavigate }: ExpandedViewProps) {
                 if (isFolder) {
                   setSubFolder(app.id);
                 } else {
-                  onNavigate(app.id);
+                  onNavigate(app.id as View);
                 }
               }}
               style={{ '--widget-color': category.color } as React.CSSProperties}

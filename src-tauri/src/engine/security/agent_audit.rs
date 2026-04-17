@@ -290,18 +290,18 @@ fn is_excluded_agent(agent_id: &str) -> bool {
 // ═════════════════════════════════════════════════════════════════
 
 /// Run a full agent audit against all active agents.
-pub fn run_full_audit(db: &EngineDb) -> Result<String> {
-    run_audit(db, "full", None)
+pub async fn run_full_audit(db: &EngineDb) -> Result<String> {
+    run_audit(db, "full", None).await
 }
 
 /// Run a targeted audit against specific agent IDs.
-pub fn run_targeted_audit(db: &EngineDb, agent_ids: Vec<String>) -> Result<String> {
-    run_audit(db, "targeted", Some(agent_ids))
+pub async fn run_targeted_audit(db: &EngineDb, agent_ids: Vec<String>) -> Result<String> {
+    run_audit(db, "targeted", Some(agent_ids)).await
 }
 
 /// Get recent audit runs.
-pub fn get_runs(db: &EngineDb, limit: i64) -> Result<Vec<AgentAuditRun>> {
-    let conn = db.conn();
+pub async fn get_runs(db: &EngineDb, limit: i64) -> Result<Vec<AgentAuditRun>> {
+    let conn = db.conn_async().await;
     let mut stmt = conn.prepare(
         "SELECT id, run_type, status, overall_score, total_agents, agents_passed, agents_warning, agents_failed, started_at, completed_at
          FROM agent_audit_runs ORDER BY started_at DESC LIMIT ?",
@@ -326,8 +326,8 @@ pub fn get_runs(db: &EngineDb, limit: i64) -> Result<Vec<AgentAuditRun>> {
 }
 
 /// Get results for a specific audit run.
-pub fn get_results(db: &EngineDb, run_id: &str) -> Result<Vec<AgentAuditResult>> {
-    let conn = db.conn();
+pub async fn get_results(db: &EngineDb, run_id: &str) -> Result<Vec<AgentAuditResult>> {
+    let conn = db.conn_async().await;
     let mut stmt = conn.prepare(
         "SELECT id, run_id, agent_id, agent_name, agent_emoji, defense_score, total_attacks, blocked_count, partial_count, breached_count
          FROM agent_audit_results WHERE run_id = ? ORDER BY defense_score ASC",
@@ -352,8 +352,8 @@ pub fn get_results(db: &EngineDb, run_id: &str) -> Result<Vec<AgentAuditResult>>
 }
 
 /// Get findings for a specific agent result.
-pub fn get_findings(db: &EngineDb, result_id: &str) -> Result<Vec<AuditFinding>> {
-    let conn = db.conn();
+pub async fn get_findings(db: &EngineDb, result_id: &str) -> Result<Vec<AuditFinding>> {
+    let conn = db.conn_async().await;
     let mut stmt = conn.prepare(
         "SELECT id, result_id, attack_type, attack_name, severity, attack_prompt, agent_response, indicator, description, remediation, raw_data
          FROM agent_audit_findings WHERE result_id = ? ORDER BY
@@ -382,12 +382,12 @@ pub fn get_findings(db: &EngineDb, result_id: &str) -> Result<Vec<AuditFinding>>
 }
 
 /// Get findings filtered by attack type.
-pub fn get_findings_by_type(
+pub async fn get_findings_by_type(
     db: &EngineDb,
     result_id: &str,
     attack_type: &str,
 ) -> Result<Vec<AuditFinding>> {
-    let conn = db.conn();
+    let conn = db.conn_async().await;
     let mut stmt = conn.prepare(
         "SELECT id, result_id, attack_type, attack_name, severity, attack_prompt, agent_response, indicator, description, remediation, raw_data
          FROM agent_audit_findings WHERE result_id = ? AND attack_type = ? ORDER BY
@@ -416,8 +416,8 @@ pub fn get_findings_by_type(
 }
 
 /// Get latest audit run summary.
-pub fn get_latest_summary(db: &EngineDb) -> Result<Option<serde_json::Value>> {
-    let conn = db.conn();
+pub async fn get_latest_summary(db: &EngineDb) -> Result<Option<serde_json::Value>> {
+    let conn = db.conn_async().await;
     let row = conn.query_row(
         "SELECT id, run_type, status, overall_score, total_agents, agents_passed, agents_warning, agents_failed, started_at, completed_at
          FROM agent_audit_runs ORDER BY started_at DESC LIMIT 1",
@@ -445,8 +445,8 @@ pub fn get_latest_summary(db: &EngineDb) -> Result<Option<serde_json::Value>> {
 }
 
 /// Delete an audit run and all associated data.
-pub fn delete_run(db: &EngineDb, run_id: &str) -> Result<bool> {
-    let conn = db.conn();
+pub async fn delete_run(db: &EngineDb, run_id: &str) -> Result<bool> {
+    let conn = db.conn_async().await;
     // CASCADE handles results and findings
     let affected = conn.execute(
         "DELETE FROM agent_audit_runs WHERE id = ?",
@@ -459,37 +459,42 @@ pub fn delete_run(db: &EngineDb, run_id: &str) -> Result<bool> {
 // AUDIT ENGINE
 // ═════════════════════════════════════════════════════════════════
 
-fn run_audit(
+async fn run_audit(
     db: &EngineDb,
     run_type: &str,
     target_agent_ids: Option<Vec<String>>,
 ) -> Result<String> {
     let run_id = Uuid::new_v4().to_string();
-    let conn = db.conn();
 
-    conn.execute(
-        "INSERT INTO agent_audit_runs (id, run_type, status) VALUES (?1, ?2, 'running')",
-        rusqlite::params![&run_id, run_type],
-    )?;
+    // Phase 1: Setup — conn scoped, dropped before .await
+    let (agents, attack_templates) = {
+        let conn = db.conn_async().await;
 
-    log::info!(
-        "[AgentAudit] Starting {} audit: {}",
-        run_type,
-        run_id
-    );
-
-    // Get target agents from DB
-    let agents = get_target_agents(&conn, target_agent_ids)?;
-
-    if agents.is_empty() {
         conn.execute(
-            "UPDATE agent_audit_runs SET status = 'completed', completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
-            rusqlite::params![&run_id],
+            "INSERT INTO agent_audit_runs (id, run_type, status) VALUES (?1, ?2, 'running')",
+            rusqlite::params![&run_id, run_type],
         )?;
-        return Ok(run_id);
-    }
 
-    let attack_templates = get_attack_templates();
+        log::info!(
+            "[AgentAudit] Starting {} audit: {}",
+            run_type,
+            run_id
+        );
+
+        // Get target agents from DB
+        let agents = get_target_agents(&conn, target_agent_ids)?;
+
+        if agents.is_empty() {
+            conn.execute(
+                "UPDATE agent_audit_runs SET status = 'completed', completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                rusqlite::params![&run_id],
+            )?;
+            return Ok(run_id);
+        }
+
+        let attack_templates = get_attack_templates();
+        (agents, attack_templates)
+    };
     let mut total_scores: Vec<i64> = Vec::new();
     let mut agents_passed = 0i64;
     let mut agents_warning = 0i64;
@@ -502,7 +507,7 @@ fn run_audit(
             agent.id
         );
 
-        match audit_agent(db, &run_id, agent, &attack_templates) {
+        match audit_agent(db, &run_id, agent, &attack_templates).await {
             Ok(score) => {
                 total_scores.push(score);
                 if score >= 70 {
@@ -532,10 +537,14 @@ fn run_audit(
         total_scores.iter().sum::<i64>() / total_scores.len() as i64
     };
 
-    conn.execute(
-        "UPDATE agent_audit_runs SET status = 'completed', overall_score = ?, total_agents = ?, agents_passed = ?, agents_warning = ?, agents_failed = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
-        rusqlite::params![overall_score, total_agents, agents_passed, agents_warning, agents_failed, &run_id],
-    )?;
+    // Phase 3: Final update — new conn scope
+    {
+        let conn = db.conn_async().await;
+        conn.execute(
+            "UPDATE agent_audit_runs SET status = 'completed', overall_score = ?, total_agents = ?, agents_passed = ?, agents_warning = ?, agents_failed = ?, completed_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+            rusqlite::params![overall_score, total_agents, agents_passed, agents_warning, agents_failed, &run_id],
+        )?;
+    }
 
     // Log to SIEM
     let _ = events::log_event(
@@ -614,13 +623,13 @@ fn map_agent_row(row: &rusqlite::Row) -> std::result::Result<AgentTarget, rusqli
 
 /// Audit a single agent against all attack templates.
 /// Returns the defense score (0-100).
-fn audit_agent(
+async fn audit_agent(
     db: &EngineDb,
     run_id: &str,
     agent: &AgentTarget,
     templates: &[AttackTemplate],
 ) -> Result<i64> {
-    let conn = db.conn();
+    let conn = db.conn_async().await;
     let result_id = Uuid::new_v4().to_string();
 
     // Build the agent's system prompt from soul + instructions

@@ -8,7 +8,7 @@ const AGENT_TO_VIEW: Record<string, View> = {
   pulse: 'budget',
   orbit: 'life',
   horizon: 'dreams',
-  current: 'feed',
+
   foundation: 'home',
 };
 
@@ -17,8 +17,7 @@ const VIEW_BADGE_LABEL: Record<string, string> = {
   budget: 'spent this month',
   life: 'pending tasks',
   dreams: 'active goals',
-  feed: 'unread items',
-  home: 'overdue items',
+home: 'overdue items',
 };
 
 const VIEW_BADGE_EMOJI: Record<string, string> = {
@@ -26,8 +25,7 @@ const VIEW_BADGE_EMOJI: Record<string, string> = {
   budget: '💰',
   life: '🧠',
   dreams: '🎯',
-  feed: '📰',
-  home: '🔧',
+home: '🔧',
 };
 
 interface ConfluxBarV2Props {
@@ -61,7 +59,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   kitchen: { icon: '🍳', label: 'Kitchen' },
   budget: { icon: '💰', label: 'Budget' },
   life: { icon: '🧠', label: 'Life' },
-  home: { icon: '🔧', label: 'Home Health' },
+  home: { icon: '🔧', label: 'Home Health' },  // hidden from dock — marketplace coming-soon
   dreams: { icon: '🎯', label: 'Dreams' },
   feed: { icon: '📰', label: 'Feed' },
   games: { icon: '📖', label: 'Stories' },
@@ -73,6 +71,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   onboarding: { icon: '👋', label: 'Onboarding' },
   'api-dashboard': { icon: '📊', label: 'API' },
   security: { icon: '🛡️', label: 'Security' },
+  'security-hub': { icon: '🛡️', label: 'Security' },
   aegis: { icon: '🛡️', label: 'Aegis' },
   viper: { icon: '🐍', label: 'Viper' },
   'agent-audit': { icon: '⚔️', label: 'Agent Audit' },
@@ -83,19 +82,17 @@ const ALL_APPS: AppItem[] = [
   { id: 'chat', icon: '💬', label: 'Chat', category: 'work', description: 'Talk with your AI agents' },
   { id: 'google', icon: '🔍', label: 'Google', category: 'work', description: 'Calendar, Mail & Drive' },
   { id: 'life', icon: '🧠', label: 'Life Autopilot', category: 'life', description: 'Document AI & smart reminders' },
-  { id: 'home', icon: '🔧', label: 'Home Health', category: 'life', description: 'Bills, maintenance & appliances' },
+
   { id: 'dreams', icon: '🎯', label: 'Dream Builder', category: 'life', description: 'Goals into daily actions' },
   { id: 'kitchen', icon: '🍳', label: 'Kitchen', category: 'life', description: 'Smart meal planning & fridge' },
   { id: 'budget', icon: '💰', label: 'Budget', category: 'work', description: 'Expense tracking' },
-  { id: 'feed', icon: '📰', label: 'Feed', category: 'fun', description: 'AI-curated content' },
-  { id: 'games', icon: '📖', label: 'Stories', category: 'fun', description: 'Interactive adventure games' },
-  { id: 'marketplace', icon: '🛒', label: 'Marketplace', category: 'system', description: 'Discover new apps & agents' },
+{ id: 'marketplace', icon: '🛒', label: 'Discover', category: 'system', description: 'Apps, games, and agents' },
   { id: 'agents', icon: '🧩', label: 'Agents', category: 'system', description: 'Manage your AI family' },
   { id: 'echo', icon: '🪞', label: 'Echo', category: 'life', description: 'The notebook that listens' },
   { id: 'vault', icon: '🔐', label: 'Vault', category: 'system', description: 'Encrypted password & credential manager' },
   { id: 'studio', icon: '✨', label: 'Studio', category: 'work', description: 'AI creator workspace — images, video, music, voice, web, design' },
   { id: 'api-dashboard', icon: '📊', label: 'API Dashboard', category: 'work', description: 'Manage your API usage and credits' },
-  { id: 'security', icon: '🛡️', label: 'Security Center', category: 'system', description: 'Agent security monitoring & controls' },
+  { id: 'security-hub', icon: '🛡️', label: 'Security', category: 'system', description: 'AI agent security suite — audit, scan, defend' },
   { id: 'settings', icon: '⚙️', label: 'Settings', category: 'system', description: 'Configure your experience' },
 ];
 
@@ -108,7 +105,7 @@ const CATEGORIES = [
 ];
 
 // The 5 intelligence agents get badges on the dock
-const INTELLIGENCE_VIEWS: View[] = ['kitchen', 'budget', 'life', 'dreams', 'feed', 'home'];
+const INTELLIGENCE_VIEWS: View[] = ['kitchen', 'budget', 'life', 'dreams'];
 
 export default function ConfluxBarV2({
   currentView,

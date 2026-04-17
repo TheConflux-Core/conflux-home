@@ -22,10 +22,12 @@ import './styles/horizon-stellar.css'
 import './styles-current.css'
 import './styles-games.css'
 import './styles-snake.css'
-import './styles-pacman.css'
-import './styles-solitaire.css'
-import './styles-control-room.css'
-import './styles-neural-mesh.css'
+import './styles-pacman.css';
+import './styles-solitaire.css';
+import './styles-nani-solitaire.css';
+import './styles-johnny-solitaire.css';
+import './styles-control-room.css';
+import './styles-neural-mesh.css';
 import './styles/foundation.css'
 import './styles/orbit-mission-control.css'
 import './styles/orbit-boot.css'

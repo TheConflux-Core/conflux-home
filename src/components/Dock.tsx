@@ -15,7 +15,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   kitchen: { icon: '🍳', label: 'Kitchen' },
   budget: { icon: '💰', label: 'Budget' },
   life: { icon: '🧠', label: 'Life' },
-  home: { icon: '🔧', label: 'Home Health' },
+  home: { icon: '🔧', label: 'Home Health' },  // hidden from dock — marketplace coming-soon
   dreams: { icon: '🎯', label: 'Dreams' },
   feed: { icon: '📰', label: 'Feed' },
   games: { icon: '📖', label: 'Stories' },
@@ -25,6 +25,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   studio: { icon: '✨', label: 'Studio' },
   'api-dashboard': { icon: '📊', label: 'API Dashboard' },
   security: { icon: '🛡️', label: 'Security' },
+  'security-hub': { icon: '🛡️', label: 'Security' },
   aegis: { icon: '🛡️', label: 'Aegis' },
   viper: { icon: '🐍', label: 'Viper' },
   'agent-audit': { icon: '⚔️', label: 'Agent Audit' },

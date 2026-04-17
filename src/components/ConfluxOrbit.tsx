@@ -29,7 +29,6 @@ const MAGNETIC_ZONES: Record<string, { x: number; y: number; scale?: number }> =
   budget: { x: 0, y: 0.5, scale: 0.7 },    // Left-center for Budget
   kitchen: { x: 0.95, y: 0.35, scale: 0.7 }, // Top-right for Kitchen
   life: { x: 0.95, y: 0.5, scale: 0.7 },     // Right-center for Life
-  home: { x: 0.95, y: 0.5, scale: 0.7 },     // Right-center for Home Health
   dreams: { x: 0.5, y: 0.2, scale: 0.8 },    // Top-center for Dream Builder
   games: { x: 0.05, y: 0.5, scale: 0.7 },    // Left-center for Games
   feed: { x: 0.5, y: 0.5, scale: 0.7 },      // Center for Feed

@@ -103,32 +103,32 @@ struct CorrelationInput {
 // ═════════════════════════════════════════════════════════════════
 
 /// Run the full correlation engine. This is the main entry point.
-pub fn run_correlation(db: &EngineDb) -> Result<i64> {
+pub async fn run_correlation(db: &EngineDb) -> Result<i64> {
     let mut correlations: Vec<CorrelationInput> = Vec::new();
 
     // Rule 1: Agent breach + system vulnerability
-    correlations.append(&mut correlate_breach_with_vuln(db)?);
+    correlations.append(&mut correlate_breach_with_vuln(db).await?);
 
     // Rule 2: Repeated permission denials
-    correlations.append(&mut correlate_repeated_denials(db)?);
+    correlations.append(&mut correlate_repeated_denials(db).await?);
 
     // Rule 3: Critical vuln + anomalous behavior
-    correlations.append(&mut correlate_vuln_with_anomaly(db)?);
+    correlations.append(&mut correlate_vuln_with_anomaly(db).await?);
 
     // Rule 4: Defense degradation across audit runs
-    correlations.append(&mut correlate_defense_degradation(db)?);
+    correlations.append(&mut correlate_defense_degradation(db).await?);
 
     // Rule 5: Multi-agent risk (multiple agents with low scores)
-    correlations.append(&mut correlate_multi_agent_risk(db)?);
+    correlations.append(&mut correlate_multi_agent_risk(db).await?);
 
     let mut alerts_generated = 0i64;
 
     for corr in &correlations {
-        let corr_id = persist_correlation(db, corr)?;
+        let corr_id = persist_correlation(db, corr).await?;
 
         // Auto-generate alerts for warning+ severity
         if corr.severity == "warning" || corr.severity == "critical" {
-            generate_alert_from_correlation(db, &corr_id, corr)?;
+            generate_alert_from_correlation(db, &corr_id, corr).await?;
             alerts_generated += 1;
         }
     }
@@ -143,65 +143,68 @@ pub fn run_correlation(db: &EngineDb) -> Result<i64> {
 }
 
 /// Get the aggregate risk overview.
-pub fn get_risk_overview(db: &EngineDb) -> Result<RiskOverview> {
-    let conn = db.conn();
+pub async fn get_risk_overview(db: &EngineDb) -> Result<RiskOverview> {
+    // All synchronous queries scoped together so conn is dropped before .await
+    let (active_alerts, critical_alerts, correlations_24h, events_24h, aegis_score, viper_risk, agent_defense) = {
+        let conn = db.conn_async().await;
 
-    // Active alerts
-    let active_alerts: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM siem_alerts WHERE status = 'active'",
-        [],
-        |row| row.get(0),
-    ).unwrap_or(0);
+        // Active alerts
+        let active_alerts: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM siem_alerts WHERE status = 'active'",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(0);
 
-    let critical_alerts: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM siem_alerts WHERE status = 'active' AND severity = 'critical'",
-        [],
-        |row| row.get(0),
-    ).unwrap_or(0);
+        let critical_alerts: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM siem_alerts WHERE status = 'active' AND severity = 'critical'",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(0);
 
-    // Correlations in last 24h
-    let correlations_24h: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM siem_correlations WHERE created_at >= datetime('now', '-1 day')",
-        [],
-        |row| row.get(0),
-    ).unwrap_or(0);
+        // Correlations in last 24h
+        let correlations_24h: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM siem_correlations WHERE created_at >= datetime('now', '-1 day')",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(0);
 
-    // Events in last 24h
-    let events_24h: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM security_events WHERE created_at >= datetime('now', '-1 day')",
-        [],
-        |row| row.get(0),
-    ).unwrap_or(0);
+        // Events in last 24h
+        let events_24h: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM security_events WHERE created_at >= datetime('now', '-1 day')",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(0);
 
-    // Latest Aegis score (system health — higher is better)
-    let aegis_score: Option<i64> = conn.query_row(
-        "SELECT overall_score FROM aegis_audit_runs WHERE status = 'completed' ORDER BY started_at DESC LIMIT 1",
-        [],
-        |row| row.get(0),
-    ).ok();
+        // Latest Aegis score (system health — higher is better)
+        let aegis_score: Option<i64> = conn.query_row(
+            "SELECT overall_score FROM aegis_audit_runs WHERE status = 'completed' ORDER BY started_at DESC LIMIT 1",
+            [],
+            |row| row.get(0),
+        ).ok();
 
-    // Latest Viper risk (vulnerability — higher is worse)
-    let viper_risk: Option<i64> = conn.query_row(
-        "SELECT risk_score FROM viper_scans WHERE status = 'completed' ORDER BY started_at DESC LIMIT 1",
-        [],
-        |row| row.get(0),
-    ).ok();
+        // Latest Viper risk (vulnerability — higher is worse)
+        let viper_risk: Option<i64> = conn.query_row(
+            "SELECT risk_score FROM viper_scans WHERE status = 'completed' ORDER BY started_at DESC LIMIT 1",
+            [],
+            |row| row.get(0),
+        ).ok();
 
-    // Latest Agent Audit defense score
-    let agent_defense: Option<i64> = conn.query_row(
-        "SELECT overall_score FROM agent_audit_runs WHERE status = 'completed' ORDER BY started_at DESC LIMIT 1",
-        [],
-        |row| row.get(0),
-    ).ok();
+        // Latest Agent Audit defense score
+        let agent_defense: Option<i64> = conn.query_row(
+            "SELECT overall_score FROM agent_audit_runs WHERE status = 'completed' ORDER BY started_at DESC LIMIT 1",
+            [],
+            |row| row.get(0),
+        ).ok();
+
+        (active_alerts, critical_alerts, correlations_24h, events_24h, aegis_score, viper_risk, agent_defense)
+    };
 
     // Compute aggregate risk score (0-100, higher = more risk)
     let overall_score = compute_aggregate_risk(aegis_score, viper_risk, agent_defense, active_alerts, critical_alerts);
 
-    // Determine trend
-    let trend = compute_trend(db, overall_score)?;
-
-    // Top risks
-    let top_risks = get_top_risks(db)?;
+    // These async calls are safe — conn is already dropped
+    let trend = compute_trend(db, overall_score).await?;
+    let top_risks = get_top_risks(db).await?;
 
     Ok(RiskOverview {
         overall_score,
@@ -218,8 +221,8 @@ pub fn get_risk_overview(db: &EngineDb) -> Result<RiskOverview> {
 }
 
 /// Get recent alerts.
-pub fn get_alerts(db: &EngineDb, status: Option<&str>, limit: i64) -> Result<Vec<SiemAlert>> {
-    let conn = db.conn();
+pub async fn get_alerts(db: &EngineDb, status: Option<&str>, limit: i64) -> Result<Vec<SiemAlert>> {
+    let conn = db.conn_async().await;
     let query = if let Some(s) = status {
         format!(
             "SELECT id, alert_type, severity, title, description, source, agent_id, correlation_id, status, acknowledged_at, resolved_at, raw_data, created_at
@@ -260,8 +263,8 @@ pub fn get_alerts(db: &EngineDb, status: Option<&str>, limit: i64) -> Result<Vec
 }
 
 /// Acknowledge an alert.
-pub fn acknowledge_alert(db: &EngineDb, alert_id: &str) -> Result<bool> {
-    let conn = db.conn();
+pub async fn acknowledge_alert(db: &EngineDb, alert_id: &str) -> Result<bool> {
+    let conn = db.conn_async().await;
     let affected = conn.execute(
         "UPDATE siem_alerts SET status = 'acknowledged', acknowledged_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND status = 'active'",
         rusqlite::params![alert_id],
@@ -270,8 +273,8 @@ pub fn acknowledge_alert(db: &EngineDb, alert_id: &str) -> Result<bool> {
 }
 
 /// Resolve an alert.
-pub fn resolve_alert(db: &EngineDb, alert_id: &str) -> Result<bool> {
-    let conn = db.conn();
+pub async fn resolve_alert(db: &EngineDb, alert_id: &str) -> Result<bool> {
+    let conn = db.conn_async().await;
     let affected = conn.execute(
         "UPDATE siem_alerts SET status = 'resolved', resolved_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
         rusqlite::params![alert_id],
@@ -280,8 +283,8 @@ pub fn resolve_alert(db: &EngineDb, alert_id: &str) -> Result<bool> {
 }
 
 /// Dismiss an alert.
-pub fn dismiss_alert(db: &EngineDb, alert_id: &str) -> Result<bool> {
-    let conn = db.conn();
+pub async fn dismiss_alert(db: &EngineDb, alert_id: &str) -> Result<bool> {
+    let conn = db.conn_async().await;
     let affected = conn.execute(
         "UPDATE siem_alerts SET status = 'dismissed' WHERE id = ?",
         rusqlite::params![alert_id],
@@ -290,8 +293,8 @@ pub fn dismiss_alert(db: &EngineDb, alert_id: &str) -> Result<bool> {
 }
 
 /// Get recent correlations.
-pub fn get_correlations(db: &EngineDb, limit: i64) -> Result<Vec<SiemCorrelation>> {
-    let conn = db.conn();
+pub async fn get_correlations(db: &EngineDb, limit: i64) -> Result<Vec<SiemCorrelation>> {
+    let conn = db.conn_async().await;
     let mut stmt = conn.prepare(
         "SELECT id, correlation_type, severity, title, description, source_1_type, source_1_id, source_2_type, source_2_id, agent_ids, risk_score, raw_data, created_at
          FROM siem_correlations ORDER BY
@@ -323,8 +326,8 @@ pub fn get_correlations(db: &EngineDb, limit: i64) -> Result<Vec<SiemCorrelation
 }
 
 /// Get risk timeline (daily aggregate risk for the past 30 days).
-pub fn get_risk_timeline(db: &EngineDb) -> Result<Vec<serde_json::Value>> {
-    let conn = db.conn();
+pub async fn get_risk_timeline(db: &EngineDb) -> Result<Vec<serde_json::Value>> {
+    let conn = db.conn_async().await;
     let mut stmt = conn.prepare(
         "SELECT DATE(created_at) as day,
                 COUNT(*) as event_count,
@@ -350,9 +353,9 @@ pub fn get_risk_timeline(db: &EngineDb) -> Result<Vec<serde_json::Value>> {
 }
 
 /// Generate a weekly security report.
-pub fn generate_weekly_report(db: &EngineDb) -> Result<String> {
+pub async fn generate_weekly_report(db: &EngineDb) -> Result<String> {
     let report_id = Uuid::new_v4().to_string();
-    let conn = db.conn();
+    let conn = db.conn_async().await;
 
     // Calculate week boundaries
     let now = chrono::Utc::now();
@@ -480,8 +483,8 @@ pub fn generate_weekly_report(db: &EngineDb) -> Result<String> {
 }
 
 /// Get weekly reports.
-pub fn get_weekly_reports(db: &EngineDb, limit: i64) -> Result<Vec<SiemWeeklyReport>> {
-    let conn = db.conn();
+pub async fn get_weekly_reports(db: &EngineDb, limit: i64) -> Result<Vec<SiemWeeklyReport>> {
+    let conn = db.conn_async().await;
     let mut stmt = conn.prepare(
         "SELECT id, week_start, week_end, risk_score, risk_trend, total_events, critical_events, alerts_generated, alerts_resolved, aegis_score, viper_score, agent_audit_score, summary, findings_json, created_at
          FROM siem_weekly_reports ORDER BY week_start DESC LIMIT ?",
@@ -516,8 +519,8 @@ pub fn get_weekly_reports(db: &EngineDb, limit: i64) -> Result<Vec<SiemWeeklyRep
 // ═════════════════════════════════════════════════════════════════
 
 /// Rule 1: If agent audit found breaches AND Aegis found critical findings
-fn correlate_breach_with_vuln(db: &EngineDb) -> Result<Vec<CorrelationInput>> {
-    let conn = db.conn();
+async fn correlate_breach_with_vuln(db: &EngineDb) -> Result<Vec<CorrelationInput>> {
+    let conn = db.conn_async().await;
     let mut correlations = Vec::new();
 
     // Get recent agent audit breaches
@@ -585,8 +588,8 @@ fn correlate_breach_with_vuln(db: &EngineDb) -> Result<Vec<CorrelationInput>> {
 }
 
 /// Rule 2: Same agent denied 3+ times in an hour
-fn correlate_repeated_denials(db: &EngineDb) -> Result<Vec<CorrelationInput>> {
-    let conn = db.conn();
+async fn correlate_repeated_denials(db: &EngineDb) -> Result<Vec<CorrelationInput>> {
+    let conn = db.conn_async().await;
     let mut correlations = Vec::new();
 
     let mut stmt = conn.prepare(
@@ -633,8 +636,8 @@ fn correlate_repeated_denials(db: &EngineDb) -> Result<Vec<CorrelationInput>> {
 }
 
 /// Rule 3: Viper found critical vuln AND agent had anomalous behavior
-fn correlate_vuln_with_anomaly(db: &EngineDb) -> Result<Vec<CorrelationInput>> {
-    let conn = db.conn();
+async fn correlate_vuln_with_anomaly(db: &EngineDb) -> Result<Vec<CorrelationInput>> {
+    let conn = db.conn_async().await;
     let mut correlations = Vec::new();
 
     // Get critical Viper findings
@@ -696,8 +699,8 @@ fn correlate_vuln_with_anomaly(db: &EngineDb) -> Result<Vec<CorrelationInput>> {
 }
 
 /// Rule 4: Agent defense scores declining across audit runs
-fn correlate_defense_degradation(db: &EngineDb) -> Result<Vec<CorrelationInput>> {
-    let conn = db.conn();
+async fn correlate_defense_degradation(db: &EngineDb) -> Result<Vec<CorrelationInput>> {
+    let conn = db.conn_async().await;
     let mut correlations = Vec::new();
 
     let mut stmt = conn.prepare(
@@ -751,8 +754,8 @@ fn correlate_defense_degradation(db: &EngineDb) -> Result<Vec<CorrelationInput>>
 }
 
 /// Rule 5: Multiple agents with low scores
-fn correlate_multi_agent_risk(db: &EngineDb) -> Result<Vec<CorrelationInput>> {
-    let conn = db.conn();
+async fn correlate_multi_agent_risk(db: &EngineDb) -> Result<Vec<CorrelationInput>> {
+    let conn = db.conn_async().await;
     let mut correlations = Vec::new();
 
     // Find the latest agent audit run
@@ -812,9 +815,9 @@ fn correlate_multi_agent_risk(db: &EngineDb) -> Result<Vec<CorrelationInput>> {
 // HELPERS
 // ═════════════════════════════════════════════════════════════════
 
-fn persist_correlation(db: &EngineDb, corr: &CorrelationInput) -> Result<String> {
+async fn persist_correlation(db: &EngineDb, corr: &CorrelationInput) -> Result<String> {
     let id = Uuid::new_v4().to_string();
-    let conn = db.conn();
+    let conn = db.conn_async().await;
     let agent_ids_json = serde_json::to_string(&corr.agent_ids)?;
 
     conn.execute(
@@ -832,9 +835,9 @@ fn persist_correlation(db: &EngineDb, corr: &CorrelationInput) -> Result<String>
     Ok(id)
 }
 
-fn generate_alert_from_correlation(db: &EngineDb, corr_id: &str, corr: &CorrelationInput) -> Result<String> {
+async fn generate_alert_from_correlation(db: &EngineDb, corr_id: &str, corr: &CorrelationInput) -> Result<String> {
     let id = Uuid::new_v4().to_string();
-    let conn = db.conn();
+    let conn = db.conn_async().await;
     let agent_id = corr.agent_ids.first().cloned();
 
     conn.execute(
@@ -897,8 +900,8 @@ fn compute_aggregate_risk(
     (base_risk + alert_penalty + critical_penalty).min(100)
 }
 
-fn compute_trend(db: &EngineDb, current_risk: i64) -> Result<String> {
-    let conn = db.conn();
+async fn compute_trend(db: &EngineDb, current_risk: i64) -> Result<String> {
+    let conn = db.conn_async().await;
 
     // Get last week's report risk score
     let prev_risk: Option<i64> = conn.query_row(
@@ -920,8 +923,8 @@ fn compute_trend(db: &EngineDb, current_risk: i64) -> Result<String> {
     }
 }
 
-fn get_top_risks(db: &EngineDb) -> Result<Vec<String>> {
-    let conn = db.conn();
+async fn get_top_risks(db: &EngineDb) -> Result<Vec<String>> {
+    let conn = db.conn_async().await;
     let mut risks: Vec<String> = Vec::new();
 
     // Check for active critical alerts

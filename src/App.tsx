@@ -29,6 +29,8 @@ import MinesweeperGame from './components/MinesweeperGame';
 import SnakeGame from './components/SnakeGame';
 import PacmanGame from './components/PacmanGame';
 import SolitaireGame from './components/SolitaireGame';
+import NaniSolitaireGame from './components/NaniSolitaireGame';
+import JohnnySolitaireGame from './components/JohnnySolitaireGame';
 import StoryGameReader from './components/StoryGameReader';
 import ParentDashboard from './components/ParentDashboard';
 import VoiceChat from './components/VoiceChat';
@@ -51,6 +53,7 @@ import AegisDashboard from './components/AegisDashboard';
 import ViperDashboard from './components/ViperDashboard'
 import AgentAuditDashboard from './components/AgentAuditDashboard';
 import SIEMDashboard from './components/SIEMDashboard';
+
 import GuidedTour from './components/GuidedTour';
 
 // Phase 0.3+: Global AI Input, Agent Status
@@ -464,6 +467,8 @@ export default function App() {
 const [activeSnake, setActiveSnake] = useState(false);
   const [activePacman, setActivePacman] = useState(false);
   const [activeSolitaire, setActiveSolitaire] = useState(false);
+  const [activeNaniSolitaire, setActiveNaniSolitaire] = useState(false);
+  const [activeJohnnySolitaire, setActiveJohnnySolitaire] = useState(false);
   const {
     game: activeGame, chapters: activeGameChapters, currentChapter: activeGameCurrentChapter,
     choosePath, solvePuzzle, generateNextChapter,
@@ -570,6 +575,8 @@ const [activeSnake, setActiveSnake] = useState(false);
       else if (gameId === 'snake') { setImmersiveView(viewId as View); setActiveSnake(true); }
       else if (gameId === 'pacman') { setImmersiveView(viewId as View); setActivePacman(true); }
       else if (gameId === 'solitaire') { setImmersiveView(viewId as View); setActiveSolitaire(true); }
+      else if (gameId === 'nani-solitaire') { setImmersiveView(viewId as View); setActiveNaniSolitaire(true); }
+      else if (gameId === 'johnny-solitaire') { setImmersiveView(viewId as View); setActiveJohnnySolitaire(true); }
       else if (gameId === 'stories') { setImmersiveView(viewId as View); setActiveGameId(null); }
       else setImmersiveView(viewId as View);
     };
@@ -754,6 +761,8 @@ const [activeSnake, setActiveSnake] = useState(false);
     setActiveSnake(false);
     setActivePacman(false);
     setActiveSolitaire(false);
+    setActiveNaniSolitaire(false);
+    setActiveJohnnySolitaire(false);
     setActiveGameId(null);
 
     // Notify desktop components to collapse any expanded views
@@ -765,6 +774,9 @@ const [activeSnake, setActiveSnake] = useState(false);
       setImmersiveView(null);
       setChatOpen(false);
       setVoiceChatOpen(false);
+    } else if (v === 'marketplace') {
+      // Discover → open marketplace
+      setImmersiveView('marketplace');
     } else if (v === 'chat') {
       if (!selectedAgent) {
         // Default to last-used agent, then "Conflux", then first active
@@ -934,6 +946,7 @@ const [activeSnake, setActiveSnake] = useState(false);
           {immersiveView === 'viper' && <ViperDashboard />}
           {immersiveView === 'agent-audit' && <AgentAuditDashboard />}
           {immersiveView === 'siem' && <SIEMDashboard />}
+          {immersiveView === 'security-hub' && <SecurityDashboard />}
           {immersiveView === 'api-dashboard' && <ApiDashboard />}
           {immersiveView === 'dashboard' && (
             <div>
@@ -979,8 +992,9 @@ const [activeSnake, setActiveSnake] = useState(false);
               </div>
             </div>
           )}
-          {immersiveView === 'games' && !activeGameId && !activeMinesweeper && !activeSnake && !activePacman && !activeSolitaire && (
+          {immersiveView === 'games' && !activeGameId && !activeMinesweeper && !activeSnake && !activePacman && !activeSolitaire && !activeNaniSolitaire && !activeJohnnySolitaire && (
             <GamesHub
+              onBack={() => handleNavigate('marketplace')}
               onOpenGame={(gameId) => {
                 if (gameId === 'minesweeper') {
                   setActiveMinesweeper(true);
@@ -994,20 +1008,32 @@ const [activeSnake, setActiveSnake] = useState(false);
                 if (gameId === 'solitaire') {
                   setActiveSolitaire(true);
                 }
+                if (gameId === 'nani-solitaire') {
+                  setActiveNaniSolitaire(true);
+                }
+                if (gameId === 'johnny-solitaire') {
+                  setActiveJohnnySolitaire(true);
+                }
               }}
             />
           )}
           {immersiveView === 'games' && activeMinesweeper && (
-            <MinesweeperGame onBack={() => setActiveMinesweeper(false)} />
+            <MinesweeperGame onBack={() => handleNavigate('marketplace')} />
           )}
           {immersiveView === 'games' && activeSnake && !activeMinesweeper && (
-            <SnakeGame onBack={() => setActiveSnake(false)} />
+            <SnakeGame onBack={() => handleNavigate('marketplace')} />
           )}
           {immersiveView === 'games' && activePacman && !activeMinesweeper && !activeSnake && (
-            <PacmanGame onBack={() => setActivePacman(false)} />
+            <PacmanGame onBack={() => handleNavigate('marketplace')} />
           )}
           {immersiveView === 'games' && activeSolitaire && !activeMinesweeper && !activeSnake && !activePacman && (
-            <SolitaireGame onBack={() => setActiveSolitaire(false)} />
+            <SolitaireGame onBack={() => handleNavigate('marketplace')} />
+          )}
+          {immersiveView === 'games' && activeNaniSolitaire && !activeMinesweeper && !activeSnake && !activePacman && !activeSolitaire && (
+            <NaniSolitaireGame onBack={() => handleNavigate('marketplace')} />
+          )}
+          {immersiveView === 'games' && activeJohnnySolitaire && !activeMinesweeper && !activeSnake && !activePacman && !activeSolitaire && !activeNaniSolitaire && (
+            <JohnnySolitaireGame onBack={() => handleNavigate('marketplace')} />
           )}
         </ImmersiveView>
       )}

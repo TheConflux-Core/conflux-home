@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { syncSessionToEngine } from '@/lib/syncSession';
 import { supabase } from '@/lib/supabase';
 import type { AgentMessage } from '../types';
@@ -22,6 +22,7 @@ export interface UseEngineChatResult {
   mode: 'engine';
   sessionId: string | null;
   loadSession: (sessionId: string) => Promise<void>;
+  createNewSession: () => Promise<string>; // returns new session ID
 }
 
 let messageCounter = 0;
@@ -36,7 +37,9 @@ function timestamp(): string {
 interface EngineSession {
   id: string;
   agent_id: string;
+  title: string | null;
   message_count: number;
+  total_tokens: number;
   created_at: string;
   updated_at: string;
 }
@@ -78,26 +81,85 @@ export function useEngineChat(agent_id: string | null, user_id?: string): UseEng
   const [remainingCalls, setRemainingCalls] = useState(50);
   const [credits, setCredits] = useState(0);
   const [sessionId, setSessionId] = useState<string | null>(null);
+
+  // Always-current refs — avoid stale closures
+  const sessionIdRef = useRef<string | null>(null);
+  const agentIdRef = useRef<string | null>(null);
   const assistantIdRef = useRef<string | null>(null);
-  const unlistenFnsRef = useRef<(() => void)[]>([]);
-  
+  const unlistenFnsRef = useRef<UnlistenFn[]>([]);
+
   // Use AuthContext user.id if no explicit user_id provided
   const { user } = useAuthContext();
   const authUserId = user_id ?? user?.id;
 
-  // Cleanup listeners on unmount
+  // Keep refs in sync with state
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
+
+  useEffect(() => {
+    agentIdRef.current = agent_id;
+  }, [agent_id]);
+
+  // ── Internal: clear all Tauri event listeners ──
+  function cleanupListeners() {
+    unlistenFnsRef.current.forEach(fn => fn());
+    unlistenFnsRef.current = [];
+  }
+
+  // ── Internal: load messages for a session (replaces, doesn't append) ──
+  async function loadMessagesForSession(sid: string) {
+    const currentSid = sessionIdRef.current; // capture at call time
+
+    // Clear listeners + messages immediately
+    cleanupListeners();
+    setMessages([]);
+
+    try {
+      const history = await invoke<EngineMessage[]>('engine_get_messages', { session_id: sid, limit: 50 });
+
+      // Ignore if session changed while waiting for DB
+      if (sessionIdRef.current !== currentSid) return;
+
+      const currentAgentId = agentIdRef.current;
+      const uiMessages: AgentMessage[] = history
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map(m => ({
+          id: m.id,
+          agentId: m.role === 'user' ? 'user' : (currentAgentId ?? 'unknown'),
+          content: m.content,
+          timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+          type: m.role === 'user' ? 'user' as const : 'agent' as const,
+        }));
+      setMessages(uiMessages);
+    } catch (err) {
+      console.error('[useEngineChat] Failed to load messages:', err);
+      if (sessionIdRef.current === currentSid) setMessages([]);
+    }
+  }
+
+  // ── Internal: create a new session for the current agent ──
+  async function createSessionForAgent(): Promise<string> {
+    const currentAgentId = agent_id ?? agentIdRef.current;
+    if (!currentAgentId) throw new Error('No agent selected');
+    const session = await invoke<EngineSession>('engine_create_session', { agent_id: currentAgentId });
+    return session.id;
+  }
+
+  // ── Cleanup listeners on unmount ──
   useEffect(() => {
     return () => {
-      unlistenFnsRef.current.forEach(fn => fn());
-      unlistenFnsRef.current = [];
+      cleanupListeners();
     };
   }, []);
 
-  // When agent changes, load or create a session and its messages
+  // ── When agent changes, load or create a session ──
   useEffect(() => {
     if (!agent_id) {
+      cleanupListeners();
       setMessages([]);
       setSessionId(null);
+      sessionIdRef.current = null;
       return;
     }
 
@@ -107,23 +169,27 @@ export function useEngineChat(agent_id: string | null, user_id?: string): UseEng
       try {
         // Try to get existing sessions for this agent
         const sessions = await invoke<EngineSession[]>('engine_get_sessions', { limit: 50 });
+        if (cancelled) return;
+
         const agentSession = sessions.find(s => s.agent_id === agent_id);
 
-        if (agentSession && !cancelled) {
+        if (agentSession) {
           setSessionId(agentSession.id);
-          await loadMessages(agentSession.id);
-        } else if (!cancelled) {
-          // Create new session
+          sessionIdRef.current = agentSession.id;
+          await loadMessagesForSession(agentSession.id);
+        } else {
+          // Create new session for this agent
           const session = await invoke<EngineSession>('engine_create_session', { agent_id: agent_id });
+          if (cancelled) return;
           setSessionId(session.id);
+          sessionIdRef.current = session.id;
           setMessages([]);
         }
 
         // Load quota
         const quota = await invoke<QuotaData>('engine_get_quota');
         if (!cancelled) {
-          const limit = 50; // free_daily_limit
-          setRemainingCalls(Math.max(0, limit - quota.calls_used));
+          setRemainingCalls(Math.max(0, 50 - quota.calls_used));
         }
 
         // Load cloud credits if authenticated
@@ -132,48 +198,55 @@ export function useEngineChat(agent_id: string | null, user_id?: string): UseEng
             const balance = await invoke<{ total_available: number }>('get_credit_balance', { user_id: authUserId });
             if (!cancelled) setCredits(balance.total_available ?? 0);
           } catch {
-            // Cloud credits not available — engine falls back to local quota
+            // Cloud credits not available
           }
         }
       } catch (err) {
         if (!cancelled) {
           console.error('[useEngineChat] Failed to init session:', err);
-          setError('Engine not available — using direct mode');
+          setError('Engine not available — please restart');
         }
       }
     }
 
+    cleanupListeners();
     initSession();
     setError(null);
 
     return () => { cancelled = true; };
   }, [agent_id, user_id, user?.id]);
 
-  async function loadMessages(sid: string) {
-    try {
-      const history = await invoke<EngineMessage[]>('engine_get_messages', { sessionId: sid, limit: 50 });
-      const uiMessages: AgentMessage[] = history
-        .filter(m => m.role === 'user' || m.role === 'assistant')
-        .map(m => ({
-          id: m.id,
-          agentId: m.role === 'user' ? 'user' : (agent_id ?? 'unknown'),
-          content: m.content,
-          timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-          type: m.role === 'user' ? 'user' as const : 'agent' as const,
-        }));
-      setMessages(uiMessages);
-    } catch (err) {
-      console.error('[useEngineChat] Failed to load messages:', err);
-    }
-  }
-
+  // ── Load a specific session by ID (from session sidebar) ──
   const loadSession = useCallback(async (sid: string) => {
+    cleanupListeners();
     setSessionId(sid);
-    await loadMessages(sid);
-  }, []);
+    sessionIdRef.current = sid;
+    await loadMessagesForSession(sid);
+  }, []); // no deps — uses refs
 
+  // ── Create a new session (for "New Session" button) ──
+  const createNewSession = useCallback(async (): Promise<string> => {
+    const currentAgentId = agent_id ?? agentIdRef.current;
+    if (!currentAgentId) throw new Error('No agent selected');
+
+    cleanupListeners();
+    const session = await invoke<EngineSession>('engine_create_session', { agent_id: currentAgentId });
+    setSessionId(session.id);
+    sessionIdRef.current = session.id;
+    setMessages([]);
+    return session.id;
+  }, [agent_id]); // depends on agent_id so it picks up the right agent
+
+  // ── Send a message ──
   const sendMessage = useCallback(async (content: string) => {
-    if (!agent_id || !sessionId) return;
+    const currentSessionId = sessionIdRef.current;
+    const currentAgentId = agent_id ?? agentIdRef.current;
+    if (!currentAgentId || !currentSessionId) {
+      console.warn('[useEngineChat] sendMessage called with no session or agent');
+      return;
+    }
+
+    cleanupListeners();
 
     // Add user message to UI immediately
     const userMsg: AgentMessage = {
@@ -190,7 +263,7 @@ export function useEngineChat(agent_id: string | null, user_id?: string): UseEng
     assistantIdRef.current = assistantId;
     const assistantMsg: AgentMessage = {
       id: assistantId,
-      agentId: agent_id,
+      agentId: currentAgentId,
       content: '',
       timestamp: timestamp(),
       type: 'agent',
@@ -201,141 +274,104 @@ export function useEngineChat(agent_id: string | null, user_id?: string): UseEng
     setStreaming(true);
     setError(null);
 
-    // Clean up previous listeners
-    unlistenFnsRef.current.forEach(fn => fn());
-    unlistenFnsRef.current = [];
+    // ── Set up Tauri event listeners ──
+    const unlistenChunk = await listen<{ text: string }>('engine:chunk', (event) => {
+      setThinking(false);
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === assistantIdRef.current
+            ? { ...m, content: m.content + event.payload.text }
+            : m
+        )
+      );
+    });
 
-    try {
-      // Listen for streaming chunks
-      const unlistenChunk = await listen<{ text: string }>('engine:chunk', (event) => {
-        setThinking(false);
-        setMessages(prev =>
-          prev.map(m =>
-            m.id === assistantIdRef.current
-              ? { ...m, content: m.content + event.payload.text }
-              : m
-          )
-        );
-      });
+    const unlistenThinking = await listen('engine:thinking', () => {
+      setThinking(true);
+    });
 
-      // Listen for thinking state
-      const unlistenThinking = await listen('engine:thinking', () => {
-        setThinking(true);
-      });
-
-      // Listen for completion
-      const unlistenDone = await listen<StreamDonePayload>('engine:done', (event) => {
-        const data = event.payload;
-        setRemainingCalls(data.calls_remaining);
-        // Update credits if cloud credit info is available
-        if (data.credits_remaining !== undefined && data.credits_remaining !== null) {
-          setCredits(data.credits_remaining);
-        }
-        setStreaming(false);
-        setThinking(false);
-
-        // If streaming chunks didn't arrive (non-streaming path), set final content
-        setMessages(prev =>
-          prev.map(m =>
-            m.id === assistantIdRef.current && m.content === ''
-              ? { ...m, content: data.content }
-              : m
-          )
-        );
-
-        // Reload messages from DB to capture tool call entries
-        if (sessionId) {
-          invoke<EngineMessage[]>('engine_get_messages', { sessionId, limit: 50 })
-            .then(history => {
-              const uiMessages: AgentMessage[] = history
-                .filter(m => m.role === 'user' || m.role === 'assistant' || m.role === 'tool')
-                .map(m => ({
-                  id: m.id,
-                  agentId: m.role === 'user' ? 'user' : m.role === 'tool' ? 'system' : (agent_id ?? 'unknown'),
-                  content: m.role === 'tool' && m.tool_name
-                    ? `🔧 **${m.tool_name}**\n${m.content}`
-                    : m.content,
-                  timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-                  type: m.role === 'user' ? 'user' as const : m.role === 'tool' ? 'system' as const : 'agent' as const,
-                }));
-              setMessages(uiMessages);
-            })
-            .catch(() => {}); // non-critical
-        }
-      });
-
-      // Listen for errors
-      const unlistenError = await listen<string>('engine:error', (event) => {
-        setError(event.payload);
-        setStreaming(false);
-        setThinking(false);
-        setMessages(prev =>
-          prev.map(m =>
-            m.id === assistantIdRef.current && m.content === ''
-              ? { ...m, content: `[Engine error: ${event.payload}]` }
-              : m
-          )
-        );
-      });
-
-      unlistenFnsRef.current = [unlistenChunk, unlistenThinking, unlistenDone, unlistenError];
-
-      // Ensure we have a fresh JWT before making the request
-      console.log('[useEngineChat] ══════════════════════════════════════════');
-      console.log('[useEngineChat] 🚀 Starting sendMessage...');
-      console.log('[useEngineChat] Session ID:', sessionId);
-      console.log('[useEngineChat] Agent ID:', agent_id);
-      console.log('[useEngineChat] Message:', content);
-      console.log('[useEngineChat] Syncing session before chat...');
-      const syncResult = await syncSessionToEngine();
-      
-      if (!syncResult) {
-        const errorMsg = 'Failed to sync session — please sign in again';
-        console.error('[useEngineChat] ❌', errorMsg);
-        console.log('[useEngineChat] ══════════════════════════════════════════');
-        setError(errorMsg);
-        setStreaming(false);
-        setThinking(false);
-        setMessages(prev =>
-          prev.map(m =>
-            m.id === assistantIdRef.current && m.content === ''
-              ? { ...m, content: `[${errorMsg}]` }
-              : m
-          )
-        );
-        return;
+    const unlistenDone = await listen<StreamDonePayload>('engine:done', (event) => {
+      const data = event.payload;
+      setRemainingCalls(data.calls_remaining);
+      if (data.credits_remaining !== undefined && data.credits_remaining !== null) {
+        setCredits(data.credits_remaining);
       }
-      
-      console.log('[useEngineChat] Sync result:', syncResult);
-      console.log('[useEngineChat] ✅ Session synced successfully!');
+      setStreaming(false);
+      setThinking(false);
 
-      // Fire the streaming chat command
-      console.log('[useEngineChat] Invoking engine_chat_stream...');
-      await invoke('engine_chat_stream', {
-        req: {
-          session_id: sessionId,
-          agent_id: agent_id,
-          message: content,
-          max_tokens: null,
-        },
-      });
-      console.log('[useEngineChat] ✅ engine_chat_stream invoke completed');
-      console.log('[useEngineChat] ══════════════════════════════════════════');
+      // If streaming didn't populate content, set it from the event
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === assistantIdRef.current && m.content === ''
+            ? { ...m, content: data.content }
+            : m
+        )
+      );
 
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Engine chat failed';
+      // Reload from DB to capture tool call entries
+      const sid = sessionIdRef.current;
+      if (sid) {
+        invoke<EngineMessage[]>('engine_get_messages', { session_id: sid, limit: 50 })
+          .then(history => {
+            const currentA = agentIdRef.current;
+            const uiMessages: AgentMessage[] = history
+              .filter(m => m.role === 'user' || m.role === 'assistant' || m.role === 'tool')
+              .map(m => ({
+                id: m.id,
+                agentId: m.role === 'user' ? 'user' : m.role === 'tool' ? 'system' : (currentA ?? 'unknown'),
+                content: m.role === 'tool' && m.tool_name
+                  ? `🔧 **${m.tool_name}**\n${m.content}`
+                  : m.content,
+                timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+                type: m.role === 'user' ? 'user' as const : m.role === 'tool' ? 'system' as const : 'agent' as const,
+              }));
+            setMessages(uiMessages);
+          })
+          .catch(() => {});
+      }
+    });
+
+    const unlistenError = await listen<string>('engine:error', (event) => {
+      setError(event.payload);
+      setStreaming(false);
+      setThinking(false);
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === assistantIdRef.current && m.content === ''
+            ? { ...m, content: `[Engine error: ${event.payload}]` }
+            : m
+        )
+      );
+    });
+
+    unlistenFnsRef.current = [unlistenChunk, unlistenThinking, unlistenDone, unlistenError];
+
+    // ── Sync session and send ──
+    const syncResult = await syncSessionToEngine();
+    if (!syncResult) {
+      const errorMsg = 'Failed to sync session — please sign in again';
       setError(errorMsg);
       setStreaming(false);
       setThinking(false);
       setMessages(prev =>
         prev.map(m =>
           m.id === assistantIdRef.current && m.content === ''
-            ? { ...m, content: `[Error: ${errorMsg}]` }
+            ? { ...m, content: `[${errorMsg}]` }
             : m
         )
       );
+      return;
     }
-  }, [agent_id, sessionId]);
+
+    await invoke('engine_chat_stream', {
+      req: {
+        session_id: currentSessionId,
+        agent_id: currentAgentId,
+        message: content,
+        max_tokens: null,
+      },
+    });
+  }, [agent_id]); // only agent_id dependency — sessionId always read from ref
 
   return {
     messages,
@@ -349,5 +385,6 @@ export function useEngineChat(agent_id: string | null, user_id?: string): UseEng
     mode: 'engine',
     sessionId,
     loadSession,
+    createNewSession,
   };
 }

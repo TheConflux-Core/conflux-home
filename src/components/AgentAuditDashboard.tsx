@@ -1,8 +1,17 @@
-// Conflux Home — Agent Audit Dashboard
-// Mission 1224 Phase 4: Agent-vs-Agent Security
-// Viper attacks other agents, scores defense, generates report
+// Conflux Home — Agent Armor Dashboard (Consumer Redesign)
+// Mission 1224: Agent-vs-Agent Red Teaming — Made human-readable
 
 import React, { useState, useEffect, useCallback } from 'react';
+
+// ── Timeout wrapper — prevents invoke calls from hanging forever ──
+function invokeTimeout<T>(cmd: string, args?: Record<string, unknown>, ms = 5000): Promise<T> {
+  return Promise.race([
+    invoke<T>(cmd, args),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Command '${cmd}' timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
 import { invoke } from '@tauri-apps/api/core';
 
 // ── Types ──
@@ -47,53 +56,32 @@ interface AuditFinding {
   raw_data: unknown;
 }
 
-// ── Constants ──
+// ── Attack Type Plain Language ──
 
-const ATTACK_TYPE_ICONS: Record<string, string> = {
-  prompt_injection: '💉',
-  data_exfil: '📤',
-  priv_escalation: '⬆️',
-  instruction_override: '🔄',
-  social_engineering: '🎭',
+const ATTACK_META: Record<string, { icon: string; label: string; tagline: string; color: string }> = {
+  prompt_injection: { icon: '💉', label: 'Prompt Injection', tagline: 'Could someone trick this agent into ignoring its instructions?', color: '#ef4444' },
+  data_exfil: { icon: '📤', label: 'Data Exfiltration', tagline: 'Could this agent be tricked into sharing private information?', color: '#f59e0b' },
+  priv_escalation: { icon: '⬆️', label: 'Privilege Escalation', tagline: 'Could this agent gain capabilities it wasn\'t supposed to have?', color: '#8b5cf6' },
+  instruction_override: { icon: '🔄', label: 'Instruction Override', tagline: 'Could someone make this agent ignore its core purpose?', color: '#ec4899' },
+  social_engineering: { icon: '🎭', label: 'Social Engineering', tagline: 'Could this agent be manipulated through flattery, fear, or authority?', color: '#f97316' },
 };
 
-const ATTACK_TYPE_LABELS: Record<string, string> = {
-  prompt_injection: 'Prompt Injection',
-  data_exfil: 'Data Exfiltration',
-  priv_escalation: 'Privilege Escalation',
-  instruction_override: 'Instruction Override',
-  social_engineering: 'Social Engineering',
-};
+// ── Severity ──
 
-function scoreColor(score: number): string {
-  if (score >= 70) return '#22c55e';
-  if (score >= 40) return '#f59e0b';
-  return '#ef4444';
-}
-
-function scoreLabel(score: number): string {
-  if (score >= 90) return 'Excellent';
-  if (score >= 70) return 'Good';
-  if (score >= 40) return 'Vulnerable';
-  return 'Critical';
-}
-
-function severityColor(severity: string): string {
+function severityMeta(severity: string) {
   switch (severity) {
-    case 'pass': return '#22c55e';
-    case 'partial': return '#f59e0b';
-    case 'breach': return '#ef4444';
-    default: return '#6b7280';
+    case 'breach': return { icon: '🚨', label: 'Breached', color: '#ef4444', bg: '#ef444418' };
+    case 'partial': return { icon: '⚠️', label: 'Partial', color: '#f59e0b', bg: '#f59e0b18' };
+    case 'pass': return { icon: '✅', label: 'Blocked', color: '#22c55e', bg: '#22c55e18' };
+    default: return { icon: '📋', label: severity, color: '#64748b', bg: '#64748b18' };
   }
 }
 
-function severityIcon(severity: string): string {
-  switch (severity) {
-    case 'pass': return '✅';
-    case 'partial': return '⚠️';
-    case 'breach': return '🔴';
-    default: return '❓';
-  }
+function defenseLabel(score: number): string {
+  if (score >= 90) return 'Well Defended';
+  if (score >= 70) return 'Good Defense';
+  if (score >= 40) return 'Needs Improvement';
+  return 'Vulnerable';
 }
 
 // ── Component ──
@@ -101,14 +89,12 @@ function severityIcon(severity: string): string {
 export default function AgentAuditDashboard() {
   const [runs, setRuns] = useState<AuditRun[]>([]);
   const [selectedRun, setSelectedRun] = useState<AuditRun | null>(null);
-  const [results, setResults] = useState<AgentResult[]>([]);
-  const [selectedResult, setSelectedResult] = useState<AgentResult | null>(null);
+  const [agentResults, setAgentResults] = useState<AgentResult[]>([]);
   const [findings, setFindings] = useState<AuditFinding[]>([]);
-  const [filterType, setFilterType] = useState<string>('');
-  const [filterSeverity, setFilterSeverity] = useState<string>('');
+  const [selectedAgent, setSelectedAgent] = useState<AgentResult | null>(null);
   const [loading, setLoading] = useState(true);
-  const [auditing, setAuditing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'agents' | 'findings' | 'history'>('overview');
+  const [running, setRunning] = useState(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'agents' | 'findings'>('overview');
 
   const loadRuns = useCallback(async () => {
     try {
@@ -126,814 +112,376 @@ export default function AgentAuditDashboard() {
     if (!selectedRun) return;
     try {
       const data = await invoke<AgentResult[]>('agent_audit_get_results', { runId: selectedRun.id });
-      setResults(data);
-      if (data.length > 0 && !selectedResult) setSelectedResult(data[0]);
+      setAgentResults(data);
+      if (data.length > 0 && !selectedAgent) setSelectedAgent(data[0]);
     } catch (err) {
       console.error('[AgentAudit] Failed to load results:', err);
     }
-  }, [selectedRun, selectedResult]);
+  }, [selectedRun, selectedAgent]);
 
   const loadFindings = useCallback(async () => {
-    if (!selectedResult) return;
+    if (!selectedAgent) return;
     try {
-      const args: Record<string, string> = { resultId: selectedResult.id };
-      if (filterType) args.attackType = filterType;
-      const data = await invoke<AuditFinding[]>('agent_audit_get_findings', args);
-      setFindings(filterSeverity ? data.filter(f => f.severity === filterSeverity) : data);
+      const data = await invoke<AuditFinding[]>('agent_audit_get_findings', { resultId: selectedAgent.id });
+      setFindings(data);
     } catch (err) {
       console.error('[AgentAudit] Failed to load findings:', err);
     }
-  }, [selectedResult, filterType, filterSeverity]);
+  }, [selectedAgent]);
 
   useEffect(() => { loadRuns(); }, [loadRuns]);
   useEffect(() => { loadResults(); }, [loadResults]);
   useEffect(() => { loadFindings(); }, [loadFindings]);
 
-  const runAudit = async () => {
-    setAuditing(true);
+  const handleRun = async (runType: 'full' | 'quick') => {
+    setRunning(true);
     try {
-      const runId = await invoke<string>('agent_audit_run_full');
-      console.log('[AgentAudit] Audit complete:', runId);
+      const runId = await invoke<string>('agent_audit_run_full', { runType, agentIds: null });
+      console.log('[AgentAudit] Run complete:', runId);
       await loadRuns();
+      const data = await invoke<AuditRun[]>('agent_audit_get_runs', { limit: 1 });
+      if (data.length > 0) setSelectedRun(data[0]);
     } catch (err) {
-      console.error('[AgentAudit] Audit failed:', err);
+      console.error('[AgentAudit] Run failed:', err);
     } finally {
-      setAuditing(false);
+      setRunning(false);
     }
   };
 
-  const deleteRun = async (runId: string) => {
-    try {
-      await invoke('agent_audit_delete_run', { runId });
-      if (selectedRun?.id === runId) setSelectedRun(null);
-      await loadRuns();
-    } catch (err) {
-      console.error('[AgentAudit] Delete failed:', err);
-    }
-  };
+  const overallScore = selectedRun?.overall_score ?? null;
+  const passed = selectedRun?.agents_passed ?? 0;
+  const warnings = selectedRun?.agents_warning ?? 0;
+  const failed = selectedRun?.agents_failed ?? 0;
 
   if (loading) {
     return (
-      <div style={styles.container}>
-        <div style={styles.loading}>Loading agent audit data...</div>
+      <div style={s.container}>
+        <div style={s.loading}>
+          <div style={s.loadingIcon}>⚔️</div>
+          <div style={s.loadingText}>Running red team exercises...</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={styles.container}>
-      {/* Header */}
-      <div style={styles.header}>
-        <div style={styles.headerLeft}>
-          <span style={styles.headerIcon}>⚔️</span>
+    <div style={s.container}>
+      {/* ── Header ── */}
+      <div style={s.header}>
+        <div style={s.headerLeft}>
+          <span style={s.headerIcon}>⚔️</span>
           <div>
-            <h1 style={styles.title}>Agent Audit</h1>
-            <p style={styles.subtitle}>Agent-vs-Agent Security — Viper Red Team</p>
+            <h1 style={s.title}>Agent Armor</h1>
+            <p style={s.subtitle}>Red team vs. your agents — can they be tricked or manipulated?</p>
           </div>
         </div>
         <button
-          style={{ ...styles.runButton, ...(auditing ? styles.runButtonDisabled : {}) }}
-          onClick={runAudit}
-          disabled={auditing}
+          style={{ ...s.runBtn, ...(running ? s.runBtnDisabled : {}) }}
+          onClick={() => handleRun('full')}
+          disabled={running}
         >
-          {auditing ? '🔄 Running Audit...' : '🐍 Run Agent Audit'}
+          {running ? '⚔️ Testing Agents...' : '⚔️ Run Red Team Exercise'}
         </button>
       </div>
 
-      {/* Tabs */}
-      <div style={styles.tabs}>
-        {(['overview', 'agents', 'findings', 'history'] as const).map(tab => (
-          <button
-            key={tab}
-            style={{ ...styles.tab, ...(activeTab === tab ? styles.tabActive : {}) }}
-            onClick={() => setActiveTab(tab)}
-          >
-            {tab === 'overview' ? '📊 Overview' :
-             tab === 'agents' ? '🤖 Agents' :
-             tab === 'findings' ? '🔍 Findings' : '📜 History'}
-          </button>
-        ))}
-      </div>
-
-      {/* No data state */}
-      {!selectedRun && runs.length === 0 && (
-        <div style={styles.emptyState}>
-          <div style={styles.emptyIcon}>⚔️</div>
-          <h2 style={styles.emptyTitle}>No Agent Audits Yet</h2>
-          <p style={styles.emptyText}>
-            Run your first agent audit to test how well your AI agents resist
-            prompt injection, data exfiltration, and social engineering attacks.
-          </p>
-          <button style={styles.runButton} onClick={runAudit}>
-            🐍 Run First Audit
-          </button>
-        </div>
-      )}
-
-      {/* Overview Tab */}
-      {activeTab === 'overview' && selectedRun && (
-        <div style={styles.overview}>
-          {/* Overall Score Card */}
-          <div style={styles.scoreCard}>
-            <div style={styles.scoreCircle}>
-              <svg width="180" height="180" viewBox="0 0 180 180">
-                <circle cx="90" cy="90" r="80" fill="none" stroke="#1e293b" strokeWidth="12" />
+      {/* ── Hero Overview ── */}
+      {selectedRun && (
+        <div style={s.heroCard}>
+          <div style={s.heroLeft}>
+            <div style={s.heroRing}>
+              <svg width="110" height="110" viewBox="0 0 110 110">
+                <circle cx="55" cy="55" r="48" fill="none" stroke="#1e293b" strokeWidth="7" />
                 <circle
-                  cx="90" cy="90" r="80" fill="none"
-                  stroke={scoreColor(selectedRun.overall_score ?? 0)}
-                  strokeWidth="12"
+                  cx="55" cy="55" r="48" fill="none"
+                  stroke={defenseColor(overallScore)}
+                  strokeWidth="7"
                   strokeLinecap="round"
-                  strokeDasharray={`${((selectedRun.overall_score ?? 0) / 100) * 502.65} 502.65`}
-                  transform="rotate(-90 90 90)"
+                  strokeDasharray={`${((overallScore ?? 0) / 100) * 301.59} 301.59`}
+                  transform="rotate(-90 55 55)"
+                  style={{ transition: 'stroke-dasharray 0.8s ease' }}
                 />
-                <text x="90" y="82" textAnchor="middle" fill="white" fontSize="42" fontWeight="bold">
-                  {selectedRun.overall_score ?? '—'}
+                <text x="55" y="48" textAnchor="middle" fill={defenseColor(overallScore)} fontSize="26" fontWeight="bold">
+                  {overallScore ?? '—'}
                 </text>
-                <text x="90" y="105" textAnchor="middle" fill="#94a3b8" fontSize="13">
-                  DEFENSE SCORE
-                </text>
+                <text x="55" y="68" textAnchor="middle" fill="#64748b" fontSize="10">SCORE</text>
               </svg>
             </div>
-            <div style={styles.scoreDetails}>
-              <div style={styles.scoreLabel}>
-                {scoreLabel(selectedRun.overall_score ?? 0)} Defense
+            <div>
+              <div style={{ ...s.heroLabel, color: defenseColor(overallScore) }}>
+                {overallScore !== null ? defenseLabel(overallScore) : 'No score yet'}
               </div>
-              <div style={styles.scoreMeta}>
-                {selectedRun.total_agents} agents tested • {selectedRun.run_type} scan
+              <div style={s.heroSub}>
+                {selectedRun.total_agents} agents tested · {formatAge(selectedRun.started_at)}
               </div>
-              <div style={styles.statusRow}>
-                <span style={{ ...styles.statusBadge, background: '#22c55e22', color: '#22c55e' }}>
-                  ✅ {selectedRun.agents_passed} passed
-                </span>
-                <span style={{ ...styles.statusBadge, background: '#f59e0b22', color: '#f59e0b' }}>
-                  ⚠️ {selectedRun.agents_warning} warning
-                </span>
-                <span style={{ ...styles.statusBadge, background: '#ef444422', color: '#ef4444' }}>
-                  🔴 {selectedRun.agents_failed} failed
-                </span>
+              <div style={s.heroSub}>
+                {ATTACK_META['prompt_injection']?.icon} {ATTACK_META['data_exfil']?.icon} {ATTACK_META['priv_escalation']?.icon} {ATTACK_META['social_engineering']?.icon} 5 attack vectors
               </div>
             </div>
           </div>
-
-          {/* Agent Score Cards */}
-          <div style={styles.agentGrid}>
-            {results.map(r => (
-              <div
-                key={r.id}
-                style={{
-                  ...styles.agentCard,
-                  borderColor: selectedResult?.id === r.id ? scoreColor(r.defense_score) : '#1e293b',
-                }}
-                onClick={() => setSelectedResult(r)}
-              >
-                <div style={styles.agentCardHeader}>
-                  <span style={styles.agentEmoji}>{r.agent_emoji}</span>
-                  <span style={styles.agentName}>{r.agent_name}</span>
-                </div>
-                <div style={styles.agentScore}>
-                  <span style={{ color: scoreColor(r.defense_score), fontSize: '28px', fontWeight: 'bold' }}>
-                    {r.defense_score}
-                  </span>
-                  <span style={styles.agentScoreLabel}>/100</span>
-                </div>
-                <div style={styles.agentStats}>
-                  <span style={{ color: '#22c55e' }}>✅ {r.blocked_count}</span>
-                  <span style={{ color: '#f59e0b' }}>⚠️ {r.partial_count}</span>
-                  <span style={{ color: '#ef4444' }}>🔴 {r.breached_count}</span>
-                </div>
-                <div style={styles.agentBar}>
-                  <div style={{ ...styles.agentBarFill, background: '#22c55e', width: `${(r.blocked_count / r.total_attacks) * 100}%` }} />
-                  <div style={{ ...styles.agentBarFill, background: '#f59e0b', width: `${(r.partial_count / r.total_attacks) * 100}%` }} />
-                  <div style={{ ...styles.agentBarFill, background: '#ef4444', width: `${(r.breached_count / r.total_attacks) * 100}%` }} />
-                </div>
-              </div>
-            ))}
+          <div style={s.heroStats}>
+            {passed > 0 && <div style={{ ...s.statChip, borderColor: '#22c55e' }}><span style={{ ...s.statNum, color: '#22c55e' }}>{passed}</span><span style={s.statLabel}>Well Defended</span></div>}
+            {warnings > 0 && <div style={{ ...s.statChip, borderColor: '#f59e0b' }}><span style={{ ...s.statNum, color: '#f59e0b' }}>{warnings}</span><span style={s.statLabel}>Needs Work</span></div>}
+            {failed > 0 && <div style={{ ...s.statChip, borderColor: '#ef4444' }}><span style={{ ...s.statNum, color: '#ef4444' }}>{failed}</span><span style={s.statLabel}>Vulnerable</span></div>}
           </div>
         </div>
       )}
 
-      {/* Agents Tab */}
-      {activeTab === 'agents' && selectedRun && (
-        <div style={styles.agentsTab}>
-          {results.map(r => (
+      {!selectedRun && (
+        <div style={s.noRun}>
+          <div style={s.noRunIcon}>⚔️</div>
+          <h3 style={s.noRunTitle}>Agent Armor Test</h3>
+          <p style={s.noRunText}>
+            Agent Armor runs simulated attacks against your agents — prompt injection attempts, data exfiltration tries, social engineering, privilege escalation — to see which ones hold up and which ones fold.
+          </p>
+          <button style={{ ...s.runBtn, background: '#f59e0b', borderColor: '#f59e0b' }} onClick={() => handleRun('full')}>
+            ⚔️ Run First Test
+          </button>
+        </div>
+      )}
+
+      {/* ── Tabs ── */}
+      {selectedRun && (
+        <div style={s.tabs}>
+          <button style={{ ...s.tab, ...(activeTab === 'overview' ? s.tabActive : {}) }} onClick={() => setActiveTab('overview')}>
+            📋 Agent Results ({agentResults.length})
+          </button>
+          <button style={{ ...s.tab, ...(activeTab === 'agents' ? s.tabActive : {}) }} onClick={() => setActiveTab('agents')}>
+            🛡️ By Attack Type
+          </button>
+          <button style={{ ...s.tab, ...(activeTab === 'findings' ? s.tabActive : {}) }} onClick={() => setActiveTab('findings')}>
+            🔍 All Findings ({findings.length})
+          </button>
+        </div>
+      )}
+
+      {/* ── Tab Content ── */}
+      {activeTab === 'overview' && (
+        <div style={s.agentGrid}>
+          {agentResults.map(result => (
             <div
-              key={r.id}
+              key={result.id}
               style={{
-                ...styles.agentDetailCard,
-                borderColor: selectedResult?.id === r.id ? scoreColor(r.defense_score) : '#1e293b',
+                ...s.agentCard,
+                borderColor: defenseColor(result.defense_score) + '44',
+                ...(selectedAgent?.id === result.id ? { borderColor: defenseColor(result.defense_score), boxShadow: `0 0 20px ${defenseColor(result.defense_score)}22` } : {}),
               }}
-              onClick={() => { setSelectedResult(r); setActiveTab('findings'); }}
+              onClick={() => { setSelectedAgent(result); setActiveTab('findings'); }}
             >
-              <div style={styles.agentDetailHeader}>
-                <span style={styles.agentEmoji}>{r.agent_emoji}</span>
-                <div>
-                  <div style={styles.agentName}>{r.agent_name}</div>
-                  <div style={styles.agentId}>ID: {r.agent_id}</div>
+              <div style={s.agentCardTop}>
+                <span style={s.agentEmoji}>{result.agent_emoji}</span>
+                <div style={s.agentInfo}>
+                  <div style={s.agentName}>{result.agent_name}</div>
+                  <div style={s.agentSub}>ID: {result.agent_id}</div>
                 </div>
-                <div style={{ ...styles.agentDetailScore, color: scoreColor(r.defense_score) }}>
-                  {r.defense_score}
-                </div>
-              </div>
-              <div style={styles.agentDetailBar}>
-                <div style={{ ...styles.agentBarSegment, background: '#22c55e', flex: r.blocked_count }}>
-                  {r.blocked_count > 0 && `${r.blocked_count} blocked`}
-                </div>
-                <div style={{ ...styles.agentBarSegment, background: '#f59e0b', flex: r.partial_count }}>
-                  {r.partial_count > 0 && `${r.partial_count} partial`}
-                </div>
-                <div style={{ ...styles.agentBarSegment, background: '#ef4444', flex: r.breached_count }}>
-                  {r.breached_count > 0 && `${r.breached_count} breached`}
+                <div style={{ ...s.agentScore, color: defenseColor(result.defense_score) }}>
+                  {result.defense_score}
                 </div>
               </div>
-              <div style={styles.agentDetailMeta}>
-                {r.total_attacks} attacks • {scoreLabel(r.defense_score)} defense
+              <div style={s.agentCardStats}>
+                <span style={{ color: '#22c55e' }}>✅ {result.blocked_count} blocked</span>
+                <span style={{ color: '#f59e0b' }}>⚠️ {result.partial_count} partial</span>
+                <span style={{ color: '#ef4444' }}>🚨 {result.breached_count} breached</span>
               </div>
             </div>
           ))}
+          {agentResults.length === 0 && (
+            <div style={s.emptyState}><div style={s.emptyIcon}>🤖</div><h3 style={s.emptyTitle}>No agent results yet</h3></div>
+          )}
         </div>
       )}
 
-      {/* Findings Tab */}
-      {activeTab === 'findings' && selectedResult && (
-        <div style={styles.findingsTab}>
-          <div style={styles.findingsHeader}>
-            <span style={styles.agentEmoji}>{selectedResult.agent_emoji}</span>
-            <h3 style={styles.findingsTitle}>
-              {selectedResult.agent_name} — Defense Score: {selectedResult.defense_score}/100
-            </h3>
-          </div>
+      {activeTab === 'agents' && (
+        <div style={s.attackGrid}>
+          {Object.entries(ATTACK_META).map(([key, meta]) => {
+            const relevantFindings = findings.filter(f => f.attack_type === key);
+            const breaches = relevantFindings.filter(f => f.severity === 'breach').length;
+            const partials = relevantFindings.filter(f => f.severity === 'partial').length;
+            const passed = relevantFindings.filter(f => f.severity === 'pass').length;
+            const total = relevantFindings.length;
 
-          {/* Filters */}
-          <div style={styles.filters}>
-            <select
-              style={styles.filterSelect}
-              value={filterType}
-              onChange={e => setFilterType(e.target.value)}
-            >
-              <option value="">All Attack Types</option>
-              {Object.entries(ATTACK_TYPE_LABELS).map(([key, label]) => (
-                <option key={key} value={key}>{ATTACK_TYPE_ICONS[key]} {label}</option>
-              ))}
-            </select>
-            <select
-              style={styles.filterSelect}
-              value={filterSeverity}
-              onChange={e => setFilterSeverity(e.target.value)}
-            >
-              <option value="">All Severities</option>
-              <option value="breach">🔴 Breached</option>
-              <option value="partial">⚠️ Partial</option>
-              <option value="pass">✅ Passed</option>
-            </select>
-          </div>
-
-          {/* Findings list */}
-          <div style={styles.findingsList}>
-            {findings.map(f => (
-              <FindingCard key={f.id} finding={f} />
-            ))}
-            {findings.length === 0 && (
-              <div style={styles.noFindings}>
-                No findings match the current filters.
+            return (
+              <div key={key} style={s.attackCard}>
+                <div style={s.attackCardHeader}>
+                  <span style={s.attackIcon}>{meta.icon}</span>
+                  <div>
+                    <div style={s.attackLabel}>{meta.label}</div>
+                    <div style={s.attackTagline}>{meta.tagline}</div>
+                  </div>
+                </div>
+                {total === 0 ? (
+                  <div style={s.attackEmpty}>No results yet — run a test to see how agents handle this attack</div>
+                ) : (
+                  <>
+                    <div style={s.attackCounts}>
+                      <span style={{ color: '#22c55e' }}>✅ {passed}/{total}</span>
+                      {partials > 0 && <span style={{ color: '#f59e0b' }}>⚠️ {partials}</span>}
+                      {breaches > 0 && <span style={{ color: '#ef4444' }}>🚨 {breaches}</span>}
+                    </div>
+                    <div style={s.attackBar}>
+                      <div style={{ ...s.attackBarFill, width: `${(passed / total) * 100}%`, background: '#22c55e' }} />
+                      <div style={{ ...s.attackBarFill, width: `${(partials / total) * 100}%`, background: '#f59e0b' }} />
+                      <div style={{ ...s.attackBarFill, width: `${(breaches / total) * 100}%`, background: '#ef4444' }} />
+                    </div>
+                    <div style={s.attackLegend}>
+                      <span style={{ color: '#22c55e', fontSize: 12 }}>■ Blocked</span>
+                      <span style={{ color: '#f59e0b', fontSize: 12 }}>■ Partial</span>
+                      <span style={{ color: '#ef4444', fontSize: 12 }}>■ Breached</span>
+                    </div>
+                  </>
+                )}
               </div>
-            )}
-          </div>
+            );
+          })}
         </div>
       )}
 
-      {/* History Tab */}
-      {activeTab === 'history' && (
-        <div style={styles.historyTab}>
-          {runs.map(run => (
-            <div
-              key={run.id}
-              style={{
-                ...styles.historyCard,
-                borderColor: selectedRun?.id === run.id ? '#3b82f6' : '#1e293b',
-              }}
-              onClick={() => setSelectedRun(run)}
-            >
-              <div style={styles.historyHeader}>
-                <div>
-                  <div style={styles.historyDate}>
-                    {new Date(run.started_at).toLocaleDateString()} {' '}
-                    {new Date(run.started_at).toLocaleTimeString()}
-                  </div>
-                  <div style={styles.historyMeta}>
-                    {run.run_type} • {run.total_agents} agents • {run.status}
+      {activeTab === 'findings' && (
+        <div style={s.findingsList}>
+          {findings.map(f => {
+            const meta = severityMeta(f.severity);
+            const attackMeta = ATTACK_META[f.attack_type] ?? { icon: '⚔️', label: f.attack_type };
+            return (
+              <div key={f.id} style={{ ...s.findingCard, borderLeft: `3px solid ${meta.color}` }}>
+                <div style={s.findingHeader}>
+                  <div style={s.findingLeft}>
+                    <span style={s.findingIcon}>{meta.icon}</span>
+                    <div>
+                      <div style={s.findingTitle}>{f.attack_name}</div>
+                      <div style={s.findingMeta}>
+                        {attackMeta.icon} {attackMeta.label} · <span style={{ color: meta.color }}>{meta.label}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div style={{ ...styles.historyScore, color: scoreColor(run.overall_score ?? 0) }}>
-                  {run.overall_score ?? '—'}
-                </div>
+                <div style={s.findingDesc}>{f.description}</div>
+                {f.remediation && (
+                  <div style={s.findingRemed}>
+                    <strong style={{ color: '#a5b4fc' }}>💡 How to harden:</strong> {f.remediation}
+                  </div>
+                )}
               </div>
-              <div style={styles.historyStats}>
-                <span style={{ color: '#22c55e' }}>✅ {run.agents_passed}</span>
-                <span style={{ color: '#f59e0b' }}>⚠️ {run.agents_warning}</span>
-                <span style={{ color: '#ef4444' }}>🔴 {run.agents_failed}</span>
-              </div>
-              <button
-                style={styles.deleteButton}
-                onClick={e => { e.stopPropagation(); deleteRun(run.id); }}
-              >
-                🗑️
-              </button>
+            );
+          })}
+          {findings.length === 0 && selectedAgent && (
+            <div style={s.emptyState}>
+              <div style={s.emptyIcon}>🛡️</div>
+              <h3 style={s.emptyTitle}>No findings for this agent</h3>
+              <p style={s.emptyText}>Either this agent passed all tests or no test was run yet. Click an agent above to see its test results.</p>
             </div>
-          ))}
+          )}
+          {!selectedAgent && (
+            <div style={s.emptyState}>
+              <div style={s.emptyIcon}>👆</div>
+              <h3 style={s.emptyTitle}>Select an agent</h3>
+              <p style={s.emptyText}>Click an agent card above to see its individual attack findings.</p>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-// ── Finding Card (expandable) ──
+// ── Helpers ──
 
-function FindingCard({ finding }: { finding: AuditFinding }) {
-  const [expanded, setExpanded] = useState(false);
+function defenseColor(score: number | null): string {
+  if (score === null) return '#64748b';
+  if (score >= 70) return '#22c55e';
+  if (score >= 40) return '#f59e0b';
+  return '#ef4444';
+}
 
-  return (
-    <div
-      style={{
-        ...styles.findingCard,
-        borderLeftColor: severityColor(finding.severity),
-      }}
-    >
-      <div style={styles.findingHeader} onClick={() => setExpanded(!expanded)}>
-        <span style={styles.findingSeverity}>{severityIcon(finding.severity)}</span>
-        <span style={styles.findingIcon}>
-          {ATTACK_TYPE_ICONS[finding.attack_type] || '🔍'}
-        </span>
-        <div style={styles.findingInfo}>
-          <div style={styles.findingName}>{finding.attack_name.replace(/_/g, ' ')}</div>
-          <div style={styles.findingType}>
-            {ATTACK_TYPE_LABELS[finding.attack_type] || finding.attack_type}
-          </div>
-        </div>
-        <span style={{ ...styles.findingSeverityBadge, background: severityColor(finding.severity) + '22', color: severityColor(finding.severity) }}>
-          {finding.severity.toUpperCase()}
-        </span>
-        <span style={styles.expandIcon}>{expanded ? '▼' : '▶'}</span>
-      </div>
-
-      <div style={styles.findingDescription}>{finding.description}</div>
-
-      {expanded && (
-        <div style={styles.findingExpanded}>
-          <div style={styles.findingSection}>
-            <div style={styles.findingSectionTitle}>🎯 Attack Prompt</div>
-            <pre style={styles.findingCode}>{finding.attack_prompt}</pre>
-          </div>
-
-          {finding.agent_response && (
-            <div style={styles.findingSection}>
-              <div style={styles.findingSectionTitle}>🤖 Agent Response</div>
-              <pre style={styles.findingCode}>{finding.agent_response}</pre>
-            </div>
-          )}
-
-          {finding.indicator && (
-            <div style={styles.findingSection}>
-              <div style={styles.findingSectionTitle}>🔍 Detection Indicator</div>
-              <div style={styles.findingIndicator}>{finding.indicator}</div>
-            </div>
-          )}
-
-          {finding.remediation && (
-            <div style={styles.findingSection}>
-              <div style={styles.findingSectionTitle}>🔧 Remediation</div>
-              <div style={styles.findingRemediation}>{finding.remediation}</div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+function formatAge(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    return d.toLocaleDateString();
+  } catch { return iso; }
 }
 
 // ── Styles ──
 
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    padding: '24px',
-    maxWidth: '1200px',
-    margin: '0 auto',
-    color: '#e2e8f0',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-  },
-  loading: {
-    textAlign: 'center',
-    padding: '48px',
-    color: '#94a3b8',
-    fontSize: '16px',
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '24px',
-  },
-  headerLeft: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-  },
-  headerIcon: {
-    fontSize: '32px',
-  },
-  title: {
-    fontSize: '24px',
-    fontWeight: 'bold',
-    margin: 0,
-    color: '#f1f5f9',
-  },
-  subtitle: {
-    fontSize: '14px',
-    color: '#94a3b8',
-    margin: 0,
-  },
-  runButton: {
-    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    padding: '10px 20px',
-    fontSize: '14px',
-    fontWeight: 600,
-    cursor: 'pointer',
-    transition: 'opacity 0.2s',
-  },
-  runButtonDisabled: {
-    opacity: 0.6,
-    cursor: 'not-allowed',
-  },
-  tabs: {
-    display: 'flex',
-    gap: '4px',
-    marginBottom: '24px',
-    borderBottom: '1px solid #1e293b',
-    paddingBottom: '12px',
-  },
-  tab: {
-    background: 'transparent',
-    color: '#94a3b8',
-    border: 'none',
-    padding: '8px 16px',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    transition: 'all 0.2s',
-  },
-  tabActive: {
-    background: '#1e293b',
-    color: '#f1f5f9',
-  },
+const s: Record<string, React.CSSProperties> = {
+  container: { padding: '24px 28px', maxWidth: '900px', margin: '0 auto', color: '#e2e8f0', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
+  loading: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: 12 },
+  loadingIcon: { fontSize: 56, animation: 'pulse 2s infinite' },
+  loadingText: { color: '#64748b', fontSize: 15 },
 
-  // Overview
-  overview: {},
-  scoreCard: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '32px',
-    background: '#0f172a',
-    border: '1px solid #1e293b',
-    borderRadius: '12px',
-    padding: '24px',
-    marginBottom: '24px',
-  },
-  scoreCircle: {},
-  scoreDetails: {
-    flex: 1,
-  },
-  scoreLabel: {
-    fontSize: '20px',
-    fontWeight: 'bold',
-    color: '#f1f5f9',
-    marginBottom: '8px',
-  },
-  scoreMeta: {
-    fontSize: '14px',
-    color: '#94a3b8',
-    marginBottom: '16px',
-  },
-  statusRow: {
-    display: 'flex',
-    gap: '12px',
-  },
-  statusBadge: {
-    padding: '4px 12px',
-    borderRadius: '6px',
-    fontSize: '13px',
-    fontWeight: 500,
-  },
+  // Header
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 },
+  headerLeft: { display: 'flex', alignItems: 'center', gap: 12 },
+  headerIcon: { fontSize: 36 },
+  title: { fontSize: 26, fontWeight: 700, margin: 0, color: '#f1f5f9' },
+  subtitle: { fontSize: 14, color: '#64748b', margin: '2px 0 0 0' },
+  runBtn: { padding: '10px 20px', background: '#1e293b', border: '1px solid #f59e0b', borderRadius: 8, color: '#f1f5f9', cursor: 'pointer', fontSize: 14, fontWeight: 700, transition: 'all 0.15s' },
+  runBtnDisabled: { opacity: 0.5, cursor: 'not-allowed' },
+
+  // Hero
+  heroCard: { background: '#0f172a', border: '1px solid #1e293b', borderRadius: 16, padding: '24px 28px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap' as const },
+  heroLeft: { display: 'flex', alignItems: 'center', gap: 20, flex: 1, minWidth: 0 },
+  heroRing: { flexShrink: 0 },
+  heroLabel: { fontSize: 20, fontWeight: 700, marginBottom: 4 },
+  heroSub: { fontSize: 13, color: '#64748b', marginTop: 4 },
+  heroStats: { display: 'flex', gap: 10 },
+  statChip: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', padding: '10px 16px', background: '#0f172a', border: '1px solid', borderRadius: 10, minWidth: 72 },
+  statNum: { fontSize: 24, fontWeight: 700 },
+  statLabel: { fontSize: 11, color: '#64748b', marginTop: 2 },
+
+  // No run
+  noRun: { textAlign: 'center' as const, padding: '48px 24px', background: '#0f172a', border: '1px solid #1e293b', borderRadius: 16 },
+  noRunIcon: { fontSize: 56, marginBottom: 16 },
+  noRunTitle: { fontSize: 18, fontWeight: 700, color: '#f1f5f9', marginBottom: 8 },
+  noRunText: { fontSize: 14, color: '#64748b', maxWidth: 460, margin: '0 auto 20px', lineHeight: 1.6 },
+
+  // Tabs
+  tabs: { display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid #1e293b', paddingBottom: 12 },
+  tab: { padding: '8px 16px', background: 'transparent', border: 'none', borderBottom: '2px solid transparent', color: '#64748b', cursor: 'pointer', fontSize: 14, fontWeight: 500, borderRadius: 6 },
+  tabActive: { color: '#f1f5f9', borderBottomColor: '#f59e0b', background: '#1e293b' },
 
   // Agent Grid
-  agentGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-    gap: '16px',
-  },
-  agentCard: {
-    background: '#0f172a',
-    border: '2px solid #1e293b',
-    borderRadius: '12px',
-    padding: '16px',
-    cursor: 'pointer',
-    transition: 'border-color 0.2s',
-  },
-  agentCardHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    marginBottom: '12px',
-  },
-  agentEmoji: {
-    fontSize: '24px',
-  },
-  agentName: {
-    fontSize: '16px',
-    fontWeight: 600,
-    color: '#f1f5f9',
-  },
-  agentScore: {
-    marginBottom: '8px',
-  },
-  agentScoreLabel: {
-    fontSize: '14px',
-    color: '#64748b',
-    marginLeft: '4px',
-  },
-  agentStats: {
-    display: 'flex',
-    gap: '12px',
-    fontSize: '13px',
-    marginBottom: '8px',
-  },
-  agentBar: {
-    display: 'flex',
-    height: '6px',
-    borderRadius: '3px',
-    overflow: 'hidden',
-    background: '#1e293b',
-  },
-  agentBarFill: {
-    height: '100%',
-    transition: 'width 0.3s',
-  },
+  agentGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 },
+  agentCard: { background: '#0f172a', border: '2px solid', borderRadius: 12, padding: 16, cursor: 'pointer', transition: 'all 0.15s' },
+  agentCardTop: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 },
+  agentEmoji: { fontSize: 28 },
+  agentInfo: { flex: 1, minWidth: 0 },
+  agentName: { fontSize: 15, fontWeight: 700, color: '#f1f5f9' },
+  agentSub: { fontSize: 11, color: '#475569' },
+  agentScore: { fontSize: 28, fontWeight: 700 },
+  agentCardStats: { display: 'flex', gap: 8, fontSize: 12, fontWeight: 600 },
 
-  // Agents Tab
-  agentsTab: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px',
-  },
-  agentDetailCard: {
-    background: '#0f172a',
-    border: '2px solid #1e293b',
-    borderRadius: '12px',
-    padding: '16px',
-    cursor: 'pointer',
-    transition: 'border-color 0.2s',
-  },
-  agentDetailHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    marginBottom: '12px',
-  },
-  agentDetailScore: {
-    marginLeft: 'auto',
-    fontSize: '32px',
-    fontWeight: 'bold',
-  },
-  agentId: {
-    fontSize: '12px',
-    color: '#64748b',
-  },
-  agentDetailBar: {
-    display: 'flex',
-    height: '24px',
-    borderRadius: '6px',
-    overflow: 'hidden',
-    marginBottom: '8px',
-  },
-  agentBarSegment: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '11px',
-    fontWeight: 600,
-    color: 'white',
-    minWidth: '0',
-    transition: 'flex 0.3s',
-  },
-  agentDetailMeta: {
-    fontSize: '13px',
-    color: '#94a3b8',
-    textAlign: 'center',
-  },
+  // Attack Grid
+  attackGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 },
+  attackCard: { background: '#0f172a', border: '1px solid #1e293b', borderRadius: 12, padding: 16 },
+  attackCardHeader: { display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10 },
+  attackIcon: { fontSize: 24, flexShrink: 0 },
+  attackLabel: { fontSize: 15, fontWeight: 700, color: '#f1f5f9' },
+  attackTagline: { fontSize: 12, color: '#64748b', marginTop: 2, lineHeight: 1.4 },
+  attackEmpty: { fontSize: 12, color: '#475569', fontStyle: 'italic', lineHeight: 1.5 },
+  attackCounts: { display: 'flex', gap: 10, fontSize: 13, fontWeight: 600, marginBottom: 8 },
+  attackBar: { display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden', gap: 2, marginBottom: 6 },
+  attackBarFill: { height: '100%', borderRadius: 3 },
+  attackLegend: { display: 'flex', gap: 8 },
 
-  // Findings Tab
-  findingsTab: {},
-  findingsHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    marginBottom: '16px',
-  },
-  findingsTitle: {
-    fontSize: '18px',
-    fontWeight: 600,
-    margin: 0,
-    color: '#f1f5f9',
-  },
-  filters: {
-    display: 'flex',
-    gap: '12px',
-    marginBottom: '16px',
-  },
-  filterSelect: {
-    background: '#0f172a',
-    color: '#e2e8f0',
-    border: '1px solid #334155',
-    borderRadius: '6px',
-    padding: '8px 12px',
-    fontSize: '14px',
-  },
-  findingsList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-  },
-  noFindings: {
-    textAlign: 'center',
-    padding: '32px',
-    color: '#64748b',
-  },
-  findingCard: {
-    background: '#0f172a',
-    border: '1px solid #1e293b',
-    borderLeft: '4px solid',
-    borderRadius: '8px',
-    overflow: 'hidden',
-  },
-  findingHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '12px 16px',
-    cursor: 'pointer',
-  },
-  findingSeverity: {
-    fontSize: '16px',
-  },
-  findingIcon: {
-    fontSize: '18px',
-  },
-  findingInfo: {
-    flex: 1,
-  },
-  findingName: {
-    fontSize: '14px',
-    fontWeight: 600,
-    color: '#f1f5f9',
-    textTransform: 'capitalize',
-  },
-  findingType: {
-    fontSize: '12px',
-    color: '#94a3b8',
-  },
-  findingSeverityBadge: {
-    padding: '2px 8px',
-    borderRadius: '4px',
-    fontSize: '11px',
-    fontWeight: 700,
-  },
-  expandIcon: {
-    color: '#64748b',
-    fontSize: '12px',
-  },
-  findingDescription: {
-    padding: '0 16px 12px',
-    fontSize: '13px',
-    color: '#94a3b8',
-    lineHeight: 1.5,
-  },
-  findingExpanded: {
-    borderTop: '1px solid #1e293b',
-    padding: '16px',
-  },
-  findingSection: {
-    marginBottom: '16px',
-  },
-  findingSectionTitle: {
-    fontSize: '12px',
-    fontWeight: 600,
-    color: '#94a3b8',
-    textTransform: 'uppercase',
-    marginBottom: '8px',
-  },
-  findingCode: {
-    background: '#020617',
-    border: '1px solid #1e293b',
-    borderRadius: '6px',
-    padding: '12px',
-    fontSize: '13px',
-    color: '#e2e8f0',
-    whiteSpace: 'pre-wrap',
-    wordBreak: 'break-word' as const,
-    maxHeight: '200px',
-    overflow: 'auto',
-    fontFamily: '"SF Mono", Monaco, Consolas, monospace',
-    lineHeight: 1.5,
-  },
-  findingIndicator: {
-    background: '#1e293b',
-    borderRadius: '6px',
-    padding: '8px 12px',
-    fontSize: '13px',
-    color: '#fbbf24',
-  },
-  findingRemediation: {
-    background: '#0f2922',
-    border: '1px solid #134e4a',
-    borderRadius: '6px',
-    padding: '12px',
-    fontSize: '13px',
-    color: '#6ee7b7',
-    lineHeight: 1.5,
-  },
+  // Findings
+  findingsList: { display: 'flex', flexDirection: 'column' as const, gap: 8 },
+  findingCard: { background: '#0f172a', borderRadius: 10, padding: '12px 16px' },
+  findingHeader: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 },
+  findingLeft: { display: 'flex', alignItems: 'center', gap: 10, flex: 1 },
+  findingIcon: { fontSize: 20, flexShrink: 0 },
+  findingTitle: { fontSize: 14, fontWeight: 500, color: '#e2e8f0' },
+  findingMeta: { fontSize: 12, color: '#64748b', marginTop: 2 },
+  findingDesc: { fontSize: 13, color: '#94a3b8', lineHeight: 1.5, marginBottom: 8 },
+  findingRemed: { background: '#1e293b', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#c4b5fd', lineHeight: 1.5 },
 
-  // History Tab
-  historyTab: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-  },
-  historyCard: {
-    background: '#0f172a',
-    border: '2px solid #1e293b',
-    borderRadius: '10px',
-    padding: '16px',
-    cursor: 'pointer',
-    position: 'relative',
-    transition: 'border-color 0.2s',
-  },
-  historyHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: '8px',
-  },
-  historyDate: {
-    fontSize: '14px',
-    fontWeight: 600,
-    color: '#f1f5f9',
-  },
-  historyMeta: {
-    fontSize: '12px',
-    color: '#94a3b8',
-  },
-  historyScore: {
-    fontSize: '28px',
-    fontWeight: 'bold',
-  },
-  historyStats: {
-    display: 'flex',
-    gap: '16px',
-    fontSize: '13px',
-  },
-  deleteButton: {
-    position: 'absolute',
-    top: '8px',
-    right: '8px',
-    background: 'transparent',
-    border: 'none',
-    cursor: 'pointer',
-    fontSize: '16px',
-    opacity: 0.5,
-    transition: 'opacity 0.2s',
-  },
-
-  // Empty State
-  emptyState: {
-    textAlign: 'center',
-    padding: '64px 24px',
-  },
-  emptyIcon: {
-    fontSize: '64px',
-    marginBottom: '16px',
-  },
-  emptyTitle: {
-    fontSize: '22px',
-    fontWeight: 600,
-    color: '#f1f5f9',
-    marginBottom: '12px',
-  },
-  emptyText: {
-    fontSize: '15px',
-    color: '#94a3b8',
-    maxWidth: '500px',
-    margin: '0 auto 24px',
-    lineHeight: 1.6,
-  },
+  // Empty
+  emptyState: { textAlign: 'center' as const, padding: '48px 24px' },
+  emptyIcon: { fontSize: 52, marginBottom: 14 },
+  emptyTitle: { fontSize: 17, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 },
+  emptyText: { fontSize: 14, color: '#64748b', lineHeight: 1.5 },
 };

@@ -45,7 +45,7 @@ export interface PipelineStatus {
   uptime: string;
 }
 
-export type View = 'dashboard' | 'chat' | 'google' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen' | 'budget' | 'feed' | 'life' | 'home' | 'dreams' | 'echo' | 'vault' | 'studio' | 'api-dashboard' | 'security' | 'aegis' | 'viper' | 'agent-audit' | 'siem';
+export type View = 'dashboard' | 'chat' | 'google' | 'marketplace' | 'settings' | 'onboarding' | 'games' | 'agents' | 'kitchen' | 'budget' | 'feed' | 'life' | 'home' | 'dreams' | 'echo' | 'vault' | 'studio' | 'api-dashboard' | 'security' | 'security-hub' | 'aegis' | 'viper' | 'agent-audit' | 'siem';
 
 // Agent accent colors for avatar rendering
 export const AGENT_COLORS: Record<string, string> = {
@@ -1308,6 +1308,7 @@ export interface LifeNudge {
 export interface OrbitDashboard {
   today_focus: LifeDailyFocus[];
   pending_tasks: LifeTask[];
+  completed_tasks: LifeTask[];
   active_habits: LifeHabit[];
   nudges: LifeNudge[];
   streak_total: number;

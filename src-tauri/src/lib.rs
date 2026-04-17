@@ -91,8 +91,10 @@ pub fn run() {
 
             let db_path = app_data_dir.join("conflux.db");
             match engine::init_engine(&db_path) {
-                Ok(_) => {
+                Ok(engine_ref) => {
                     log::info!("Conflux Engine initialized at {:?}", db_path);
+                    // Store app_handle for real-time Tauri events and notifications
+                    engine_ref.set_app_handle(app.handle().clone());
                     // Initialize Echo Counselor tables
                     if let Err(e) = engine::echo_counselor::init() {
                         log::error!("[Setup] Failed to initialize Echo Counselor: {}", e);
@@ -529,6 +531,7 @@ pub fn run() {
             commands::vault_add_file_to_project,
             commands::vault_remove_file_from_project,
             commands::vault_delete_project,
+            commands::vault_edit_project,
             commands::vault_get_tags,
             commands::vault_tag_file,
             commands::vault_untag_file,
@@ -640,6 +643,8 @@ pub fn run() {
             stripe::stripe_create_portal_session,
             stripe::stripe_get_subscription,
             stripe::stripe_get_prices,
+            commands::test_ping,
+            commands::test_db_ping,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

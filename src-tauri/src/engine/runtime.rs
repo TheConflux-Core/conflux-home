@@ -9,10 +9,23 @@ use super::cloud;
 use super::db::EngineDb;
 use super::router::ModelResponse;
 use super::router::OpenAIMessage;
+use super::security::events::{self, EventCategory, EventType};
+use super::security::permissions;
 use super::state_events::ConfluxState;
 use super::tools;
 
 const MAX_TOOL_ITERATIONS: usize = 3;
+/// Maximum tools to send per request. Anthropic Claude caps at 128.
+const MAX_TOOLS_PER_REQUEST: usize = 128;
+
+/// Helper: create a ToolResult from a message string.
+fn tool_result_msg(success: bool, output: String) -> tools::ToolResult {
+    tools::ToolResult {
+        success,
+        output,
+        error: None,
+    }
+}
 
 /// Helper: Extract user_id from session record, or fall back to get_supabase_user_id.
 fn get_session_user_id(db: &EngineDb, session_id: &str) -> String {
@@ -130,6 +143,11 @@ pub async fn process_turn(
     let mut tool_defs = tools::get_tool_definitions();
     tool_defs.extend(tools::get_integration_tool_definitions());
     tool_defs.extend(tools::get_app_tool_definitions());
+    // Cap at Anthropic's 128-tool limit
+    if tool_defs.len() > MAX_TOOLS_PER_REQUEST {
+        log::warn!("[process_turn] {} tools exceeds Anthropic limit of {}, truncating", tool_defs.len(), MAX_TOOLS_PER_REQUEST);
+        tool_defs.truncate(MAX_TOOLS_PER_REQUEST);
+    }
 
     // 7. Emit thinking state
     let state_manager = super::state_manager::get_state_manager();
@@ -185,7 +203,112 @@ pub async fn process_turn(
 
             // Execute the tool with user context
             let user_id = get_session_user_id(db, session_id);
-            let tool_result = tools::execute_tool(&tool_call.name, &args, &user_id).await?;
+
+            // ── Security: Permission Gate ──
+            let (resource_type, resource_value) = match tool_call.name.as_str() {
+                "file_read" | "file_write" | "file_delete" | "file_list" | "file_append" => {
+                    let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("");
+                    ("file_path".to_string(), path.to_string())
+                }
+                "http_request" | "curl" => {
+                    let url = args.get("url").or_else(|| args.get("path")).and_then(|v| v.as_str()).unwrap_or("");
+                    ("network_domain".to_string(), url.to_string())
+                }
+                "exec_command" | "shell_command" | "bash" => {
+                    let cmd = args.get("command").or_else(|| args.get("cmd")).and_then(|v| v.as_str()).unwrap_or("");
+                    ("exec_command".to_string(), cmd.to_string())
+                }
+                "browser_open" | "browser_navigate" | "browser_action" => {
+                    let url = args.get("url").and_then(|v| v.as_str()).unwrap_or("");
+                    ("browser_domain".to_string(), url.to_string())
+                }
+                "api_call" => {
+                    let endpoint = args.get("endpoint").or_else(|| args.get("url")).and_then(|v| v.as_str()).unwrap_or("");
+                    ("api_endpoint".to_string(), endpoint.to_string())
+                }
+                _ => ("exec_command".to_string(), tool_call.name.clone()),
+            };
+
+            let session_id_owned = session_id.to_string();
+            let perm_result = match permissions::check_permission(
+                db,
+                agent_id,
+                Some(&session_id_owned),
+                &resource_type,
+                &resource_value,
+                "default",
+                &tool_call.name,
+            ).await {
+                Ok(result) => result,
+                Err(e) => {
+                    log::warn!("[Security] Permission check failed: {}", e);
+                    permissions::PermissionCheckResult {
+                        allowed: true,
+                        action: "allow".to_string(),
+                        rule_id: None,
+                        reason: "permission_check_failed".to_string(),
+                        prompt_id: None,
+                    }
+                }
+            };
+
+            let tool_result = if !perm_result.allowed {
+                // Log the denied event
+                let _ = events::log_security_event(
+                    db,
+                    agent_id,
+                    Some(&session_id_owned),
+                    EventType::PermissionDenied,
+                    EventCategory::Warning,
+                    Some(&tool_call.name),
+                    Some(&resource_value),
+                    Some(&format!("{}: {}", perm_result.action, perm_result.reason)),
+                    50,
+                    false,
+                );
+
+                let message = match perm_result.action.as_str() {
+                    "prompt" => {
+                        use crate::engine::get_engine;
+                        let notif_body = format!(
+                            "Agent '{}' wants to use '{}' on '{}'",
+                            agent_id, tool_call.name, resource_value
+                        );
+                        get_engine().send_security_notification(
+                            "🔔 Agent Permission Request",
+                            &notif_body,
+                        );
+
+                        format!(
+                            "Agent '{}' is requesting permission to use '{}' on '{}'.\nReason: {}\n\nWaiting for your approval in the Security Center.",
+                            agent_id, tool_call.name, resource_value, perm_result.reason
+                        )
+                    }
+                    _ => {
+                        format!(
+                            "Permission denied: Agent '{}' cannot use '{}' on '{}'.\nReason: {}",
+                            agent_id, tool_call.name, resource_value, perm_result.reason
+                        )
+                    }
+                };
+                tool_result_msg(false, message)
+            } else {
+                // Log the allowed event
+                let _ = events::log_security_event(
+                    db,
+                    agent_id,
+                    Some(&session_id_owned),
+                    EventType::FileAccess,
+                    EventCategory::Info,
+                    Some(&tool_call.name),
+                    Some(&resource_value),
+                    None,
+                    0,
+                    true,
+                );
+
+                tools::execute_tool(&tool_call.name, &args, &user_id).await?
+            };
 
             let result_content = if tool_result.success {
                 tool_result.output.clone()
@@ -408,6 +531,11 @@ pub async fn process_turn_stream(
     let mut tool_defs = tools::get_tool_definitions();
     tool_defs.extend(tools::get_integration_tool_definitions());
     tool_defs.extend(tools::get_app_tool_definitions());
+    // Cap at Anthropic's 128-tool limit
+    if tool_defs.len() > MAX_TOOLS_PER_REQUEST {
+        log::warn!("[process_turn_stream] {} tools exceeds Anthropic limit of {}, truncating", tool_defs.len(), MAX_TOOLS_PER_REQUEST);
+        tool_defs.truncate(MAX_TOOLS_PER_REQUEST);
+    }
 
     // 7. Tool calling loop (non-streaming for tool detection, streaming for final text)
     let mut final_response: Option<ModelResponse> = None;

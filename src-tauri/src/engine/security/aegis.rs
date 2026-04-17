@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::engine::db::EngineDb;
 use crate::engine::security::events::{self, EventCategory, EventType};
+use super::platform::*;
 
 /// A single audit finding
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,18 +61,18 @@ struct FindingInput {
 // ── Public API ──────────────────────────────────────────────
 
 /// Run a full system audit. Returns the run ID.
-pub fn run_full_audit(db: &EngineDb) -> Result<String> {
-    run_audit(db, "full")
+pub async fn run_full_audit(db: &EngineDb) -> Result<String> {
+    run_audit(db, "full").await
 }
 
 /// Run a quick audit (firewall + ports only). Returns the run ID.
-pub fn run_quick_audit(db: &EngineDb) -> Result<String> {
-    run_audit(db, "quick")
+pub async fn run_quick_audit(db: &EngineDb) -> Result<String> {
+    run_audit(db, "quick").await
 }
 
 /// Get the most recent audit runs.
-pub fn get_audit_runs(db: &EngineDb, limit: i64) -> Result<Vec<AuditRun>> {
-    let conn = db.conn();
+pub async fn get_audit_runs(db: &EngineDb, limit: i64) -> Result<Vec<AuditRun>> {
+    let conn = db.conn_async().await;
     let mut stmt = conn.prepare(
         "SELECT id, run_type, status, overall_score, total_checks, pass_count, warn_count, critical_count, started_at, completed_at
          FROM aegis_audit_runs ORDER BY started_at DESC LIMIT ?"
@@ -96,8 +97,8 @@ pub fn get_audit_runs(db: &EngineDb, limit: i64) -> Result<Vec<AuditRun>> {
 }
 
 /// Get findings for a specific audit run.
-pub fn get_findings(db: &EngineDb, run_id: &str) -> Result<Vec<AuditFinding>> {
-    let conn = db.conn();
+pub async fn get_findings(db: &EngineDb, run_id: &str) -> Result<Vec<AuditFinding>> {
+    let conn = db.conn_async().await;
     let mut stmt = conn.prepare(
         "SELECT id, run_id, category, check_name, severity, title, description, recommendation, raw_data
          FROM aegis_findings WHERE run_id = ? ORDER BY
@@ -124,12 +125,12 @@ pub fn get_findings(db: &EngineDb, run_id: &str) -> Result<Vec<AuditFinding>> {
 }
 
 /// Get findings filtered by category.
-pub fn get_findings_by_category(
+pub async fn get_findings_by_category(
     db: &EngineDb,
     run_id: &str,
     category: &str,
 ) -> Result<Vec<AuditFinding>> {
-    let conn = db.conn();
+    let conn = db.conn_async().await;
     let mut stmt = conn.prepare(
         "SELECT id, run_id, category, check_name, severity, title, description, recommendation, raw_data
          FROM aegis_findings WHERE run_id = ? AND category = ?
@@ -155,8 +156,8 @@ pub fn get_findings_by_category(
 }
 
 /// Get the latest audit run with full findings summary.
-pub fn get_latest_audit_summary(db: &EngineDb) -> Result<Option<serde_json::Value>> {
-    let conn = db.conn();
+pub async fn get_latest_audit_summary(db: &EngineDb) -> Result<Option<serde_json::Value>> {
+    let conn = db.conn_async().await;
     let row = conn.query_row(
         "SELECT id, run_type, status, overall_score, total_checks, pass_count, warn_count, critical_count, started_at, completed_at
          FROM aegis_audit_runs ORDER BY started_at DESC LIMIT 1",
@@ -185,8 +186,8 @@ pub fn get_latest_audit_summary(db: &EngineDb) -> Result<Option<serde_json::Valu
 }
 
 /// Delete an audit run and its findings.
-pub fn delete_audit_run(db: &EngineDb, run_id: &str) -> Result<bool> {
-    let conn = db.conn();
+pub async fn delete_audit_run(db: &EngineDb, run_id: &str) -> Result<bool> {
+    let conn = db.conn_async().await;
     // findings cascade-delete via FK
     let deleted = conn.execute(
         "DELETE FROM aegis_audit_runs WHERE id = ?",
@@ -197,9 +198,9 @@ pub fn delete_audit_run(db: &EngineDb, run_id: &str) -> Result<bool> {
 
 // ── Internal: Audit Runner ──────────────────────────────────
 
-fn run_audit(db: &EngineDb, run_type: &str) -> Result<String> {
+async fn run_audit(db: &EngineDb, run_type: &str) -> Result<String> {
     let run_id = Uuid::new_v4().to_string();
-    let conn = db.conn();
+    let conn = db.conn_async().await;
 
     // Create audit run
     conn.execute(
@@ -354,91 +355,154 @@ fn run_audit(db: &EngineDb, run_type: &str) -> Result<String> {
 fn scan_firewall() -> Result<Vec<FindingInput>> {
     let mut findings = Vec::new();
 
-    // Check UFW status
-    if let Ok(output) = Command::new("ufw").arg("status").output() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        if stdout.contains("Status: inactive") {
-            findings.push(FindingInput {
-                category: "firewall".into(),
-                check_name: "ufw_status".into(),
-                severity: "critical".into(),
-                title: "UFW Firewall is Inactive".into(),
-                description: "The Uncomplicated Firewall (UFW) is installed but not active. This leaves all network ports exposed.".into(),
-                recommendation: Some("Enable UFW with: sudo ufw enable. Start with default deny incoming and allow outgoing.".into()),
-                raw_data: Some(serde_json::json!({"status": "inactive", "output": stdout.to_string()})),
-            });
-        } else if stdout.contains("Status: active") {
-            findings.push(FindingInput {
-                category: "firewall".into(),
-                check_name: "ufw_status".into(),
-                severity: "pass".into(),
-                title: "UFW Firewall is Active".into(),
-                description: "UFW is active and filtering traffic.".into(),
-                recommendation: None,
-                raw_data: Some(serde_json::json!({"status": "active"})),
-            });
+    match current_os() {
+        OsType::Linux => {
+            // Check UFW status
+            if let Ok(output) = Command::new("ufw").arg("status").output() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                if stdout.contains("Status: inactive") {
+                    findings.push(FindingInput {
+                        category: "firewall".into(),
+                        check_name: "ufw_status".into(),
+                        severity: "critical".into(),
+                        title: "UFW Firewall is Inactive".into(),
+                        description: "The Uncomplicated Firewall (UFW) is installed but not active. This leaves all network ports exposed.".into(),
+                        recommendation: Some("Enable UFW with: sudo ufw enable. Start with default deny incoming and allow outgoing.".into()),
+                        raw_data: Some(serde_json::json!({"status": "inactive", "output": stdout.to_string()})),
+                    });
+                } else if stdout.contains("Status: active") {
+                    findings.push(FindingInput {
+                        category: "firewall".into(),
+                        check_name: "ufw_status".into(),
+                        severity: "pass".into(),
+                        title: "UFW Firewall is Active".into(),
+                        description: "UFW is active and filtering traffic.".into(),
+                        recommendation: None,
+                        raw_data: Some(serde_json::json!({"status": "active"})),
+                    });
+                }
+            } else {
+                // Check iptables as fallback
+                if let Ok(output) = Command::new("iptables").arg("-L").arg("-n").output() {
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    let rules: Vec<&str> = stdout
+                        .lines()
+                        .filter(|l| {
+                            !l.trim().is_empty() && !l.starts_with("Chain") && !l.starts_with("target")
+                        })
+                        .collect();
+                    if rules.is_empty() {
+                        findings.push(FindingInput {
+                            category: "firewall".into(),
+                            check_name: "iptables_rules".into(),
+                            severity: "warning".into(),
+                            title: "No iptables Rules Found".into(),
+                            description:
+                                "iptables has no active filtering rules. All traffic is allowed by default."
+                                    .into(),
+                            recommendation: Some("Configure firewall rules or install/enable UFW.".into()),
+                            raw_data: Some(serde_json::json!({"rule_count": 0})),
+                        });
+                    } else {
+                        findings.push(FindingInput {
+                            category: "firewall".into(),
+                            check_name: "iptables_rules".into(),
+                            severity: "pass".into(),
+                            title: format!("iptables Has {} Active Rules", rules.len()),
+                            description: "iptables has filtering rules configured.".into(),
+                            recommendation: None,
+                            raw_data: Some(serde_json::json!({"rule_count": rules.len()})),
+                        });
+                    }
+                } else {
+                    findings.push(FindingInput {
+                        category: "firewall".into(),
+                        check_name: "firewall_available".into(),
+                        severity: "info".into(),
+                        title: "No Firewall Tool Detected".into(),
+                        description: "Neither UFW nor iptables commands are available. This may be a containerized environment.".into(),
+                        recommendation: Some("If running on bare metal, install UFW: sudo apt install ufw".into()),
+                        raw_data: None,
+                    });
+                }
+            }
+
+            // Check if firewalld is running
+            if let Ok(output) = Command::new("systemctl")
+                .args(["is-active", "firewalld"])
+                .output()
+            {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if stdout == "active" {
+                    findings.push(FindingInput {
+                        category: "firewall".into(),
+                        check_name: "firewalld_status".into(),
+                        severity: "pass".into(),
+                        title: "firewalld is Running".into(),
+                        description: "firewalld daemon is active.".into(),
+                        recommendation: None,
+                        raw_data: Some(serde_json::json!({"status": "active"})),
+                    });
+                }
+            }
         }
-    } else {
-        // Check iptables as fallback
-        if let Ok(output) = Command::new("iptables").arg("-L").arg("-n").output() {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let rules: Vec<&str> = stdout
-                .lines()
-                .filter(|l| {
-                    !l.trim().is_empty() && !l.starts_with("Chain") && !l.starts_with("target")
-                })
-                .collect();
-            if rules.is_empty() {
+        OsType::MacOS => {
+            let (active, product_name, raw) = get_firewall_status();
+            if active {
                 findings.push(FindingInput {
                     category: "firewall".into(),
-                    check_name: "iptables_rules".into(),
-                    severity: "warning".into(),
-                    title: "No iptables Rules Found".into(),
-                    description:
-                        "iptables has no active filtering rules. All traffic is allowed by default."
-                            .into(),
-                    recommendation: Some("Configure firewall rules or install/enable UFW.".into()),
-                    raw_data: Some(serde_json::json!({"rule_count": 0})),
+                    check_name: "macos_firewall".into(),
+                    severity: "pass".into(),
+                    title: format!("{} is Enabled", product_name),
+                    description: "macOS firewall is active and filtering traffic.".into(),
+                    recommendation: None,
+                    raw_data: Some(serde_json::json!({"product": product_name, "active": true})),
                 });
             } else {
                 findings.push(FindingInput {
                     category: "firewall".into(),
-                    check_name: "iptables_rules".into(),
-                    severity: "pass".into(),
-                    title: format!("iptables Has {} Active Rules", rules.len()),
-                    description: "iptables has filtering rules configured.".into(),
-                    recommendation: None,
-                    raw_data: Some(serde_json::json!({"rule_count": rules.len()})),
+                    check_name: "macos_firewall".into(),
+                    severity: "critical".into(),
+                    title: "macOS Firewall is Disabled".into(),
+                    description: "The macOS firewall is turned off. All incoming connections are allowed.".into(),
+                    recommendation: Some("Enable the firewall via System Settings > Network > Firewall".into()),
+                    raw_data: Some(serde_json::json!({"product": product_name, "active": false})),
                 });
             }
-        } else {
-            findings.push(FindingInput {
-                category: "firewall".into(),
-                check_name: "firewall_available".into(),
-                severity: "info".into(),
-                title: "No Firewall Tool Detected".into(),
-                description: "Neither UFW nor iptables commands are available. This may be a containerized environment.".into(),
-                recommendation: Some("If running on bare metal, install UFW: sudo apt install ufw".into()),
-                raw_data: None,
-            });
         }
-    }
-
-    // Check if firewalld is running
-    if let Ok(output) = Command::new("systemctl")
-        .args(["is-active", "firewalld"])
-        .output()
-    {
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if stdout == "active" {
+        OsType::Windows => {
+            let (active, product_name, raw) = get_firewall_status();
+            if active {
+                findings.push(FindingInput {
+                    category: "firewall".into(),
+                    check_name: "windows_firewall".into(),
+                    severity: "pass".into(),
+                    title: format!("{} is Enabled", product_name),
+                    description: "Windows Defender Firewall is active and protecting the system.".into(),
+                    recommendation: None,
+                    raw_data: Some(serde_json::json!({"product": product_name, "active": true})),
+                });
+            } else {
+                findings.push(FindingInput {
+                    category: "firewall".into(),
+                    check_name: "windows_firewall".into(),
+                    severity: "critical".into(),
+                    title: "Windows Firewall is Disabled".into(),
+                    description: "Windows Defender Firewall is turned off. The system is unprotected.".into(),
+                    recommendation: Some("Enable Windows Firewall via Control Panel > System and Security > Windows Firewall".into()),
+                    raw_data: Some(serde_json::json!({"product": product_name, "active": false})),
+                });
+            }
+        }
+        OsType::Unknown => {
             findings.push(FindingInput {
                 category: "firewall".into(),
-                check_name: "firewalld_status".into(),
-                severity: "pass".into(),
-                title: "firewalld is Running".into(),
-                description: "firewalld daemon is active.".into(),
+                check_name: "firewall_unknown".into(),
+                severity: "info".into(),
+                title: "Unknown Platform".into(),
+                description: "Could not determine firewall status for this platform.".into(),
                 recommendation: None,
-                raw_data: Some(serde_json::json!({"status": "active"})),
+                raw_data: None,
             });
         }
     }
@@ -449,35 +513,21 @@ fn scan_firewall() -> Result<Vec<FindingInput>> {
 fn scan_ports() -> Result<Vec<FindingInput>> {
     let mut findings = Vec::new();
 
-    // Use ss to check listening ports
-    let output = Command::new("ss").args(["-tlnp"]).output();
+    // Use cross-platform get_listening_ports()
+    let ports = get_listening_ports();
 
-    let stdout = match output {
-        Ok(o) => String::from_utf8_lossy(&o.stdout).to_string(),
-        Err(_) => {
-            // Fallback to netstat
-            match Command::new("netstat").args(["-tlnp"]).output() {
-                Ok(o) => String::from_utf8_lossy(&o.stdout).to_string(),
-                Err(_) => {
-                    findings.push(FindingInput {
-                        category: "ports".into(),
-                        check_name: "port_scan_tool".into(),
-                        severity: "info".into(),
-                        title: "No Port Scanning Tool Available".into(),
-                        description: "Neither ss nor netstat found. Cannot scan listening ports."
-                            .into(),
-                        recommendation: Some(
-                            "Install iproute2 (ss) or net-tools (netstat).".into(),
-                        ),
-                        raw_data: None,
-                    });
-                    return Ok(findings);
-                }
-            }
-        }
-    };
-
-    let listening_lines: Vec<&str> = stdout.lines().filter(|l| l.contains("LISTEN")).collect();
+    if ports.is_empty() {
+        findings.push(FindingInput {
+            category: "ports".into(),
+            check_name: "listening_ports_summary".into(),
+            severity: "info".into(),
+            title: "No Listening Ports Detected".into(),
+            description: "No services are currently listening for network connections.".into(),
+            recommendation: None,
+            raw_data: Some(serde_json::json!({"count": 0})),
+        });
+        return Ok(findings);
+    }
 
     // Check for common risky ports
     let risky_ports: Vec<(&str, &str, &str)> = vec![
@@ -492,20 +542,19 @@ fn scan_ports() -> Result<Vec<FindingInput>> {
         ("9200", "Elasticsearch", "warning"),
     ];
 
-    for (port, service, severity) in &risky_ports {
-        let port_pattern = format!(":{}", port);
-        for line in &listening_lines {
-            if line.contains(&port_pattern)
-                && (line.contains("0.0.0.0") || line.contains("*") || line.contains("::"))
+    for (port, _proto, _program, bind) in &ports {
+        for (rport, service, severity) in &risky_ports {
+            if port == *rport
+                && (bind.contains("0.0.0.0") || bind.contains("*") || bind.contains("::"))
             {
                 findings.push(FindingInput {
                     category: "ports".into(),
-                    check_name: format!("port_{}", port),
+                    check_name: format!("port_{}", rport),
                     severity: severity.to_string(),
-                    title: format!("{} Listening on All Interfaces (port {})", service, port),
+                    title: format!("{} Listening on All Interfaces (port {})", service, rport),
                     description: format!("{} is bound to all network interfaces, making it accessible from any network.", service),
                     recommendation: Some(format!("Bind {} to 127.0.0.1 if only local access is needed, or add firewall rules.", service)),
-                    raw_data: Some(serde_json::json!({"port": port, "service": service, "line": line.trim()})),
+                    raw_data: Some(serde_json::json!({"port": rport, "service": service, "bind": bind})),
                 });
             }
         }
@@ -516,15 +565,15 @@ fn scan_ports() -> Result<Vec<FindingInput>> {
         category: "ports".into(),
         check_name: "listening_ports_summary".into(),
         severity: "info".into(),
-        title: format!("{} Listening Ports Detected", listening_lines.len()),
+        title: format!("{} Listening Ports Detected", ports.len()),
         description: format!(
             "System has {} ports in LISTEN state.",
-            listening_lines.len()
+            ports.len()
         ),
         recommendation: None,
         raw_data: Some(serde_json::json!({
-            "count": listening_lines.len(),
-            "ports": listening_lines.iter().map(|l| l.trim().to_string()).collect::<Vec<_>>(),
+            "count": ports.len(),
+            "ports": ports.iter().map(|(p, pr, pg, b)| format!("{}:{}/{}", b, p, pr)).collect::<Vec<_>>(),
         })),
     });
 
@@ -717,6 +766,36 @@ fn scan_ssh() -> Result<Vec<FindingInput>> {
 
 fn scan_permissions() -> Result<Vec<FindingInput>> {
     let mut findings = Vec::new();
+
+    // Check user accounts using cross-platform get_users()
+    let users = get_users();
+    if !users.is_empty() {
+        let system_users: Vec<_> = users.iter()
+            .filter(|(name, uid, _, _)| {
+                uid.parse::<u32>().map(|u| u < 1000).unwrap_or(false) || name == "root"
+            })
+            .collect();
+        let normal_users: Vec<_> = users.iter()
+            .filter(|(name, uid, _, _)| {
+                uid.parse::<u32>().map(|u| u >= 1000).unwrap_or(true) && *name != "root"
+            })
+            .collect();
+
+        findings.push(FindingInput {
+            category: "permissions".into(),
+            check_name: "user_accounts".into(),
+            severity: "info".into(),
+            title: format!("{} User Accounts Detected ({} system, {} normal)", users.len(), system_users.len(), normal_users.len()),
+            description: format!("System has {} total user accounts.", users.len()),
+            recommendation: None,
+            raw_data: Some(serde_json::json!({
+                "total": users.len(),
+                "system_count": system_users.len(),
+                "normal_count": normal_users.len(),
+                "users": users.iter().map(|(n, u, s, h)| format!("{}:{}", n, u)).collect::<Vec<_>>(),
+            })),
+        });
+    }
 
     // Check for world-writable files in sensitive locations
     let check_dirs: Vec<(&str, &str)> = vec![
@@ -914,71 +993,157 @@ fn scan_software_versions() -> Result<Vec<FindingInput>> {
 fn scan_cron_jobs() -> Result<Vec<FindingInput>> {
     let mut findings = Vec::new();
 
-    // Check current user's crontab
-    if let Ok(output) = Command::new("crontab").arg("-l").output() {
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if !stdout.is_empty() && !stdout.contains("no crontab") {
-            let lines: Vec<&str> = stdout
-                .lines()
-                .filter(|l| !l.trim().is_empty() && !l.starts_with('#'))
-                .collect();
+    match current_os() {
+        OsType::Linux => {
+            // Check current user's crontab
+            if let Ok(output) = Command::new("crontab").arg("-l").output() {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !stdout.is_empty() && !stdout.contains("no crontab") {
+                    let lines: Vec<&str> = stdout
+                        .lines()
+                        .filter(|l| !l.trim().is_empty() && !l.starts_with('#'))
+                        .collect();
 
-            // Check for suspicious patterns
-            for line in &lines {
-                let lower = line.to_lowercase();
-                if lower.contains("curl") || lower.contains("wget") {
+                    // Check for suspicious patterns
+                    for line in &lines {
+                        let lower = line.to_lowercase();
+                        if lower.contains("curl") || lower.contains("wget") {
+                            findings.push(FindingInput {
+                                category: "cron".into(),
+                                check_name: "cron_download_command".into(),
+                                severity: "warning".into(),
+                                title: "Cron Job Contains Download Command".into(),
+                                description: format!("Cron entry uses curl/wget: {}", line.trim()),
+                                recommendation: Some("Verify this downloads from a trusted source. Could be used for persistence.".into()),
+                                raw_data: Some(serde_json::json!({"line": line.trim()})),
+                            });
+                        }
+                        if lower.contains("nc ") || lower.contains("ncat") || lower.contains("socat") {
+                            findings.push(FindingInput {
+                                category: "cron".into(),
+                                check_name: "cron_network_tool".into(),
+                                severity: "critical".into(),
+                                title: "Cron Job Uses Network Tool".into(),
+                                description: format!("Cron entry uses netcat/socat: {}", line.trim()),
+                                recommendation: Some("Investigate immediately. Network tools in cron can indicate a reverse shell.".into()),
+                                raw_data: Some(serde_json::json!({"line": line.trim()})),
+                            });
+                        }
+                    }
+
                     findings.push(FindingInput {
                         category: "cron".into(),
-                        check_name: "cron_download_command".into(),
-                        severity: "warning".into(),
-                        title: "Cron Job Contains Download Command".into(),
-                        description: format!("Cron entry uses curl/wget: {}", line.trim()),
-                        recommendation: Some("Verify this downloads from a trusted source. Could be used for persistence.".into()),
-                        raw_data: Some(serde_json::json!({"line": line.trim()})),
-                    });
-                }
-                if lower.contains("nc ") || lower.contains("ncat") || lower.contains("socat") {
-                    findings.push(FindingInput {
-                        category: "cron".into(),
-                        check_name: "cron_network_tool".into(),
-                        severity: "critical".into(),
-                        title: "Cron Job Uses Network Tool".into(),
-                        description: format!("Cron entry uses netcat/socat: {}", line.trim()),
-                        recommendation: Some("Investigate immediately. Network tools in cron can indicate a reverse shell.".into()),
-                        raw_data: Some(serde_json::json!({"line": line.trim()})),
+                        check_name: "cron_user_jobs".into(),
+                        severity: "info".into(),
+                        title: format!("{} User Cron Jobs", lines.len()),
+                        description: format!("Current user has {} active cron job entries.", lines.len()),
+                        recommendation: None,
+                        raw_data: Some(serde_json::json!({"count": lines.len(), "jobs": lines.iter().take(10).map(|l| l.to_string()).collect::<Vec<_>>()})),
                     });
                 }
             }
 
+            // Check /etc/cron.d for system cron jobs
+            if let Ok(output) = Command::new("ls").args(["-la", "/etc/cron.d/"]).output() {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                let entries: Vec<&str> = stdout
+                    .lines()
+                    .filter(|l| !l.contains("total") && !l.trim().is_empty())
+                    .collect();
+
+                findings.push(FindingInput {
+                    category: "cron".into(),
+                    check_name: "cron_system_jobs".into(),
+                    severity: "info".into(),
+                    title: format!("{} System Cron Entries", entries.len()),
+                    description: format!("/etc/cron.d/ has {} entries.", entries.len()),
+                    recommendation: None,
+                    raw_data: Some(serde_json::json!({"entries": entries.iter().take(10).map(|l| l.to_string()).collect::<Vec<_>>()})),
+                });
+            }
+        }
+        OsType::MacOS => {
+            // Check launchd agents and daemons
+            let launchd_paths = vec![
+                "/Library/LaunchDaemons",
+                "/Library/LaunchAgents",
+                "/System/Library/LaunchDaemons",
+                "/System/Library/LaunchAgents",
+            ];
+            for path in &launchd_paths {
+                if let Ok(output) = Command::new("ls").args(["-la", path]).output() {
+                    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    let entries: Vec<&str> = stdout.lines().filter(|l| !l.contains("total") && !l.trim().is_empty() && !l.ends_with(":")).collect();
+                    if !entries.is_empty() {
+                        findings.push(FindingInput {
+                            category: "cron".into(),
+                            check_name: "launchd_items".into(),
+                            severity: "info".into(),
+                            title: format!("{} launchd Items in {}", entries.len(), path),
+                            description: format!("Found {} launchd agents/daemons.", entries.len()),
+                            recommendation: None,
+                            raw_data: Some(serde_json::json!({"path": path, "count": entries.len()})),
+                        });
+                    }
+                }
+            }
+            // Check crontab if present
+            if let Ok(output) = Command::new("crontab").arg("-l").output() {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !stdout.is_empty() && !stdout.contains("no crontab") {
+                    findings.push(FindingInput {
+                        category: "cron".into(),
+                        check_name: "crontab_entries".into(),
+                        severity: "info".into(),
+                        title: format!("{} Crontab Entries", stdout.lines().count()),
+                        description: "macOS typically uses launchd but crontab entries also exist.".into(),
+                        recommendation: None,
+                        raw_data: Some(serde_json::json!({"count": stdout.lines().count()})),
+                    });
+                }
+            }
+        }
+        OsType::Windows => {
+            // Check Windows Task Scheduler
+            let output = Command::new("powershell")
+                .args(["-Command", "Get-ScheduledTask | Select-Object -First 20 | ConvertTo-Json"])
+                .output();
+            if let Ok(output) = output {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !stdout.is_empty() && !stdout.contains("Cannot find") {
+                    findings.push(FindingInput {
+                        category: "cron".into(),
+                        check_name: "windows_scheduled_tasks".into(),
+                        severity: "info".into(),
+                        title: "Windows Scheduled Tasks Found".into(),
+                        description: "Task Scheduler tasks retrieved via PowerShell.".into(),
+                        recommendation: None,
+                        raw_data: Some(serde_json::json!({"tasks": stdout})),
+                    });
+                } else {
+                    findings.push(FindingInput {
+                        category: "cron".into(),
+                        check_name: "windows_scheduled_tasks".into(),
+                        severity: "info".into(),
+                        title: "No Scheduled Tasks Found".into(),
+                        description: "No Windows scheduled tasks detected.".into(),
+                        recommendation: None,
+                        raw_data: None,
+                    });
+                }
+            }
+        }
+        OsType::Unknown => {
             findings.push(FindingInput {
                 category: "cron".into(),
-                check_name: "cron_user_jobs".into(),
+                check_name: "scheduled_unknown_platform".into(),
                 severity: "info".into(),
-                title: format!("{} User Cron Jobs", lines.len()),
-                description: format!("Current user has {} active cron job entries.", lines.len()),
+                title: "Unknown Platform".into(),
+                description: "Cannot determine scheduler for this platform.".into(),
                 recommendation: None,
-                raw_data: Some(serde_json::json!({"count": lines.len(), "jobs": lines.iter().take(10).map(|l| l.to_string()).collect::<Vec<_>>()})),
+                raw_data: None,
             });
         }
-    }
-
-    // Check /etc/cron.d for system cron jobs
-    if let Ok(output) = Command::new("ls").args(["-la", "/etc/cron.d/"]).output() {
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let entries: Vec<&str> = stdout
-            .lines()
-            .filter(|l| !l.contains("total") && !l.trim().is_empty())
-            .collect();
-
-        findings.push(FindingInput {
-            category: "cron".into(),
-            check_name: "cron_system_jobs".into(),
-            severity: "info".into(),
-            title: format!("{} System Cron Directories", entries.len()),
-            description: format!("/etc/cron.d/ has {} entries.", entries.len()),
-            recommendation: None,
-            raw_data: Some(serde_json::json!({"entries": entries.iter().take(10).map(|l| l.to_string()).collect::<Vec<_>>()})),
-        });
     }
 
     Ok(findings)
@@ -987,101 +1152,202 @@ fn scan_cron_jobs() -> Result<Vec<FindingInput>> {
 fn scan_general() -> Result<Vec<FindingInput>> {
     let mut findings = Vec::new();
 
-    // Check if running as root
-    if let Ok(output) = Command::new("id").arg("-u").output() {
-        let uid = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if uid == "0" {
-            findings.push(FindingInput {
-                category: "general".into(),
-                check_name: "running_as_root".into(),
-                severity: "warning".into(),
-                title: "Running as Root".into(),
-                description: "This application is running with root privileges (UID 0). Any vulnerability gives full system access.".into(),
-                recommendation: Some("Run as a dedicated non-root user with minimal privileges.".into()),
-                raw_data: Some(serde_json::json!({"uid": 0})),
-            });
-        } else {
-            findings.push(FindingInput {
-                category: "general".into(),
-                check_name: "running_as_root".into(),
-                severity: "pass".into(),
-                title: "Not Running as Root".into(),
-                description: format!("Running as UID {} (non-root).", uid),
-                recommendation: None,
-                raw_data: Some(serde_json::json!({"uid": uid})),
-            });
-        }
+    // Check if running as root/Administrator using cross-platform is_elevated()
+    let elevated = is_elevated();
+    let platform_info = get_platform_info();
+    if elevated {
+        findings.push(FindingInput {
+            category: "general".into(),
+            check_name: "running_elevated".into(),
+            severity: "warning".into(),
+            title: format!("Running as {} (Elevated)", if is_windows() { "Administrator" } else { "Root" }).into(),
+            description: format!("This application is running with elevated privileges on {}. Any vulnerability gives full system access.", platform_info.os_name).into(),
+            recommendation: Some("Run as a dedicated non-elevated user with minimal privileges.".into()),
+            raw_data: Some(serde_json::json!({"elevated": true, "os": platform_info.os_name})),
+        });
+    } else {
+        findings.push(FindingInput {
+            category: "general".into(),
+            check_name: "running_elevated".into(),
+            severity: "pass".into(),
+            title: "Not Running as Elevated User".into(),
+            description: format!("Running as non-elevated user on {} ({}).", platform_info.os_name, platform_info.hostname),
+            recommendation: None,
+            raw_data: Some(serde_json::json!({"elevated": false, "os": platform_info.os_name, "hostname": platform_info.hostname})),
+        });
     }
 
-    // Check for kernel security features
-    if let Ok(output) = Command::new("cat")
-        .arg("/proc/sys/kernel/randomize_va_space")
-        .output()
-    {
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        match stdout.as_str() {
-            "2" => {
+    // Platform-specific checks
+    match current_os() {
+        OsType::Linux => {
+            // Check for kernel security features
+            if let Ok(output) = Command::new("cat")
+                .arg("/proc/sys/kernel/randomize_va_space")
+                .output()
+            {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                match stdout.as_str() {
+                    "2" => {
+                        findings.push(FindingInput {
+                            category: "general".into(),
+                            check_name: "aslr_enabled".into(),
+                            severity: "pass".into(),
+                            title: "ASLR Fully Enabled".into(),
+                            description: "Address Space Layout Randomization is set to full (2).".into(),
+                            recommendation: None,
+                            raw_data: Some(serde_json::json!({"value": 2})),
+                        });
+                    }
+                    "0" => {
+                        findings.push(FindingInput {
+                            category: "general".into(),
+                            check_name: "aslr_enabled".into(),
+                            severity: "critical".into(),
+                            title: "ASLR Disabled".into(),
+                            description: "Address Space Layout Randomization is disabled. This makes exploitation of memory bugs trivial.".into(),
+                            recommendation: Some("Enable ASLR: echo 2 | sudo tee /proc/sys/kernel/randomize_va_space".into()),
+                            raw_data: Some(serde_json::json!({"value": 0})),
+                        });
+                    }
+                    _ => {
+                        findings.push(FindingInput {
+                            category: "general".into(),
+                            check_name: "aslr_enabled".into(),
+                            severity: "warning".into(),
+                            title: format!("ASLR Partially Enabled ({})", stdout),
+                            description: "ASLR is not set to full randomization.".into(),
+                            recommendation: Some("Set kernel.randomize_va_space = 2".into()),
+                            raw_data: Some(serde_json::json!({"value": stdout})),
+                        });
+                    }
+                }
+            }
+
+            // Check for automatic updates (Linux)
+            if let Ok(output) = Command::new("systemctl")
+                .args(["is-enabled", "unattended-upgrades"])
+                .output()
+            {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if stdout == "enabled" {
+                    findings.push(FindingInput {
+                        category: "general".into(),
+                        check_name: "auto_updates".into(),
+                        severity: "pass".into(),
+                        title: "Automatic Updates Enabled".into(),
+                        description: "unattended-upgrades service is enabled.".into(),
+                        recommendation: None,
+                        raw_data: None,
+                    });
+                } else {
+                    findings.push(FindingInput {
+                        category: "general".into(),
+                        check_name: "auto_updates".into(),
+                        severity: "info".into(),
+                        title: "Automatic Updates Not Enabled".into(),
+                        description: "unattended-upgrades service is not enabled. Security patches require manual installation.".into(),
+                        recommendation: Some("Enable with: sudo dpkg-reconfigure -plow unattended-upgrades".into()),
+                        raw_data: None,
+                    });
+                }
+            }
+        }
+        OsType::MacOS => {
+            // Check Gatekeeper status on macOS
+            let gatekeeper = Command::new("spctl")
+                .args(["--status"])
+                .output();
+            if let Ok(output) = gatekeeper {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                let enabled = stdout.contains("enabled");
                 findings.push(FindingInput {
                     category: "general".into(),
-                    check_name: "aslr_enabled".into(),
-                    severity: "pass".into(),
-                    title: "ASLR Fully Enabled".into(),
-                    description: "Address Space Layout Randomization is set to full (2).".into(),
+                    check_name: "gatekeeper".into(),
+                    severity: if enabled { "pass" } else { "critical" }.into(),
+                    title: if enabled { "Gatekeeper Enabled" } else { "Gatekeeper Disabled" }.into(),
+                    description: if enabled {
+                        "macOS Gatekeeper is active, blocking untrusted apps.".into()
+                    } else {
+                        "Gatekeeper is disabled. Unsigned apps can be installed.".into()
+                    },
+                    recommendation: if !enabled {
+                        Some("Enable Gatekeeper: sudo spctl --master-enable".into())
+                    } else {
+                        None
+                    },
+                    raw_data: Some(serde_json::json!({"status": stdout})),
+                });
+            }
+
+            // Check auto-update status via softwareupdate
+            let auto_update_status = get_auto_update_status();
+            if !auto_update_status.is_empty() {
+                findings.push(FindingInput {
+                    category: "general".into(),
+                    check_name: "macos_auto_updates".into(),
+                    severity: "info".into(),
+                    title: "macOS Software Update Check".into(),
+                    description: auto_update_status.clone(),
                     recommendation: None,
-                    raw_data: Some(serde_json::json!({"value": 2})),
-                });
-            }
-            "0" => {
-                findings.push(FindingInput {
-                    category: "general".into(),
-                    check_name: "aslr_enabled".into(),
-                    severity: "critical".into(),
-                    title: "ASLR Disabled".into(),
-                    description: "Address Space Layout Randomization is disabled. This makes exploitation of memory bugs trivial.".into(),
-                    recommendation: Some("Enable ASLR: echo 2 | sudo tee /proc/sys/kernel/randomize_va_space".into()),
-                    raw_data: Some(serde_json::json!({"value": 0})),
-                });
-            }
-            _ => {
-                findings.push(FindingInput {
-                    category: "general".into(),
-                    check_name: "aslr_enabled".into(),
-                    severity: "warning".into(),
-                    title: format!("ASLR Partially Enabled ({})", stdout),
-                    description: "ASLR is not set to full randomization.".into(),
-                    recommendation: Some("Set kernel.randomize_va_space = 2".into()),
-                    raw_data: Some(serde_json::json!({"value": stdout})),
+                    raw_data: Some(serde_json::json!({"output": auto_update_status})),
                 });
             }
         }
-    }
+        OsType::Windows => {
+            // Check Windows Defender status
+            let defender = Command::new("powershell")
+                .args(["-Command", "Get-MpComputerStatus | Select-Object -ExpandProperty AntivirusEnabled"])
+                .output();
+            if let Ok(output) = defender {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                let enabled = stdout.to_lowercase() == "true";
+                findings.push(FindingInput {
+                    category: "general".into(),
+                    check_name: "windows_defender".into(),
+                    severity: if enabled { "pass" } else { "critical" }.into(),
+                    title: if enabled { "Windows Defender Enabled" } else { "Windows Defender Disabled" }.into(),
+                    description: if enabled {
+                        "Windows Defender antivirus is active.".into()
+                    } else {
+                        "Windows Defender is turned off. System is unprotected.".into()
+                    },
+                    recommendation: if !enabled {
+                        Some("Enable Windows Defender via Windows Security settings.".into())
+                    } else {
+                        None
+                    },
+                    raw_data: Some(serde_json::json!({"enabled": enabled})),
+                });
+            }
 
-    // Check for automatic updates
-    if let Ok(output) = Command::new("systemctl")
-        .args(["is-enabled", "unattended-upgrades"])
-        .output()
-    {
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if stdout == "enabled" {
-            findings.push(FindingInput {
-                category: "general".into(),
-                check_name: "auto_updates".into(),
-                severity: "pass".into(),
-                title: "Automatic Updates Enabled".into(),
-                description: "unattended-upgrades service is enabled.".into(),
-                recommendation: None,
-                raw_data: None,
-            });
-        } else {
-            findings.push(FindingInput {
-                category: "general".into(),
-                check_name: "auto_updates".into(),
-                severity: "info".into(),
-                title: "Automatic Updates Not Enabled".into(),
-                description: "unattended-upgrades service is not enabled. Security patches require manual installation.".into(),
-                recommendation: Some("Enable with: sudo dpkg-reconfigure -plow unattended-upgrades".into()),
-                raw_data: None,
-            });
+            // Check Windows Update status
+            let auto_update_status = get_auto_update_status();
+            if !auto_update_status.is_empty() {
+                findings.push(FindingInput {
+                    category: "general".into(),
+                    check_name: "windows_auto_updates".into(),
+                    severity: "info".into(),
+                    title: "Windows Update Service".into(),
+                    description: auto_update_status.clone(),
+                    recommendation: None,
+                    raw_data: Some(serde_json::json!({"output": auto_update_status})),
+                });
+            }
+        }
+        OsType::Unknown => {
+            // Use cross-platform auto-update status for unknown platforms
+            let auto_update_status = get_auto_update_status();
+            if !auto_update_status.is_empty() {
+                findings.push(FindingInput {
+                    category: "general".into(),
+                    check_name: "auto_updates".into(),
+                    severity: "info".into(),
+                    title: "Auto Update Status".into(),
+                    description: auto_update_status.clone(),
+                    recommendation: None,
+                    raw_data: Some(serde_json::json!({"output": auto_update_status})),
+                });
+            }
         }
     }
 

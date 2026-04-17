@@ -72,7 +72,7 @@ pub struct SecurityEvent {
 }
 
 /// Wrapper for agent_audit to log security audit events.
-pub fn log_event(
+pub async fn log_event(
     db: &EngineDb,
     category: EventCategory,
     event_type: EventType,
@@ -80,7 +80,7 @@ pub fn log_event(
     details: Option<serde_json::Value>,
 ) -> Result<String> {
     let id = Uuid::new_v4().to_string();
-    let conn = db.conn();
+    let conn = db.conn_async().await;
 
     conn.execute(
         "INSERT INTO security_events (id, agent_id, session_id, event_type, category, tool_name, target, details, risk_score, was_allowed)
@@ -105,7 +105,7 @@ pub fn log_event(
 }
 
 /// Log a security event to the SIEM.
-pub fn log_security_event(
+pub async fn log_security_event(
     db: &EngineDb,
     agent_id: &str,
     session_id: Option<&str>,
@@ -118,7 +118,7 @@ pub fn log_security_event(
     was_allowed: bool,
 ) -> Result<String> {
     let id = Uuid::new_v4().to_string();
-    let conn = db.conn();
+    let conn = db.conn_async().await;
 
     conn.execute(
         "INSERT INTO security_events (id, agent_id, session_id, event_type, category, tool_name, target, details, risk_score, was_allowed)
@@ -151,7 +151,7 @@ pub fn log_security_event(
 }
 
 /// Get recent security events with optional filters.
-pub fn get_security_events(
+pub async fn get_security_events(
     db: &EngineDb,
     agent_id: Option<&str>,
     event_type: Option<&str>,
@@ -159,7 +159,7 @@ pub fn get_security_events(
     limit: i64,
     offset: i64,
 ) -> Result<Vec<SecurityEvent>> {
-    let conn = db.conn();
+    let conn = db.conn_async().await;
 
     let mut query = String::from(
         "SELECT id, agent_id, session_id, event_type, category, tool_name, target, details, risk_score, was_allowed, created_at
@@ -212,8 +212,8 @@ pub fn get_security_events(
 }
 
 /// Get SIEM summary stats for the dashboard.
-pub fn get_security_summary(db: &EngineDb) -> Result<serde_json::Value> {
-    let conn = db.conn();
+pub async fn get_security_summary(db: &EngineDb) -> Result<serde_json::Value> {
+    let conn = db.conn_async().await;
 
     // Total events
     let total: i64 =
@@ -284,18 +284,18 @@ pub fn get_security_summary(db: &EngineDb) -> Result<serde_json::Value> {
 }
 
 /// Get events by agent for the activity feed.
-pub fn get_agent_activity(db: &EngineDb, agent_id: &str, limit: i64) -> Result<Vec<SecurityEvent>> {
-    get_security_events(db, Some(agent_id), None, None, limit, 0)
+pub async fn get_agent_activity(db: &EngineDb, agent_id: &str, limit: i64) -> Result<Vec<SecurityEvent>> {
+    get_security_events(db, Some(agent_id), None, None, limit, 0).await
 }
 
 /// Get critical events that need attention.
-pub fn get_critical_events(db: &EngineDb, limit: i64) -> Result<Vec<SecurityEvent>> {
-    get_security_events(db, None, None, Some("critical"), limit, 0)
+pub async fn get_critical_events(db: &EngineDb, limit: i64) -> Result<Vec<SecurityEvent>> {
+    get_security_events(db, None, None, Some("critical"), limit, 0).await
 }
 
 /// Cleanup old security events (keep last N days).
-pub fn cleanup_security_events(db: &EngineDb, days: i64) -> Result<i64> {
-    let conn = db.conn();
+pub async fn cleanup_security_events(db: &EngineDb, days: i64) -> Result<i64> {
+    let conn = db.conn_async().await;
     let deleted = conn.execute(
         "DELETE FROM security_events WHERE created_at < datetime('now', ?)",
         rusqlite::params![format!("-{} days", days)],

@@ -226,7 +226,7 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom, cu
                 color: 'var(--text-muted)',
                 padding: '8px 12px 6px',
               }}>
-                Themes
+                Base
               </div>
               {BASE_THEMES.map((theme) => (
                 <button
@@ -263,6 +263,16 @@ export default function TopBar({ selectedAgent, engineConnected, controlRoom, cu
                 </button>
               ))}
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 8px' }} />
+              <div style={{
+                fontSize: 10,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                color: 'var(--text-muted)',
+                padding: '8px 12px 6px',
+              }}>
+                App Themes
+              </div>
               {COLOR_THEMES.map((theme) => (
                 <button
                   key={theme.id}

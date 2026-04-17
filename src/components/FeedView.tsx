@@ -44,13 +44,15 @@ export default function FeedView() {
 
   // Signal card handlers
   const handleSave = useCallback((signal: RippleSignal) => {
-    console.log('Saved signal:', signal.id);
+    // Remove from visible radar
     setDismissedIds(prev => new Set(prev).add(signal.id));
+    // Clear selected so card disappears
+    setSelectedSignal(null);
   }, []);
 
   const handleDismiss = useCallback((signal: RippleSignal) => {
-    console.log('Dismissed signal:', signal.id);
-    setDismissedIds(prev => new Set(prev).add(signal.id));
+    // Just close the card — leave the ripple on the radar
+    setSelectedSignal(null);
   }, []);
 
   const handleSignalExpand = useCallback((signal: RippleSignal) => {
