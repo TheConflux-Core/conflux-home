@@ -1,4 +1,5 @@
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
+import ConfluxFairy, { type FairyExpression, type FairyNudge } from './ConfluxFairy';
 import { ConfluxPresence, useConfluxController, attachTauriConfluxListeners } from './conflux';
 import type { ConfluxTauriListen } from './conflux';
 import { View } from '../types';
@@ -64,6 +65,24 @@ const APP_LOBE_MAP: Record<string, string> = {
 const EMPTY_SEQ: never[] = [];
 
 export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatOpen, isPushToTalkActive, wizardMode = false, wizardSequence = EMPTY_SEQ }: ConfluxOrbitProps) {
+
+  // ── Conflux Fairy State ───────────────────────────────────────────────────
+  const [fairyExpression, setFairyExpression] = useState<FairyExpression>('idle');
+  const [fairyNudge, setFairyNudge] = useState<FairyNudge | null>(null);
+
+  // Subscribe to fairy nudge events from the heartbeat system
+  useEffect(() => {
+    const handler = (e: Event) => setFairyNudge((e as CustomEvent<FairyNudge>).detail);
+    window.addEventListener('conflux:fairy-nudge', handler);
+    return () => window.removeEventListener('conflux:fairy-nudge', handler);
+  }, []);
+
+  // Update fairy expression based on open app / activity
+  useEffect(() => {
+    if (voiceChatOpen) { setFairyExpression('listening'); return; }
+    if (chatOpen) { setFairyExpression('thinking'); return; }
+    setFairyExpression('idle');
+  }, [voiceChatOpen, chatOpen]);
 
   // Wizard Mode: cycle through sequence steps
   const [wizardStepIndex, setWizardStepIndex] = useState(0);
@@ -587,6 +606,13 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
 
   return (
     <>
+      <ConfluxFairy
+        expression={fairyExpression}
+        activeNudge={fairyNudge}
+        onNudgeClick={(nudge) => {
+          setFairyNudge(null);
+        }}
+      />
       {/* Base position — spring-driven to target */}
       <motion.div
         initial={false}
