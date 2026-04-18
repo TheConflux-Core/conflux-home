@@ -73,7 +73,7 @@
   color: var(--studio-text);
   overflow: hidden;
   position: relative;
-  padding: 40px 64px;
+  padding: 0 64px 56px;
 }
 
 .studio-container::before {

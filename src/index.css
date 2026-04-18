@@ -107,9 +107,9 @@
 
 /* === SETTINGS PAGE === */
 .settings-page {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 24px;
+  max-width: none;
+  margin: 0;
+  padding: 0 24px 56px;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -1500,9 +1500,9 @@ body {
 
 /* === SETTINGS PAGE === */
 .settings-page {
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 16px 0 32px;
+  max-width: none;
+  margin: 0;
+  padding: 0 16px 56px;
   display: flex;
   flex-direction: column;
   gap: 20px;

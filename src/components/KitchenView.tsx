@@ -1,4 +1,5 @@
 // Conflux Home — Kitchen View (Hearth Overhaul)
+import { playSuccess } from '../lib/sound';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useState, useCallback, useEffect, useMemo, useTransition } from 'react';
@@ -158,6 +159,7 @@ export default function KitchenView() {
         if (!description) setAiPrompt('');
         setSelectedMeal(result.meal);
         await reloadMeals();
+        playSuccess();
       } catch (e) {
         console.error('AI add failed:', e);
       } finally {

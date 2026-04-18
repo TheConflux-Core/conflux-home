@@ -12,6 +12,7 @@ import { parseBudgetCommand } from '../hooks/useBudgetAI';
 import PulseBoot from './PulseBoot';
 import PulseOnboarding, { hasCompletedPulseOnboarding } from './PulseOnboarding';
 import PulseTour, { hasCompletedPulseTour } from './PulseTour';
+import { playSuccess } from '../lib/sound';
 import '../styles/budget-pulse.css';
 import '../styles/pulse-onboarding-v2.css';
 
@@ -162,6 +163,7 @@ export default function BudgetView() {
         description: nlpParsed.description,
         category: nlpParsed.category,
       });
+      playSuccess();
       setNlpInput('');
       setNlpParsed(null);
       setNlpConfirming(false);
@@ -490,6 +492,7 @@ export default function BudgetView() {
             date: data.date,
             status: 'reconciled',
           });
+          playSuccess();
           setIsLogOpen(false);
         }}
       />

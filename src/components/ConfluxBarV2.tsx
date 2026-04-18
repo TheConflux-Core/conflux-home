@@ -12,21 +12,6 @@ const AGENT_TO_VIEW: Record<string, View> = {
   foundation: 'home',
 };
 
-const VIEW_BADGE_LABEL: Record<string, string> = {
-  kitchen: 'items expiring',
-  budget: 'spent this month',
-  life: 'pending tasks',
-  dreams: 'active goals',
-home: 'overdue items',
-};
-
-const VIEW_BADGE_EMOJI: Record<string, string> = {
-  kitchen: '🍳',
-  budget: '💰',
-  life: '🧠',
-  dreams: '🎯',
-home: '🔧',
-};
 
 interface ConfluxBarV2Props {
   currentView: View;
@@ -105,26 +90,16 @@ const CATEGORIES = [
 ];
 
 // The 5 intelligence agents get badges on the dock
-const INTELLIGENCE_VIEWS: View[] = ['kitchen', 'budget', 'life', 'dreams'];
 
 export default function ConfluxBarV2({
   currentView,
   agents,
   onNavigate,
-  statusBadges = {},
-  statusDetails = {},
-  onStatusClick,
-  onBadgeClick,
 }: ConfluxBarV2Props & {
-  statusBadges?: Record<string, { badgeText?: string; badgeType?: string }>;
-  statusDetails?: Record<string, BadgeInfo>;
-  onStatusClick?: () => void;
-  onBadgeClick?: (view: View, agentId: string) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
-  const [hoveredBadge, setHoveredBadge] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -198,25 +173,8 @@ export default function ConfluxBarV2({
 
   const isChatOpen = currentView === 'chat';
 
-  // Build a view→badge lookup for quick access
-  const viewBadgeMap = useMemo(() => {
-    const map: Record<View, BadgeInfo | null> = {} as Record<View, BadgeInfo | null>;
-    for (const view of INTELLIGENCE_VIEWS) {
-      const agentId = Object.entries(AGENT_TO_VIEW).find(([, v]) => v === view)?.[0] ?? null;
-      if (agentId && statusBadges[agentId]) {
-        map[view] = {
-          agentId,
-          badgeText: statusBadges[agentId].badgeText,
-          badgeType: statusBadges[agentId].badgeType,
-          statusText: statusDetails[agentId]?.statusText ?? '',
-          details: statusDetails[agentId]?.details,
-        };
-      }
-    }
-    return map;
-  }, [statusBadges, statusDetails]);
-
-  const totalBadges = Object.values(statusBadges).filter(b => b.badgeText).length;
+  // Intelligence bar removed — badge map kept for future menu integration
+  const viewBadgeMap = useMemo(() => ({} as Record<View, BadgeInfo | null>), []);
 
   const handleHeroClick = useCallback(() => {
     playClick();
@@ -227,60 +185,9 @@ export default function ConfluxBarV2({
     }
   }, [isChatOpen, onNavigate]);
 
-  const handleBadgeClick = useCallback((view: View, agentId: string) => {
-    playClick();
-    if (onBadgeClick) {
-      onBadgeClick(view, agentId);
-    } else if (onStatusClick) {
-      onStatusClick();
-    }
-  }, [onBadgeClick, onStatusClick]);
 
   return (
     <div className="conflux-bar-v2-wrapper" data-tour-id="dock">
-      {/* ── Intelligence Badges Bar (above the 3-point spine) ── */}
-      {totalBadges > 0 && (
-        <div className="intelligence-bar">
-          {INTELLIGENCE_VIEWS.map((view) => {
-            const badge = viewBadgeMap[view];
-            if (!badge) return null;
-            const appInfo = APP_ICONS[view];
-            return (
-              <button
-                key={view}
-                className={`intelligence-badge ${badge.badgeType === 'attention' ? 'attention' : ''}`}
-                onClick={() => handleBadgeClick(view, badge.agentId)}
-                onMouseEnter={() => setHoveredBadge(view)}
-                onMouseLeave={() => setHoveredBadge(null)}
-              >
-                <span className="intelligence-badge-emoji">{VIEW_BADGE_EMOJI[view]}</span>
-                <span className="intelligence-badge-label">{appInfo?.label ?? view}</span>
-                <span className={`intelligence-badge-value ${badge.badgeType === 'attention' ? 'attention' : ''}`}>
-                  {badge.badgeText}
-                </span>
-                {/* Hover tooltip */}
-                {hoveredBadge === view && badge.statusText && (
-                  <div className="intelligence-badge-tooltip">
-                    <div className="tooltip-title">{VIEW_BADGE_EMOJI[view]} {appInfo?.label}</div>
-                    <div className="tooltip-text">{badge.statusText}</div>
-                    {badge.details && badge.details !== badge.statusText && (
-                      <div className="tooltip-detail">{badge.details}</div>
-                    )}
-                    <div className="tooltip-hint">Click for full status →</div>
-                  </div>
-                )}
-              </button>
-            );
-          })}
-          <button
-            className="intelligence-bar-summary"
-            onClick={() => onStatusClick?.()}
-          >
-            ◈ Team Status
-          </button>
-        </div>
-      )}
-
       {/* ── Menu panel (start menu) ── */}
       {menuOpen && (
         <div className="conflux-menu" ref={menuRef}>
@@ -368,16 +275,6 @@ export default function ConfluxBarV2({
           >
             ◈
           </button>
-          {totalBadges > 0 && (
-            <span
-              className="bar-status-dot"
-              onClick={(e) => {
-                e.stopPropagation();
-                onStatusClick?.();
-              }}
-              style={{ cursor: 'pointer' }}
-            />
-          )}
         </div>
 
         {/* Center: Hero Button */}

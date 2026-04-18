@@ -40,7 +40,7 @@
     linear-gradient(90deg, rgba(139, 92, 246, 0.08) 0%, transparent 30%, transparent 70%, rgba(139, 92, 246, 0.08) 100%),
     linear-gradient(180deg, var(--mc-bg-deep) 0%, var(--mc-bg-mid) 100%);
   min-height: 100vh;
-  padding: 20px;
+  padding: 0 20px 56px;
   font-family: 'Inter', sans-serif;
   color: var(--mc-text);
   position: relative;
@@ -144,7 +144,7 @@
 .mc-horizon-container {
   display: flex;
   gap: 16px;
-  padding: 20px;
+  padding: 0 20px 56px;
   background: var(--mc-glass);
   backdrop-filter: blur(10px);
   border-radius: 12px;
@@ -979,7 +979,7 @@
 .mc-insights-loading,
 .mc-insights-empty {
   text-align: center;
-  padding: 20px;
+  padding: 0 20px 56px;
   color: var(--mc-text-muted);
 }
 

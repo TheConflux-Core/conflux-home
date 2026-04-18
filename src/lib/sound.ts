@@ -1233,3 +1233,4 @@ export const playOrbitMorningBrief = () => soundManager.playOrbitMorningBrief();
 export const playUIClick = playClick;
 export const playHeartbeatPulse = playHeartbeat;
 export const playBootUpTone = playBootUp;
+export { startPulseAmbient, startHearthAmbient, startOrbitAmbient, startEchoAmbient } from './sounds';

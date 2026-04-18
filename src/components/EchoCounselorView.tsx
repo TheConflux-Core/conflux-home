@@ -2,6 +2,7 @@
 // Echo: Your reflective wellness companion
 // NOT a therapist. A warm, present, insightful conversation partner.
 
+import { playSuccess } from '../lib/sound';
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEchoCounselor } from '../hooks/useEchoCounselor';
@@ -90,6 +91,7 @@ export default function EchoCounselorView() {
 
     try {
       await sendMessage(sessionId, content);
+      playSuccess();
     } catch (e) {
       console.error('Failed to send:', e);
       // Restore input on error
