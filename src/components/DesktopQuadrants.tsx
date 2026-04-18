@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import { useCredits, useUsageStats, useUsageHistory } from '../hooks/useCredits';
 import { useAuth } from '../hooks/useAuth';
 import PulseKnob from './PulseKnob';
+import IntelView from './IntelView';
 
 import { View, Agent } from '../types';
 
