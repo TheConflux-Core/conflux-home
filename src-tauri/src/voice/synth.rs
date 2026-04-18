@@ -6,7 +6,7 @@ use base64::Engine;
 use reqwest::{Client, StatusCode};
 use serde_json::json;
 use std::io::{self, Write};
-use tauri::{Emitter, Window};
+use tauri::{AppHandle, Emitter};
 
 #[derive(Debug, Clone)]
 pub struct TTSConfig {
@@ -60,14 +60,14 @@ impl Default for TTSConfig {
 pub async fn stream_tts(
     text: &str,
     config: TTSConfig,
-    window: Window,
+    app: AppHandle,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if config.api_key.is_empty() {
         return Err(Box::from("ELEVENLABS_API_KEY is not set"));
     }
 
     // Emit Speaking state when TTS starts
-    let _ = window.emit(
+    let _ = app.emit(
         "conflux:state",
         serde_json::json!({
             "state": "Speaking",
@@ -125,7 +125,7 @@ pub async fn stream_tts(
         "status": "Speaking...",
     });
 
-    let _ = window.emit("conflux:state", event_payload);
+    let _ = app.emit("conflux:state", event_payload);
 
     // Stream the audio response and convert to PCM for the frontend
     let bytes = response.bytes().await?;
@@ -134,7 +134,7 @@ pub async fn stream_tts(
     use base64::Engine;
     let audio_base64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
 
-    let _ = window.emit(
+    let _ = app.emit(
         "conflux:tts-audio",
         serde_json::json!({
             "audio_base64": audio_base64,
@@ -151,7 +151,7 @@ pub async fn stream_tts(
 
     // Emit Idle state after TTS playback completes
     log::info!("[TTS] Emitting Idle state after playback complete");
-    let _ = window.emit(
+    let _ = app.emit(
         "conflux:state",
         serde_json::json!({
             "state": "Idle",
