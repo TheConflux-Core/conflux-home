@@ -1,6 +1,7 @@
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import { useGlobalClickSound } from '../hooks/useGlobalClickSound';
 import { ConfluxPresence, useConfluxController, attachTauriConfluxListeners } from './conflux';
+import MorningBriefOverlay, { useMorningBrief } from './MorningBriefOverlay';
 import type { FairyExpression, FairyNudge } from './conflux';
 import type { ConfluxTauriListen } from './conflux';
 import { View } from '../types';
