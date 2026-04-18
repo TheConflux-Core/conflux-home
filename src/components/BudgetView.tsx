@@ -13,7 +13,7 @@ import PulseBoot from './PulseBoot';
 import PulseOnboarding, { hasCompletedPulseOnboarding } from './PulseOnboarding';
 import PulseTour, { hasCompletedPulseTour } from './PulseTour';
 import { playSuccess } from '../lib/sound';
-import { triggerFairyNudge } from './ConfluxFairy';
+import { triggerFairyNudge } from '../lib/triggerFairyNudge';
 import '../styles/budget-pulse.css';
 import '../styles/pulse-onboarding-v2.css';
 
