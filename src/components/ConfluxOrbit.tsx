@@ -418,6 +418,9 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
     }
     return null;
   });
+  // One-shot flag: fires a spring to magnetic zone when setDragOverride(null) is called
+  const [transitioningToZone, setTransitioningToZone] = useState(false);
+  const transitioningRef = useRef(false);
 
   useEffect(() => {
     if (wizardMode) return; // Skip non-wizard bezier — wizard has its own
@@ -435,18 +438,31 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
     prevImmersiveViewRef.current = immersiveView;
   }, [immersiveView, wizardMode]);
 
-  // Clear drag override when view changes (let spring animate to new position)
+  // On view change: clear dragOverride → triggers one-shot spring to magnetic zone
   useEffect(() => {
-    setDragOverride(null);
-  }, [view, immersiveView, chatOpen, isPushToTalkActive]);
+    if (dragOverride !== null) {
+      transitioningRef.current = true;
+      setTransitioningToZone(true);
+      setDragOverride(null);
+    }
+  }, [view, immersiveView]);
 
-  // Drag handler: save final position to localStorage
-  // Also reset wizardOffset and bezierOffset so final position is exact
+  // onDragStart: clear all accumulated offsets immediately on grab
+  const handleDragStart = useCallback(() => {
+    transitioningRef.current = false;
+    setTransitioningToZone(false);
+    setWizardOffset({ x: 0, y: 0 });
+    setBezierOffset({ x: 0, y: 0 });
+  }, []);
+
+  // Drag handler: info.point.x/y is the exact final viewport position after drag.
+  // Write it to state — NO spring, no animate. User drops it exactly where they release.
   const handleDragEnd = useCallback((_e: any, info: { point: { x: number; y: number } }) => {
+    transitioningRef.current = false;
+    setTransitioningToZone(false);
     const finalX = info.point.x;
     const finalY = info.point.y;
     setDragOverride({ x: finalX, y: finalY });
-    // Zero wizardOffset and bezierOffset — they must NOT affect the released position
     setWizardOffset({ x: 0, y: 0 });
     setBezierOffset({ x: 0, y: 0 });
     localStorage.setItem('conflux-fairy-pos', JSON.stringify({
@@ -617,25 +633,33 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
 
   return (
     <>
-      {/* Base position — spring-driven to target */}
+      {/* NeuralBrain position — Framer Motion owns x/y during drag.
+          After drag: handleDragEnd writes exact release coords to dragOverride.
+          Magnetic zone: setTransitioningToZone(true) + clear dragOverride → one-shot spring. */}
       <motion.div
         initial={false}
         drag
         dragMomentum={false}
         dragElastic={0}
+        onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-        animate={dragOverride ? {
-          x: dragOverride.x,
-          y: dragOverride.y,
-          scale,
-          filter: builderModeFilter,
-        } : {
-          x: targetX + (wizardMode ? 0 : bezierOffset.x),
-          y: targetY + (wizardMode ? 0 : bezierOffset.y),
+        // x/y: ONLY when transitioningToZone=true (one-shot spring to magnetic zone).
+        // When isDragging or user has set a position: x/y are controlled by Framer Motion drag internally.
+        animate={{
+          x: transitioningToZone
+            ? targetX + (wizardMode ? 0 : bezierOffset.x)
+            : undefined,
+          y: transitioningToZone
+            ? targetY + (wizardMode ? 0 : bezierOffset.y)
+            : undefined,
           scale,
           filter: builderModeFilter,
         }}
-        transition={getTransitionConfig()}
+        transition={
+          transitioningToZone
+            ? { type: 'spring', stiffness: 100, damping: 18 }
+            : { duration: 0 }
+        }
         style={{
           position: 'fixed',
           zIndex: isBuilderMode ? 110 : 100,
@@ -646,10 +670,10 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
         }}
         whileDrag={{ cursor: 'grabbing' }}
       >
-        {/* Wizard organic offset — wraps ConfluxPresence to layer bezier + oscillation on top of base spring */}
+        {/* Wizard organic offset — applies bezier drift + oscillation. Always {0,0} outside wizard mode. */}
         <motion.div
-          animate={wizardMode ? { x: wizardOffset.x, y: wizardOffset.y } : { x: 0, y: 0 }}
-          transition={wizardMode ? { duration: 0 } : { type: 'spring', stiffness: 80, damping: 18 }}
+          animate={{ x: wizardMode ? wizardOffset.x : 0, y: wizardMode ? wizardOffset.y : 0 }}
+          transition={{ duration: 0 }}
           style={{ position: 'relative', top: 0, left: 0 }}
         >
           <ConfluxPresence
