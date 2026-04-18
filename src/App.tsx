@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { soundManager } from './lib/sound';
-import { useGlobalClickSound } from './hooks/useGlobalClickSound';
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
 import { Agent, View } from './types';
 import TopBar from './components/TopBar';
@@ -135,9 +134,6 @@ export default function App() {
   const [showTour, setShowTour] = useState(false);
   const { toasts, toast, dismiss } = useToast();
   const toastRef = useRef(toast);
-
-  // ── Global click sound — fires on all interactive elements ──
-  useGlobalClickSound();
 
   // ── Supabase Auth ──
   const { user, loading: authLoading, signInWithEmail } = useAuth();
