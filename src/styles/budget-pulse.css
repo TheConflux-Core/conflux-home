@@ -5,7 +5,7 @@
 .budget-matrix-v2 {
   position: relative;
   height: 100%;
-  padding: 40px 64px;
+  padding: 0 64px 56px;
   color: #ecfdf5;
   overflow-y: auto;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -599,13 +599,13 @@
 }
 
 @media (max-width: 1280px) {
-  .budget-matrix-v2 { padding: 32px; }
+  .budget-matrix-v2 { padding: 0 32px 56px; }
   .grid-row { grid-template-columns: 200px 1fr 1fr 1fr 1fr 240px; gap: 12px; }
   .bucket-target { display: none; }
 }
 
 @media (max-width: 1024px) {
-  .budget-matrix-v2 { padding: 20px; }
+  .budget-matrix-v2 { padding: 0 20px 56px; }
   .budget-cockpit { grid-template-columns: 1fr; gap: 16px; }
   .matrix-header { flex-direction: column; gap: 16px; align-items: flex-start; }
   .grid-row { grid-template-columns: 160px 1fr 1fr; }

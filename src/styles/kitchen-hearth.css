@@ -934,7 +934,7 @@
 }
 
 .kitchen-matrix {
-  padding: var(--hearth-space-xl) var(--hearth-space-2xl);
+  padding: 0 var(--hearth-space-2xl) 56px;
 }
 
 .kitchen-header {
@@ -2292,19 +2292,19 @@
 
 @media (max-width: 1280px) {
   .kitchen-matrix {
-    padding: var(--hearth-space-xl) 48px;
+    padding: 0 48px 56px;
   }
 }
 
 @media (max-width: 1024px) {
   .kitchen-matrix {
-    padding: var(--hearth-space-xl);
+    padding: 0 20px 56px;
   }
 }
 
 @media (max-width: 768px) {
   .kitchen-matrix {
-    padding: var(--hearth-space-lg) var(--hearth-space-md);
+    padding: 0 var(--hearth-space-md) 56px;
   }
   
   .kitchen-matrix .kitchen-tabs {
@@ -2320,7 +2320,7 @@
 
 @media (min-width: 1440px) {
   .kitchen-matrix {
-    padding: 48px 80px;
+    padding: 0 80px 56px;
   }
 }
 
