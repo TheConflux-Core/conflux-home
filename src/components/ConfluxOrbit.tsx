@@ -418,8 +418,6 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
     }
     return null;
   });
-  // Track drag state to separate drag motion from animation
-  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     if (wizardMode) return; // Skip non-wizard bezier — wizard has its own
@@ -443,27 +441,18 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
   }, [view, immersiveView, chatOpen, isPushToTalkActive]);
 
   // Drag handler: save final position to localStorage
-  // info.point.x/y are the final x/y after drag — use directly
-  // Also reset all accumulated offsets so released position is exact
+  // Also reset wizardOffset and bezierOffset so final position is exact
   const handleDragEnd = useCallback((_e: any, info: { point: { x: number; y: number } }) => {
-    setIsDragging(false);
     const finalX = info.point.x;
     const finalY = info.point.y;
     setDragOverride({ x: finalX, y: finalY });
-    // Zero all accumulated offsets — they must NOT affect the released position
+    // Zero wizardOffset and bezierOffset — they must NOT affect the released position
     setWizardOffset({ x: 0, y: 0 });
     setBezierOffset({ x: 0, y: 0 });
     localStorage.setItem('conflux-fairy-pos', JSON.stringify({
       rx: finalX / window.innerWidth,
       ry: finalY / window.innerHeight,
     }));
-  }, []);
-
-  // onDragStart: clear accumulated offsets immediately so drag starts clean
-  const handleDragStart = useCallback(() => {
-    setIsDragging(true);
-    setWizardOffset({ x: 0, y: 0 });
-    setBezierOffset({ x: 0, y: 0 });
   }, []);
 
   // ─── Wizard Mode: Organic Bezier Movement ─────────────────────────
@@ -629,30 +618,23 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
   return (
     <>
       {/* Base position — spring-driven to target */}
-      {/* During drag: Framer Motion owns x/y via internal state */}
-      {/* When not dragging: animate.x/y drives position with spring */}
-      {/* isDragging guard prevents animate from overriding mid-drag */}
       <motion.div
         initial={false}
         drag
         dragMomentum={false}
         dragElastic={0}
-        onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-        animate={
-          isDragging
-            ? { scale, filter: builderModeFilter } // drag owns x/y during drag
-            : {
-                x: dragOverride
-                  ? dragOverride.x
-                  : targetX + (wizardMode ? 0 : bezierOffset.x),
-                y: dragOverride
-                  ? dragOverride.y
-                  : targetY + (wizardMode ? 0 : bezierOffset.y),
-                scale,
-                filter: builderModeFilter,
-              }
-        }
+        animate={dragOverride ? {
+          x: dragOverride.x,
+          y: dragOverride.y,
+          scale,
+          filter: builderModeFilter,
+        } : {
+          x: targetX + (wizardMode ? 0 : bezierOffset.x),
+          y: targetY + (wizardMode ? 0 : bezierOffset.y),
+          scale,
+          filter: builderModeFilter,
+        }}
         transition={getTransitionConfig()}
         style={{
           position: 'fixed',
@@ -665,23 +647,9 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
         whileDrag={{ cursor: 'grabbing' }}
       >
         {/* Wizard organic offset — wraps ConfluxPresence to layer bezier + oscillation on top of base spring */}
-        {/* During drag: lock to {0,0} so release position is exact */}
-        {/* When not dragging: apply wizardOffset with spring for smooth transitions */}
         <motion.div
-          animate={
-            isDragging
-              ? { x: 0, y: 0 }
-              : wizardMode
-                ? { x: wizardOffset.x, y: wizardOffset.y }
-                : { x: 0, y: 0 }
-          }
-          transition={
-            isDragging
-              ? { duration: 0 }
-              : wizardMode
-                ? { duration: 0 }
-                : { type: 'spring', stiffness: 80, damping: 18 }
-          }
+          animate={wizardMode ? { x: wizardOffset.x, y: wizardOffset.y } : { x: 0, y: 0 }}
+          transition={wizardMode ? { duration: 0 } : { type: 'spring', stiffness: 80, damping: 18 }}
           style={{ position: 'relative', top: 0, left: 0 }}
         >
           <ConfluxPresence
