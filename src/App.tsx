@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { soundManager, playClick } from './lib/sound';
+import { soundManager } from './lib/sound';
+import { useGlobalClickSound } from './hooks/useGlobalClickSound';
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
 import { Agent, View } from './types';
 import TopBar from './components/TopBar';
@@ -134,6 +135,9 @@ export default function App() {
   const [showTour, setShowTour] = useState(false);
   const { toasts, toast, dismiss } = useToast();
   const toastRef = useRef(toast);
+
+  // ── Global click sound — fires on all interactive elements ──
+  useGlobalClickSound();
 
   // ── Supabase Auth ──
   const { user, loading: authLoading, signInWithEmail } = useAuth();
@@ -869,57 +873,6 @@ const [activeSnake, setActiveSnake] = useState(false);
       />
     );
   }
-
-  // ── Global Click Delegation — fires playClick on all interactive elements ──
-  useEffect(() => {
-    const IGNORE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'AUDIO', 'VIDEO']);
-    const IGNORE_CLASSES = new Set([
-      'conflux-bar-v2',        // dock has its own sound handlers
-      'conflux-menu',          // menu items fire their own
-      'no-click-sound',        // opt-out class
-      'tox-',                  // TinyMCE editor
-    ]);
-
-    function onClick(e: MouseEvent) {
-      const target = e.target as HTMLElement;
-      if (!target) return;
-
-      // Walk up from the clicked element
-      let el: HTMLElement | null = target;
-      while (el && el !== document.body) {
-        const tag = el.tagName;
-        const classes = el.className || '';
-        const classStr = typeof classes === 'string' ? classes : '';
-
-        if (IGNORE_TAGS.has(tag)) return;
-        if (classStr && Array.from(IGNORE_CLASSES).some(c => classStr.split(' ').some(cls => cls === c || cls.startsWith(c + '-')))) return;
-
-        // Found a valid interactive element
-        if (
-          el.tagName === 'BUTTON' ||
-          el.getAttribute('role') === 'button' ||
-          el.classList.contains('desktop-widget') ||
-          el.classList.contains('matrix-btn') ||
-          el.classList.contains('cockpit-btn') ||
-          el.classList.contains('agent-row') ||
-          el.classList.contains('kitchen-tab') ||
-          el.classList.contains('intel-agent-row') ||
-          el.classList.contains('conflux-menu-app') ||
-          el.classList.contains('conflux-menu-cat') ||
-          el.classList.contains('quadrant-back-btn') ||
-          el.getAttribute('data-click-sound') === 'true'
-        ) {
-          playClick();
-          return;
-        }
-
-        el = el.parentElement;
-      }
-    }
-
-    document.addEventListener('click', onClick, true);
-    return () => document.removeEventListener('click', onClick, true);
-  }, []);
 
   return (
     <AuthProvider>
