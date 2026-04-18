@@ -1,7 +1,7 @@
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import { useGlobalClickSound } from '../hooks/useGlobalClickSound';
-import ConfluxFairy, { type FairyExpression, type FairyNudge } from './ConfluxFairy';
 import { ConfluxPresence, useConfluxController, attachTauriConfluxListeners } from './conflux';
+import type { FairyExpression, FairyNudge } from './conflux';
 import type { ConfluxTauriListen } from './conflux';
 import { View } from '../types';
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -609,13 +609,6 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
 
   return (
     <>
-      <ConfluxFairy
-        expression={fairyExpression}
-        activeNudge={fairyNudge}
-        onNudgeClick={(nudge) => {
-          setFairyNudge(null);
-        }}
-      />
       {/* Base position — spring-driven to target */}
       <motion.div
         initial={false}
@@ -657,6 +650,9 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
             pulseEvent={conflux.pulseEvent}
             transparent={conflux.transparent}
             effectivePalette={conflux.effectivePalette}
+            fairyExpression={fairyExpression}
+            fairyNudge={fairyNudge}
+            onFairyNudgeClick={() => setFairyNudge(null)}
             style={{ width: 300, height: 300 }}
           />
         </motion.div>
