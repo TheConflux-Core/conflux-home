@@ -1,7 +1,7 @@
 // Conflux Home — Life Autopilot View (Orbit)
 // Focus engine, morning brief, habits, smart reschedule, nudges, heatmap.
 
-import { triggerFairyNudge } from './ConfluxFairy';
+import { triggerFairyNudge } from '../lib/triggerFairyNudge';
 import { useState, useCallback, useEffect } from 'react';
 import { useOrbit } from '../hooks/useOrbit';
 import { playOrbitMorningBrief } from '../lib/sound';
