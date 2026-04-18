@@ -506,3 +506,52 @@ export function startEchoAmbient(): () => void {
     try { master.disconnect(); } catch {}
   };
 }
+
+// ── Fairy Sounds ─────────────────────────────────────────────────────────────
+
+export function playFairyChime(): void {
+  if (!getSoundEnabled()) return;
+  const ctx = getAudioContext();
+  const now = ctx.currentTime;
+  const vol = effectiveVolume(0.08);
+
+  // Three ascending notes: C5 → E5 → G5 (major chord arpeggio)
+  const freqs = [523.25, 659.25, 783.99];
+  freqs.forEach((freq, i) => {
+    const t = now + i * 0.08;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(vol, t + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.18);
+  });
+}
+
+export function playFairySparkle(): void {
+  if (!getSoundEnabled()) return;
+  const ctx = getAudioContext();
+  const now = ctx.currentTime;
+  const vol = effectiveVolume(0.06);
+
+  // High shimmer burst
+  const osc = ctx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(2000, now);
+  osc.frequency.exponentialRampToValueAtTime(4000, now + 0.1);
+  osc.frequency.exponentialRampToValueAtTime(2500, now + 0.2);
+
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(vol, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.28);
+}
