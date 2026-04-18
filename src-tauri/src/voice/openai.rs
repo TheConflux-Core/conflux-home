@@ -5,7 +5,7 @@
 use anyhow::{Context, Result};
 use reqwest::Client;
 use serde_json::json;
-use tauri::{Emitter, Window};
+use tauri::{AppHandle, Emitter};
 
 #[derive(Debug, Clone)]
 pub struct OpenAIConfig {
@@ -35,7 +35,7 @@ impl Default for OpenAIConfig {
 }
 
 /// Stream TTS audio from OpenAI and emit events to the Fairy.
-pub async fn stream_tts(text: &str, config: OpenAIConfig, window: Window) -> anyhow::Result<()> {
+pub async fn stream_tts(text: &str, config: OpenAIConfig, app: AppHandle) -> anyhow::Result<()> {
     if config.api_key.is_empty() {
         return Err(anyhow::anyhow!("OPENAI_API_KEY is not set"));
     }
@@ -71,7 +71,7 @@ pub async fn stream_tts(text: &str, config: OpenAIConfig, window: Window) -> any
     // Parse text into tokens for animation
     let tokens: Vec<String> = text.split_whitespace().map(|s| s.to_string()).collect();
 
-    let _ = window.emit(
+    let _ = app.emit(
         "conflux:tts-audio",
         serde_json::json!({
             "audio_base64": audio_base64,
