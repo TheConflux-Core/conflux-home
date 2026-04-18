@@ -13,6 +13,7 @@ import PulseBoot from './PulseBoot';
 import PulseOnboarding, { hasCompletedPulseOnboarding } from './PulseOnboarding';
 import PulseTour, { hasCompletedPulseTour } from './PulseTour';
 import { playSuccess } from '../lib/sound';
+import { triggerFairyNudge } from './ConfluxFairy';
 import '../styles/budget-pulse.css';
 import '../styles/pulse-onboarding-v2.css';
 
@@ -38,6 +39,28 @@ export default function BudgetView() {
     refreshData,
     loading
   } = useBudgetEngine();
+
+  // Proactive nudge: Pulse — fire fairy when opened with no transactions this month
+  const [fairyNudgeFired, setFairyNudgeFired] = useState(false);
+  useEffect(() => {
+    if (loading || fairyNudgeFired) return;
+    const thisMonthTx = (transactions ?? []).filter(tx => {
+      const d = new Date(tx.date + 'T00:00:00');
+      const p = new Date(period + '-01T00:00:00');
+      return d.getMonth() === p.getMonth() && d.getFullYear() === p.getFullYear();
+    });
+    const key = 'conflux-pulse-fairy-nudged';
+    if (thisMonthTx.length === 0 && !localStorage.getItem(key)) {
+      localStorage.setItem(key, '1');
+      setFairyNudgeFired(true);
+      triggerFairyNudge({
+        id: 'pulse-first-visit',
+        text: 'No spending tracked this month — say "I spent $50 on groceries" to start.',
+        app: 'budget',
+        priority: 'info',
+      });
+    }
+  }, [loading, transactions, period, fairyNudgeFired]);
 
   // Boot → Onboarding → Tour state
   const [bootDone, setBootDone] = useState(() => localStorage.getItem('pulse-boot-done') === 'true');
