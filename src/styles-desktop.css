@@ -187,6 +187,13 @@
   overflow-y: auto;
 }
 
+/* All app roots inside immersive content fill the full viewport height */
+.immersive-content > * {
+  height: 100%;
+  min-height: 0; /* Override min-height:100vh which exceeds fixed parent */
+  box-sizing: border-box;
+}
+
 /* ── Agents Bottom Bar ── */
 
 .agents-bottom-bar {

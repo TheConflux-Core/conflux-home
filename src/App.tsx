@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { soundManager } from './lib/sound';
+import { soundManager, playClick } from './lib/sound';
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
 import { Agent, View } from './types';
 import TopBar from './components/TopBar';
@@ -496,28 +496,6 @@ const [activeSnake, setActiveSnake] = useState(false);
   // Phase 0.4: Agent status data
   const { statusList: agentStatuses } = useAgentStatus(user?.id ?? '', activeMemberId || undefined);
   const [showStatusPanel, setShowStatusPanel] = useState(false);
-  const statusBadges = useMemo(() => {
-    const map: Record<string, { badgeText?: string; badgeType?: string }> = {};
-    agentStatuses.forEach(s => {
-      if (s.badgeText || s.badgeType) {
-        map[s.agentId] = { badgeText: s.badgeText, badgeType: s.badgeType };
-      }
-    });
-    return map;
-  }, [agentStatuses]);
-  const statusDetails = useMemo(() => {
-    const map: Record<string, { agentId: string; badgeText?: string; badgeType?: string; statusText: string; details?: string }> = {};
-    agentStatuses.forEach(s => {
-      map[s.agentId] = {
-        agentId: s.agentId,
-        badgeText: s.badgeText,
-        badgeType: s.badgeType,
-        statusText: s.statusText,
-        details: s.details,
-      };
-    });
-    return map;
-  }, [agentStatuses]);
   const [dashboardMemberId, setDashboardMemberId] = useState<string | null>(null);
   const dashboardMember = familyMembers.find(m => m.id === dashboardMemberId);
 
@@ -892,6 +870,57 @@ const [activeSnake, setActiveSnake] = useState(false);
     );
   }
 
+  // ── Global Click Delegation — fires playClick on all interactive elements ──
+  useEffect(() => {
+    const IGNORE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'AUDIO', 'VIDEO']);
+    const IGNORE_CLASSES = new Set([
+      'conflux-bar-v2',        // dock has its own sound handlers
+      'conflux-menu',          // menu items fire their own
+      'no-click-sound',        // opt-out class
+      'tox-',                  // TinyMCE editor
+    ]);
+
+    function onClick(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target) return;
+
+      // Walk up from the clicked element
+      let el: HTMLElement | null = target;
+      while (el && el !== document.body) {
+        const tag = el.tagName;
+        const classes = el.className || '';
+        const classStr = typeof classes === 'string' ? classes : '';
+
+        if (IGNORE_TAGS.has(tag)) return;
+        if (classStr && Array.from(IGNORE_CLASSES).some(c => classStr.split(' ').some(cls => cls === c || cls.startsWith(c + '-')))) return;
+
+        // Found a valid interactive element
+        if (
+          el.tagName === 'BUTTON' ||
+          el.getAttribute('role') === 'button' ||
+          el.classList.contains('desktop-widget') ||
+          el.classList.contains('matrix-btn') ||
+          el.classList.contains('cockpit-btn') ||
+          el.classList.contains('agent-row') ||
+          el.classList.contains('kitchen-tab') ||
+          el.classList.contains('intel-agent-row') ||
+          el.classList.contains('conflux-menu-app') ||
+          el.classList.contains('conflux-menu-cat') ||
+          el.classList.contains('quadrant-back-btn') ||
+          el.getAttribute('data-click-sound') === 'true'
+        ) {
+          playClick();
+          return;
+        }
+
+        el = el.parentElement;
+      }
+    }
+
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
+  }, []);
+
   return (
     <AuthProvider>
     <div className="desktop-shell">
@@ -1134,10 +1163,6 @@ const [activeSnake, setActiveSnake] = useState(false);
           agents={agents}
           pinnedApps={['chat', 'kitchen', 'budget', 'settings']}
           onNavigate={handleNavigate}
-          statusBadges={statusBadges}
-          statusDetails={statusDetails}
-          onStatusClick={() => setShowStatusPanel(true)}
-          onBadgeClick={(badgeView) => setImmersiveView(badgeView)}
         />
       ) : (
         <ConfluxBar
