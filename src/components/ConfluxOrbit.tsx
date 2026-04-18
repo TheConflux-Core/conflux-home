@@ -1,4 +1,5 @@
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
+import { useGlobalClickSound } from '../hooks/useGlobalClickSound';
 import ConfluxFairy, { type FairyExpression, type FairyNudge } from './ConfluxFairy';
 import { ConfluxPresence, useConfluxController, attachTauriConfluxListeners } from './conflux';
 import type { ConfluxTauriListen } from './conflux';
@@ -65,6 +66,8 @@ const APP_LOBE_MAP: Record<string, string> = {
 const EMPTY_SEQ: never[] = [];
 
 export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatOpen, isPushToTalkActive, wizardMode = false, wizardSequence = EMPTY_SEQ }: ConfluxOrbitProps) {
+  // Global click sound — fired from ConfluxOrbit (always mounted desktop shell)
+  useGlobalClickSound();
 
   // ── Conflux Fairy State ───────────────────────────────────────────────────
   const [fairyExpression, setFairyExpression] = useState<FairyExpression>('idle');
