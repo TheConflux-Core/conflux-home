@@ -27,20 +27,22 @@ interface ConfluxOrbitProps {
 
 // Magnetic Zones: target coordinates for each app view
 // Conflux "zips" to the right spot instead of floating randomly
+const ELEMENT_H = 300;
+
 const MAGNETIC_ZONES: Record<string, { x: number; y: number; scale?: number }> = {
-  budget: { x: 0, y: 0.5, scale: 0.7 },    // Left-center for Budget
-  kitchen: { x: 0.95, y: 0.35, scale: 0.7 }, // Top-right for Kitchen
-  life: { x: 0.95, y: 0.5, scale: 0.7 },     // Right-center for Life
-  dreams: { x: 0.5, y: 0.2, scale: 0.8 },    // Top-center for Dream Builder
-  games: { x: 0.05, y: 0.5, scale: 0.7 },    // Left-center for Games
-  feed: { x: 0.5, y: 0.5, scale: 0.7 },      // Center for Feed
-  marketplace: { x: 0.5, y: 0.5, scale: 0.7 }, // Center for Marketplace
-  echo: { x: 0.05, y: 0.5, scale: 0.7 },     // Left-center for Echo
-  vault: { x: 0.05, y: 0.5, scale: 0.7 },    // Left-center for Vault
-  studio: { x: 0.05, y: 0.5, scale: 0.7 },   // Left-center for Studio
-  settings: { x: 0.95, y: 0.5, scale: 0.7 }, // Right-center for Settings
-  dashboard: { x: 0.5, y: 0.93, scale: 0.85 },  // Bottom-center for Dashboard
-  agents: { x: 0.05, y: 0.5, scale: 0.7 },   // Left-center for Agents
+  budget:    { x: 0,      y: 0.5,  scale: 0.7 }, // Left-center
+  kitchen:   { x: 0.95,   y: 0.28, scale: 0.7 }, // Upper-right
+  life:      { x: 0.95,   y: 0.5,  scale: 0.7 }, // Right-center
+  dreams:    { x: 0.5,    y: 0.18, scale: 0.8 }, // Top-center
+  games:     { x: 0.05,   y: 0.5,  scale: 0.7 }, // Left-center
+  feed:      { x: 0.5,    y: 0.5,  scale: 0.7 }, // Center
+  marketplace:{ x: 0.5,    y: 0.5,  scale: 0.7 }, // Center
+  echo:      { x: 0.05,   y: 0.5,  scale: 0.7 }, // Left-center
+  vault:     { x: 0.05,   y: 0.5,  scale: 0.7 }, // Left-center
+  studio:    { x: 0.05,   y: 0.5,  scale: 0.7 }, // Left-center
+  settings:  { x: 0.95,   y: 0.5,  scale: 0.7 }, // Right-center
+  dashboard: { x: 0.5,    y: 0.76, scale: 0.85 }, // Bottom-center (near dock)
+  agents:    { x: 0.05,   y: 0.5,  scale: 0.7 }, // Left-center
   'api-dashboard': { x: 0.05, y: 0.5, scale: 0.7 },
 };
 
@@ -354,8 +356,10 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
     // Magnetic Zones: use pre-defined coordinates for each app view
     const zone = MAGNETIC_ZONES[immersiveView];
     if (zone) {
-      targetX = (dimensions.width - 300) * zone.x;
-      targetY = (dimensions.height - 300) * zone.y;
+      const elH = ELEMENT_H * (zone.scale ?? 0.7);
+      const avH = dimensions.height - 56; // available height below TopBar and above ConfluxBar
+      targetX = (dimensions.width - elH) * zone.x;
+      targetY = (avH - elH) * zone.y; // top of element within available space
       scale = zone.scale ?? 0.7;
     } else {
       // Fallback for unknown views
@@ -364,9 +368,9 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
       scale = 0.75;
     }
   } else if (view === 'dashboard') {
-    // Idle state: hovering near the dock (ConfluxBarV2)
+    // Idle state: hovering near the dock (ConfluxBarV2) — full scale
     targetX = dimensions.width - 320;
-    targetY = dimensions.height - 320;
+    targetY = dimensions.height - 56 - ELEMENT_H - 16; // 16px above ConfluxBar
     scale = 1;
   }
 
@@ -437,10 +441,14 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
   }, [view, immersiveView, chatOpen, isPushToTalkActive]);
 
   // Drag handler: save final position to localStorage
+  // Also reset wizardOffset and bezierOffset so final position is exact
   const handleDragEnd = useCallback((_e: any, info: { point: { x: number; y: number } }) => {
     const finalX = info.point.x;
     const finalY = info.point.y;
     setDragOverride({ x: finalX, y: finalY });
+    // Zero wizardOffset and bezierOffset — they must NOT affect the released position
+    setWizardOffset({ x: 0, y: 0 });
+    setBezierOffset({ x: 0, y: 0 });
     localStorage.setItem('conflux-fairy-pos', JSON.stringify({
       rx: finalX / window.innerWidth,
       ry: finalY / window.innerHeight,
