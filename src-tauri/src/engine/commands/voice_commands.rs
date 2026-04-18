@@ -21,30 +21,31 @@ pub async fn voice_start_stream(window: Window) -> Result<String, String> {
 pub async fn voice_synthesize(app: AppHandle, text: String) -> Result<String, String> {
     println!("[TTS] voice_synthesize called with text: {}", text);
 
-    // Try OpenAI first (works on free tier with usage-based billing)
+    // Try ElevenLabs first (George / Conflux voice — the male voice from onboarding)
+    let config = synth::TTSConfig::default();
+    match synth::stream_tts(&text, config, app.clone()).await {
+        Ok(_) => return Ok("Speech synthesized via ElevenLabs".to_string()),
+        Err(e) => println!("[TTS] ElevenLabs failed: {}. Falling back to OpenAI...", e),
+    }
+
+    // Fallback to OpenAI TTS
     let openai_config = openai::OpenAIConfig::default();
     if !openai_config.api_key.is_empty() {
         match openai::stream_tts(&text, openai_config, app.clone()).await {
             Ok(_) => return Ok("Speech synthesized via OpenAI".to_string()),
-            Err(e) => println!("[TTS] OpenAI failed: {}. Falling back to ElevenLabs...", e),
+            Err(e) => {
+                let _ = app.emit(
+                    "conflux:state",
+                    serde_json::json!({
+                        "state": "Idle",
+                        "source": "backend",
+                        "message": "TTS unavailable"
+                    }),
+                );
+                return Err(format!("All TTS providers failed: {}", e));
+            }
         }
     }
 
-    // Fallback to ElevenLabs (requires paid plan for full access)
-    let config = synth::TTSConfig::default();
-    match synth::stream_tts(&text, config, app.clone()).await {
-        Ok(_) => return Ok("Speech synthesized via ElevenLabs".to_string()),
-        Err(e) => {
-            // All TTS providers failed — emit Idle so Conflux fairy doesn't get stuck
-            let _ = app.emit(
-                "conflux:state",
-                serde_json::json!({
-                    "state": "Idle",
-                    "source": "backend",
-                    "message": "TTS unavailable"
-                }),
-            );
-            return Err(format!("All TTS providers failed: {}", e));
-        }
-    }
+    Err("No TTS provider available".to_string())
 }
