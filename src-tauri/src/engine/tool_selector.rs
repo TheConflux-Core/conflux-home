@@ -352,6 +352,75 @@ pub fn validate_tool_name(name: &str, tool_defs: &[Value]) -> Option<String> {
     None
 }
 
+/// Determine if a user message likely needs tool execution.
+/// Returns false for purely conversational messages (greetings, acknowledgments, etc.)
+/// that should get a fast direct response without tool schemas.
+pub fn message_needs_tools(user_message: &str) -> bool {
+    let msg = user_message.trim().to_lowercase();
+
+    // Very short messages are usually conversational
+    if msg.len() <= 3 {
+        return false;
+    }
+
+    // Greetings
+    let greetings = [
+        "hi", "hello", "hey", "yo", "sup", "howdy", "greetings",
+        "good morning", "good afternoon", "good evening", "good night",
+        "what's up", "whats up", "hola",
+    ];
+    for g in &greetings {
+        if msg == *g || msg.starts_with(&format!("{} ", g)) || msg.starts_with(&format!("{}!", g)) {
+            return false;
+        }
+    }
+
+    // Acknowledgments
+    let acks = [
+        "thanks", "thank you", "ok", "okay", "sure", "got it", "understood",
+        "makes sense", "right", "yes", "no", "yep", "nope", "nah",
+        "sounds good", "perfect", "great", "awesome", "cool", "nice",
+        "lol", "haha", "nice!", "cool!", "great!", "awesome!",
+        "you're right", "absolutely", "definitely", "exactly",
+        "i agree", "i see", "fair enough", "noted",
+    ];
+    for a in &acks {
+        if msg == *a || msg == format!("{}!", a) || msg == format!("{}.", a) {
+            return false;
+        }
+    }
+
+    // Meta questions about the AI itself (no tools needed)
+    let meta_patterns = [
+        "what is your name", "what's your name", "whats your name",
+        "who are you", "what do you do", "how do you work",
+        "what can you do", "tell me about yourself",
+        "are you there", "can you hear me",
+    ];
+    for p in &meta_patterns {
+        if msg.contains(p) {
+            return false;
+        }
+    }
+
+    // Short conversational phrases
+    if msg.len() < 20 {
+        let conversational = [
+            "i'm good", "im good", "doing well", "not bad",
+            "see you", "talk later", "bye", "goodbye", "later",
+            "my bad", "sorry", "no worries", "no problem",
+        ];
+        for c in &conversational {
+            if msg.contains(c) {
+                return false;
+            }
+        }
+    }
+
+    // Everything else needs tools
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
