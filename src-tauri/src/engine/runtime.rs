@@ -13,7 +13,7 @@ use super::security::events::{self, EventCategory, EventType};
 use super::security::permissions;
 use super::state_events::ConfluxState;
 use super::tools;
-use super::tool_selector::{select_tools, ToolSelector, validate_tool_name};
+use super::tool_selector::{select_tools, ToolSelector, validate_tool_name, message_needs_tools};
 
 const MAX_TOOL_ITERATIONS: usize = 3;
 /// Maximum tools to send per request. Anthropic Claude caps at 128.
@@ -169,8 +169,14 @@ pub async fn process_turn(
     // 5. Store the user message
     db.add_message(session_id, "user", user_message, 0, None, None, None)?;
 
-    // 6. Get tool definitions — smart-filtered to message context
-    let tool_defs = get_filtered_tools(user_message, MAX_CLOUD_TOOLS);
+    // 6. Determine if message needs tools at all
+    let needs_tools = message_needs_tools(user_message);
+    let tool_defs = if needs_tools {
+        get_filtered_tools(user_message, MAX_CLOUD_TOOLS)
+    } else {
+        log::debug!("[Engine] Conversational message — skipping tools for speed");
+        Vec::new()
+    };
 
     // 7. Emit thinking state
     let state_manager = super::state_manager::get_state_manager();
@@ -188,7 +194,8 @@ pub async fn process_turn(
 
     // 8. Local AI fast-path (try local routing first, fall back to cloud)
     //    Only attempt on first iteration (no tool results in context yet)
-    if true { // First turn — try local routing
+    //    Skip for conversational messages (no tools needed)
+    if needs_tools { // Only route locally if message needs tools
         let local_tools = get_filtered_tools(user_message, MAX_LOCAL_TOOLS);
         if let Some(local_response) = try_local_routing(user_message, &local_tools).await {
             if !local_response.tool_calls.is_empty() {
@@ -272,7 +279,7 @@ pub async fn process_turn(
             messages.clone(),
             max_tokens,
             None,
-            if iteration == 0 || !tool_defs.is_empty() {
+            if !tool_defs.is_empty() && (iteration == 0) {
                 Some(tool_defs.clone())
             } else {
                 None
