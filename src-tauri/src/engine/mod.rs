@@ -7,6 +7,7 @@ pub mod db;
 pub mod deterministic;
 pub mod echo_counselor;
 pub mod google;
+pub mod local_ai;
 pub mod memory;
 pub mod orbit_prompts;
 pub mod router;
@@ -15,6 +16,7 @@ pub mod security;
 pub mod state_events;
 pub mod state_manager;
 pub mod tools;
+pub mod tool_selector;
 pub mod types;
 pub mod commands {
     pub mod voice_commands;
