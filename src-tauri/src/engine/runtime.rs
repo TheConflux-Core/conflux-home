@@ -964,63 +964,17 @@ fn truncate(s: &str, max: usize) -> String {
 
 /// Attempt to route a user message through the local AI model.
 /// Returns Some(ModelResponse) if local routing succeeded, None if unavailable or failed.
+/// Uses the persistent llama-server instance (started once, reused across requests).
 /// Falls through silently — never blocks the cloud path.
 async fn try_local_routing(
     user_message: &str,
     tool_defs: &[serde_json::Value],
 ) -> Option<ModelResponse> {
-    use super::local_ai::{find_llama_server, local_tool_route, LocalAiManager, ServerConfig};
+    use super::local_ai::{get_or_init_local_ai, local_tool_route};
 
-    // Check if llama-server binary exists
-    let _server_bin = match find_llama_server() {
-        Ok(p) => p,
-        Err(_) => {
-            log::debug!("[LocalAI] llama-server not found, skipping local routing");
-            return None;
-        }
-    };
+    let manager = get_or_init_local_ai().await?;
 
-    // Check if model file exists
-    let home = std::env::var("HOME").unwrap_or_default();
-    let model_path = std::path::PathBuf::from(format!(
-        "{}/.openclaw/workspace/conflux-home/src-tauri/models/conflux-toolrouter-q4.gguf",
-        home
-    ));
-    if !model_path.exists() {
-        log::debug!("[LocalAI] No model file at {}, skipping local routing", model_path.display());
-        return None;
-    }
-
-    let config = ServerConfig {
-        model_path,
-        ..Default::default()
-    };
-
-    let manager = LocalAiManager::new(config);
-
-    // Start the server
-    if let Err(e) = manager.start() {
-        log::warn!("[LocalAI] Failed to start: {}", e);
-        return None;
-    }
-
-    // Wait for it to be ready
-    match manager.wait_for_ready().await {
-        Ok(_) => {}
-        Err(e) => {
-            log::warn!("[LocalAI] Server not ready: {}", e);
-            manager.stop().ok();
-            return None;
-        }
-    }
-
-    // Route the message
-    let result = local_tool_route(&manager, user_message, tool_defs).await;
-
-    // Always stop the server after routing (for now — later we keep it alive)
-    manager.stop().ok();
-
-    match result {
+    match local_tool_route(&manager, user_message, tool_defs).await {
         Ok(response) => Some(response),
         Err(e) => {
             log::warn!("[LocalAI] Routing failed: {}", e);
