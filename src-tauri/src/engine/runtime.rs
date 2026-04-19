@@ -13,10 +13,40 @@ use super::security::events::{self, EventCategory, EventType};
 use super::security::permissions;
 use super::state_events::ConfluxState;
 use super::tools;
+use super::tool_selector::{select_tools, ToolSelector, validate_tool_name};
 
 const MAX_TOOL_ITERATIONS: usize = 3;
 /// Maximum tools to send per request. Anthropic Claude caps at 128.
 const MAX_TOOLS_PER_REQUEST: usize = 128;
+/// Maximum tools for local AI routing (small context window).
+const MAX_LOCAL_TOOLS: usize = 18;
+/// Maximum tools for cloud AI routing.
+const MAX_CLOUD_TOOLS: usize = 45;
+
+/// Assemble and smart-filter tool definitions for a user message.
+/// Core tools (time, calc, web_search, file ops) are always included.
+/// Domain tools are selected by keyword relevance to the message.
+fn get_filtered_tools(user_message: &str, max_tools: usize) -> Vec<Value> {
+    let mut all_tools = tools::get_tool_definitions();
+    all_tools.extend(tools::get_integration_tool_definitions());
+    all_tools.extend(tools::get_app_tool_definitions());
+
+    if all_tools.len() <= max_tools {
+        return all_tools;
+    }
+
+    // Smart selection — no conversation history for now (stateless per-turn)
+    let selected = select_tools(&all_tools, user_message, max_tools, &[]);
+
+    log::debug!(
+        "[ToolSelector] {} → {}/{} tools",
+        &user_message[..user_message.len().min(60)],
+        selected.len(),
+        all_tools.len()
+    );
+
+    selected
+}
 
 /// Helper: create a ToolResult from a message string.
 fn tool_result_msg(success: bool, output: String) -> tools::ToolResult {
@@ -139,15 +169,8 @@ pub async fn process_turn(
     // 5. Store the user message
     db.add_message(session_id, "user", user_message, 0, None, None, None)?;
 
-    // 6. Get tool definitions
-    let mut tool_defs = tools::get_tool_definitions();
-    tool_defs.extend(tools::get_integration_tool_definitions());
-    tool_defs.extend(tools::get_app_tool_definitions());
-    // Cap at Anthropic's 128-tool limit
-    if tool_defs.len() > MAX_TOOLS_PER_REQUEST {
-        log::warn!("[process_turn] {} tools exceeds Anthropic limit of {}, truncating", tool_defs.len(), MAX_TOOLS_PER_REQUEST);
-        tool_defs.truncate(MAX_TOOLS_PER_REQUEST);
-    }
+    // 6. Get tool definitions — smart-filtered to message context
+    let tool_defs = get_filtered_tools(user_message, MAX_CLOUD_TOOLS);
 
     // 7. Emit thinking state
     let state_manager = super::state_manager::get_state_manager();
@@ -163,7 +186,83 @@ pub async fn process_turn(
         )
     });
 
-    // 8. Tool calling loop
+    // 8. Local AI fast-path (try local routing first, fall back to cloud)
+    //    Only attempt on first iteration (no tool results in context yet)
+    if true { // First turn — try local routing
+        let local_tools = get_filtered_tools(user_message, MAX_LOCAL_TOOLS);
+        if let Some(local_response) = try_local_routing(user_message, &local_tools).await {
+            if !local_response.tool_calls.is_empty() {
+                log::info!(
+                    "[Engine] Local AI routed {} tool call(s) in {}ms",
+                    local_response.tool_calls.len(),
+                    local_response.latency_ms
+                );
+
+                // Execute local tool calls and feed results into the conversation
+                // so the cloud model can generate a natural language response
+                for tool_call in &local_response.tool_calls {
+                    let args: Value = serde_json::from_str(&tool_call.arguments)
+                        .unwrap_or_else(|_| serde_json::json!({}));
+                    let user_id = get_session_user_id(db, session_id);
+
+                    // Validate/correct tool name (270M model often truncates to category prefix)
+                    let validated_name = validate_tool_name(&tool_call.name, &local_tools)
+                        .unwrap_or_else(|| tool_call.name.clone());
+                    if validated_name != tool_call.name {
+                        log::info!("[Engine] Local AI tool name corrected: '{}' → '{}'", tool_call.name, validated_name);
+                    }
+
+                    match tools::execute_tool(&validated_name, &args, &user_id).await {
+                        Ok(result) => {
+                            let tool_content = if result.success {
+                                result.output.clone()
+                            } else {
+                                format!("Error: {}", result.error.unwrap_or_default())
+                            };
+                            log::info!("[Engine] Local tool result ({}): {}", tool_call.name, &tool_content[..tool_content.len().min(200)]);
+
+                            // Add the assistant's tool call and tool result to messages
+                            // so the cloud model sees the context and responds naturally
+                            messages.push(OpenAIMessage {
+                                role: "assistant".to_string(),
+                                content: None,
+                                tool_calls: Some(vec![serde_json::json!({
+                                    "id": tool_call.id,
+                                    "type": "function",
+                                    "function": {
+                                        "name": tool_call.name,
+                                        "arguments": tool_call.arguments,
+                                    }
+                                })]),
+                                tool_call_id: None,
+                            });
+                            messages.push(OpenAIMessage {
+                                role: "tool".to_string(),
+                                content: Some(tool_content.clone()),
+                                tool_calls: None,
+                                tool_call_id: Some(tool_call.id.clone()),
+                            });
+
+                            // Log tool execution in DB
+                            db.add_message(session_id, "tool", &tool_content, 0, None, None, None)?;
+                        }
+                        Err(e) => {
+                            log::warn!("[Engine] Local tool execution failed: {}", e);
+                        }
+                    }
+                }
+
+                // Fall through to cloud loop — it will see the tool results
+                // in messages and generate a natural language response
+                log::info!("[Engine] Local routing done — cloud will generate response from tool results");
+            }
+            // Local model returned no tool calls — fall through to cloud
+            log::info!("[Engine] Local AI found no tool calls, falling back to cloud");
+        }
+    }
+
+    // 9. Cloud tool calling loop (original logic)
+    log::info!("[Engine] Entering cloud loop with {} messages", messages.len());
     let mut total_tokens: i64 = 0;
     let mut final_response: Option<ModelResponse> = None;
 
@@ -251,6 +350,9 @@ pub async fn process_turn(
                     }
                 }
             };
+
+            log::debug!("[Engine] Permission check for '{}': allowed={}, action={}", 
+                tool_call.name, perm_result.allowed, perm_result.action);
 
             let tool_result = if !perm_result.allowed {
                 // Log the denied event
@@ -527,15 +629,8 @@ pub async fn process_turn_stream(
     // 5. Store user message before streaming
     db.add_message(session_id, "user", user_message, 0, None, None, None)?;
 
-    // 6. Get tool definitions
-    let mut tool_defs = tools::get_tool_definitions();
-    tool_defs.extend(tools::get_integration_tool_definitions());
-    tool_defs.extend(tools::get_app_tool_definitions());
-    // Cap at Anthropic's 128-tool limit
-    if tool_defs.len() > MAX_TOOLS_PER_REQUEST {
-        log::warn!("[process_turn_stream] {} tools exceeds Anthropic limit of {}, truncating", tool_defs.len(), MAX_TOOLS_PER_REQUEST);
-        tool_defs.truncate(MAX_TOOLS_PER_REQUEST);
-    }
+    // 6. Get tool definitions — smart-filtered to message context
+    let tool_defs = get_filtered_tools(user_message, MAX_CLOUD_TOOLS);
 
     // 7. Tool calling loop (non-streaming for tool detection, streaming for final text)
     let mut final_response: Option<ModelResponse> = None;
@@ -864,5 +959,72 @@ fn truncate(s: &str, max: usize) -> String {
         s.to_string()
     } else {
         format!("{}...", &s[..max])
+    }
+}
+
+/// Attempt to route a user message through the local AI model.
+/// Returns Some(ModelResponse) if local routing succeeded, None if unavailable or failed.
+/// Falls through silently — never blocks the cloud path.
+async fn try_local_routing(
+    user_message: &str,
+    tool_defs: &[serde_json::Value],
+) -> Option<ModelResponse> {
+    use super::local_ai::{find_llama_server, local_tool_route, LocalAiManager, ServerConfig};
+
+    // Check if llama-server binary exists
+    let _server_bin = match find_llama_server() {
+        Ok(p) => p,
+        Err(_) => {
+            log::debug!("[LocalAI] llama-server not found, skipping local routing");
+            return None;
+        }
+    };
+
+    // Check if model file exists
+    let home = std::env::var("HOME").unwrap_or_default();
+    let model_path = std::path::PathBuf::from(format!(
+        "{}/.openclaw/workspace/conflux-home/src-tauri/models/conflux-toolrouter-q4.gguf",
+        home
+    ));
+    if !model_path.exists() {
+        log::debug!("[LocalAI] No model file at {}, skipping local routing", model_path.display());
+        return None;
+    }
+
+    let config = ServerConfig {
+        model_path,
+        ..Default::default()
+    };
+
+    let manager = LocalAiManager::new(config);
+
+    // Start the server
+    if let Err(e) = manager.start() {
+        log::warn!("[LocalAI] Failed to start: {}", e);
+        return None;
+    }
+
+    // Wait for it to be ready
+    match manager.wait_for_ready().await {
+        Ok(_) => {}
+        Err(e) => {
+            log::warn!("[LocalAI] Server not ready: {}", e);
+            manager.stop().ok();
+            return None;
+        }
+    }
+
+    // Route the message
+    let result = local_tool_route(&manager, user_message, tool_defs).await;
+
+    // Always stop the server after routing (for now — later we keep it alive)
+    manager.stop().ok();
+
+    match result {
+        Ok(response) => Some(response),
+        Err(e) => {
+            log::warn!("[LocalAI] Routing failed: {}", e);
+            None
+        }
     }
 }
