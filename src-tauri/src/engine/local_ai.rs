@@ -18,6 +18,79 @@ use tokio::time::sleep;
 
 use super::router::{ModelResponse, ToolCallRequest};
 
+// ── Global Persistent Manager ──
+
+/// Global persistent llama-server manager. Starts once, reused across all requests.
+/// Avoids the 12-19s startup cost per inference call.
+static LOCAL_AI: std::sync::LazyLock<std::sync::Mutex<Option<LocalAiManager>>> =
+    std::sync::LazyLock::new(|| std::sync::Mutex::new(None));
+
+/// Get or initialize the persistent local AI manager.
+/// Starts the llama-server on first call, reuses it on subsequent calls.
+/// Returns None if the server can't be started (missing binary or model).
+pub async fn get_or_init_local_ai() -> Option<LocalAiManager> {
+    // Check if binary and model exist first (fast path)
+    let server_bin = find_llama_server().ok()?;
+    let home = std::env::var("HOME").unwrap_or_default();
+    let model_path = std::path::PathBuf::from(format!(
+        "{}/.openclaw/workspace/conflux-home/src-tauri/models/conflux-toolrouter-q4.gguf",
+        home
+    ));
+    if !model_path.exists() {
+        log::debug!("[LocalAI] No model file at {}, skipping", model_path.display());
+        return None;
+    }
+
+    let config = ServerConfig {
+        model_path,
+        ..Default::default()
+    };
+
+    // Try to get existing manager
+    {
+        let guard = LOCAL_AI.lock().unwrap();
+        if let Some(ref manager) = *guard {
+            // Check if still healthy
+            if manager.is_process_alive() {
+                return Some(manager.clone());
+            }
+            // Process died — will recreate below
+            log::warn!("[LocalAI] Server process died, restarting...");
+        }
+    }
+
+    // Create and start a new manager
+    let manager = LocalAiManager::new(config);
+    match manager.start() {
+        Ok(_) => match manager.wait_for_ready().await {
+            Ok(_) => {
+                log::info!("[LocalAI] Persistent server ready on port {}", manager.config.port);
+                let clone = manager.clone();
+                *LOCAL_AI.lock().unwrap() = Some(manager);
+                Some(clone)
+            }
+            Err(e) => {
+                log::warn!("[LocalAI] Server not ready: {}", e);
+                manager.stop().ok();
+                None
+            }
+        },
+        Err(e) => {
+            log::warn!("[LocalAI] Failed to start: {}", e);
+            None
+        }
+    }
+}
+
+/// Shutdown the persistent local AI server (call on app exit).
+pub fn shutdown_local_ai() {
+    let mut guard = LOCAL_AI.lock().unwrap();
+    if let Some(manager) = guard.take() {
+        manager.stop().ok();
+        log::info!("[LocalAI] Persistent server shut down");
+    }
+}
+
 // ── Configuration ──
 
 /// Default port for the llama-server sidecar.
@@ -75,6 +148,7 @@ impl Default for ServerConfig {
 // ── Sidecar Manager ──
 
 /// Manages the llama-server sidecar process.
+#[derive(Clone)]
 pub struct LocalAiManager {
     process: Arc<Mutex<Option<Child>>>,
     config: ServerConfig,
@@ -218,11 +292,8 @@ impl LocalAiManager {
     }
 }
 
-impl Drop for LocalAiManager {
-    fn drop(&mut self) {
-        self.stop().ok();
-    }
-}
+// Note: No Drop impl — server lifecycle is managed by the global LOCAL_AI static.
+// Call shutdown_local_ai() on app exit to clean up.
 
 // ── Tool Routing ──
 
