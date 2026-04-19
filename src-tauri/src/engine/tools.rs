@@ -272,10 +272,10 @@ fn check_security_gate(tool_name: &str, args: &Value, agent_id: &str) -> Result<
     match mode {
         "open" => Ok(()),
         "deny" => {
-            log_tool_security_event(tool_name, args, false, agent_id);
+            log_tool_security_event(tool_name, args, false, "conflux");
             let _ = log_security_event(
                 db,
-                agent_id,
+                "conflux",
                 None,
                 super::security::events::EventType::PermissionDenied,
                 super::security::events::EventCategory::Warning,
@@ -312,7 +312,7 @@ fn check_security_gate(tool_name: &str, args: &Value, agent_id: &str) -> Result<
                 .is_ok();
 
             if !has_allow {
-                log_tool_security_event(tool_name, args, false, agent_id);
+                log_tool_security_event(tool_name, args, false, "conflux");
                 anyhow::bail!(
                     "🛡️ Security: {} blocked — '{}' not in allowlist for agent '{}'.",
                     tool_name,
@@ -369,6 +369,7 @@ fn check_tool_permission(db: &EngineDb, agent_id: &str, tool_name: &str) -> Resu
 pub async fn execute_tool(tool_name: &str, args: &Value, user_id: &str) -> Result<ToolResult> {
     // Security gate — check permission before execution
     if let Err(security_err) = check_security_gate(tool_name, args, user_id) {
+        log::warn!("[tools] Security gate BLOCKED: {}", security_err);
         return Ok(ToolResult {
             success: false,
             output: String::new(),
@@ -377,9 +378,9 @@ pub async fn execute_tool(tool_name: &str, args: &Value, user_id: &str) -> Resul
     }
 
     let result = execute_tool_for_user(tool_name, args, user_id).await;
-    // Security telemetry — fire and forget
+    // Security telemetry — fire and forget (use "conflux" as agent — we're the executor)
     let success = result.as_ref().map(|r| r.success).unwrap_or(false);
-    log_tool_security_event(tool_name, args, success, user_id);
+    log_tool_security_event(tool_name, args, success, "conflux");
     result
 }
 
@@ -4660,6 +4661,7 @@ fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
             cuisine,
             category,
             None,
+            None,
             prep_time_min,
             cook_time_min,
             4,
@@ -4674,11 +4676,14 @@ fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
             output: format!("Added meal: {} (id: {})", meal.name, meal.id),
             error: None,
         }),
-        Err(e) => Ok(ToolResult {
-            success: false,
-            output: String::new(),
-            error: Some(e.to_string()),
-        }),
+        Err(e) => {
+            log::error!("[tools] kitchen_add_meal FAILED: {}", e);
+            Ok(ToolResult {
+                success: false,
+                output: String::new(),
+                error: Some(e.to_string()),
+            })
+        }
     }
 }
 
