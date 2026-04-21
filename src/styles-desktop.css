@@ -103,7 +103,7 @@
 
 .immersive-overlay {
   position: fixed;
-  top: 48px; /* below TopBar */
+  top: 0;
   left: 0;
   right: 0;
   bottom: 0;
@@ -171,10 +171,10 @@
 
 .immersive-content {
   position: fixed;
-  top: 48px; /* Match overlay top */
+  top: 0;
   left: 0;
   right: 0;
-  bottom: 56px; /* Match ConfluxBar height */
+  bottom: 0;
   z-index: 2;
   margin: 0;
   padding: 0;
