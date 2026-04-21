@@ -115,9 +115,9 @@ export function resetKitchenTour(): void {
   localStorage.removeItem(TOUR_DONE_KEY);
 }
 
-export function resetKitchenOnboarding(): void {
-  localStorage.removeItem(TOUR_DONE_KEY);
-  localStorage.removeItem(ONBOARDING_DONE_KEY);
+export function resetHearthOnboarding(): void {
+  localStorage.removeItem('hearth-onboarding-completed');
+  localStorage.removeItem('hearth-boot-done');
 }
 
 // ─── Main Component ──────────────────────────────────────────

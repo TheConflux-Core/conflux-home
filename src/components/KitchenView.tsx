@@ -1,6 +1,7 @@
 // Conflux Home — Kitchen View (Hearth Overhaul)
 import { playSuccess } from '../lib/sound';
 import { invoke } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
 import { useState, useCallback, useEffect, useMemo, useTransition } from 'react';
 import { useMeals, useWeeklyPlan, useGroceryList } from '../hooks/useKitchen';
@@ -23,6 +24,8 @@ import KitchenBoot from './KitchenBoot';
 import HearthOnboarding, { hasCompletedHearthOnboarding } from './HearthOnboarding';
 import HearthTour, { hasCompletedHearthTour } from './HearthTour';
 import KitchenEmptyState from './KitchenEmptyState';
+import KrogerConnect from './KrogerConnect';
+import KrogerCartExporter from './KrogerCartExporter';
 
 function getWeekStart(): string {
   const now = new Date();
@@ -56,14 +59,18 @@ export default function KitchenView() {
   const [cookingCurrentStep, setCookingCurrentStep] = useState(0);
 
   // Boot → Onboarding → Tour state
+  // bootDone persists across sessions (plays once ever). If boot has NOT played yet,
+  // showOnboarding follows the hasOnboarded flag. If boot HAS played (user closed mid-onboarding
+  // or is returning), keep onboarding visible until they complete it — do not skip to tour.
   const [bootDone, setBootDone] = useState(() => localStorage.getItem('hearth-boot-done') === 'true');
   const hasOnboarded = hasCompletedHearthOnboarding();
   const hasTakenTour = hasCompletedHearthTour();
-  const [showOnboarding, setShowOnboarding] = useState(!bootDone && !hasOnboarded);
+  const [showOnboarding, setShowOnboarding] = useState(!bootDone ? !hasOnboarded : true);
   const [showTour, setShowTour] = useState(!bootDone ? false : !hasTakenTour);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [tourComplete, setTourComplete] = useState(false);
   const [showAddPantryItem, setShowAddPantryItem] = useState(false);
+  const [showKrogerExporter, setShowKrogerExporter] = useState(false);
 
   const weekStart = useMemo(getWeekStart, []);
 
@@ -284,7 +291,12 @@ export default function KitchenView() {
               <RestaurantMenu
                 chefsSpecials={homeMenu}
                 yourRegulars={meals.filter(m => m.is_favorite).slice(0, 6)}
-                onSelect={(id) => setCookingMealId(id)}
+                onSelect={(id) => {
+                  // Look up the full meal from the library — works for both
+                  // Chef's Specials (meal_id → matches AI-created meals) and Your Regulars
+                  const meal = meals.find(m => m.id === id);
+                  if (meal) setSelectedMeal(meal);
+                }}
                 loading={menuLoading}
               />
 
@@ -358,6 +370,77 @@ export default function KitchenView() {
               <div className="meal-detail-header">
                 <h3>{selectedMeal.name}</h3>
                 <button className="modal-close" onClick={() => setSelectedMeal(null)}>✕</button>
+              </div>
+              {/* Meal Photo */}
+              <div className="meal-detail-photo">
+                {selectedMeal.photo_url || selectedMeal.image_url ? (
+                  <img
+                    src={selectedMeal.photo_url || selectedMeal.image_url || ''}
+                    alt={selectedMeal.name}
+                    className="meal-detail-img"
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      target.style.display = 'none';
+                      const parent = target.parentElement;
+                      if (parent) {
+                        const emoji = parent.querySelector('.meal-detail-photo-emoji') as HTMLElement;
+                        if (emoji) emoji.style.display = 'flex';
+                      }
+                    }}
+                  />
+                ) : null}
+                <span
+                  className="meal-detail-photo-emoji"
+                  style={{ display: selectedMeal.photo_url || selectedMeal.image_url ? 'none' : 'flex' }}
+                >
+                  {MEAL_CATEGORY_EMOJI[selectedMeal.category ?? 'dinner'] ?? '🍽️'}
+                </span>
+              </div>
+              <div className="meal-detail-photo-actions">
+                <button
+                  className="replace-photo-btn"
+                  onClick={async () => {
+                    try {
+                      const selected = await open({
+                        multiple: false,
+                        filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif'] }],
+                      });
+                      if (selected && typeof selected === 'string') {
+                        // Upload the file — in this app we store the file path as photo_url
+                        // For cross-platform compatibility, we copy to app data directory
+                        await invoke('kitchen_update_meal_photo', {
+                          req: { meal_id: selectedMeal.id, photo_url: selected, image_url: null },
+                        });
+                        // Reload meals to get updated photo_url
+                        await reloadMeals();
+                        // Update the selected meal in state
+                        setSelectedMeal((prev: Meal | null) => prev ? { ...prev, photo_url: selected } : prev);
+                      }
+                    } catch (err) {
+                      console.error('[KitchenView] Failed to upload photo:', err);
+                    }
+                  }}
+                >
+                  📷 Replace Photo
+                </button>
+                {(selectedMeal.photo_url || selectedMeal.image_url) && (
+                  <button
+                    className="remove-photo-btn"
+                    onClick={async () => {
+                      try {
+                        await invoke('kitchen_update_meal_photo', {
+                          req: { meal_id: selectedMeal.id, photo_url: '', image_url: null },
+                        });
+                        await reloadMeals();
+                        setSelectedMeal((prev: Meal | null) => prev ? { ...prev, photo_url: null } : prev);
+                      } catch (err) {
+                        console.error('[KitchenView] Failed to remove photo:', err);
+                      }
+                    }}
+                  >
+                    ✕ Clear
+                  </button>
+                )}
               </div>
               {selectedMeal.description && <p className="meal-detail-desc">{selectedMeal.description}</p>}
               <div className="meal-detail-stats">
@@ -442,6 +525,12 @@ export default function KitchenView() {
           <div className="grocery-header">
             <div className="grocery-actions">
               <span className="grocery-total">Est. total: <strong>{formatCost(totalCost)}</strong></span>
+              <KrogerConnect />
+              {groceryItems.length > 0 && (
+                <button className="btn-primary" onClick={() => setShowKrogerExporter(true)}>
+                  🛒 Add to Kroger
+                </button>
+              )}
               <button className="btn-primary" onClick={generateGrocery}>
                 ✨ Generate from Plan
               </button>
@@ -577,6 +666,14 @@ export default function KitchenView() {
           onPrev={() => setCookingCurrentStep(prev => Math.max(prev - 1, 0))}
           onClose={() => setCookingMealId(null)}
           autoAdvance={true}
+        />
+      )}
+
+      {/* ── KROGER CART EXPORTER ── */}
+      {showKrogerExporter && (
+        <KrogerCartExporter
+          groceryItems={groceryItems}
+          onClose={() => setShowKrogerExporter(false)}
         />
       )}
     </div>
