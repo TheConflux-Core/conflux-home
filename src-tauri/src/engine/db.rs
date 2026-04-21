@@ -102,12 +102,13 @@ impl EngineDb {
         Ok(())
     }
 
-    /// Split SQL into complete statements, respecting parentheses depth.
-    /// SQLite semicolons inside CREATE TABLE (...) should not split.
+    /// Split SQL into complete statements, respecting parentheses depth
+    /// and BEGIN...END blocks (SQLite triggers/procedures).
     fn split_sql_statements(sql: &str) -> Vec<String> {
         let mut statements = Vec::new();
         let mut current = String::new();
         let mut paren_depth: u32 = 0;
+        let mut begin_depth: u32 = 0; // Track BEGIN...END nesting (triggers)
         let mut in_string = false;
         let mut string_char = '\0';
         let mut chars = sql.chars().peekable();
@@ -142,14 +143,43 @@ impl EngineDb {
                     }
                     current.push(ch);
                 }
-                ';' if paren_depth == 0 => {
+                ';' if paren_depth == 0 && begin_depth == 0 => {
                     let trimmed = current.trim().to_string();
                     if !trimmed.is_empty() && !trimmed.starts_with("--") {
                         statements.push(trimmed);
                     }
                     current.clear();
                 }
-                _ => current.push(ch),
+                _ => {
+                    // Detect BEGIN/END keywords at word boundaries (for trigger bodies)
+                    if paren_depth == 0 && ch.is_ascii_alphabetic() {
+                        // Read the full word
+                        let mut word = String::new();
+                        word.push(ch);
+                        while let Some(&next) = chars.peek() {
+                            if next.is_ascii_alphabetic() || next == '_' {
+                                word.push(chars.next().unwrap());
+                            } else {
+                                break;
+                            }
+                        }
+                        let upper = word.to_uppercase();
+                        // Check for END first (before pushing word to current)
+                        if upper == "END" && begin_depth > 0 {
+                            begin_depth -= 1;
+                        }
+                        current.push_str(&word);
+                        if upper == "BEGIN" {
+                            // Only count BEGIN if it's a top-level keyword (trigger body)
+                            // Skip BEGIN TRANSACTION, BEGIN DEFERRED, etc.
+                            // We detect these by checking if begin_depth was 0 and we're
+                            // likely inside a CREATE TRIGGER body.
+                            begin_depth += 1;
+                        }
+                        continue;
+                    }
+                    current.push(ch);
+                }
             }
         }
 
@@ -1648,6 +1678,29 @@ impl EngineDb {
             result.push(j?);
         }
         Ok(result)
+    }
+
+    /// Get seconds until the next cron job is due. Returns None if no jobs are scheduled.
+    pub fn get_next_cron_due_seconds(&self) -> Result<Option<i64>> {
+        let conn = self.conn();
+        let result: Option<String> = conn.query_row(
+            "SELECT MIN(next_run_at) FROM cron_jobs WHERE is_enabled = 1 AND next_run_at IS NOT NULL",
+            [],
+            |row| row.get(0),
+        )?;
+        match result {
+            Some(next_run) => {
+                if let Ok(next_dt) = chrono::NaiveDateTime::parse_from_str(&next_run, "%Y-%m-%dT%H:%M:%SZ") {
+                    let next_utc = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(next_dt, chrono::Utc);
+                    let now_utc = chrono::Utc::now();
+                    let secs = (next_utc - now_utc).num_seconds();
+                    Ok(Some(secs.max(0)))
+                } else {
+                    Ok(None)
+                }
+            }
+            None => Ok(None),
+        }
     }
 
     pub fn update_cron_run(
@@ -3290,6 +3343,7 @@ impl EngineDb {
         cuisine: Option<&str>,
         category: Option<&str>,
         photo_url: Option<&str>,
+        image_url: Option<&str>,
         prep_time: Option<i64>,
         cook_time: Option<i64>,
         servings: i64,
@@ -3301,9 +3355,9 @@ impl EngineDb {
         let conn = self.conn_async().await;
         let now = Self::now();
         conn.execute(
-            "INSERT INTO meals (id, name, description, cuisine, category, photo_url, prep_time_min, cook_time_min, servings, difficulty, instructions, tags, source, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?14)",
-            params![id, name, description, cuisine, category, photo_url, prep_time, cook_time, servings, difficulty, instructions, tags, source, now],
+            "INSERT INTO meals (id, name, description, cuisine, category, photo_url, image_url, prep_time_min, cook_time_min, servings, difficulty, instructions, tags, source, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?15)",
+            params![id, name, description, cuisine, category, photo_url, image_url, prep_time, cook_time, servings, difficulty, instructions, tags, source, now],
         )?;
         Ok(super::types::Meal {
             id: id.to_string(),
@@ -3312,6 +3366,7 @@ impl EngineDb {
             cuisine: cuisine.map(String::from),
             category: category.map(String::from),
             photo_url: photo_url.map(String::from),
+            image_url: image_url.map(String::from),
             prep_time_min: prep_time,
             cook_time_min: cook_time,
             servings,
@@ -3358,7 +3413,7 @@ impl EngineDb {
             format!("WHERE {}", conditions.join(" AND "))
         };
         let query = format!(
-            "SELECT id, name, description, cuisine, category, photo_url, prep_time_min, cook_time_min, servings, difficulty, instructions, estimated_cost, cost_per_serving, calories, tags, source, is_favorite, last_made, times_made, created_at, updated_at
+            "SELECT id, name, description, cuisine, category, photo_url, image_url, prep_time_min, cook_time_min, servings, difficulty, instructions, estimated_cost, cost_per_serving, calories, tags, source, is_favorite, last_made, times_made, created_at, updated_at
              FROM meals {} ORDER BY is_favorite DESC, times_made DESC, name", where_clause
         );
 
@@ -3383,28 +3438,29 @@ impl EngineDb {
             cuisine: row.get(3)?,
             category: row.get(4)?,
             photo_url: row.get(5)?,
-            prep_time_min: row.get(6)?,
-            cook_time_min: row.get(7)?,
-            servings: row.get(8)?,
-            difficulty: row.get(9)?,
-            instructions: row.get(10)?,
-            estimated_cost: row.get(11)?,
-            cost_per_serving: row.get(12)?,
-            calories: row.get(13)?,
-            tags: row.get(14)?,
-            source: row.get(15)?,
-            is_favorite: row.get::<_, i64>(16)? != 0,
-            last_made: row.get(17)?,
-            times_made: row.get(18)?,
-            created_at: row.get(19)?,
-            updated_at: row.get(20)?,
+            image_url: row.get(6)?,
+            prep_time_min: row.get(7)?,
+            cook_time_min: row.get(8)?,
+            servings: row.get(9)?,
+            difficulty: row.get(10)?,
+            instructions: row.get(11)?,
+            estimated_cost: row.get(12)?,
+            cost_per_serving: row.get(13)?,
+            calories: row.get(14)?,
+            tags: row.get(15)?,
+            source: row.get(16)?,
+            is_favorite: row.get::<_, i64>(17)? != 0,
+            last_made: row.get(18)?,
+            times_made: row.get(19)?,
+            created_at: row.get(20)?,
+            updated_at: row.get(21)?,
         })
     }
 
     pub async fn get_meal(&self, id: &str) -> Result<Option<super::types::Meal>> {
         let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
-            "SELECT id, name, description, cuisine, category, photo_url, prep_time_min, cook_time_min, servings, difficulty, instructions, estimated_cost, cost_per_serving, calories, tags, source, is_favorite, last_made, times_made, created_at, updated_at
+            "SELECT id, name, description, cuisine, category, photo_url, image_url, prep_time_min, cook_time_min, servings, difficulty, instructions, estimated_cost, cost_per_serving, calories, tags, source, is_favorite, last_made, times_made, created_at, updated_at
              FROM meals WHERE id = ?1"
         )?;
         let mut rows = stmt.query_map(params![id], Self::map_meal)?;
@@ -3609,6 +3665,7 @@ impl EngineDb {
                     cuisine: None,
                     category,
                     photo_url,
+                    image_url: None,
                     prep_time_min: prep,
                     cook_time_min: cook,
                     servings: servings.unwrap_or(4),
