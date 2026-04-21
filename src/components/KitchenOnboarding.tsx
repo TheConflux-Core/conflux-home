@@ -164,6 +164,9 @@ export default function KitchenOnboarding({ onComplete, onSaveConfig }: KitchenO
     setState(s => ({ ...s, isSaving: true, error: null }));
     try {
       await onSaveConfig(state.config);
+      // Only mark onboarding complete AFTER config saves successfully.
+      // onComplete will be called in the tour completion handler — that is
+      // the REAL signal that the user has finished onboarding.
       localStorage.setItem(ONBOARDING_DONE_KEY, 'true');
       setState(s => ({ ...s, step: 'tour', tourStep: 0 }));
     } catch {
