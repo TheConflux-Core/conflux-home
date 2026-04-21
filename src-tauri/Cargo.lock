@@ -704,6 +704,7 @@ dependencies = [
  "chrono",
  "cpal",
  "dashmap",
+ "dirs",
  "dotenvy",
  "futures-util",
  "lettre",

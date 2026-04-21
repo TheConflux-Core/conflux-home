@@ -373,9 +373,9 @@ export default function KitchenView() {
               </div>
               {/* Meal Photo */}
               <div className="meal-detail-photo">
-                {selectedMeal.photo_url || selectedMeal.image_url ? (
+                {selectedMeal.photo_url || selectedMeal.photo_url ? (
                   <img
-                    src={selectedMeal.photo_url || selectedMeal.image_url || ''}
+                    src={selectedMeal.photo_url || ''}
                     alt={selectedMeal.name}
                     className="meal-detail-img"
                     onError={(e) => {
@@ -391,7 +391,7 @@ export default function KitchenView() {
                 ) : null}
                 <span
                   className="meal-detail-photo-emoji"
-                  style={{ display: selectedMeal.photo_url || selectedMeal.image_url ? 'none' : 'flex' }}
+                  style={{ display: selectedMeal.photo_url || selectedMeal.photo_url ? 'none' : 'flex' }}
                 >
                   {MEAL_CATEGORY_EMOJI[selectedMeal.category ?? 'dinner'] ?? '🍽️'}
                 </span>
@@ -409,7 +409,7 @@ export default function KitchenView() {
                         // Upload the file — in this app we store the file path as photo_url
                         // For cross-platform compatibility, we copy to app data directory
                         await invoke('kitchen_update_meal_photo', {
-                          req: { meal_id: selectedMeal.id, photo_url: selected, image_url: null },
+                          meal_id: selectedMeal.id, photo_url: selected,
                         });
                         // Reload meals to get updated photo_url
                         await reloadMeals();
@@ -423,13 +423,13 @@ export default function KitchenView() {
                 >
                   📷 Replace Photo
                 </button>
-                {(selectedMeal.photo_url || selectedMeal.image_url) && (
+                {(selectedMeal.photo_url) && (
                   <button
                     className="remove-photo-btn"
                     onClick={async () => {
                       try {
                         await invoke('kitchen_update_meal_photo', {
-                          req: { meal_id: selectedMeal.id, photo_url: '', image_url: null },
+                          meal_id: selectedMeal.id, photo_url: '',
                         });
                         await reloadMeals();
                         setSelectedMeal((prev: Meal | null) => prev ? { ...prev, photo_url: null } : prev);
