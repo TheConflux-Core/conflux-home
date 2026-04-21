@@ -777,6 +777,10 @@ const [activeSnake, setActiveSnake] = useState(false);
       // Chat opens as overlay on top of whatever view is active
       // We do NOT set immersiveView to null here
       setChatOpen(true);
+    } else if (v === 'settings') {
+      // Settings renders as an immersive view (not a desktop overlay)
+      setImmersiveView('settings');
+      setChatOpen(false);
     } else {
       // All other apps — close any immersive game/marketplace overlay
       setImmersiveView(null);
