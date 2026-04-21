@@ -205,6 +205,10 @@ export default function HearthOnboarding({ onComplete }: Props) {
       createdMeal = result.meal;
     } catch (e) {
       console.error('[HearthOnboarding] Failed to create meal:', e);
+      // Meal creation failed — do NOT mark onboarding done, do NOT call onComplete.
+      // Return to preview so user can retry.
+      setPhase('preview');
+      return;
     }
 
     localStorage.setItem(ONBOARDING_DONE_KEY, 'true');
