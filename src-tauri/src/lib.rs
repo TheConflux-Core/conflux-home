@@ -142,7 +142,7 @@ pub fn run() {
                         let mut sleep_secs = if current_interval_secs == 0 { 60i64 } else { current_interval_secs as i64 };
                         if current_interval_secs > 0 {
                             if let Some(engine_ref) = engine::try_get_engine() {
-                                if let Ok(Some(secs_until_due)) = engine_ref.get_next_cron_due_seconds() {
+                                if let Ok(Some(secs_until_due)) = engine_ref.db().get_next_cron_due_seconds() {
                                     let dynamic = secs_until_due.saturating_sub(60).max(60).min(current_interval_secs as i64);
                                     if dynamic < sleep_secs {
                                         log::info!("[CronScheduler] Dynamic sleep: {}s (next job in {}s, configured {}s)", dynamic, secs_until_due, current_interval_secs);
