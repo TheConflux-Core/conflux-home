@@ -4,6 +4,7 @@
 pub mod budget;
 mod commands;
 pub mod engine;
+pub mod kroger;
 mod stripe;
 #[cfg(not(target_os = "android"))]
 pub mod voice;
@@ -136,6 +137,21 @@ pub fn run() {
                             current_interval_secs = db_interval_secs;
                         }
 
+                        // DYNAMIC SLEEP: compute optimal sleep duration
+                        // Default to configured interval, but wake up 60s before next due job
+                        let mut sleep_secs = if current_interval_secs == 0 { 60i64 } else { current_interval_secs as i64 };
+                        if current_interval_secs > 0 {
+                            if let Some(engine_ref) = engine::try_get_engine() {
+                                if let Ok(Some(secs_until_due)) = engine_ref.get_next_cron_due_seconds() {
+                                    let dynamic = secs_until_due.saturating_sub(60).max(60).min(current_interval_secs as i64);
+                                    if dynamic < sleep_secs {
+                                        log::info!("[CronScheduler] Dynamic sleep: {}s (next job in {}s, configured {}s)", dynamic, secs_until_due, current_interval_secs);
+                                        sleep_secs = dynamic;
+                                    }
+                                }
+                            }
+                        }
+
                         tokio::select! {
                             // Listen for instant interval-change commands from engine_set_heartbeat_interval
                             new_interval = rx.recv() => {
@@ -154,8 +170,8 @@ pub fn run() {
                                     }
                                 }
                             },
-                            // Normal tick timer
-                            _ = tokio::time::sleep(std::time::Duration::from_secs(if current_interval_secs == 0 { 60 } else { current_interval_secs })) => {
+                            // Normal tick timer — uses dynamically computed sleep duration
+                            _ = tokio::time::sleep(std::time::Duration::from_secs(sleep_secs as u64)) => {
                                 if current_interval_secs == 0 {
                                     // OFF mode — skip tick, loop will re-poll DB
                                     continue;
@@ -336,6 +352,7 @@ pub fn run() {
             commands::kitchen_get_meal,
             commands::kitchen_toggle_favorite,
             commands::kitchen_add_ingredient,
+            commands::kitchen_update_meal_photo,
             commands::kitchen_ai_add_meal,
             commands::kitchen_set_plan_entry,
             // State Events
@@ -643,8 +660,21 @@ pub fn run() {
             stripe::stripe_create_portal_session,
             stripe::stripe_get_subscription,
             stripe::stripe_get_prices,
+            // Local AI — Inference Layer
+            engine::local_ai::local_ai_start,
+            engine::local_ai::local_ai_stop,
+            engine::local_ai::local_ai_status,
             commands::test_ping,
             commands::test_db_ping,
+            // Kroger
+            kroger::kroger_authorize_start,
+            kroger::kroger_authorize_callback,
+            kroger::kroger_get_connection_status,
+            kroger::kroger_disconnect,
+            kroger::kroger_get_location,
+            kroger::kroger_search_products,
+            kroger::kroger_add_to_cart,
+            kroger::kroger_get_cart,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
