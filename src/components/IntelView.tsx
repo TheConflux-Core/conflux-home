@@ -67,6 +67,13 @@ function BrainPulseRing({ beatCount }: { beatCount: number }) {
           command={{
             mode: 'idle',
             label: 'INTEL',
+            scale: 1,
+            turbulence: 0.3,
+            driftAxis: [0, 0, 0] as [number, number, number],
+            wobble: 0.4,
+            lobeSpread: 0.8,
+            speechRingIntensity: 0.6,
+            activeLobes: ['memory', 'reasoning'] as const,
             glowBoost: 1.4,
             pulseRate: 1.2,
             palette: {
@@ -146,14 +153,12 @@ export default function IntelView() {
     // Also emit a fairy nudge for interesting beats
     const latest = events[0];
     if (latest.type === 'success') {
-      import('./conflux/ConfluxPresence').then(({ triggerFairyNudge }) => {
-        triggerFairyNudge({
-          id: `beat-${latest.id}`,
-          text: `${latest.agentLabel}: ${latest.action}`,
-          app: latest.agentId,
-          priority: latest.type === 'warn' ? 'warn' : 'info',
-        });
-      }).catch(() => {});
+      triggerFairyNudge({
+        id: `beat-${latest.id}`,
+        text: `${latest.agentLabel}: ${latest.action}`,
+        app: latest.agentId,
+        priority: 'info',
+      });
     }
   }, [events.length]);
 

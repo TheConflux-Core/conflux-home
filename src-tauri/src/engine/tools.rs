@@ -4657,11 +4657,10 @@ fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
         Handle::current().block_on(engine.db().create_meal(
             &id,
             name,
-            None,
+            None, // description
             cuisine,
             category,
-            None,
-            None,
+            None, // photo_url
             prep_time_min,
             cook_time_min,
             4,

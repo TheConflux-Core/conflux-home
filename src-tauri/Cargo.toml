@@ -51,6 +51,7 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"                              # Auto-update from GitHub Releases
 tauri-plugin-process = "2"                             # Process control (graceful exit)
 lettre = { version = "0.11", features = ["smtp-transport", "builder", "hostname", "rustls-tls"], default-features = false }  # Email sending (SMTP, rustls)
+dirs = "6.0.0"
 
 # Voice Engine — desktop only (cpal for capture, ElevenLabs for STT/TTS)
 [target.'cfg(not(target_os = "android"))'.dependencies]

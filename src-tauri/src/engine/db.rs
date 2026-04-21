@@ -3343,7 +3343,6 @@ impl EngineDb {
         cuisine: Option<&str>,
         category: Option<&str>,
         photo_url: Option<&str>,
-        image_url: Option<&str>,
         prep_time: Option<i64>,
         cook_time: Option<i64>,
         servings: i64,
@@ -3355,9 +3354,9 @@ impl EngineDb {
         let conn = self.conn_async().await;
         let now = Self::now();
         conn.execute(
-            "INSERT INTO meals (id, name, description, cuisine, category, photo_url, image_url, prep_time_min, cook_time_min, servings, difficulty, instructions, tags, source, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?15)",
-            params![id, name, description, cuisine, category, photo_url, image_url, prep_time, cook_time, servings, difficulty, instructions, tags, source, now],
+            "INSERT INTO meals (id, name, description, cuisine, category, photo_url, prep_time_min, cook_time_min, servings, difficulty, instructions, tags, source, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?14)",
+            params![id, name, description, cuisine, category, photo_url, prep_time, cook_time, servings, difficulty, instructions, tags, source, now],
         )?;
         Ok(super::types::Meal {
             id: id.to_string(),
@@ -3366,7 +3365,6 @@ impl EngineDb {
             cuisine: cuisine.map(String::from),
             category: category.map(String::from),
             photo_url: photo_url.map(String::from),
-            image_url: image_url.map(String::from),
             prep_time_min: prep_time,
             cook_time_min: cook_time,
             servings,
@@ -3413,7 +3411,7 @@ impl EngineDb {
             format!("WHERE {}", conditions.join(" AND "))
         };
         let query = format!(
-            "SELECT id, name, description, cuisine, category, photo_url, image_url, prep_time_min, cook_time_min, servings, difficulty, instructions, estimated_cost, cost_per_serving, calories, tags, source, is_favorite, last_made, times_made, created_at, updated_at
+            "SELECT id, name, description, cuisine, category, photo_url, prep_time_min, cook_time_min, servings, difficulty, instructions, estimated_cost, cost_per_serving, calories, tags, source, is_favorite, last_made, times_made, created_at, updated_at
              FROM meals {} ORDER BY is_favorite DESC, times_made DESC, name", where_clause
         );
 
@@ -3438,7 +3436,6 @@ impl EngineDb {
             cuisine: row.get(3)?,
             category: row.get(4)?,
             photo_url: row.get(5)?,
-            image_url: row.get(6)?,
             prep_time_min: row.get(7)?,
             cook_time_min: row.get(8)?,
             servings: row.get(9)?,
@@ -3460,7 +3457,7 @@ impl EngineDb {
     pub async fn get_meal(&self, id: &str) -> Result<Option<super::types::Meal>> {
         let conn = self.conn_async().await;
         let mut stmt = conn.prepare(
-            "SELECT id, name, description, cuisine, category, photo_url, image_url, prep_time_min, cook_time_min, servings, difficulty, instructions, estimated_cost, cost_per_serving, calories, tags, source, is_favorite, last_made, times_made, created_at, updated_at
+            "SELECT id, name, description, cuisine, category, photo_url, prep_time_min, cook_time_min, servings, difficulty, instructions, estimated_cost, cost_per_serving, calories, tags, source, is_favorite, last_made, times_made, created_at, updated_at
              FROM meals WHERE id = ?1"
         )?;
         let mut rows = stmt.query_map(params![id], Self::map_meal)?;
@@ -3487,6 +3484,15 @@ impl EngineDb {
         conn.execute(
             "UPDATE meals SET is_favorite = CASE WHEN is_favorite = 1 THEN 0 ELSE 1 END, updated_at = ?2 WHERE id = ?1",
             params![id, Self::now()],
+        )?;
+        Ok(())
+    }
+
+    pub async fn update_meal_photo(&self, id: &str, photo_url: &str) -> Result<()> {
+        let conn = self.conn_async().await;
+        conn.execute(
+            "UPDATE meals SET photo_url = ?1, updated_at = ?2 WHERE id = ?3",
+            params![photo_url, Self::now(), id],
         )?;
         Ok(())
     }
@@ -3665,7 +3671,6 @@ impl EngineDb {
                     cuisine: None,
                     category,
                     photo_url,
-                    image_url: None,
                     prep_time_min: prep,
                     cook_time_min: cook,
                     servings: servings.unwrap_or(4),

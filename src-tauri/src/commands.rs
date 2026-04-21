@@ -2400,6 +2400,21 @@ pub async fn kitchen_upload_meal_photo(
 }
 
 #[tauri::command]
+pub async fn kitchen_update_meal_photo(
+    meal_id: String,
+    photo_url: String,
+    member_id: Option<String>,
+) -> Result<(), String> {
+    let _member_id = member_id;
+    let engine = engine::get_engine();
+    engine
+        .db()
+        .update_meal_photo(&meal_id, &photo_url)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn kitchen_identify_meal_from_photo(
     _photo_url: String,
 ) -> Result<serde_json::Value, String> {
