@@ -167,11 +167,11 @@
 }
 
 .immersive-content {
-  position: absolute;
-  top: 48px;
-  right: 0;
-  bottom: 56px;
+  position: fixed;
+  top: 0;
   left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 2;
   margin: 0;
   padding: 0;
