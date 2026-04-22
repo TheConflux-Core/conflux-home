@@ -3355,8 +3355,8 @@ impl EngineDb {
         let now = Self::now();
         conn.execute(
             "INSERT INTO meals (id, name, description, cuisine, category, photo_url, prep_time_min, cook_time_min, servings, difficulty, instructions, tags, source, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?14)",
-            params![id, name, description, cuisine, category, photo_url, prep_time, cook_time, servings, difficulty, instructions, tags, source, now],
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+            params![id, name, description, cuisine, category, photo_url, prep_time, cook_time, servings, difficulty, instructions, tags, source, now, now],
         )?;
         Ok(super::types::Meal {
             id: id.to_string(),
