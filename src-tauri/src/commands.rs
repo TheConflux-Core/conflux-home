@@ -1983,38 +1983,10 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
         .unwrap_or(content)
         .strip_suffix("```")
         .unwrap_or(content)
-        .trim()
-        .replace('\n', "\\n") // escape raw newlines
-        // Replace common fraction strings with decimal equivalents (AI often outputs "1/2" which is invalid JSON)
-        .replace("1/2", "0.5")
-        .replace("1/4", "0.25")
-        .replace("3/4", "0.75")
-        .replace("1/3", "0.333")
-        .replace("2/3", "0.667");
+        .trim();
 
-    // Pre-parse to extract tags as a separate step (handles both array and string)
-    let doc = match serde_json::from_str::<serde_json::Value>(&json_str) {
-        Ok(v) => v,
-        Err(_) => {
-            // Retry after fixing unquoted keys — AI sometimes omits quotes around field names
-            let known_fields = [
-                "name", "description", "cuisine", "category",
-                "prep_time_min", "cook_time_min", "servings", "difficulty",
-                "instructions", "tags", "ingredients",
-                "quantity", "unit", "estimated_cost", "notes",
-            ];
-            let mut fixed = json_str.to_string();
-            for field in known_fields {
-                let pattern = format!("{}", field);
-                let replacement = format!("\"{}\"", field);
-                if fixed.contains(&pattern) {
-                    fixed = fixed.replace(&pattern, &replacement);
-                }
-            }
-            serde_json::from_str(&fixed)
-                .map_err(|e| format!("Invalid JSON: {}. Raw: {}", e, &json_str))?
-        }
-    };
+    let doc = serde_json::from_str::<serde_json::Value>(&json_str)
+        .map_err(|e| format!("Invalid JSON: {}. Raw: {}", e, &json_str))?;
 
     let tags_str = doc.get("tags").and_then(|v| match v {
         serde_json::Value::Null => None,
