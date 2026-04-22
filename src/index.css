@@ -446,7 +446,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-bottom: 56px; /* space for dock */
+  /* padding-bottom removed — ConfluxBar floats at z-150 above overlay, no space needed here */
 }
 
 .desktop-bg-pattern {
