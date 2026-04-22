@@ -4,7 +4,7 @@
 pub mod budget;
 mod commands;
 pub mod engine;
-pub mod kroger;
+// pub mod kroger; // TEMPORARILY DISABLED — module source missing (kroger.rs not yet created)
 mod stripe;
 #[cfg(not(target_os = "android"))]
 pub mod voice;
@@ -666,15 +666,15 @@ pub fn run() {
             engine::local_ai::local_ai_status,
             commands::test_ping,
             commands::test_db_ping,
-            // Kroger
-            kroger::kroger_authorize_start,
-            kroger::kroger_authorize_callback,
-            kroger::kroger_get_connection_status,
-            kroger::kroger_disconnect,
-            kroger::kroger_get_location,
-            kroger::kroger_search_products,
-            kroger::kroger_add_to_cart,
-            kroger::kroger_get_cart,
+            // Kroger — TEMPORARILY DISABLED (2026-04-22)
+            // kroger::kroger_authorize_start,
+            // kroger::kroger_authorize_callback,
+            // kroger::kroger_get_connection_status,
+            // kroger::kroger_disconnect,
+            // kroger::kroger_get_location,
+            // kroger::kroger_search_products,
+            // kroger::kroger_add_to_cart,
+            // kroger::kroger_get_cart,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

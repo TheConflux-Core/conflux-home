@@ -24,8 +24,10 @@ import KitchenBoot from './KitchenBoot';
 import HearthOnboarding, { hasCompletedHearthOnboarding } from './HearthOnboarding';
 import HearthTour, { hasCompletedHearthTour } from './HearthTour';
 import KitchenEmptyState from './KitchenEmptyState';
-import KrogerConnect from './KrogerConnect';
-import KrogerCartExporter from './KrogerCartExporter';
+// Kroger integration — TEMPORARILY DISABLED (2026-04-22):
+// restore by uncommenting + creating src-tauri/src/kroger.rs
+// import KrogerConnect from './KrogerConnect';
+// import KrogerCartExporter from './KrogerCartExporter';
 
 function getWeekStart(): string {
   const now = new Date();
@@ -70,7 +72,7 @@ export default function KitchenView() {
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [tourComplete, setTourComplete] = useState(false);
   const [showAddPantryItem, setShowAddPantryItem] = useState(false);
-  const [showKrogerExporter, setShowKrogerExporter] = useState(false);
+  // const [showKrogerExporter, setShowKrogerExporter] = useState(false); // KROGER_DISABLED
 
   const weekStart = useMemo(getWeekStart, []);
 
@@ -525,12 +527,12 @@ export default function KitchenView() {
           <div className="grocery-header">
             <div className="grocery-actions">
               <span className="grocery-total">Est. total: <strong>{formatCost(totalCost)}</strong></span>
-              <KrogerConnect />
-              {groceryItems.length > 0 && (
+              {/* <KrogerConnect /> */}
+              {/* {groceryItems.length > 0 && (
                 <button className="btn-primary" onClick={() => setShowKrogerExporter(true)}>
                   🛒 Add to Kroger
                 </button>
-              )}
+              )} */}
               <button className="btn-primary" onClick={generateGrocery}>
                 ✨ Generate from Plan
               </button>
@@ -670,12 +672,14 @@ export default function KitchenView() {
       )}
 
       {/* ── KROGER CART EXPORTER ── */}
+      {/*
       {showKrogerExporter && (
         <KrogerCartExporter
           groceryItems={groceryItems}
           onClose={() => setShowKrogerExporter(false)}
         />
       )}
+      */}
     </div>
   );
 }

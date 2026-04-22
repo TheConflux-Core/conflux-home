@@ -1,3 +1,5 @@
+// KrogerCartExporter — TEMPORARILY DISABLED (2026-04-22)
+// @ts-nocheck — re-enable + implement once src-tauri/src/kroger.rs is created
 // KrogerCartExporter — Match grocery items → Kroger products → Add to cart
 // Full modal flow: find store → search products → confirm → add.
 
