@@ -1983,7 +1983,11 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
         .unwrap_or(content)
         .strip_suffix("```")
         .unwrap_or(content)
-        .trim();
+        .trim()
+        // Replace fractions with decimals — AI outputs "1/2" but JSON requires "0.5"
+        .replace("1/2", "0.5")
+        .replace("1/4", "0.25")
+        .replace("3/4", "0.75");
 
     let doc = serde_json::from_str::<serde_json::Value>(&json_str)
         .map_err(|e| format!("Invalid JSON: {}. Raw: {}", e, &json_str))?;
