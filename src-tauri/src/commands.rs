@@ -1984,7 +1984,13 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
         .strip_suffix("```")
         .unwrap_or(content)
         .trim()
-        .replace('\n', "\\n"); // escape raw newlines — AI often outputs multi-line strings
+        .replace('\n', "\\n") // escape raw newlines
+        // Replace common fraction strings with decimal equivalents (AI often outputs "1/2" which is invalid JSON)
+        .replace("1/2", "0.5")
+        .replace("1/4", "0.25")
+        .replace("3/4", "0.75")
+        .replace("1/3", "0.333")
+        .replace("2/3", "0.667");
 
     // Pre-parse to extract tags as a separate step (handles both array and string)
     let doc = match serde_json::from_str::<serde_json::Value>(&json_str) {
