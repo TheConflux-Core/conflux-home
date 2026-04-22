@@ -1990,9 +1990,21 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
     let doc = match serde_json::from_str::<serde_json::Value>(&json_str) {
         Ok(v) => v,
         Err(_) => {
-            // Retry after fixing unquoted keys: {name: "x"} → {"name": "x"}
-            let re = regex::Regex::new(r#"([a-zA-Z_][a-zA-Z0-9_]*)\s*:(?=\s*\")"#).unwrap();
-            let fixed = re.replace_all(&json_str, r#""$1": "#).to_string();
+            // Retry after fixing unquoted keys — AI sometimes omits quotes around field names
+            let known_fields = [
+                "name", "description", "cuisine", "category",
+                "prep_time_min", "cook_time_min", "servings", "difficulty",
+                "instructions", "tags", "ingredients",
+                "quantity", "unit", "estimated_cost", "notes",
+            ];
+            let mut fixed = json_str.to_string();
+            for field in known_fields {
+                let pattern = format!("{}", field);
+                let replacement = format!("\"{}\"", field);
+                if fixed.contains(&pattern) {
+                    fixed = fixed.replace(&pattern, &replacement);
+                }
+            }
             serde_json::from_str(&fixed)
                 .map_err(|e| format!("Invalid JSON: {}. Raw: {}", e, &json_str))?
         }
