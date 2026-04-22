@@ -2033,6 +2033,7 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
         serde_json::from_value(doc).map_err(|e| format!("Failed to parse AI response: {}", e))?;
 
     let meal_id = uuid::Uuid::new_v4().to_string();
+    let difficulty = ai_meal.difficulty.unwrap_or_else(|| "normal".to_string());
     let _meal = engine
         .db()
         .create_meal(
@@ -2045,7 +2046,7 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
             ai_meal.prep_time_min,
             ai_meal.cook_time_min,
             ai_meal.servings.unwrap_or(4),
-            &ai_meal.difficulty.unwrap_or("normal".to_string()),
+            &difficulty,
             ai_meal.instructions.as_deref(),
             tags_str.as_deref(),
             "ai-generated",
