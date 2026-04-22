@@ -1983,11 +1983,12 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
         .unwrap_or(content)
         .strip_suffix("```")
         .unwrap_or(content)
-        .trim();
+        .trim()
+        .replace('\n', "\\n"); // escape raw newlines — AI often outputs multi-line strings
 
     // Pre-parse to extract tags as a separate step (handles both array and string)
     let doc: serde_json::Value =
-        serde_json::from_str(json_str).map_err(|e| format!("Invalid JSON: {}", e))?;
+        serde_json::from_str(&json_str).map_err(|e| format!("Invalid JSON: {}", e))?;
 
     let tags_str = doc.get("tags").and_then(|v| match v {
         serde_json::Value::Null => None,
