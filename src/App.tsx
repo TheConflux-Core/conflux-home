@@ -275,55 +275,63 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const profile = await invoke<any>('get_user_profile');
-        if (cancelled) return;
-        if (profile?.onboarded) {
-          setIsOnboarded(true);
-          if (profile.name) setUserName(profile.name);
-          if (profile.selected_apps) {
-            setSelectedAgentIds(profile.selected_apps);
-          }
-          if (profile.goals) {
-            localStorage.setItem('conflux-goals', JSON.stringify(profile.goals));
-          }
-        } else {
-          // Fallback to localStorage for migration
-          const lsOnboarded = localStorage.getItem('conflux-onboarded') === 'true';
-          if (lsOnboarded) {
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          const profile = await invoke<any>('get_user_profile');
+          if (cancelled) return;
+          if (profile?.onboarded) {
             setIsOnboarded(true);
-            const name = localStorage.getItem('conflux-name') || 'there';
-            setUserName(name);
-            const apps = localStorage.getItem('conflux-setup-apps');
-            if (apps) setSelectedAgentIds(JSON.parse(apps));
-            // Migrate to backend
-            await invoke('save_user_profile', {
-              profile: {
-                name,
-                onboarded: true,
-                goals: localStorage.getItem('conflux-goals')
-                  ? JSON.parse(localStorage.getItem('conflux-goals')!)
-                  : null,
-                selected_apps: apps ? JSON.parse(apps) : null,
-              },
-            });
+            if (profile.name) setUserName(profile.name);
+            if (profile.selected_apps) {
+              setSelectedAgentIds(profile.selected_apps);
+            }
+            if (profile.goals) {
+              localStorage.setItem('conflux-goals', JSON.stringify(profile.goals));
+            }
+          } else {
+            // Fallback to localStorage for migration
+            const lsOnboarded = localStorage.getItem('conflux-onboarded') === 'true';
+            if (lsOnboarded) {
+              setIsOnboarded(true);
+              const name = localStorage.getItem('conflux-name') || 'there';
+              setUserName(name);
+              const apps = localStorage.getItem('conflux-setup-apps');
+              if (apps) setSelectedAgentIds(JSON.parse(apps));
+              // Migrate to backend
+              await invoke('save_user_profile', {
+                profile: {
+                  name,
+                  onboarded: true,
+                  goals: localStorage.getItem('conflux-goals')
+                    ? JSON.parse(localStorage.getItem('conflux-goals')!)
+                    : null,
+                  selected_apps: apps ? JSON.parse(apps) : null,
+                },
+              });
+            }
+            setShowIntroductions(
+              localStorage.getItem('conflux-introductions-complete') !== 'true'
+            );
           }
-          setShowIntroductions(
-            localStorage.getItem('conflux-introductions-complete') !== 'true'
-          );
+          return; // Success — exit retry loop
+        } catch (e: any) {
+          retries--;
+          if (retries === 0) {
+            console.warn('[App] Failed to load user profile from backend:', e);
+            if (typeof window !== 'undefined' && window.alert) {
+              window.alert(`Profile load failed: ${e?.message || String(e)}`);
+            }
+            // Fallback to localStorage
+            const lsOnboarded = localStorage.getItem('conflux-onboarded') === 'true';
+            setIsOnboarded(lsOnboarded);
+            setShowIntroductions(
+              localStorage.getItem('conflux-introductions-complete') !== 'true'
+            );
+          } else {
+            await new Promise(r => setTimeout(r, 500));
+          }
         }
-      } catch (e: any) {
-        console.warn('[App] Failed to load user profile from backend:', e);
-        // Show error to user in release builds where console is hidden
-        if (typeof window !== 'undefined' && window.alert) {
-          window.alert(`Profile load failed: ${e?.message || String(e)}`);
-        }
-        // Fallback to localStorage
-        const lsOnboarded = localStorage.getItem('conflux-onboarded') === 'true';
-        setIsOnboarded(lsOnboarded);
-        setShowIntroductions(
-          localStorage.getItem('conflux-introductions-complete') !== 'true'
-        );
       }
     })();
     return () => { cancelled = true; };
