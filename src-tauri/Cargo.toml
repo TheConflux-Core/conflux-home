@@ -1,6 +1,6 @@
 [package]
 name = "conflux-home"
-version = "0.1.68"
+version = "0.1.69"
 description = "Conflux Home — Your AI Family Lives Here"
 authors = ["The Conflux AI"]
 license = "MIT"

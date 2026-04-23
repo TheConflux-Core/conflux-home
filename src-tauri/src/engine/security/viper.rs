@@ -359,35 +359,38 @@ fn scan_misconfig() -> Result<Vec<FindingInput>> {
 
     match current_os() {
         OsType::Linux => {
-            // Check for world-readable /etc/shadow
-            if let Ok(metadata) = std::fs::metadata("/etc/shadow") {
-                use std::os::unix::fs::PermissionsExt;
-                let mode = metadata.permissions().mode();
-                if mode & 0o007 != 0 {
-                    findings.push(FindingInput {
-                        category: "misconfig".into(),
-                        check_name: "shadow_world_readable".into(),
-                        severity: "critical".into(),
-                        title: "/etc/shadow Is World-Readable".into(),
-                        description: format!(
-                            "/etc/shadow has mode {:o} — other users can read password hashes.",
-                            mode & 0o777
-                        ),
-                        remediation: Some("chmod 640 /etc/shadow".into()),
-                        cve_ids: None,
-                        raw_data: Some(serde_json::json!({"mode": format!("{:o}", mode & 0o777)})),
-                    });
-                } else {
-                    findings.push(FindingInput {
-                        category: "misconfig".into(),
-                        check_name: "shadow_world_readable".into(),
-                        severity: "pass".into(),
-                        title: "/etc/shadow Permissions OK".into(),
-                        description: "/etc/shadow is not world-readable.".into(),
-                        remediation: None,
-                        cve_ids: None,
-                        raw_data: None,
-                    });
+            #[cfg(unix)]
+            {
+                // Check for world-readable /etc/shadow
+                if let Ok(metadata) = std::fs::metadata("/etc/shadow") {
+                    use std::os::unix::fs::PermissionsExt;
+                    let mode = metadata.permissions().mode();
+                    if mode & 0o007 != 0 {
+                        findings.push(FindingInput {
+                            category: "misconfig".into(),
+                            check_name: "shadow_world_readable".into(),
+                            severity: "critical".into(),
+                            title: "/etc/shadow Is World-Readable".into(),
+                            description: format!(
+                                "/etc/shadow has mode {:o} — other users can read password hashes.",
+                                mode & 0o777
+                            ),
+                            remediation: Some("chmod 640 /etc/shadow".into()),
+                            cve_ids: None,
+                            raw_data: Some(serde_json::json!({"mode": format!("{:o}", mode & 0o777)})),
+                        });
+                    } else {
+                        findings.push(FindingInput {
+                            category: "misconfig".into(),
+                            check_name: "shadow_world_readable".into(),
+                            severity: "pass".into(),
+                            title: "/etc/shadow Permissions OK".into(),
+                            description: "/etc/shadow is not world-readable.".into(),
+                            remediation: None,
+                            cve_ids: None,
+                            raw_data: None,
+                        });
+                    }
                 }
             }
 
@@ -1217,20 +1220,23 @@ fn scan_code_config() -> Result<Vec<FindingInput>> {
                 || name == "id_rsa"
                 || name == "id_ed25519"
             {
-                if let Ok(metadata) = std::fs::metadata(entry.path()) {
-                    use std::os::unix::fs::PermissionsExt;
-                    let mode = metadata.permissions().mode();
-                    if mode & 0o077 != 0 {
-                        findings.push(FindingInput {
-                            category: "code".into(),
-                            check_name: format!("key_perms_{}", name),
-                            severity: "critical".into(),
-                            title: format!("Private Key {} Has Loose Permissions", name),
-                            description: format!("~/.ssh/{} has mode {:o} — group/other can read it.", name, mode & 0o777),
-                            remediation: Some(format!("chmod 600 ~/.ssh/{}", name)),
-                            cve_ids: None,
-                            raw_data: Some(serde_json::json!({"file": name, "mode": format!("{:o}", mode & 0o777)})),
-                        });
+                #[cfg(unix)]
+                {
+                    if let Ok(metadata) = std::fs::metadata(entry.path()) {
+                        use std::os::unix::fs::PermissionsExt;
+                        let mode = metadata.permissions().mode();
+                        if mode & 0o077 != 0 {
+                            findings.push(FindingInput {
+                                category: "code".into(),
+                                check_name: format!("key_perms_{}", name),
+                                severity: "critical".into(),
+                                title: format!("Private Key {} Has Loose Permissions", name),
+                                description: format!("~/.ssh/{} has mode {:o} — group/other can read it.", name, mode & 0o777),
+                                remediation: Some(format!("chmod 600 ~/.ssh/{}", name)),
+                                cve_ids: None,
+                                raw_data: Some(serde_json::json!({"file": name, "mode": format!("{:o}", mode & 0o777)})),
+                            });
+                        }
                     }
                 }
             }
