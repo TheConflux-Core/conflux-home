@@ -7473,31 +7473,10 @@ pub async fn studio_generate_image(
     aspect_ratio: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
-    let api_key = engine
-        .db()
-        .get_config("studio_replicate_key")
-        .ok()
-        .flatten()
-        .filter(|k| !k.is_empty())
-        .or_else(|| {
-            std::env::var("REPLICATE_API_KEY")
-                .ok()
-                .filter(|k| !k.is_empty())
-        })
-        .or_else(|| {
-            option_env!("REPLICATE_API_KEY")
-                .map(|s| s.to_string())
-                .filter(|k| !k.is_empty())
-        })
-        .unwrap_or_default();
-
-    if api_key.is_empty() {
-        return Err("Replicate API key not configured.".to_string());
-    }
-
-    // Check credits before generating (image costs 3 credits)
     let user_id = get_supabase_user_id();
     let image_cost: i64 = 3;
+
+    // Check credits before generating
     if !user_id.is_empty() {
         match cloud::check_cloud_balance(&user_id).await {
             Ok(status) if status.balance < image_cost => {
@@ -7515,21 +7494,129 @@ pub async fn studio_generate_image(
     engine::db::studio_update_generation_status(&generation_id, "generating", None, None, None, 0)
         .map_err(|e| e.to_string())?;
 
+    // ── PRIMARY: DALL-E 3 via OpenAI ──
+    let openai_key = engine
+        .db()
+        .get_config("openai_api_key")
+        .ok()
+        .flatten()
+        .filter(|k| !k.is_empty());
+
+    if let Some(ref api_key) = openai_key {
+        let size = match aspect_ratio.as_deref() {
+            Some("16:9") => "1792x1024",
+            Some("9:16") => "1024x1792",
+            _ => "1024x1024",
+        };
+
+        let client = reqwest::Client::new();
+        let response = client
+            .post("https://api.openai.com/v1/images/generations")
+            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Content-Type", "application/json")
+            .json(&serde_json::json!({
+                "model": "dall-e-3",
+                "prompt": prompt,
+                "n": 1,
+                "size": size,
+                "response_format": "url"
+            }))
+            .send()
+            .await;
+
+        match response {
+            Ok(resp) if resp.status().is_success() => {
+                let data: serde_json::Value = resp
+                    .json()
+                    .await
+                    .map_err(|e| format!("Failed to parse OpenAI response: {}", e))?;
+
+                if let Some(output_url) = data["data"]
+                    .as_array()
+                    .and_then(|arr| arr.first())
+                    .and_then(|v| v["url"].as_str())
+                {
+                    let metadata = serde_json::json!({
+                        "size": size,
+                        "format": "png",
+                        "model": "dall-e-3"
+                    })
+                    .to_string();
+
+                    engine::db::studio_update_generation_status(
+                        &generation_id,
+                        "complete",
+                        None,
+                        Some(output_url),
+                        Some(&metadata),
+                        3,
+                    )
+                    .map_err(|e| e.to_string())?;
+
+                    let _ = engine::db::studio_upsert_prompt(&prompt, "image");
+                    let month = chrono::Utc::now().format("%Y-%m").to_string();
+                    let _ = engine::db::studio_update_usage(&user_id, &month, "image", 3);
+
+                    if !user_id.is_empty() {
+                        let _ = cloud::charge_credits(&user_id, image_cost, &generation_id).await;
+                    }
+
+                    return Ok(serde_json::json!({
+                        "status": "complete",
+                        "output_url": output_url,
+                        "metadata": metadata,
+                        "provider": "openai",
+                        "model": "dall-e-3"
+                    }));
+                }
+            }
+            Ok(resp) => {
+                let status = resp.status();
+                let body = resp.text().await.unwrap_or_default();
+                log::warn!("[Studio] DALL-E error ({}): {} — falling back to Replicate", status, body);
+            }
+            Err(e) => {
+                log::warn!("[Studio] DALL-E request failed: {} — falling back to Replicate", e);
+            }
+        }
+    }
+
+    // ── FALLBACK: Replicate (Flux Schnell) ──
+    let replicate_key = engine
+        .db()
+        .get_config("studio_replicate_key")
+        .ok()
+        .flatten()
+        .filter(|k| !k.is_empty())
+        .or_else(|| {
+            std::env::var("REPLICATE_API_KEY")
+                .ok()
+                .filter(|k| !k.is_empty())
+        })
+        .or_else(|| {
+            option_env!("REPLICATE_API_KEY")
+                .map(|s| s.to_string())
+                .filter(|k| !k.is_empty())
+        })
+        .unwrap_or_default();
+
+    if replicate_key.is_empty() {
+        return Err("No image generation API key configured. Add an OpenAI or Replicate key in Settings.".to_string());
+    }
+
     let client = reqwest::Client::new();
 
-    // Determine dimensions from aspect ratio
     let (width, height) = match aspect_ratio.as_deref() {
         Some("16:9") => (1280, 720),
         Some("9:16") => (720, 1280),
         Some("4:3") => (1024, 768),
         Some("3:4") => (768, 1024),
-        _ => (1024, 1024), // default 1:1
+        _ => (1024, 1024),
     };
 
-    // Start prediction using Flux Schnell (fast, cheap)
-    let response = client
+    let replicate_response = client
         .post("https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions")
-        .header("Authorization", format!("Bearer {}", api_key))
+        .header("Authorization", format!("Bearer {}", replicate_key))
         .header("Content-Type", "application/json")
         .json(&serde_json::json!({
             "input": {
@@ -7544,20 +7631,19 @@ pub async fn studio_generate_image(
         .await
         .map_err(|e| format!("Failed to call Replicate: {}", e))?;
 
-    if !response.status().is_success() {
-        let status = response.status();
-        let body = response.text().await.unwrap_or_default();
+    if !replicate_response.status().is_success() {
+        let status = replicate_response.status();
+        let body = replicate_response.text().await.unwrap_or_default();
         engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
             .map_err(|e| e.to_string())?;
         return Err(format!("Replicate error ({}): {}", status, body));
     }
 
-    let prediction: ReplicatePrediction = response
+    let prediction: ReplicatePrediction = replicate_response
         .json()
         .await
         .map_err(|e| format!("Failed to parse Replicate response: {}", e))?;
 
-    // Poll for completion (max 60 seconds)
     let prediction_id = prediction.id;
     for _ in 0..30 {
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
@@ -7567,7 +7653,7 @@ pub async fn studio_generate_image(
                 "https://api.replicate.com/v1/predictions/{}",
                 prediction_id
             ))
-            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Authorization", format!("Bearer {}", replicate_key))
             .send()
             .await
             .map_err(|e| format!("Poll failed: {}", e))?;
@@ -7579,7 +7665,6 @@ pub async fn studio_generate_image(
 
         match pred.status.as_str() {
             "succeeded" => {
-                // Extract output URL
                 let output_url = pred
                     .output
                     .as_ref()
@@ -7597,35 +7682,30 @@ pub async fn studio_generate_image(
                 })
                 .to_string();
 
-                // Update generation record
                 engine::db::studio_update_generation_status(
                     &generation_id,
                     "complete",
                     None,
                     Some(&output_url),
                     Some(&metadata),
-                    3, // ~$0.03 cost
+                    3,
                 )
                 .map_err(|e| e.to_string())?;
 
-                // Also save to prompt history
                 let _ = engine::db::studio_upsert_prompt(&prompt, "image");
-
-                // Update usage tracking
                 let month = chrono::Utc::now().format("%Y-%m").to_string();
-                let user_id = get_supabase_user_id();
                 let _ = engine::db::studio_update_usage(&user_id, &month, "image", 3);
 
-                // Charge cloud credits (fire and forget)
                 if !user_id.is_empty() {
-                    let uid = user_id.clone();
-                    let _ = cloud::charge_credits(&uid, image_cost, &generation_id).await;
+                    let _ = cloud::charge_credits(&user_id, image_cost, &generation_id).await;
                 }
 
                 return Ok(serde_json::json!({
                     "status": "complete",
                     "output_url": output_url,
-                    "metadata": metadata
+                    "metadata": metadata,
+                    "provider": "replicate",
+                    "model": "flux-schnell"
                 }));
             }
             "failed" | "canceled" => {
@@ -7640,11 +7720,10 @@ pub async fn studio_generate_image(
                 .map_err(|e| e.to_string())?;
                 return Err(format!("Generation failed: {:?}", pred.error));
             }
-            _ => continue, // still processing
+            _ => continue,
         }
     }
 
-    // Timeout
     engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
         .map_err(|e| e.to_string())?;
     Err("Generation timed out after 60 seconds".to_string())
