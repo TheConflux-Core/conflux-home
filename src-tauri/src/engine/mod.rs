@@ -181,9 +181,10 @@ impl ConfluxEngine {
         soul: Option<&str>,
         instructions: Option<&str>,
         model_alias: Option<&str>,
+        is_active: Option<bool>,
     ) -> Result<()> {
         self.db
-            .update_agent(id, name, emoji, role, soul, instructions, model_alias)
+            .update_agent(id, name, emoji, role, soul, instructions, model_alias, is_active)
     }
 
     // ── Sessions ──

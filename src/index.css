@@ -389,6 +389,22 @@ body {
   box-shadow: 0 0 6px var(--accent-error);
 }
 
+.topbar-status-dot.local {
+  background: #f59e0b;
+  box-shadow: 0 0 6px #f59e0b;
+}
+
+.topbar-status-dot.local-pulse {
+  background: #f59e0b;
+  box-shadow: 0 0 6px #f59e0b;
+  animation: localPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes localPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 .topbar-theme-btn {
   background: none;
   border: none;

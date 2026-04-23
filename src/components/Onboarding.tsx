@@ -400,6 +400,20 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     localStorage.setItem('conflux-name', userName.trim() || 'there');
     localStorage.setItem('conflux-setup-apps', JSON.stringify(apps));
 
+    // Also persist to backend for cross-platform reliability
+    try {
+      await invoke('save_user_profile', {
+        profile: {
+          name: userName.trim() || 'there',
+          onboarded: true,
+          goals: iceBreakerInput.trim() ? [iceBreakerInput.trim()] : null,
+          selected_apps: apps,
+        },
+      });
+    } catch (e) {
+      console.warn('[Onboarding] Failed to save profile to backend:', e);
+    }
+
     // Persist ice breaker answer to profile if user is logged in
     if (user && iceBreakerInput.trim()) {
       try {
