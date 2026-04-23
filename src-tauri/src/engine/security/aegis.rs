@@ -727,36 +727,39 @@ fn scan_ssh() -> Result<Vec<FindingInput>> {
     }
 
     // Check for authorized_keys permissions
-    if let Ok(home) = std::env::var("HOME") {
-        let ak_path = format!("{}/.ssh/authorized_keys", home);
-        if let Ok(metadata) = std::fs::metadata(&ak_path) {
-            use std::os::unix::fs::PermissionsExt;
-            let mode = metadata.permissions().mode();
-            if mode & 0o077 != 0 {
-                findings.push(FindingInput {
-                    category: "ssh".into(),
-                    check_name: "ssh_authorized_keys_perms".into(),
-                    severity: "warning".into(),
-                    title: "authorized_keys Has Loose Permissions".into(),
-                    description: format!(
-                        "~/.ssh/authorized_keys has mode {:o} — group/other can read it.",
-                        mode & 0o777
-                    ),
-                    recommendation: Some("chmod 600 ~/.ssh/authorized_keys".into()),
-                    raw_data: Some(
-                        serde_json::json!({"path": ak_path, "mode": format!("{:o}", mode & 0o777)}),
-                    ),
-                });
-            } else {
-                findings.push(FindingInput {
-                    category: "ssh".into(),
-                    check_name: "ssh_authorized_keys_perms".into(),
-                    severity: "pass".into(),
-                    title: "authorized_keys Permissions Correct".into(),
-                    description: "authorized_keys has secure 600 permissions.".into(),
-                    recommendation: None,
-                    raw_data: None,
-                });
+    #[cfg(unix)]
+    {
+        if let Ok(home) = std::env::var("HOME") {
+            let ak_path = format!("{}/.ssh/authorized_keys", home);
+            if let Ok(metadata) = std::fs::metadata(&ak_path) {
+                use std::os::unix::fs::PermissionsExt;
+                let mode = metadata.permissions().mode();
+                if mode & 0o077 != 0 {
+                    findings.push(FindingInput {
+                        category: "ssh".into(),
+                        check_name: "ssh_authorized_keys_perms".into(),
+                        severity: "warning".into(),
+                        title: "authorized_keys Has Loose Permissions".into(),
+                        description: format!(
+                            "~/.ssh/authorized_keys has mode {:o} — group/other can read it.",
+                            mode & 0o777
+                        ),
+                        recommendation: Some("chmod 600 ~/.ssh/authorized_keys".into()),
+                        raw_data: Some(
+                            serde_json::json!({"path": ak_path, "mode": format!("{:o}", mode & 0o777)}),
+                        ),
+                    });
+                } else {
+                    findings.push(FindingInput {
+                        category: "ssh".into(),
+                        check_name: "ssh_authorized_keys_perms".into(),
+                        severity: "pass".into(),
+                        title: "authorized_keys Permissions Correct".into(),
+                        description: "authorized_keys has secure 600 permissions.".into(),
+                        recommendation: None,
+                        raw_data: None,
+                    });
+                }
             }
         }
     }
@@ -890,29 +893,32 @@ fn scan_permissions() -> Result<Vec<FindingInput>> {
     }
 
     // Check /tmp permissions
-    if let Ok(metadata) = std::fs::metadata("/tmp") {
-        use std::os::unix::fs::PermissionsExt;
-        let mode = metadata.permissions().mode();
-        if mode & 0o1000 == 0 {
-            findings.push(FindingInput {
-                category: "permissions".into(),
-                check_name: "tmp_sticky_bit".into(),
-                severity: "warning".into(),
-                title: "/tmp Missing Sticky Bit".into(),
-                description: format!("/tmp has mode {:o} — the sticky bit (1000) is not set. Users can delete each other's files.", mode & 0o777),
-                recommendation: Some("chmod +t /tmp".into()),
-                raw_data: Some(serde_json::json!({"mode": format!("{:o}", mode & 0o777)})),
-            });
-        } else {
-            findings.push(FindingInput {
-                category: "permissions".into(),
-                check_name: "tmp_sticky_bit".into(),
-                severity: "pass".into(),
-                title: "/tmp Has Sticky Bit".into(),
-                description: "/tmp has the sticky bit set correctly.".into(),
-                recommendation: None,
-                raw_data: None,
-            });
+    #[cfg(unix)]
+    {
+        if let Ok(metadata) = std::fs::metadata("/tmp") {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = metadata.permissions().mode();
+            if mode & 0o1000 == 0 {
+                findings.push(FindingInput {
+                    category: "permissions".into(),
+                    check_name: "tmp_sticky_bit".into(),
+                    severity: "warning".into(),
+                    title: "/tmp Missing Sticky Bit".into(),
+                    description: format!("/tmp has mode {:o} — the sticky bit (1000) is not set. Users can delete each other's files.", mode & 0o777),
+                    recommendation: Some("chmod +t /tmp".into()),
+                    raw_data: Some(serde_json::json!({"mode": format!("{:o}", mode & 0o777)})),
+                });
+            } else {
+                findings.push(FindingInput {
+                    category: "permissions".into(),
+                    check_name: "tmp_sticky_bit".into(),
+                    severity: "pass".into(),
+                    title: "/tmp Has Sticky Bit".into(),
+                    description: "/tmp has the sticky bit set correctly.".into(),
+                    recommendation: None,
+                    raw_data: None,
+                });
+            }
         }
     }
 
