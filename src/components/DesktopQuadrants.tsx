@@ -195,7 +195,10 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
 
   // Heartbeat interval — default 1hr (3_600_000 ms)
   const [heartbeatInterval, setHeartbeatInterval] = useState(3_600_000);
-  const [lastBeat, setLastBeat] = useState(Date.now());
+  const [lastBeat, setLastBeat] = useState(() => {
+    const cached = localStorage.getItem('conflux-last-beat');
+    return cached ? parseInt(cached, 10) : Date.now();
+  });
 
   const allLoading = creditsLoading || statsLoading || historyLoading;
   const activeAgents = agents.filter(a => a.status !== 'offline');
@@ -215,7 +218,9 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
 
     const unlistenPromise = listen<null>('conflux:heartbeat-beat', () => {
       if (ignore) return;
-      setLastBeat(Date.now());
+      const now = Date.now();
+      setLastBeat(now);
+      localStorage.setItem('conflux-last-beat', String(now));
     });
 
     // Also listen for interval-change events so scheduler restart is instant
@@ -223,7 +228,9 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
       if (ignore) return;
       const newMs = event.payload;
       setHeartbeatInterval(newMs);
-      setLastBeat(Date.now());
+      const now = Date.now();
+      setLastBeat(now);
+      localStorage.setItem('conflux-last-beat', String(now));
     });
 
     // Cleanup: unsubscribe both listeners when effect tears down

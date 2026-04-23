@@ -91,6 +91,28 @@ export default function AgentsView() {
 
   useEffect(() => { loadAgents(); }, [loadAgents]);
 
+  // On first load, sync default active states to backend so INTEL shows correct agents
+  useEffect(() => {
+    if (agents.length === 0) return;
+    const hasCustomSelection = localStorage.getItem('conflux-selected-agents');
+    if (hasCustomSelection) return; // User already customized, don't override
+    (async () => {
+      for (const agent of agents) {
+        const shouldBeActive = DEFAULT_ACTIVE_AGENTS.includes(agent.id);
+        if (agent.is_active !== shouldBeActive) {
+          try {
+            await invoke('engine_update_agent', {
+              req: { id: agent.id, is_active: shouldBeActive },
+            });
+          } catch (err) {
+            console.warn('[AgentsView] Failed to init agent active state:', err);
+          }
+        }
+      }
+      await loadAgents();
+    })();
+  }, [agents.length]);
+
   // Populate persona form on selection change
   useEffect(() => {
     const a = agents.find((x) => x.id === personaId);
@@ -101,14 +123,21 @@ export default function AgentsView() {
     }
   }, [personaId, agents]);
 
-  const toggleAgent = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      localStorage.setItem('conflux-selected-agents', JSON.stringify(next));
-      // Tell App.tsx to refresh its selectedAgentIds state
-      window.dispatchEvent(new CustomEvent('conflux:agents-selected', { detail: next }));
-      return next;
-    });
+  const toggleAgent = async (id: string) => {
+    const next = selectedIds.includes(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id];
+    const isActive = next.includes(id);
+    setSelectedIds(next);
+    localStorage.setItem('conflux-selected-agents', JSON.stringify(next));
+    // Sync to backend so INTEL and other views respect the toggle
+    try {
+      await invoke('engine_update_agent', {
+        req: { id, is_active: isActive },
+      });
+    } catch (err) {
+      console.warn('[AgentsView] Failed to sync agent active state:', err);
+    }
+    // Tell App.tsx to refresh its selectedAgentIds state
+    window.dispatchEvent(new CustomEvent('conflux:agents-selected', { detail: next }));
   };
 
   async function saveAgent() {

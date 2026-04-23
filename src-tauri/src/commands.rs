@@ -54,6 +54,7 @@ pub struct AgentUpdateRequest {
     pub soul: Option<String>,
     pub instructions: Option<String>,
     pub model_alias: Option<String>,
+    pub is_active: Option<bool>,
 }
 
 // ── Echo Types ──
@@ -412,8 +413,69 @@ pub fn engine_update_agent(req: AgentUpdateRequest) -> Result<(), String> {
             req.soul.as_deref(),
             req.instructions.as_deref(),
             req.model_alias.as_deref(),
+            req.is_active,
         )
         .map_err(|e| e.to_string())
+}
+
+// ── User Profile Commands ──
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct UserProfile {
+    pub name: Option<String>,
+    pub onboarded: Option<bool>,
+    pub goals: Option<Vec<String>>,
+    pub selected_apps: Option<Vec<String>>,
+}
+
+#[tauri::command]
+pub fn save_user_profile(profile: UserProfile) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let db = engine.db();
+    if let Some(name) = &profile.name {
+        db.set_config("user_name", name).map_err(|e| e.to_string())?;
+    }
+    if let Some(onboarded) = profile.onboarded {
+        db.set_config("user_onboarded", if onboarded { "true" } else { "false" })
+            .map_err(|e| e.to_string())?;
+    }
+    if let Some(goals) = &profile.goals {
+        db.set_config("user_goals", &serde_json::to_string(goals).unwrap_or_default())
+            .map_err(|e| e.to_string())?;
+    }
+    if let Some(apps) = &profile.selected_apps {
+        db.set_config("user_selected_apps", &serde_json::to_string(apps).unwrap_or_default())
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_user_profile() -> Result<UserProfile, String> {
+    let engine = engine::get_engine();
+    let db = engine.db();
+    let name = db.get_config("user_name").ok().flatten();
+    let onboarded = db
+        .get_config("user_onboarded")
+        .ok()
+        .flatten()
+        .map(|v| v == "true");
+    let goals = db
+        .get_config("user_goals")
+        .ok()
+        .flatten()
+        .and_then(|v| serde_json::from_str(&v).ok());
+    let selected_apps = db
+        .get_config("user_selected_apps")
+        .ok()
+        .flatten()
+        .and_then(|v| serde_json::from_str(&v).ok());
+    Ok(UserProfile {
+        name,
+        onboarded,
+        goals,
+        selected_apps,
+    })
 }
 
 // ── Quota Commands ──

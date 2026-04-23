@@ -7,9 +7,7 @@
 #   MODEL_BASE_URL=https://your-cdn.com/models ./scripts/download-models.sh
 #
 # Expected files at the base URL:
-#   - conflux-toolrouter-q4.gguf
-#   - functiongemma-270m-q4.gguf
-#   - gemma3n-e4b-q4.gguf
+#   - conflux-toolrouter-q4.gguf  (Conflux fine-tuned tool router)
 
 set -euo pipefail
 
@@ -19,10 +17,8 @@ BASE_URL="${MODEL_BASE_URL:-}"
 if [ -z "$BASE_URL" ]; then
   echo "[download-models] MODEL_BASE_URL not set — skipping model download."
   echo "  Set it to a URL prefix where your .gguf files are hosted."
-  echo "  Models must exist on that host with these exact filenames:"
+  echo "  Model must exist on that host with this exact filename:"
   echo "    conflux-toolrouter-q4.gguf"
-  echo "    functiongemma-270m-q4.gguf"
-  echo "    gemma3n-e4b-q4.gguf"
   exit 0
 fi
 
@@ -44,12 +40,8 @@ download() {
   echo "[download-models] $file downloaded ($(du -h "$dest" | cut -f1))"
 }
 
-for model in \
-  "conflux-toolrouter-q4.gguf" \
-  "functiongemma-270m-q4.gguf" \
-  "gemma3n-e4b-q4.gguf"; do
-  download "$model" || echo "[download-models] WARNING: failed to download $model"
-done
+# Conflux fine-tuned tool router (primary local model)
+download "conflux-toolrouter-q4.gguf" || echo "[download-models] WARNING: failed to download conflux-toolrouter-q4.gguf"
 
 echo "[download-models] Done. Contents of $MODEL_DIR:"
 ls -lh "$MODEL_DIR"

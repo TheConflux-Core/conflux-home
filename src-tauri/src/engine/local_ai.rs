@@ -45,10 +45,6 @@ fn discover_model_path() -> Option<PathBuf> {
             // Look for known model filenames in priority order
             let known_names = [
                 "conflux-toolrouter-q4.gguf",
-                "functiongemma-270m-q4.gguf",
-                "gemma3n-e4b-q4.gguf",
-                "functiongemma-270m.gguf",
-                "gemma3n-e4b.gguf",
             ];
             for name in &known_names {
                 let p = models_dir.join(name);

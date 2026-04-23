@@ -1,21 +1,24 @@
 # Bundled Models
 
-GGUF model files placed here are automatically bundled into release builds via
-`tauri.conf.json` → `bundle.resources`.
+This directory is populated at build time by `scripts/download-models.sh`.
 
-## How models get here
+## Required Model
 
-**CI builds:** The GitHub Actions workflow downloads models automatically from
-`MODEL_BASE_URL` (set as a repository secret) before building. You do NOT need
-to copy files manually.
+| Model | Filename | Description |
+|-------|----------|-------------|
+| Conflux Tool Router | `conflux-toolrouter-q4.gguf` | Fine-tuned local tool router for offline fallback |
 
-**Local dev:** If you have models locally, place them here and they will be
-used. The code also falls back to legacy dev paths (`~/.openclaw/...`).
+## Build Setup
 
-## Expected filenames
+Set the `MODEL_BASE_URL` GitHub secret (or env var) to a URL prefix where
+`conflux-toolrouter-q4.gguf` is hosted. The CI workflow calls
+`scripts/download-models.sh` before building, which fetches the model into
+this directory so Tauri bundles it into the app binary.
 
-- `conflux-toolrouter-q4.gguf` — custom tool-router model
-- `functiongemma-270m-q4.gguf` — FunctionGemma 270M (tool calling)
-- `gemma3n-e4b-q4.gguf` — Gemma 3n E4B
+If `MODEL_BASE_URL` is not set, the script skips the download and local AI
+offline mode will not be available.
 
-Any `.gguf` file in this directory will be discovered at runtime.
+## Local Development
+
+For local builds, place `conflux-toolrouter-q4.gguf` directly in this directory
+and the app will pick it up at runtime via resource-dir discovery.
