@@ -13,7 +13,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # ── Linux (.deb + .AppImage) ──
+  # ── Linux (.deb) ──
   build-linux:
     runs-on: ubuntu-22.04
     steps:
@@ -72,21 +72,8 @@ jobs:
           LLAMA_SERVER_PLATFORM: ubuntu-x64
         run: ./scripts/download-llama-server.sh
 
-      - name: Fix linuxdeploy (extract AppImage for headless CI)
-        run: |
-          mkdir -p "$HOME/.local/share/tauri/linuxdeploy"
-          wget -q https://github.com/tauri-apps/binary-releases/releases/download/linuxdeploy/linuxdeploy-x86_64.AppImage -O /tmp/linuxdeploy-x86_64.AppImage
-          chmod +x /tmp/linuxdeploy-x86_64.AppImage
-          cd /tmp && ./linuxdeploy-x86_64.AppImage --appimage-extract >/dev/null 2>&1 || true
-          if [ -f /tmp/squashfs-root/AppRun ]; then
-            cp /tmp/squashfs-root/AppRun "$HOME/.local/share/tauri/linuxdeploy/linuxdeploy-x86_64.AppImage"
-            chmod +x "$HOME/.local/share/tauri/linuxdeploy/linuxdeploy-x86_64.AppImage"
-            echo "linuxdeploy extracted successfully"
-          fi
-
       - name: Build Tauri app (signed)
         env:
-          APPIMAGE_EXTRACT_AND_RUN: 1
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           VITE_CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
           VITE_GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
@@ -119,12 +106,6 @@ jobs:
           for f in src-tauri/target/release/bundle/deb/*.deb.sig; do
             mv "$f" "src-tauri/target/release/bundle/deb/Conflux.Home_amd64.deb.sig"
           done
-          for f in src-tauri/target/release/bundle/appimage/*.AppImage; do
-            mv "$f" "src-tauri/target/release/bundle/appimage/Conflux.Home_amd64.AppImage"
-          done
-          for f in src-tauri/target/release/bundle/appimage/*.AppImage.sig; do
-            mv "$f" "src-tauri/target/release/bundle/appimage/Conflux.Home_amd64.AppImage.sig"
-          done
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
@@ -132,8 +113,6 @@ jobs:
           files: |
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/deb/*.deb.sig
-            src-tauri/target/release/bundle/appimage/*.AppImage
-            src-tauri/target/release/bundle/appimage/*.AppImage.sig
 
       - name: Upload to R2
         env:
@@ -141,7 +120,6 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
           aws s3 cp src-tauri/target/release/bundle/deb/Conflux.Home_amd64.deb s3://${{ secrets.R2_BUCKET }}/Conflux.Home_amd64.deb --endpoint-url ${{ secrets.R2_ENDPOINT }}
-          aws s3 cp src-tauri/target/release/bundle/appimage/Conflux.Home_amd64.AppImage s3://${{ secrets.R2_BUCKET }}/Conflux.Home_amd64.AppImage --endpoint-url ${{ secrets.R2_ENDPOINT }}
 
   # ── Windows (.msi) ──
   build-windows:
@@ -401,7 +379,6 @@ jobs:
           TAG="${{ github.ref_name }}"
 
           DEB_SIG=$(cat /tmp/sigs/*.deb.sig 2>/dev/null | head -1 || echo "")
-          APPIMAGE_SIG=$(cat /tmp/sigs/*.AppImage.sig 2>/dev/null | head -1 || echo "")
           NSIS_SIG=$(cat /tmp/sigs/*.exe.sig 2>/dev/null | head -1 || echo "")
 
           # macOS updater artifacts: .app.tar.gz.sig (one per arch)
@@ -422,10 +399,6 @@ jobs:
             "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "platforms": {
               "linux-x86_64": {
-                "signature": "${APPIMAGE_SIG}",
-                "url": "https://github.com/${REPO}/releases/download/${TAG}/Conflux.Home_amd64.AppImage"
-              },
-              "linux-deb-x86_64": {
                 "signature": "${DEB_SIG}",
                 "url": "https://github.com/${REPO}/releases/download/${TAG}/Conflux.Home_amd64.deb"
               },
