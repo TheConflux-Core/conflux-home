@@ -72,6 +72,18 @@ jobs:
           LLAMA_SERVER_PLATFORM: ubuntu-x64
         run: ./scripts/download-llama-server.sh
 
+      - name: Fix linuxdeploy (extract AppImage for headless CI)
+        run: |
+          mkdir -p "$HOME/.local/share/tauri/linuxdeploy"
+          wget -q https://github.com/tauri-apps/binary-releases/releases/download/linuxdeploy/linuxdeploy-x86_64.AppImage -O /tmp/linuxdeploy-x86_64.AppImage
+          chmod +x /tmp/linuxdeploy-x86_64.AppImage
+          cd /tmp && ./linuxdeploy-x86_64.AppImage --appimage-extract >/dev/null 2>&1 || true
+          if [ -f /tmp/squashfs-root/AppRun ]; then
+            cp /tmp/squashfs-root/AppRun "$HOME/.local/share/tauri/linuxdeploy/linuxdeploy-x86_64.AppImage"
+            chmod +x "$HOME/.local/share/tauri/linuxdeploy/linuxdeploy-x86_64.AppImage"
+            echo "linuxdeploy extracted successfully"
+          fi
+
       - name: Build Tauri app (signed)
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
