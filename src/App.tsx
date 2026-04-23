@@ -312,8 +312,12 @@ export default function App() {
             localStorage.getItem('conflux-introductions-complete') !== 'true'
           );
         }
-      } catch (e) {
+      } catch (e: any) {
         console.warn('[App] Failed to load user profile from backend:', e);
+        // Show error to user in release builds where console is hidden
+        if (typeof window !== 'undefined' && window.alert) {
+          window.alert(`Profile load failed: ${e?.message || String(e)}`);
+        }
         // Fallback to localStorage
         const lsOnboarded = localStorage.getItem('conflux-onboarded') === 'true';
         setIsOnboarded(lsOnboarded);

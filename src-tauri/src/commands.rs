@@ -421,6 +421,7 @@ pub fn engine_update_agent(req: AgentUpdateRequest) -> Result<(), String> {
 // ── User Profile Commands ──
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct UserProfile {
     pub name: Option<String>,
     pub onboarded: Option<bool>,
@@ -430,7 +431,8 @@ pub struct UserProfile {
 
 #[tauri::command]
 pub fn save_user_profile(profile: UserProfile) -> Result<(), String> {
-    let engine = engine::get_engine();
+    let engine = engine::try_get_engine()
+        .ok_or("Conflux Engine not initialized yet — please retry in a moment")?;
     let db = engine.db();
     if let Some(name) = &profile.name {
         db.set_config("user_name", name).map_err(|e| e.to_string())?;
@@ -452,7 +454,8 @@ pub fn save_user_profile(profile: UserProfile) -> Result<(), String> {
 
 #[tauri::command]
 pub fn get_user_profile() -> Result<UserProfile, String> {
-    let engine = engine::get_engine();
+    let engine = engine::try_get_engine()
+        .ok_or("Conflux Engine not initialized yet — please retry in a moment")?;
     let db = engine.db();
     let name = db.get_config("user_name").ok().flatten();
     let onboarded = db

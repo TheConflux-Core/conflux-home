@@ -231,7 +231,7 @@ pub fn run() {
                 log::info!("Registered conflux:// protocol handler");
             }
 
-            // ── System Tray + Autostart (desktop only) ──
+            // ── System Tray + Autostart + Window Close (desktop only) ──
             #[cfg(desktop)]
             {
                 // Enable autostart on login
@@ -245,47 +245,69 @@ pub fn run() {
 
                 // Build tray menu
                 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
-                let quit_i = MenuItem::with_id(app, "quit", "Quit Conflux", true, None::<&str>)?;
-                let show_i = MenuItem::with_id(app, "show", "Show Conflux", true, None::<&str>)?;
+                let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+                let show_i = MenuItem::with_id(app, "show", "Open Conflux", true, None::<&str>)?;
                 let menu = Menu::with_items(app, &[&show_i, &PredefinedMenuItem::separator(app)?, &quit_i])?;
 
+                let tray_icon_result = app.default_window_icon().cloned();
+                let Some(tray_icon) = tray_icon_result else {
+                    log::warn!("[Setup] No default window icon — skipping tray icon");
+                    return Ok(());
+                };
+
                 let _tray = tauri::tray::TrayIconBuilder::new()
-                    .icon(app.default_window_icon().unwrap().clone())
+                    .icon(tray_icon)
+                    .tooltip("Conflux Home")
                     .menu(&menu)
-                    .on_menu_event(|app_handle: &tauri::AppHandle, event| {
-                        match event.id.as_ref() {
+                    .show_menu_on_left_click(false)
+                    .on_menu_event(|app_handle, event| {
+                        let id = event.id.as_ref();
+                        log::info!("[Tray] Menu clicked: {}", id);
+                        match id {
                             "quit" => {
-                                log::info!("[Tray] Quit requested");
-                                app_handle.exit(0);
+                                log::info!("[Tray] Quitting application");
+                                std::process::exit(0);
                             }
                             "show" => {
                                 if let Some(win) = app_handle.get_webview_window("main") {
+                                    log::info!("[Tray] Showing window");
                                     let _ = win.show();
                                     let _ = win.set_focus();
+                                    let _ = win.unminimize();
+                                } else {
+                                    log::warn!("[Tray] Main window not found");
                                 }
                             }
                             _ => {}
                         }
                     })
                     .on_tray_icon_event(|tray, event| {
-                        use tauri::tray::{TrayIconEvent, MouseButton, MouseButtonState};
-                        if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                        use tauri::tray::TrayIconEvent;
+                        if let TrayIconEvent::DoubleClick { .. } = event {
                             let app_handle = tray.app_handle();
                             if let Some(win) = app_handle.get_webview_window("main") {
-                                if win.is_visible().unwrap_or(false) {
-                                    let _ = win.hide();
-                                } else {
-                                    let _ = win.show();
-                                    let _ = win.set_focus();
-                                }
+                                let _ = win.show();
+                                let _ = win.set_focus();
+                                let _ = win.unminimize();
                             }
                         }
                     })
                     .build(app);
-                if let Err(e) = _tray {
-                    log::warn!("[Setup] Failed to create tray icon: {}", e);
-                } else {
-                    log::info!("[Setup] System tray initialized");
+                match _tray {
+                    Ok(_) => log::info!("[Setup] System tray initialized"),
+                    Err(e) => log::warn!("[Setup] Failed to create tray icon: {}", e),
+                }
+
+                // Handle window close button — hide to tray instead of exiting
+                if let Some(window) = app.get_webview_window("main") {
+                    let win_clone = window.clone();
+                    window.on_window_event(move |event| {
+                        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                            log::info!("[Window] Close requested — hiding to tray");
+                            api.prevent_close();
+                            let _ = win_clone.hide();
+                        }
+                    });
                 }
             }
 
@@ -749,11 +771,10 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|_app_handle, event| {
-            match event {
-                tauri::RunEvent::ExitRequested { api, .. } => {
-                    api.prevent_exit();
-                }
-                _ => {}
+            // Keep the event loop alive for tray icon events
+            // Window close is handled via WindowEvent::CloseRequested in setup()
+            if let tauri::RunEvent::Exit = event {
+                log::info!("[Run] Application exiting");
             }
         });
 }

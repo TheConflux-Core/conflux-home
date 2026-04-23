@@ -410,8 +410,12 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           selected_apps: apps,
         },
       });
-    } catch (e) {
+    } catch (e: any) {
       console.warn('[Onboarding] Failed to save profile to backend:', e);
+      // Show error to user in release builds where console is hidden
+      if (typeof window !== 'undefined' && window.alert) {
+        window.alert(`Profile save failed: ${e?.message || String(e)}`);
+      }
     }
 
     // Persist ice breaker answer to profile if user is logged in
