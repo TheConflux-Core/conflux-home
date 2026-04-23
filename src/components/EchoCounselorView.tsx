@@ -145,7 +145,7 @@ export default function EchoCounselorView() {
 
   // Onboarding (starts first session internally)
   if (showOnboarding) {
-    return <EchoOnboarding onComplete={(createdSession?: EchoCounselorSession) => { if (createdSession) setCurrentSessionData(createdSession); setShowOnboarding(false); }} onStartSession={switchToSession} />;
+    return <EchoOnboarding onComplete={(createdSession?: EchoCounselorSession) => { if (createdSession) setCurrentSessionData(createdSession); setShowOnboarding(false); if (!hasTakenTour) setShowTour(true); }} onStartSession={switchToSession} />;
   }
 
   // Guided tour

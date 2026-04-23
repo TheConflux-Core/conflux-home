@@ -1374,16 +1374,16 @@ pub fn get_app_tool_definitions() -> Vec<Value> {
             "type": "function",
             "function": {
                 "name": "kitchen_add_meal",
-                "description": "Add a new meal/recipe to the kitchen. Use when the user wants to save a recipe or add a dish to their meal collection.",
+                "description": "Add a new meal/recipe to the kitchen. Use when the user wants to save a recipe or add a dish to their meal collection. ONLY the 'name' field is required — the tool will create the meal with sensible defaults. Provide other fields only if the user explicitly mentions them.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "name": { "type": "string", "description": "Meal/recipe name (e.g. 'Chicken Parmesan')" },
-                        "category": { "type": "string", "description": "Meal category: breakfast, lunch, dinner, snack, dessert" },
-                        "cuisine": { "type": "string", "description": "Cuisine type (e.g. Italian, Mexican, Thai)" },
-                        "instructions": { "type": "string", "description": "Cooking instructions or steps" },
-                        "prep_time_min": { "type": "integer", "description": "Prep time in minutes" },
-                        "cook_time_min": { "type": "integer", "description": "Cook time in minutes" }
+                        "name": { "type": "string", "description": "Meal/recipe name (e.g. 'Chicken Parmesan') — REQUIRED" },
+                        "category": { "type": "string", "description": "Meal category: breakfast, lunch, dinner, snack, dessert (optional)" },
+                        "cuisine": { "type": "string", "description": "Cuisine type (e.g. Italian, Mexican, Thai) (optional)" },
+                        "instructions": { "type": "string", "description": "Cooking instructions or steps (optional)" },
+                        "prep_time_min": { "type": "integer", "description": "Prep time in minutes (optional)" },
+                        "cook_time_min": { "type": "integer", "description": "Cook time in minutes (optional)" }
                     },
                     "required": ["name"]
                 }
@@ -4635,6 +4635,16 @@ fn execute_vault_scan_directory(args: &Value) -> Result<ToolResult> {
 
 // ── Kitchen Tool Implementations ──
 
+async fn fetch_and_attach_meal_image(meal_id: String, meal_name: String) -> Option<String> {
+    let url = crate::commands::fetch_meal_image(&meal_name).await;
+    if let Some(ref u) = url {
+        let engine = super::get_engine();
+        let _ = engine.db().update_meal_photo(&meal_id, u).await;
+        log::info!("[tools] Fetched image for '{}' -> {}", meal_name, u);
+    }
+    url
+}
+
 fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
     let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
     if name.is_empty() {
@@ -4653,7 +4663,7 @@ fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
     let prep_time_min = args.get("prep_time_min").and_then(|v| v.as_i64());
     let cook_time_min = args.get("cook_time_min").and_then(|v| v.as_i64());
 
-    match tokio::task::block_in_place(|| {
+    let meal = match tokio::task::block_in_place(|| {
         Handle::current().block_on(engine.db().create_meal(
             &id,
             name,
@@ -4670,20 +4680,36 @@ fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
             "agent",
         ))
     }) {
-        Ok(meal) => Ok(ToolResult {
-            success: true,
-            output: format!("Added meal: {} (id: {})", meal.name, meal.id),
-            error: None,
-        }),
+        Ok(meal) => meal,
         Err(e) => {
             log::error!("[tools] kitchen_add_meal FAILED: {}", e);
-            Ok(ToolResult {
+            return Ok(ToolResult {
                 success: false,
                 output: String::new(),
                 error: Some(e.to_string()),
-            })
+            });
         }
-    }
+    };
+
+    // Fire-and-forget image fetch so agent-added meals also get photos.
+    let meal_id = meal.id.clone();
+    let meal_name = meal.name.clone();
+    std::thread::spawn(move || {
+        let rt = match tokio::runtime::Runtime::new() {
+            Ok(rt) => rt,
+            Err(e) => {
+                log::warn!("[tools] Failed to create runtime for image fetch: {}", e);
+                return;
+            }
+        };
+        rt.block_on(fetch_and_attach_meal_image(meal_id, meal_name));
+    });
+
+    Ok(ToolResult {
+        success: true,
+        output: format!("Added meal: {} (id: {})", meal.name, meal.id),
+        error: None,
+    })
 }
 
 fn execute_kitchen_list_meals(args: &Value) -> Result<ToolResult> {
