@@ -55,7 +55,10 @@
     "bundle": {
         "active": true,
         "createUpdaterArtifacts": true,
-        "resources": [],
+        "resources": [
+            "models",
+            "binaries"
+        ],
         "targets": [
             "deb",
             "appimage",
