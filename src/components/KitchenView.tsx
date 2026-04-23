@@ -61,18 +61,21 @@ export default function KitchenView() {
   const [cookingCurrentStep, setCookingCurrentStep] = useState(0);
 
   // Boot → Onboarding → Tour state
-  // bootDone persists across sessions (plays once ever). If boot has NOT played yet,
-  // showOnboarding follows the hasOnboarded flag. If boot HAS played (user closed mid-onboarding
-  // or is returning), keep onboarding visible until they complete it — do not skip to tour.
+  // bootDone persists across sessions (plays once ever).
+  // showOnboarding: show if the user hasn't completed onboarding yet.
+  // Boot sequence gates its own visibility; onboarding only renders after boot finishes.
   const [bootDone, setBootDone] = useState(() => localStorage.getItem('hearth-boot-done') === 'true');
   const hasOnboarded = hasCompletedHearthOnboarding();
   const hasTakenTour = hasCompletedHearthTour();
-  const [showOnboarding, setShowOnboarding] = useState(!bootDone ? !hasOnboarded : true);
+  const [showOnboarding, setShowOnboarding] = useState(!hasOnboarded);
   const [showTour, setShowTour] = useState(!bootDone ? false : !hasTakenTour);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [tourComplete, setTourComplete] = useState(false);
   const [showAddPantryItem, setShowAddPantryItem] = useState(false);
   // const [showKrogerExporter, setShowKrogerExporter] = useState(false); // KROGER_DISABLED
+
+  // Week-plan inline meal picker: which cell is currently open for selection
+  const [planPicker, setPlanPicker] = useState<{ day: number; slot: string } | null>(null);
 
   const weekStart = useMemo(getWeekStart, []);
 
@@ -208,6 +211,7 @@ export default function KitchenView() {
             console.log('[KitchenView] current meals before update:', meals.length);
             setOnboardingComplete(true);
             setShowOnboarding(false);
+            if (!hasTakenTour) setShowTour(true);
             if (createdMeal) {
               setMeals(prev => {
                 console.log('[KitchenView] setMeals called with meal:', createdMeal.name, 'prev length:', prev.length);
@@ -356,12 +360,12 @@ export default function KitchenView() {
             onFavoritesToggle={() => setShowFavorites(!showFavorites)}
             onSelect={setSelectedMeal}
             onQuickAdd={(mealId) => {
-              // Quick add to week plan — default to today dinner
+              // Quick add to week plan — default to today's dinner
               const today = new Date().getDay();
               const dayIndex = today === 0 ? 6 : today - 1;
-              if (plan) {
-                setEntry(dayIndex, 'dinner', mealId);
-              }
+              setEntry(dayIndex, 'dinner', mealId);
+              setTab('plan');
+              playSuccess();
             }}
             pantryItems={[]}
           />
@@ -375,9 +379,9 @@ export default function KitchenView() {
               </div>
               {/* Meal Photo */}
               <div className="meal-detail-photo">
-                {selectedMeal.photo_url || selectedMeal.photo_url ? (
+                {selectedMeal.photo_url ? (
                   <img
-                    src={selectedMeal.photo_url || ''}
+                    src={selectedMeal.photo_url}
                     alt={selectedMeal.name}
                     className="meal-detail-img"
                     onError={(e) => {
@@ -393,7 +397,7 @@ export default function KitchenView() {
                 ) : null}
                 <span
                   className="meal-detail-photo-emoji"
-                  style={{ display: selectedMeal.photo_url || selectedMeal.photo_url ? 'none' : 'flex' }}
+                  style={{ display: selectedMeal.photo_url ? 'none' : 'flex' }}
                 >
                   {MEAL_CATEGORY_EMOJI[selectedMeal.category ?? 'dinner'] ?? '🍽️'}
                 </span>
@@ -471,53 +475,94 @@ export default function KitchenView() {
       )}
 
       {/* ── WEEK PLAN TAB ── */}
-      {tab === 'plan' && plan && (
+      {tab === 'plan' && (
         <div className="kitchen-plan">
           <div className="plan-header">
             <h3>Week of {new Date(weekStart + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}</h3>
             <div className="plan-stats">
-              <span>🍽️ {plan.meal_count} meals planned</span>
-              <span>💰 Est. {formatCost(plan.total_estimated_cost)}</span>
+              {plan ? (
+                <>
+                  <span>🍽️ {plan.meal_count} meals planned</span>
+                  <span>💰 Est. {formatCost(plan.total_estimated_cost)}</span>
+                </>
+              ) : (
+                <span>Loading plan...</span>
+              )}
             </div>
           </div>
 
-          <div className="plan-grid">
-            <div className="plan-grid-header">
-              <div className="plan-slot-label"></div>
-              {dayNames.map(d => (
-                <div key={d} className="plan-day-header">{d}</div>
+          {plan ? (
+            <div className="plan-grid">
+              <div className="plan-grid-header">
+                <div className="plan-slot-label"></div>
+                {dayNames.map(d => (
+                  <div key={d} className="plan-day-header">{d}</div>
+                ))}
+              </div>
+
+              {SLOTS.map(slot => (
+                <div key={slot} className="plan-grid-row">
+                  <div className="plan-slot-label">{MEAL_CATEGORY_EMOJI[slot]} {slot}</div>
+                  {plan.days.map(day => {
+                    const planSlot = day.slots.find(s => s.meal_slot === slot);
+                    const isPickerOpen = planPicker?.day === day.day_of_week && planPicker?.slot === slot;
+                    return (
+                      <div
+                        key={day.day_of_week}
+                        className={`plan-cell ${planSlot?.meal ? 'filled' : 'empty'}`}
+                        onClick={() => {
+                          if (!isPickerOpen) setPlanPicker({ day: day.day_of_week, slot });
+                        }}
+                      >
+                        {isPickerOpen ? (
+                          <select
+                            className="plan-picker"
+                            autoFocus
+                            value={planSlot?.meal?.id ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '__remove__') {
+                                setEntry(day.day_of_week, slot, null);
+                              } else if (val) {
+                                setEntry(day.day_of_week, slot, val);
+                              }
+                              setPlanPicker(null);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            onBlur={() => setPlanPicker(null)}
+                          >
+                            <option value="">— choose —</option>
+                            {planSlot?.meal && (
+                              <option value="__remove__">✕ Remove</option>
+                            )}
+                            {meals.map(m => (
+                              <option key={m.id} value={m.id}>{m.name}</option>
+                            ))}
+                          </select>
+                        ) : planSlot?.meal ? (
+                          <div className="plan-meal-chip">
+                            <span className="plan-meal-name">{planSlot.meal.name}</span>
+                            {planSlot.meal.cost_per_serving != null && (
+                              <span className="plan-meal-cost">{formatCost(planSlot.meal.cost_per_serving)}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <button className="plan-add-btn" onClick={(e) => {
+                            e.stopPropagation();
+                            setPlanPicker({ day: day.day_of_week, slot });
+                          }}>
+                            +
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               ))}
             </div>
-
-            {SLOTS.map(slot => (
-              <div key={slot} className="plan-grid-row">
-                <div className="plan-slot-label">{MEAL_CATEGORY_EMOJI[slot]} {slot}</div>
-                {plan.days.map(day => {
-                  const planSlot = day.slots.find(s => s.meal_slot === slot);
-                  return (
-                    <div key={day.day_of_week} className={`plan-cell ${planSlot?.meal ? 'filled' : 'empty'}`}>
-                      {planSlot?.meal ? (
-                        <div className="plan-meal-chip">
-                          <span className="plan-meal-name">{planSlot.meal.name}</span>
-                          {planSlot.meal.cost_per_serving != null && (
-                            <span className="plan-meal-cost">{formatCost(planSlot.meal.cost_per_serving)}</span>
-                          )}
-                        </div>
-                      ) : (
-                        <button className="plan-add-btn" onClick={() => {
-                          if (meals.length > 0) {
-                            setEntry(day.day_of_week, slot, meals[0].id);
-                          }
-                        }}>
-                          +
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
+          ) : (
+            <div className="plan-loading">Loading your week plan...</div>
+          )}
         </div>
       )}
 

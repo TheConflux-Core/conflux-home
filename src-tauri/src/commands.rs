@@ -1924,6 +1924,193 @@ Be accurate with costs. Use 2026 US grocery prices. List every ingredient.";
     );
 }
 
+/// Build an HTTP client with a proper User-Agent header.
+/// Wikipedia blocks requests without a recognizable UA.
+fn meal_image_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .user_agent("ConfluxHome/1.0 (https://theconflux.ai; support@theconflux.ai)")
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
+}
+
+/// Skip common adjectives so "Decadent Chocolate Cake" → "Chocolate Cake".
+fn meal_search_keywords(name: &str) -> Vec<String> {
+    let skip: std::collections::HashSet<&str> = [
+        "decadent", "creamy", "delicious", "tasty", "spicy", "sweet", "savory",
+        "crispy", "crunchy", "tender", "juicy", "fresh", "homemade", "gourmet",
+        "rustic", "hearty", "light", "rich", "fluffy", "moist", "zesty", "tangy",
+        "smoky", "garlicky", "buttery", "spiced", "roasted", "grilled", "baked",
+        "fried", "steamed", "slow", "quick", "easy", "simple", "classic",
+        "traditional", "modern", "fusion", "authentic", "best", "perfect",
+        "ultimate", "amazing", "wonderful", "great", "lovely", "beautiful",
+        "elegant", "fancy", "casual", "comfort", "warming", "refreshing",
+        "vibrant", "colorful", "golden", "crispy", "silky", "smooth", "thick",
+        "thin", "chunky", "creamy", "cheesy", "meaty", "veggie", "healthy",
+        "indulgent", "luxurious", "exquisite", "divine", "heavenly", "sinful",
+    ].iter().cloned().collect();
+
+    let words: Vec<&str> = name.split_whitespace().collect();
+    let filtered: Vec<String> = words
+        .iter()
+        .filter(|w| !skip.contains(w.to_lowercase().as_str()))
+        .map(|w| w.to_string())
+        .collect();
+
+    if filtered.is_empty() {
+        // Fallback: if we stripped everything, return the original words
+        words.into_iter().map(|w| w.to_string()).collect()
+    } else {
+        filtered
+    }
+}
+
+/// Search TheMealDB for a food image matching the meal name.
+/// Tries exact match, then keyword-reduced match, then first 1-2 keywords.
+/// Returns the thumbnail URL if found, None otherwise.
+async fn fetch_mealdb_image(meal_name: &str) -> Option<String> {
+    let client = meal_image_client();
+
+    // Try exact name first
+    if let Some(url) = try_mealdb_search(&client, meal_name).await {
+        return Some(url);
+    }
+
+    // Try with adjectives stripped (e.g. "Chocolate Cake" from "Decadent Chocolate Cake")
+    let keywords = meal_search_keywords(meal_name);
+    let keyword_phrase = keywords.join(" ");
+    if keyword_phrase != meal_name && !keyword_phrase.is_empty() {
+        if let Some(url) = try_mealdb_search(&client, &keyword_phrase).await {
+            return Some(url);
+        }
+    }
+
+    // Try first keyword alone
+    if keywords.len() > 1 {
+        if let Some(url) = try_mealdb_search(&client, &keywords[0]).await {
+            return Some(url);
+        }
+    }
+
+    // Try first two keywords
+    if keywords.len() > 2 {
+        let two_words = format!("{} {}", keywords[0], keywords[1]);
+        if let Some(url) = try_mealdb_search(&client, &two_words).await {
+            return Some(url);
+        }
+    }
+
+    None
+}
+
+async fn try_mealdb_search(client: &reqwest::Client, query: &str) -> Option<String> {
+    let url = format!(
+        "https://www.themealdb.com/api/json/v1/1/search.php?s={}",
+        urlencoding::encode(query)
+    );
+    match client.get(&url).send().await {
+        Ok(resp) if resp.status().is_success() => {
+            match resp.json::<serde_json::Value>().await {
+                Ok(json) => {
+                    if let Some(meals) = json.get("meals").and_then(|m| m.as_array()) {
+                        if let Some(first) = meals.first() {
+                            if let Some(thumb) = first.get("strMealThumb").and_then(|t| t.as_str()) {
+                                if !thumb.is_empty() && thumb.starts_with("http") {
+                                    return Some(thumb.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) => log::warn!("[MealDB] JSON parse error: {}", e),
+            }
+        }
+        Ok(resp) => log::warn!("[MealDB] HTTP error: {}", resp.status()),
+        Err(e) => log::warn!("[MealDB] Request error: {}", e),
+    }
+    None
+}
+
+/// Fetch a thumbnail image from Wikipedia (free, no auth).
+/// Uses the REST summary API which returns a thumbnail for many food articles.
+async fn fetch_wikipedia_image(meal_name: &str) -> Option<String> {
+    let client = meal_image_client();
+    let keywords = meal_search_keywords(meal_name);
+
+    // Try exact title first
+    if let Some(url) = try_wikipedia_summary(&client, meal_name).await {
+        return Some(url);
+    }
+
+    // Try keyword-reduced title (e.g. "Chocolate Cake")
+    let keyword_phrase = keywords.join(" ");
+    if keyword_phrase != meal_name && !keyword_phrase.is_empty() {
+        if let Some(url) = try_wikipedia_summary(&client, &keyword_phrase).await {
+            return Some(url);
+        }
+    }
+
+    // Try first two keywords
+    if keywords.len() > 2 {
+        let simplified = format!("{} {}", keywords[0], keywords[1]);
+        if let Some(url) = try_wikipedia_summary(&client, &simplified).await {
+            return Some(url);
+        }
+    }
+
+    // Try first keyword alone
+    if keywords.len() > 1 {
+        if let Some(url) = try_wikipedia_summary(&client, &keywords[0]).await {
+            return Some(url);
+        }
+    }
+
+    None
+}
+
+async fn try_wikipedia_summary(client: &reqwest::Client, title: &str) -> Option<String> {
+    let url = format!(
+        "https://en.wikipedia.org/api/rest_v1/page/summary/{}",
+        urlencoding::encode(title)
+    );
+    match client.get(&url).send().await {
+        Ok(resp) if resp.status().is_success() => {
+            match resp.json::<serde_json::Value>().await {
+                Ok(json) => {
+                    if let Some(thumb) = json.get("thumbnail").and_then(|t| t.get("source")).and_then(|s| s.as_str()) {
+                        if thumb.starts_with("http") {
+                            return Some(thumb.to_string());
+                        }
+                    }
+                }
+                Err(e) => log::warn!("[WikiImage] JSON parse error: {}", e),
+            }
+        }
+        Ok(resp) if resp.status().as_u16() == 404 => {
+            // Article not found — expected, don't warn
+        }
+        Ok(resp) if resp.status().as_u16() == 403 => {
+            log::warn!("[WikiImage] 403 Forbidden — Wikipedia blocked the request. Check User-Agent.");
+        }
+        Ok(resp) => log::warn!("[WikiImage] HTTP error: {}", resp.status()),
+        Err(e) => log::warn!("[WikiImage] Request error: {}", e),
+    }
+    None
+}
+
+/// Unified meal image fetcher: TheMealDB → Wikipedia → None
+pub async fn fetch_meal_image(meal_name: &str) -> Option<String> {
+    if let Some(url) = fetch_mealdb_image(meal_name).await {
+        log::info!("[MealImage] TheMealDB found image for '{}'", meal_name);
+        return Some(url);
+    }
+    if let Some(url) = fetch_wikipedia_image(meal_name).await {
+        log::info!("[MealImage] Wikipedia found image for '{}'", meal_name);
+        return Some(url);
+    }
+    log::warn!("[MealImage] No image found for '{}'", meal_name);
+    None
+}
+
 #[tauri::command]
 pub async fn kitchen_ai_add_meal(
     description: String,
@@ -2072,6 +2259,12 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
             )
             .await
             .map_err(|e| e.to_string())?;
+    }
+
+    // Fetch a food image from free sources (TheMealDB → Wikipedia)
+    let photo_url = fetch_meal_image(&ai_meal.name).await;
+    if let Some(url) = photo_url {
+        let _ = engine.db().update_meal_photo(&meal_id, &url).await;
     }
 
     // Get the full meal with ingredients
