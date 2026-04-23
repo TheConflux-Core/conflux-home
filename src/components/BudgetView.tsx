@@ -222,6 +222,7 @@ export default function BudgetView() {
           onComplete={() => {
             setOnboardingComplete(true);
             setShowOnboarding(false);
+            if (!hasTakenTour) setShowTour(true);
           }}
         />
       )}

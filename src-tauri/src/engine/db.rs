@@ -3429,6 +3429,10 @@ impl EngineDb {
     }
 
     fn map_meal(row: &rusqlite::Row) -> rusqlite::Result<super::types::Meal> {
+        // SELECT: id, name, description, cuisine, category, photo_url,
+        // prep_time_min, cook_time_min, servings, difficulty, instructions,
+        // estimated_cost, cost_per_serving, calories, tags, source,
+        // is_favorite, last_made, times_made, created_at, updated_at
         Ok(super::types::Meal {
             id: row.get(0)?,
             name: row.get(1)?,
@@ -3436,21 +3440,21 @@ impl EngineDb {
             cuisine: row.get(3)?,
             category: row.get(4)?,
             photo_url: row.get(5)?,
-            prep_time_min: row.get(7)?,
-            cook_time_min: row.get(8)?,
-            servings: row.get(9)?,
-            difficulty: row.get(10)?,
-            instructions: row.get(11)?,
-            estimated_cost: row.get(12)?,
-            cost_per_serving: row.get(13)?,
-            calories: row.get(14)?,
-            tags: row.get(15)?,
-            source: row.get(16)?,
-            is_favorite: row.get::<_, i64>(17)? != 0,
-            last_made: row.get(18)?,
-            times_made: row.get(19)?,
-            created_at: row.get(20)?,
-            updated_at: row.get(21)?,
+            prep_time_min: row.get(6)?,
+            cook_time_min: row.get(7)?,
+            servings: row.get(8)?,
+            difficulty: row.get(9)?,
+            instructions: row.get(10)?,
+            estimated_cost: row.get(11)?,
+            cost_per_serving: row.get(12)?,
+            calories: row.get(13)?,
+            tags: row.get(14)?,
+            source: row.get(15)?,
+            is_favorite: row.get::<_, i64>(16)? != 0,
+            last_made: row.get(17)?,
+            times_made: row.get(18)?,
+            created_at: row.get(19)?,
+            updated_at: row.get(20)?,
         })
     }
 
