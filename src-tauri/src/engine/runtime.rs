@@ -72,6 +72,65 @@ fn get_session_user_id(db: &EngineDb, session_id: &str) -> String {
     }
 }
 
+
+/// Attempt cloud chat, falling back to local AI on network errors.
+async fn cloud_chat_with_fallback(
+    alias: Option<&str>,
+    messages: Vec<OpenAIMessage>,
+    max_tokens: Option<i64>,
+    tools: Option<Vec<serde_json::Value>>,
+) -> Result<ModelResponse> {
+    match cloud::cloud_chat(alias, messages.clone(), max_tokens, None, tools).await {
+        Ok(r) => Ok(r),
+        Err(e) => {
+            let err_str = e.to_string().to_lowercase();
+            let is_network = err_str.contains("network")
+                || err_str.contains("connection")
+                || err_str.contains("timeout")
+                || err_str.contains("dns")
+                || err_str.contains("resolve")
+                || err_str.contains("offline")
+                || err_str.contains("unreachable")
+                || err_str.contains("refused");
+
+            if is_network {
+                log::warn!("[Engine] Cloud chat failed with network error — trying local AI fallback: {}", e);
+                if let Some(manager) = super::local_ai::get_or_init_local_ai().await {
+                    // Extract the last user message for a simple local completion
+                    if let Some(last_user) = messages.iter().rev().find(|m| m.role == "user").and_then(|m| m.content.as_ref()) {
+                        let system = messages.iter().find(|m| m.role == "system").and_then(|m| m.content.as_ref()).map(|s| s.as_str()).unwrap_or("You are a helpful assistant.");
+                        let prompt = format!("{}
+
+User: {}
+Assistant:", system, last_user);
+                        let max_tok = max_tokens.unwrap_or(512).min(2048) as i32;
+                        match manager.completion(&prompt, max_tok, 0.7).await {
+                            Ok(content) => {
+                                log::info!("[Engine] Local AI fallback succeeded ({} chars)", content.len());
+                                return Ok(ModelResponse {
+                                    content,
+                                    model: "local-offline".to_string(),
+                                    provider_id: "local".to_string(),
+                                    provider_name: "Local AI (Offline)".to_string(),
+                                    tokens_used: 0,
+                                    latency_ms: 0,
+                                    tool_calls: vec![],
+                                });
+                            }
+                            Err(local_err) => {
+                                log::warn!("[Engine] Local AI fallback failed: {}", local_err);
+                            }
+                        }
+                    }
+                } else {
+                    log::warn!("[Engine] Local AI not available for offline fallback");
+                }
+            }
+            Err(e)
+        }
+    }
+}
+
 /// Process a chat turn for an agent: take user input, think, potentially call tools, respond.
 pub async fn process_turn(
     db: &EngineDb,
@@ -274,11 +333,10 @@ pub async fn process_turn(
     let mut final_response: Option<ModelResponse> = None;
 
     for iteration in 0..MAX_TOOL_ITERATIONS {
-        let response = cloud::cloud_chat(
+        let response = cloud_chat_with_fallback(
             Some(&agent.model_alias),
             messages.clone(),
             max_tokens,
-            None,
             if !tool_defs.is_empty() && (iteration == 0) {
                 Some(tool_defs.clone())
             } else {
@@ -491,12 +549,11 @@ pub async fn process_turn(
 
         // If this was the last iteration, force no tools
         if iteration == MAX_TOOL_ITERATIONS - 1 {
-            let final_resp = cloud::cloud_chat(
+            let final_resp = cloud_chat_with_fallback(
                 Some(&agent.model_alias),
                 messages.clone(),
                 max_tokens,
                 None,
-                None, // No tools on final pass
             )
             .await?;
             total_tokens += final_resp.tokens_used;
@@ -646,11 +703,10 @@ pub async fn process_turn_stream(
         let is_final_pass = iteration == MAX_TOOL_ITERATIONS - 1;
 
         // For intermediate passes, use non-streaming to reliably capture tool_calls
-        let response = cloud::cloud_chat(
+        let response = cloud_chat_with_fallback(
             Some(&agent.model_alias),
             messages.clone(),
             max_tokens,
-            None,
             Some(tool_defs.clone()),
         )
         .await?;
@@ -764,11 +820,10 @@ pub async fn process_turn_stream(
 
         // Last iteration — force no tools, get final text
         if is_final_pass {
-            let final_resp = cloud::cloud_chat(
+            let final_resp = cloud_chat_with_fallback(
                 Some(&agent.model_alias),
                 messages.clone(),
                 max_tokens,
-                None,
                 None,
             )
             .await?;
