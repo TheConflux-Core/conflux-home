@@ -65,7 +65,11 @@ pub fn run() {
                 }
             }))
             .plugin(tauri_plugin_updater::Builder::new().build())
-            .plugin(tauri_plugin_process::init());
+            .plugin(tauri_plugin_process::init())
+            .plugin(tauri_plugin_autostart::init(
+                tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+                Some(vec![]),
+            ));
     }
 
     builder
@@ -227,6 +231,64 @@ pub fn run() {
                 log::info!("Registered conflux:// protocol handler");
             }
 
+            // ── System Tray + Autostart (desktop only) ──
+            #[cfg(desktop)]
+            {
+                // Enable autostart on login
+                use tauri_plugin_autostart::ManagerExt;
+                let autostart = app.autolaunch();
+                if let Err(e) = autostart.enable() {
+                    log::warn!("[Setup] Failed to enable autostart: {}", e);
+                } else {
+                    log::info!("[Setup] Autostart enabled");
+                }
+
+                // Build tray menu
+                use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+                let quit_i = MenuItem::with_id(app, "quit", "Quit Conflux", true, None::<&str>)?;
+                let show_i = MenuItem::with_id(app, "show", "Show Conflux", true, None::<&str>)?;
+                let menu = Menu::with_items(app, &[&show_i, &PredefinedMenuItem::separator(app)?, &quit_i])?;
+
+                let _tray = tauri::tray::TrayIconBuilder::new()
+                    .icon(app.default_window_icon().unwrap().clone())
+                    .menu(&menu)
+                    .on_menu_event(|app_handle: &tauri::AppHandle, event| {
+                        match event.id.as_ref() {
+                            "quit" => {
+                                log::info!("[Tray] Quit requested");
+                                app_handle.exit(0);
+                            }
+                            "show" => {
+                                if let Some(win) = app_handle.get_webview_window("main") {
+                                    let _ = win.show();
+                                    let _ = win.set_focus();
+                                }
+                            }
+                            _ => {}
+                        }
+                    })
+                    .on_tray_icon_event(|tray, event| {
+                        use tauri::tray::{TrayIconEvent, MouseButton, MouseButtonState};
+                        if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                            let app_handle = tray.app_handle();
+                            if let Some(win) = app_handle.get_webview_window("main") {
+                                if win.is_visible().unwrap_or(false) {
+                                    let _ = win.hide();
+                                } else {
+                                    let _ = win.show();
+                                    let _ = win.set_focus();
+                                }
+                            }
+                        }
+                    })
+                    .build(app);
+                if let Err(e) = _tray {
+                    log::warn!("[Setup] Failed to create tray icon: {}", e);
+                } else {
+                    log::info!("[Setup] System tray initialized");
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -240,6 +302,8 @@ pub fn run() {
             // Agents
             commands::engine_get_agents,
             commands::engine_update_agent,
+            commands::save_user_profile,
+            commands::get_user_profile,
             // Quota
             commands::engine_get_quota,
             // Memory
@@ -682,6 +746,14 @@ pub fn run() {
             // kroger::kroger_add_to_cart,
             // kroger::kroger_get_cart,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app_handle, event| {
+            match event {
+                tauri::RunEvent::ExitRequested { api, .. } => {
+                    api.prevent_exit();
+                }
+                _ => {}
+            }
+        });
 }

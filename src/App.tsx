@@ -263,18 +263,67 @@ export default function App() {
     };
   }, []);
 
-  // Onboarding state — check localStorage on mount
-  const [isOnboarded, setIsOnboarded] = useState(() => {
-    return localStorage.getItem('conflux-onboarded') === 'true';
-  });
+  const [isOnboarded, setIsOnboarded] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
-  const [showIntroductions, setShowIntroductions] = useState(() => {
-    return localStorage.getItem('conflux-introductions-complete') !== 'true';
-  });
+  const [showIntroductions, setShowIntroductions] = useState(true);
   const [showBootCards, setShowBootCards] = useState(() => {
     // Disabled by ZigBot on 2026-04-06 per Don's request
     return false;
   });
+
+  // Load onboarding state from backend on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const profile = await invoke<any>('get_user_profile');
+        if (cancelled) return;
+        if (profile?.onboarded) {
+          setIsOnboarded(true);
+          if (profile.name) setUserName(profile.name);
+          if (profile.selected_apps) {
+            setSelectedAgentIds(profile.selected_apps);
+          }
+          if (profile.goals) {
+            localStorage.setItem('conflux-goals', JSON.stringify(profile.goals));
+          }
+        } else {
+          // Fallback to localStorage for migration
+          const lsOnboarded = localStorage.getItem('conflux-onboarded') === 'true';
+          if (lsOnboarded) {
+            setIsOnboarded(true);
+            const name = localStorage.getItem('conflux-name') || 'there';
+            setUserName(name);
+            const apps = localStorage.getItem('conflux-setup-apps');
+            if (apps) setSelectedAgentIds(JSON.parse(apps));
+            // Migrate to backend
+            await invoke('save_user_profile', {
+              profile: {
+                name,
+                onboarded: true,
+                goals: localStorage.getItem('conflux-goals')
+                  ? JSON.parse(localStorage.getItem('conflux-goals')!)
+                  : null,
+                selected_apps: apps ? JSON.parse(apps) : null,
+              },
+            });
+          }
+          setShowIntroductions(
+            localStorage.getItem('conflux-introductions-complete') !== 'true'
+          );
+        }
+      } catch (e) {
+        console.warn('[App] Failed to load user profile from backend:', e);
+        // Fallback to localStorage
+        const lsOnboarded = localStorage.getItem('conflux-onboarded') === 'true';
+        setIsOnboarded(lsOnboarded);
+        setShowIntroductions(
+          localStorage.getItem('conflux-introductions-complete') !== 'true'
+        );
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
 
 
@@ -607,15 +656,30 @@ const [activeSnake, setActiveSnake] = useState(false);
   }, [agents]);
 
   // Handle onboarding completion — receives (goals, selectedApps) from the Wizard
-  const handleOnboardingComplete = useCallback((_goals: string[], selectedApps: string[]) => {
-    const name = localStorage.getItem('conflux-name') || 'there';
+  const handleOnboardingComplete = useCallback(async (_goals: string[], selectedApps: string[]) => {
+    // Read name from localStorage (Onboarding just saved it there)
+    const name = localStorage.getItem('conflux-name') || userName || 'there';
     setUserName(name);
 
-    // 1. Persist locally
+    // 1. Persist to backend (reliable across platforms)
+    try {
+      await invoke('save_user_profile', {
+        profile: {
+          name,
+          onboarded: true,
+          goals: _goals.length ? _goals : null,
+          selected_apps: selectedApps.length ? selectedApps : null,
+        },
+      });
+    } catch (e) {
+      console.warn('[Onboarding] Failed to save profile to backend:', e);
+    }
+
+    // 2. Also keep localStorage as cache
     localStorage.setItem('conflux-onboarded', 'true');
     localStorage.setItem('conflux-setup-apps', JSON.stringify(selectedApps));
 
-    // 2. Create the Family Member record in the local DB (isolated by user_id in Rust)
+    // 3. Create the Family Member record in the local DB
     if (user) {
       invoke('family_create', {
         req: {
@@ -629,7 +693,7 @@ const [activeSnake, setActiveSnake] = useState(false);
         }
       }).catch(e => console.error('[Onboarding] Failed to create family member:', e));
 
-      // 3. Save onboarding state to Supabase
+      // 4. Save onboarding state to Supabase
       import('./lib/supabase').then(({ supabase }) => {
         supabase.from('ch_profiles').upsert({
           id: user.id,
@@ -648,7 +712,7 @@ const [activeSnake, setActiveSnake] = useState(false);
     if (shouldAutoStartTour()) {
       setTimeout(() => setShowTour(true), 1500);
     }
-  }, [user]);
+  }, [user, userName]);
 
   // Handle welcome dismiss
   const handleWelcomeComplete = useCallback(() => {
@@ -891,7 +955,6 @@ const [activeSnake, setActiveSnake] = useState(false);
       {showTour && <GuidedTour onComplete={() => setShowTour(false)} />}
       <TopBar
         selectedAgent={selectedAgent}
-        engineConnected={connected}
         controlRoom={controlRoom}
         currentView={view}
         onNavigate={(v) => handleNavigate(v as View)}

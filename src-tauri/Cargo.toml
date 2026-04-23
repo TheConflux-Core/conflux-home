@@ -1,6 +1,6 @@
 [package]
 name = "conflux-home"
-version = "0.1.70"
+version = "0.1.71"
 description = "Conflux Home — Your AI Family Lives Here"
 authors = ["The Conflux AI"]
 license = "MIT"
@@ -22,7 +22,8 @@ dotenvy = "0.15"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
-tauri = { version = "2.10.3", features = [] }
+tauri = { version = "2.10.3", features = ["tray-icon"] }
+tauri-plugin-autostart = "2"
 tauri-plugin-log = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-dialog = "=2.6.0"

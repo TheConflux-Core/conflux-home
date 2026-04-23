@@ -785,6 +785,7 @@ impl EngineDb {
         soul: Option<&str>,
         instructions: Option<&str>,
         model_alias: Option<&str>,
+        is_active: Option<bool>,
     ) -> Result<()> {
         let conn = self.conn();
         let _now = Self::now();
@@ -816,6 +817,10 @@ impl EngineDb {
         if let Some(v) = model_alias {
             sets.push("model_alias = ?".to_string());
             params_vec.push(("model_alias".to_string(), v.to_string()));
+        }
+        if let Some(v) = is_active {
+            sets.push("is_active = ?".to_string());
+            params_vec.push(("is_active".to_string(), if v { "1".to_string() } else { "0".to_string() }));
         }
 
         if sets.is_empty() {
