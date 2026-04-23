@@ -60,6 +60,16 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Download bundled models
+        env:
+          MODEL_BASE_URL: ${{ secrets.MODEL_BASE_URL }}
+        run: ./scripts/download-models.sh
+
+      - name: Download llama-server binary
+        env:
+          LLAMA_SERVER_VERSION: ${{ secrets.LLAMA_SERVER_VERSION }}
+          LLAMA_SERVER_PLATFORM: ubuntu-x64
+        run: ./scripts/download-llama-server.sh
 
       - name: Build Tauri app (signed)
         env:
@@ -158,6 +168,18 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Download bundled models
+        shell: bash
+        env:
+          MODEL_BASE_URL: ${{ secrets.MODEL_BASE_URL }}
+        run: ./scripts/download-models.sh
+
+      - name: Download llama-server binary
+        shell: bash
+        env:
+          LLAMA_SERVER_VERSION: ${{ secrets.LLAMA_SERVER_VERSION }}
+          LLAMA_SERVER_PLATFORM: win-avx2-x64
+        run: ./scripts/download-llama-server.sh
 
       - name: Build Tauri app (signed)
         env:
@@ -267,6 +289,18 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Download bundled models
+        shell: bash
+        env:
+          MODEL_BASE_URL: ${{ secrets.MODEL_BASE_URL }}
+        run: ./scripts/download-models.sh
+
+      - name: Download llama-server binary
+        shell: bash
+        env:
+          LLAMA_SERVER_VERSION: ${{ secrets.LLAMA_SERVER_VERSION }}
+          LLAMA_SERVER_PLATFORM: ${{ matrix.arch == 'x64' && 'macos-x64' || 'macos-arm64' }}
+        run: ./scripts/download-llama-server.sh
 
       - name: Build Tauri app (signed)
         env:

@@ -96,6 +96,12 @@ pub fn run() {
                     log::info!("Conflux Engine initialized at {:?}", db_path);
                     // Store app_handle for real-time Tauri events and notifications
                     engine_ref.set_app_handle(app.handle().clone());
+                    // Set resource dir for bundled models / llama-server discovery
+                    if let Ok(res_dir) = app.path().resource_dir() {
+                        engine::local_ai::set_resource_dir(res_dir);
+                    } else {
+                        log::warn!("[Setup] Failed to get resource directory — bundled models may not be found");
+                    }
                     // Initialize Echo Counselor tables
                     if let Err(e) = engine::echo_counselor::init() {
                         log::error!("[Setup] Failed to initialize Echo Counselor: {}", e);

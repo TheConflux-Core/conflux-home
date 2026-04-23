@@ -59,8 +59,8 @@ export function useStudio() {
       generationId = await invoke<string>('studio_create_generation', {
         module: activeModule,
         prompt: prompt.trim(),
-        model: activeModule === 'image' ? 'flux-schnell' : activeModule === 'voice' ? 'eleven_multilingual_v2' : 'mock-model',
-        provider: activeModule === 'image' ? 'replicate' : activeModule === 'voice' ? 'elevenlabs' : 'mock',
+        model: activeModule === 'image' ? 'dall-e-3' : activeModule === 'voice' ? 'eleven_multilingual_v2' : 'mock-model',
+        provider: activeModule === 'image' ? 'openai' : activeModule === 'voice' ? 'elevenlabs' : 'mock',
       });
     } catch (e) {
       console.error('Failed to create generation:', e);

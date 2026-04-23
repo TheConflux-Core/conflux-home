@@ -18,6 +18,72 @@ use tokio::time::sleep;
 
 use super::router::{ModelResponse, ToolCallRequest};
 
+// ── Resource Directory (set at app startup) ──
+
+static RESOURCE_DIR: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
+
+/// Set the Tauri resource directory at app startup.
+/// Models and llama-server binary are expected in `models/` and `binaries/` subdirs.
+pub fn set_resource_dir(path: PathBuf) {
+    let mut guard = RESOURCE_DIR.lock().unwrap();
+    *guard = Some(path.clone());
+    log::info!("[LocalAI] Resource directory set to: {}", path.display());
+}
+
+/// Get the resource directory if set.
+fn get_resource_dir() -> Option<PathBuf> {
+    RESOURCE_DIR.lock().unwrap().clone()
+}
+
+/// Discover a bundled GGUF model file.
+/// Checks resource dir first, then falls back to legacy dev paths.
+fn discover_model_path() -> Option<PathBuf> {
+    // 1. Try resource dir / models
+    if let Some(res) = get_resource_dir() {
+        let models_dir = res.join("models");
+        if models_dir.is_dir() {
+            // Look for known model filenames in priority order
+            let known_names = [
+                "conflux-toolrouter-q4.gguf",
+                "functiongemma-270m-q4.gguf",
+                "gemma3n-e4b-q4.gguf",
+                "functiongemma-270m.gguf",
+                "gemma3n-e4b.gguf",
+            ];
+            for name in &known_names {
+                let p = models_dir.join(name);
+                if p.exists() {
+                    log::info!("[LocalAI] Found bundled model: {}", p.display());
+                    return Some(p);
+                }
+            }
+            // Fallback: any .gguf in the models dir
+            if let Ok(entries) = std::fs::read_dir(&models_dir) {
+                for entry in entries.flatten() {
+                    let p = entry.path();
+                    if p.extension().and_then(|s| s.to_str()) == Some("gguf") {
+                        log::info!("[LocalAI] Found bundled model: {}", p.display());
+                        return Some(p);
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Legacy dev path fallback
+    let home = std::env::var("HOME").unwrap_or_default();
+    let legacy = PathBuf::from(format!(
+        "{}/.openclaw/workspace/conflux-home/src-tauri/models/conflux-toolrouter-q4.gguf",
+        home
+    ));
+    if legacy.exists() {
+        log::info!("[LocalAI] Found legacy dev model: {}", legacy.display());
+        return Some(legacy);
+    }
+
+    None
+}
+
 // ── Global Persistent Manager ──
 
 /// Global persistent llama-server manager. Starts once, reused across all requests.
@@ -31,15 +97,7 @@ static LOCAL_AI: std::sync::LazyLock<std::sync::Mutex<Option<LocalAiManager>>> =
 pub async fn get_or_init_local_ai() -> Option<LocalAiManager> {
     // Check if binary and model exist first (fast path)
     let server_bin = find_llama_server().ok()?;
-    let home = std::env::var("HOME").unwrap_or_default();
-    let model_path = std::path::PathBuf::from(format!(
-        "{}/.openclaw/workspace/conflux-home/src-tauri/models/conflux-toolrouter-q4.gguf",
-        home
-    ));
-    if !model_path.exists() {
-        log::debug!("[LocalAI] No model file at {}, skipping", model_path.display());
-        return None;
-    }
+    let model_path = discover_model_path()?;
 
     let config = ServerConfig {
         model_path,
@@ -307,7 +365,7 @@ pub fn format_tools_for_local(tools: &[serde_json::Value]) -> String {
         "You are a tool calling assistant. Given a user request, output a JSON function call with the tool name and arguments.\n\nTools:\n"
     );
 
-    // Build JSON array of function definitions (matching training: [t["function"] for t in tools])
+    // Build JSON array of function definitions (matching training: [t[\"function\"] for t in tools])
     let func_defs: Vec<&serde_json::Value> = tools
         .iter()
         .filter_map(|t| t.get("function"))
@@ -459,8 +517,26 @@ pub async fn local_tool_route(
 // ── Helpers ──
 
 /// Find the llama-server binary on the system.
+/// Checks bundled resources first, then system PATH.
 pub fn find_llama_server() -> Result<PathBuf> {
-    // Check common locations
+    // 1. Check bundled resources
+    if let Some(res) = get_resource_dir() {
+        let binaries_dir = res.join("binaries");
+        let bundled_names = if cfg!(target_os = "windows") {
+            vec!["llama-server.exe", "llama-server"]
+        } else {
+            vec!["llama-server"]
+        };
+        for name in &bundled_names {
+            let p = binaries_dir.join(name);
+            if p.exists() && p.is_file() {
+                log::info!("[LocalAI] Using bundled llama-server: {}", p.display());
+                return Ok(p);
+            }
+        }
+    }
+
+    // 2. Check common system locations
     let home = std::env::var("HOME").unwrap_or_default();
     let candidates: Vec<PathBuf> = vec![
         PathBuf::from("llama-server"), // In PATH (checked via which below)
@@ -476,7 +552,7 @@ pub fn find_llama_server() -> Result<PathBuf> {
         }
     }
 
-    // Try `which` via shell as last resort
+    // 3. Try `which` via shell as last resort
     if let Ok(output) = std::process::Command::new("which").arg("llama-server").output() {
         if output.status.success() {
             let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -487,7 +563,7 @@ pub fn find_llama_server() -> Result<PathBuf> {
     }
 
     Err(anyhow!(
-        "llama-server binary not found. Install llama.cpp:\n\
+        "llama-server binary not found. Bundle it in src-tauri/binaries/ or install llama.cpp:\n\
          git clone https://github.com/ggerganov/llama.cpp ~/llama.cpp\n\
          cd ~/llama.cpp && cmake -B build && cmake --build build --config Release -j"
     ))
@@ -502,26 +578,28 @@ pub async fn local_ai_start(
 ) -> Result<LocalAiStatus, String> {
     let full_path = if Path::new(&model_path).is_absolute() {
         PathBuf::from(&model_path)
+    } else if let Some(res) = get_resource_dir() {
+        res.join("models").join(&model_path)
     } else {
-        // Default: look in the app's models directory
         let home = std::env::var("HOME").unwrap_or_default();
         PathBuf::from(format!("{}/.openclaw/workspace/conflux-home/src-tauri/models/{}", home, model_path))
     };
 
     let config = ServerConfig {
-        model_path: full_path,
+        model_path: full_path.clone(),
         ..Default::default()
     };
 
     let manager = LocalAiManager::new(config);
     manager.start().map_err(|e| e.to_string())?;
 
-    // Store manager in app state (you'll need to add this to your state)
-    // For now, just return status
+    // Store manager in global state
+    *LOCAL_AI.lock().unwrap() = Some(manager.clone());
+
     Ok(LocalAiStatus {
         running: true,
-        model_path: Some(model_path),
-        model_name: Some("local-model".to_string()),
+        model_path: Some(full_path.to_string_lossy().to_string()),
+        model_name: Some(full_path.file_stem().and_then(|s| s.to_str()).unwrap_or("unknown").to_string()),
         port: DEFAULT_PORT,
         ram_mb: None,
         is_ready: false,
@@ -533,23 +611,51 @@ pub async fn local_ai_start(
 /// Tauri command: Stop local AI.
 #[tauri::command]
 pub async fn local_ai_stop() -> Result<(), String> {
-    // TODO: Get manager from app state and stop it
-    log::info!("[LocalAI] Stop requested");
+    shutdown_local_ai();
     Ok(())
 }
 
 /// Tauri command: Get local AI status.
 #[tauri::command]
 pub async fn local_ai_status() -> Result<LocalAiStatus, String> {
-    // TODO: Get real status from app state
-    Ok(LocalAiStatus {
-        running: false,
-        model_path: None,
-        model_name: None,
-        port: DEFAULT_PORT,
-        ram_mb: None,
-        is_ready: false,
-        tools_loaded: 0,
-        error: None,
-    })
+    let guard = LOCAL_AI.lock().unwrap();
+    if let Some(ref manager) = *guard {
+        let running = manager.is_process_alive();
+        let model_name = manager.config.model_path.file_stem()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_string());
+        Ok(LocalAiStatus {
+            running,
+            model_path: Some(manager.config.model_path.to_string_lossy().to_string()),
+            model_name,
+            port: manager.config.port,
+            ram_mb: None,
+            is_ready: running,
+            tools_loaded: 0,
+            error: None,
+        })
+    } else {
+        // No manager started yet — check if we *could* start one
+        let model_path = discover_model_path();
+        let server_bin = find_llama_server().ok();
+        let error = if model_path.is_none() && server_bin.is_none() {
+            Some("No bundled model or llama-server found.".to_string())
+        } else if model_path.is_none() {
+            Some("No bundled GGUF model found.".to_string())
+        } else if server_bin.is_none() {
+            Some("llama-server binary not found.".to_string())
+        } else {
+            None
+        };
+        Ok(LocalAiStatus {
+            running: false,
+            model_path: model_path.map(|p| p.to_string_lossy().to_string()),
+            model_name: None,
+            port: DEFAULT_PORT,
+            ram_mb: None,
+            is_ready: false,
+            tools_loaded: 0,
+            error,
+        })
+    }
 }
