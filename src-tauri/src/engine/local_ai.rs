@@ -237,6 +237,23 @@ impl LocalAiManager {
         // Find the llama-server binary
         let server_bin = find_llama_server()?;
 
+        // On Windows: set the working dir to where llama-server.exe lives
+        // so it can find ggml.dll and any other collocated DLLs
+        #[cfg(target_os = "windows")]
+        let _old_workdir = {
+            use std::path::Path;
+            if let Some(parent) = server_bin.as_path().parent() {
+                Some(std::env::current_dir().ok().map(|old| {
+                    let _ = std::env::set_current_dir(parent);
+                    old
+                }))
+            } else {
+                None
+            }
+        };
+        #[cfg(not(target_os = "windows"))]
+        let _old_workdir: Option<std::path::PathBuf> = None;
+
         log::info!(
             "[LocalAI] Starting llama-server on port {} with model {}",
             self.config.port,
@@ -253,6 +270,7 @@ impl LocalAiManager {
             .arg("--threads")
             .arg(self.config.threads.to_string())
             .arg("--no-webui")
+            .arg("--log-disable")
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .spawn()?;
