@@ -190,7 +190,10 @@ pub fn run() {
                                     Some(engine_ref) => {
                                         let count = engine_ref.tick_cron().await.unwrap_or(0);
                                         log::info!("[CronScheduler] Tick — {} jobs, interval={}s stored={}", count, current_interval_secs, stored);
-                                        let _ = app_handle.emit("conflux:heartbeat-beat", ());
+                                        // Persist last beat timestamp so frontend can sync from Rust's clock
+                                        let now_ms = chrono::Utc::now().timestamp_millis();
+                                        let _ = engine_ref.db().set_config("heartbeat_last_beat_ms", &now_ms.to_string());
+                                        let _ = app_handle.emit("conflux:heartbeat-beat", now_ms);
                                     }
                                     None => {
                                         log::warn!("[CronScheduler] Engine unavailable, skipping tick");
@@ -377,6 +380,8 @@ pub fn run() {
             // Heartbeat Interval
             commands::engine_get_heartbeat_interval,
             commands::engine_set_heartbeat_interval,
+            commands::engine_get_heartbeat_last_beat,
+            commands::engine_set_heartbeat_last_beat,
             // Webhooks
             commands::engine_create_webhook,
             commands::engine_get_webhooks,

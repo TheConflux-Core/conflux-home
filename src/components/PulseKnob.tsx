@@ -1,8 +1,13 @@
 // Conflux Home — PulseKnob Component
 // Animated heartbeat interval control for the INTEL Dashboard
 // Drag circularly to select interval • Arc depletes as time passes
+//
+// Uses HeartbeatGlobal singleton so the countdown clock runs in a module-level
+// setInterval — not tied to the component mount cycle. Navigating away and
+// coming back does NOT restart the countdown.
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { subscribe, setHeartbeatInterval } from '../lib/heartbeatGlobal';
 
 export interface PulseKnobProps {
   value: number;          // current interval in ms (0 = off)
@@ -40,7 +45,6 @@ function msToPreset(ms: number): number {
 }
 
 function angleToPreset(angleDeg: number): number {
-  // 0° = top (12 o'clock), clockwise through all 6 detents
   let pos = ((angleDeg + 90 + 360) % 360) / (360 / NUM_DETENTS);
   return Math.round(pos) % NUM_DETENTS;
 }
@@ -50,14 +54,11 @@ function angleToPreset(angleDeg: number): number {
 function KnobCenterIcon({ isOff, isBeating }: { isOff: boolean; isBeating: boolean }) {
   return (
     <g>
-      {/* Neumorphic shadow layer — dark bottom-right */}
       <path
         d="M54 68 C54 68 34 56 34 44 C34 37 39 32 46 32 C49.5 32 52.5 33.5 54 36 C55.5 33.5 58.5 32 62 32 C69 32 74 37 74 44 C74 56 54 68 54 68Z"
         fill="#7f1d1d"
         transform="translate(2, 3)"
       />
-
-      {/* Main heart body — rich crimson gradient */}
       <defs>
         <linearGradient id="heartGrad" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%"   stopColor="#fca5a5" />
@@ -78,6 +79,7 @@ function KnobCenterIcon({ isOff, isBeating }: { isOff: boolean; isBeating: boole
           <feMerge>
             <feMergeNode in="blur" />
             <feMergeNode in="blur" />
+            <feMergeNode in="blur" />
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
@@ -85,13 +87,11 @@ function KnobCenterIcon({ isOff, isBeating }: { isOff: boolean; isBeating: boole
           <path d="M54 68 C54 68 34 56 34 44 C34 37 39 32 46 32 C49.5 32 52.5 33.5 54 36 C55.5 33.5 58.5 32 62 32 C69 32 74 37 74 44 C74 56 54 68 54 68Z" />
         </clipPath>
       </defs>
-
       <path
         d="M54 68 C54 68 34 56 34 44 C34 37 39 32 46 32 C49.5 32 52.5 33.5 54 36 C55.5 33.5 58.5 32 62 32 C69 32 74 37 74 44 C74 56 54 68 54 68Z"
         fill="url(#heartGrad)"
         filter={isBeating ? 'url(#heartGlowIntense)' : 'url(#heartGlow)'}
       >
-        {/* Slow breathing pulse — continuous */}
         <animateTransform
           attributeName="transform"
           type="scale"
@@ -101,7 +101,6 @@ function KnobCenterIcon({ isOff, isBeating }: { isOff: boolean; isBeating: boole
           calcMode="spline"
           keySplines="0.4 0 0.6 1; 0.4 0 0.6 1"
         />
-        {/* Color brightens on beat */}
         <animate
           attributeName="fill"
           values="url(#heartGrad);#fca5a5;url(#heartGrad)"
@@ -110,155 +109,124 @@ function KnobCenterIcon({ isOff, isBeating }: { isOff: boolean; isBeating: boole
           repeatCount={isBeating ? 1 : 0}
         />
       </path>
-
-      {/* Neumorphic top-left highlight (clipped to heart) */}
       <ellipse
         cx="46"
         cy="40"
         rx="7"
         ry="5"
         fill="rgba(255,255,255,0.25)"
-        filter="url(#heartGlow)"
         clipPath="url(#heartClip)"
-        transform="rotate(-20 46 40)"
       />
-
-      {/* Subtle specular — bottom-right reflection */}
-      <ellipse
-        cx="65"
-        cy="48"
-        rx="4"
-        ry="2.5"
-        fill="rgba(0,0,0,0.2)"
-        transform="rotate(20 65 48)"
-      />
-
-      {/* Beat ripple ring — fires on each heartbeat */}
-      {isBeating && (
-        <circle cx="54" cy="50" r="18" fill="none" stroke="rgba(252,165,165,0.6)" strokeWidth="1.5">
-          <animate attributeName="r" from="14" to="26" dur="0.6s" begin="0s" fill="freeze" />
-          <animate attributeName="opacity" from="0.7" to="0" dur="0.6s" begin="0s" fill="freeze" />
-        </circle>
-      )}
-
-      {/* OFF state — flat gray pause bars */}
-      {isOff && (
-        <g>
-          <rect x="46" y="40" width="5" height="16" rx="2" fill="rgba(255,255,255,0.4)" />
-          <rect x="57" y="40" width="5" height="16" rx="2" fill="rgba(255,255,255,0.4)" />
-        </g>
-      )}
     </g>
   );
 }
 
-// ── Detent tick marks ──────────────────────────────────────────────────────
+// ── Detent Ticks ──────────────────────────────────────────────────────────────
 
 function DetentTicks() {
-  const ticks = [];
-  for (let i = 0; i < NUM_DETENTS; i++) {
-    const angleDeg = (i * 360) / NUM_DETENTS - 90;
-    const angleRad = (angleDeg * Math.PI) / 180;
-    const outerR = 54;
-    const innerR = i === 0 ? 49 : 50;
-    const x1 = CENTER + outerR * Math.cos(angleRad);
-    const y1 = CENTER + outerR * Math.sin(angleRad);
-    const x2 = CENTER + innerR * Math.cos(angleRad);
-    const y2 = CENTER + innerR * Math.sin(angleRad);
-    ticks.push(
-      <line
-        key={i}
-        x1={x1} y1={y1} x2={x2} y2={y2}
-        stroke={i === 0 ? 'rgba(239,68,68,0.7)' : 'rgba(255,255,255,0.25)'}
-        strokeWidth={i === 0 ? 2.5 : 1.5}
-        strokeLinecap="round"
-      />
-    );
-  }
-  return <g>{ticks}</g>;
+  return (
+    <g>
+      {PRESETS.map((preset, i) => {
+        const angleDeg = (i * 360) / NUM_DETENTS - 90;
+        const angleRad = (angleDeg * Math.PI) / 180;
+        const innerR = RING_RADIUS - 8;
+        const outerR = RING_RADIUS + 2;
+        const x1 = CENTER + innerR * Math.cos(angleRad);
+        const y1 = CENTER + innerR * Math.sin(angleRad);
+        const x2 = CENTER + outerR * Math.cos(angleRad);
+        const y2 = CENTER + outerR * Math.sin(angleRad);
+        return (
+          <line
+            key={i}
+            x1={x1} y1={y1} x2={x2} y2={y2}
+            stroke="rgba(255,255,255,0.25)"
+            strokeWidth={1}
+          />
+        );
+      })}
+    </g>
+  );
 }
 
-// ── Notch labels (outside the outer ring) ───────────────────────────────────
+// ── Notch Labels ───────────────────────────────────────────────────────────────
 
 function NotchLabels({ activePreset, currentPreset }: { activePreset: number; currentPreset: number }) {
-  const labels = PRESETS.map((preset, i) => {
-    const angleDeg = (i * 360) / NUM_DETENTS - 90;
-    const angleRad = (angleDeg * Math.PI) / 180;
-    // Position label just outside the tick marks
-    const labelR = RING_RADIUS + 19;
-    const x = CENTER + labelR * Math.cos(angleRad);
-    const y = CENTER + labelR * Math.sin(angleRad);
-    const isActive = i === activePreset;
-    const isCurrent = i === currentPreset;
-    return (
-      <text
-        key={i}
-        x={x}
-        y={y}
-        textAnchor="middle"
-        dominantBaseline="central"
-        fill={isActive ? '#ef4444' : isCurrent ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.4)'}
-        fontSize={isActive ? '9' : '8'}
-        fontFamily="var(--radar-font-mono, monospace)"
-        fontWeight={isCurrent ? '700' : '500'}
-        style={{
-          transition: 'fill 0.15s ease, font-size 0.15s ease',
-          userSelect: 'none',
-          pointerEvents: 'none',
-        }}
-      >
-        {preset.label}
-      </text>
-    );
-  });
-  return <g>{labels}</g>;
+  const labelR = RING_RADIUS + 20;
+  return (
+    <g>
+      {PRESETS.map((preset, i) => {
+        const angleDeg = (i * 360) / NUM_DETENTS - 90;
+        const angleRad = (angleDeg * Math.PI) / 180;
+        const x = CENTER + labelR * Math.cos(angleRad);
+        const y = CENTER + labelR * Math.sin(angleRad);
+        const isActive = i === activePreset;
+        const isCurrent = i === currentPreset;
+        return (
+          <text
+            key={i}
+            x={x} y={y}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontSize="8"
+            fontFamily="monospace"
+            fill={isActive ? '#ef4444' : isCurrent ? '#ffffff99' : 'rgba(255,255,255,0.35)'}
+            style={{ userSelect: 'none', pointerEvents: 'none', fontWeight: isActive ? 700 : 400 }}
+          >
+            {preset.label}
+          </text>
+        );
+      })}
+    </g>
+  );
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
+// ── Component ────────────────────────────────────────────────────────────────
 
 export default function PulseKnob({ value, onChange, lastBeat }: PulseKnobProps) {
-  const svgRef = useRef<SVGSVGElement>(null);
-
-  // ── Refs (no stale closure issues in rAF loop) ──────────────────────────
-  const valueRef = useRef(value);
-  const lastBeatRef = useRef(lastBeat ?? Date.now());
-  const isDraggingRef = useRef(false);
-  const rafRef = useRef<number>(0);
-
-  // ── UI state ─────────────────────────────────────────────────────────────
+  const [displayPct, setDisplayPct] = useState(1.0);
+  const [isBeating, setIsBeating] = useState(false);
   const [dragAngle, setDragAngle] = useState<number | null>(null);
   const [justSnapped, setJustSnapped] = useState(false);
-  const [displayPct, setDisplayPct] = useState(1); // for render only
-  const [isBeating, setIsBeating] = useState(false);
+  const [filterId] = useState(() => `knob-filter-${Math.random().toString(36).slice(2, 7)}`);
+  const [glowId] = useState(() => `knob-glow-${Math.random().toString(36).slice(2, 7)}`);
 
-  // Keep valueRef current — must happen before any rAF reads it
+  const svgRef = useRef<SVGSVGElement>(null);
+  const valueRef = useRef(value);
+  const lastBeatRef = useRef<number>(lastBeat ?? Date.now());
+  const rafRef = useRef<number>(0);
+  const isDraggingRef = useRef(false);
+
   useEffect(() => { valueRef.current = value; }, [value]);
 
-  // ── Heart beat flash on Rust beat events ─────────────────────────────────
+  // ── Global heartbeat subscription ────────────────────────────────────────
+  // The rAF countdown loop is now driven by the HeartbeatGlobal tick,
+  // so navigating away doesn't reset the countdown clock.
   useEffect(() => {
-    if (!lastBeat) return;
-    const prev = lastBeatRef.current;
-    if (lastBeat <= prev) return; // ignore stale/infinite updates
-    lastBeatRef.current = lastBeat;
+    // Subscribe to global beats — the singleton's setInterval fires independently
+    // of this component's lifecycle.
+    const unsub = subscribe((timestamp: number) => {
+      lastBeatRef.current = timestamp;
+      setDisplayPct(1.0);
 
-    // Skip flash when OFF (no beats fire)
-    if (valueRef.current === 0) return;
+      if (valueRef.current === 0) return;
+      setIsBeating(true);
+    });
 
-    // Trigger beat animation
-    setIsBeating(true);
-    const timeout = setTimeout(() => setIsBeating(false), 700);
-    return () => clearTimeout(timeout);
-  }, [lastBeat]);
+    return unsub;
+  }, []);
 
-  // ── Countdown rAF loop ────────────────────────────────────────────────────
+  // Smooth countdown arc — rAF loop between global beats (not tied to mount)
   useEffect(() => {
-    // Reset beat timer whenever value changes (user picked a new preset)
-    lastBeatRef.current = Date.now();
-
     if (value === 0) {
       setDisplayPct(0);
+      cancelAnimationFrame(rafRef.current);
       return;
     }
+
+    // Initialize displayPct to a value that reflects elapsed time since lastBeat
+    const elapsed = Date.now() - lastBeatRef.current;
+    const initialPct = Math.max(0, (value - elapsed) / value);
+    setDisplayPct(initialPct);
 
     function tick() {
       const elapsed = Date.now() - lastBeatRef.current;
@@ -271,11 +239,6 @@ export default function PulseKnob({ value, onChange, lastBeat }: PulseKnobProps)
     return () => cancelAnimationFrame(rafRef.current);
   }, [value]);
 
-  // Sync beat events from Rust — only resets lastBeatRef, no rAF restart
-  useEffect(() => {
-    if (lastBeat) lastBeatRef.current = lastBeat;
-  }, [lastBeat]);
-
   // ── Drag handler ──────────────────────────────────────────────────────────
   const getAngleFromEvent = useCallback((e: MouseEvent | React.MouseEvent): number => {
     const svg = svgRef.current;
@@ -286,7 +249,6 @@ export default function PulseKnob({ value, onChange, lastBeat }: PulseKnobProps)
     return Math.atan2(e.clientY - cy, e.clientX - cx) * (180 / Math.PI);
   }, []);
 
-  // Attach drag handlers only when mouse goes down on the SVG — not on component mount
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     isDraggingRef.current = true;
@@ -305,7 +267,9 @@ export default function PulseKnob({ value, onChange, lastBeat }: PulseKnobProps)
       const newMs = PRESETS[preset].ms;
 
       if (newMs !== valueRef.current) {
+        // Update both local state AND global singleton
         onChange(newMs);
+        setHeartbeatInterval(newMs);
         setDisplayPct(1);
         lastBeatRef.current = Date.now();
         setJustSnapped(true);
@@ -313,7 +277,6 @@ export default function PulseKnob({ value, onChange, lastBeat }: PulseKnobProps)
       }
       setDragAngle(null);
 
-      // Detach immediately — only needed for this drag cycle
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     }
@@ -322,21 +285,21 @@ export default function PulseKnob({ value, onChange, lastBeat }: PulseKnobProps)
     window.addEventListener('mouseup', onUp);
   }, [getAngleFromEvent, onChange]);
 
+  // ── Beat flash from Rust lastBeat prop (secondary sync) ─────────────────
+  useEffect(() => {
+    if (!lastBeat || lastBeat <= lastBeatRef.current) return;
+    lastBeatRef.current = lastBeat;
+    if (valueRef.current === 0) return;
+    setIsBeating(true);
+    const t = setTimeout(() => setIsBeating(false), 700);
+    return () => clearTimeout(t);
+  }, [lastBeat]);
+
   // ── Display state ──────────────────────────────────────────────────────────
   const currentPreset = msToPreset(value);
-  // During drag: show the angle being dragged to; otherwise: show committed value
-  const activePreset = dragAngle !== null
-    ? angleToPreset(dragAngle)
-    : currentPreset;
+  const activePreset = dragAngle !== null ? angleToPreset(dragAngle) : currentPreset;
   const isOff = PRESETS[currentPreset].ms === 0;
-
-  const ringColor = isOff
-    ? 'rgba(75, 85, 99, 0.8)'
-    : '#ef4444'; // always red — it's a heartbeat
-
-  // ── Stable filter IDs (created once, not per-render) ────────────────────
-  const [filterId] = useState(() => `knob-filter-${Math.random().toString(36).slice(2, 7)}`);
-  const [glowId] = useState(() => `knob-glow-${Math.random().toString(36).slice(2, 7)}`);
+  const ringColor = isOff ? 'rgba(75, 85, 99, 0.8)' : '#ef4444';
 
   return (
     <div className={`intel-pulse-knob${justSnapped ? ' snapped' : ''}${isOff ? ' off' : ''}`}>
@@ -346,10 +309,7 @@ export default function PulseKnob({ value, onChange, lastBeat }: PulseKnobProps)
         ref={svgRef}
         viewBox="0 0 108 108"
         className="intel-knob-svg"
-        onMouseDown={(e) => {
-          e.preventDefault();
-          handleMouseDown(e);
-        }}
+        onMouseDown={handleMouseDown}
         style={{ cursor: isDraggingRef.current ? 'grabbing' : 'grab' }}
       >
         <defs>
@@ -364,7 +324,6 @@ export default function PulseKnob({ value, onChange, lastBeat }: PulseKnobProps)
             <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
-              <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
@@ -375,11 +334,9 @@ export default function PulseKnob({ value, onChange, lastBeat }: PulseKnobProps)
         <DetentTicks />
         <NotchLabels activePreset={activePreset} currentPreset={currentPreset} />
 
-        {/* Track ring */}
         <circle cx={CENTER} cy={CENTER} r={RING_RADIUS}
           fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="4" strokeLinecap="round" />
 
-        {/* Countdown arc — NO CSS transition, pure rAF for accurate timing */}
         {!isOff && (
           <circle
             cx={CENTER} cy={CENTER} r={RING_RADIUS}
@@ -394,7 +351,6 @@ export default function PulseKnob({ value, onChange, lastBeat }: PulseKnobProps)
           />
         )}
 
-        {/* Indicator dots */}
         {PRESETS.map((_, i) => {
           const angleDeg = (i * 360) / NUM_DETENTS - 90;
           const angleRad = (angleDeg * Math.PI) / 180;

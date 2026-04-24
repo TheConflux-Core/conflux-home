@@ -1007,6 +1007,27 @@ pub fn engine_set_heartbeat_interval(ms: i64, app_handle: tauri::AppHandle) -> R
 }
 
 #[tauri::command]
+pub fn engine_get_heartbeat_last_beat() -> Result<String, String> {
+    let engine = engine::get_engine();
+    let last_beat = engine
+        .db()
+        .get_config("heartbeat_last_beat_ms")
+        .map_err(|e| e.to_string())?
+        .unwrap_or_else(|| chrono::Utc::now().timestamp_millis().to_string());
+    Ok(last_beat)
+}
+
+#[tauri::command]
+pub fn engine_set_heartbeat_last_beat(ms: i64) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine
+        .db()
+        .set_config("heartbeat_last_beat_ms", &ms.to_string())
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn engine_tick_cron() -> Result<i64, String> {
     let engine = engine::get_engine();
     engine.tick_cron().await.map_err(|e| e.to_string())

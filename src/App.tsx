@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { soundManager } from './lib/sound';
+import { initHeartbeatGlobal } from './lib/heartbeatGlobal';
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
 import { Agent, View } from './types';
 import TopBar from './components/TopBar';
@@ -191,6 +192,11 @@ export default function App() {
     soundManager.preload().then(() => {
       soundManager.playBootUp();
     });
+  }, []);
+
+  // Initialize global heartbeat singleton (runs once, persists across all views)
+  useEffect(() => {
+    initHeartbeatGlobal();
   }, []);
 
   // Expose bar v2 toggle for console testing

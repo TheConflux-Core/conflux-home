@@ -91,7 +91,15 @@ async fn cloud_chat_with_fallback(
                 || err_str.contains("resolve")
                 || err_str.contains("offline")
                 || err_str.contains("unreachable")
-                || err_str.contains("refused");
+                || err_str.contains("refused")
+                // Auth failures also trigger offline fallback — if cloud auth is broken,
+                // try local AI instead of surfacing a cryptic 401/403 to the user
+                || err_str.contains("401")
+                || err_str.contains("403")
+                || err_str.contains("unauthorized")
+                || err_str.contains("forbidden")
+                || err_str.contains("invalid credentials")
+                || err_str.contains("user not found");
 
             if is_network {
                 log::warn!("[Engine] Cloud chat failed with network error — trying local AI fallback: {}", e);
@@ -173,7 +181,7 @@ pub async fn process_turn(
         }
         _ => String::new(),
     };
-    let system_prompt = build_system_prompt(&agent, &memory_context, &skill_context);
+    let system_prompt = build_system_prompt(db, &agent, &memory_context, &skill_context);
     messages.push(OpenAIMessage {
         role: "system".to_string(),
         content: Some(system_prompt),
@@ -636,6 +644,7 @@ pub async fn process_turn_stream(
     // 4. Build messages
     let mut messages: Vec<OpenAIMessage> = Vec::new();
 
+
     let skill_context = match db.get_skills_for_agent(agent_id) {
         Ok(skills) if !skills.is_empty() => {
             let skill_lines: Vec<String> = skills
@@ -646,7 +655,7 @@ pub async fn process_turn_stream(
         }
         _ => String::new(),
     };
-    let system_prompt = build_system_prompt(&agent, &memory_context, &skill_context);
+    let system_prompt = build_system_prompt(db, &agent, &memory_context, &skill_context);
     messages.push(OpenAIMessage {
         role: "system".to_string(),
         content: Some(system_prompt),
@@ -850,11 +859,19 @@ pub async fn process_turn_stream(
 
 /// Build the system prompt for an agent.
 fn build_system_prompt(
+    db: &super::db::EngineDb,
     agent: &super::types::Agent,
     memory_context: &str,
     skill_context: &str,
 ) -> String {
     let mut prompt = String::new();
+
+    // User identity — injected from profile so Conflux knows who they're talking to
+    if let Ok(Some(user_name)) = db.get_config("user_name") {
+        if !user_name.is_empty() {
+            prompt.push_str(&format!("The user's name is {}. Always address them by name when appropriate.\n\n", user_name));
+        }
+    }
 
     // Agent identity
     prompt.push_str(&format!("You are {}, {}.\n\n", agent.name, agent.role));
