@@ -6,8 +6,9 @@
 # Usage:
 #   MODEL_BASE_URL=https://your-cdn.com/models ./scripts/download-models.sh
 #
-# Expected files at the base URL:
-#   - conflux-toolrouter-q4.gguf  (Conflux fine-tuned tool router)
+# Expected files at MODEL_BASE_URL:
+#   - conflux-toolrouter-q4-v2.gguf  (Conflux fine-tuned tool router v2)
+#   - gemma3-1b-q4.gguf              (Gemma 3 1B base — local chat fallback)
 
 set -euo pipefail
 
@@ -40,8 +41,11 @@ download() {
   echo "[download-models] $file downloaded ($(du -h "$dest" | cut -f1))"
 }
 
-# Conflux fine-tuned tool router (primary local model)
-download "conflux-toolrouter-q4.gguf" || echo "[download-models] WARNING: failed to download conflux-toolrouter-q4.gguf"
+# Conflux fine-tuned tool router v2 (primary local model)
+download "conflux-toolrouter-q4-v2.gguf" || echo "[download-models] WARNING: failed to download conflux-toolrouter-q4-v2.gguf"
+
+# Gemma 3 1B base (local chat fallback)
+download "gemma3-1b-q4.gguf" || echo "[download-models] WARNING: gemma3-1b-q4.gguf not found (optional)"
 
 echo "[download-models] Done. Contents of $MODEL_DIR:"
 ls -lh "$MODEL_DIR"
