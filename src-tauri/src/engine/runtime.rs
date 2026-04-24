@@ -897,15 +897,24 @@ fn build_system_prompt(
         prompt.push_str(skill_context);
     }
 
-    // Tool usage instructions
+    // Tool usage instructions — be direct about expectations
     prompt.push_str(
-        "\nYou have access to tools. Use them when they would help you answer accurately. ",
+        "\nYou have access to tools. When the user asks you to do something actionable — add an item, create something, look something up, send a message, make a plan — YOU MUST call a tool. Do NOT just describe what you would do. Actually call the tool.\n",
     );
-    prompt
-        .push_str("Always prefer searching the web for current information rather than guessing. ");
-    prompt.push_str("Use the calculator for math. Use file tools to read/write when asked.\n");
     prompt.push_str(
-        "\nBe helpful, concise, and in-character. If you don't know something, say so honestly.",
+        "\nTo call a tool, respond with a JSON object like:\n",
+    );
+    prompt.push_str(
+        "{\"name\": \"tool_name\", \"arguments\": {\"arg1\": \"value1\"}}\n",
+    );
+    prompt.push_str(
+        "\nAvailable tool categories: kitchen (meals, inventory, grocery, planning), life (tasks, habits, goals), feed (ripples, threads), vault (notes), echo (wellbeing), and general tools (calculator, web search).\n",
+    );
+    prompt.push_str(
+        "\nAlways prefer searching the web for current information rather than guessing. Use the calculator for math.\n",
+    );
+    prompt.push_str(
+        "\nBe helpful, concise, and in-character. If you do not know something, say so honestly.",
     );
 
     prompt
