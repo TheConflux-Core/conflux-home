@@ -11,7 +11,8 @@
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
+use std::io::{BufRead, BufReader};
+use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
@@ -33,6 +34,23 @@ pub fn set_resource_dir(path: PathBuf) {
 /// Get the resource directory if set.
 fn get_resource_dir() -> Option<PathBuf> {
     RESOURCE_DIR.lock().unwrap().clone()
+}
+
+// ── App Data Directory (set at app startup) ──
+
+static APP_DATA_DIR: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
+
+/// Set the Tauri app data directory at app startup.
+/// Used as a fallback location for runtime-downloaded models.
+pub fn set_app_data_dir(path: PathBuf) {
+    let mut guard = APP_DATA_DIR.lock().unwrap();
+    *guard = Some(path.clone());
+    log::info!("[LocalAI] App data directory set to: {}", path.display());
+}
+
+/// Get the app data directory if set.
+fn get_app_data_dir() -> Option<PathBuf> {
+    APP_DATA_DIR.lock().unwrap().clone()
 }
 
 /// Discover a bundled GGUF model file.
@@ -260,7 +278,7 @@ impl LocalAiManager {
             self.config.model_path.display()
         );
 
-        let child = Command::new(&server_bin)
+        let mut child = Command::new(&server_bin)
             .arg("--model")
             .arg(&self.config.model_path)
             .arg("--port")
@@ -271,9 +289,35 @@ impl LocalAiManager {
             .arg(self.config.threads.to_string())
             .arg("--no-webui")
             .arg("--log-disable")
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
             .spawn()?;
+
+        // Read and log any early stderr output (errors during startup)
+        // Non-blocking read to avoid blocking on a process that may never output
+        if let Some(mut stderr) = child.stderr.take() {
+            use std::io::Read;
+            let mut buf = [0u8; 4096];
+            let mut all = String::new();
+            loop {
+                match stderr.read(&mut buf) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        if let Ok(s) = std::str::from_utf8(&buf[..n]) {
+                            all.push_str(s);
+                        }
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
+                    Err(e) => {
+                        log::warn!("[LocalAI] stderr read error: {}", e);
+                        break;
+                    }
+                }
+            }
+            if !all.trim().is_empty() {
+                log::warn!("[LocalAI] llama-server stderr: {}", all.trim());
+            }
+        }
 
         *self.process.lock().unwrap() = Some(child);
 
@@ -312,6 +356,7 @@ impl LocalAiManager {
 
         while Instant::now() < deadline {
             if !self.is_process_alive() {
+                log::warn!("[LocalAI] llama-server process died during startup");
                 return Err(anyhow!("llama-server process died during startup"));
             }
 
@@ -320,8 +365,13 @@ impl LocalAiManager {
                     log::info!("[LocalAI] Server ready on port {}", self.config.port);
                     return Ok(());
                 }
-                _ => sleep(Duration::from_millis(SERVER_POLL_INTERVAL_MS)).await,
+                Err(e) => {
+                    // Log health check failures at debug level (may be expected during startup)
+                    log::debug!("[LocalAI] Health check pending: {}", e);
+                }
+                _ => {}
             }
+            sleep(Duration::from_millis(SERVER_POLL_INTERVAL_MS)).await;
         }
 
         Err(anyhow!(
