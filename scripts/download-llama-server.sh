@@ -73,15 +73,25 @@ TMP_DIR="/tmp/llama-extract-$$"
 mkdir -p "$TMP_DIR"
 unzip -q "$TMP_ZIP" -d "$TMP_DIR"
 
-# Find llama-server in extracted archive
-FOUND=$(find "$TMP_DIR" -name "$EXE_NAME" -type f | head -1)
-if [ -z "$FOUND" ]; then
+# Extract llama-server AND all supporting DLLs (ggml.dll, etc.)
+FOUND_EXE=$(find "$TMP_DIR" -name "$EXE_NAME" -type f | head -1)
+if [ -z "$FOUND_EXE" ]; then
   echo "[download-llama-server] ERROR: $EXE_NAME not found in archive"
   exit 1
 fi
 
-cp "$FOUND" "$DEST"
+cp "$FOUND_EXE" "$DEST"
 chmod +x "$DEST"
+echo "[download-llama-server] Installed $DEST ($(du -h "$DEST" | cut -f1))"
+
+# Copy all DLLs that ship with the binary (ggml.dll, ggml-base.dll, etc.)
+for DLL in $(find "$TMP_DIR" -name "*.dll" -type f 2>/dev/null); do
+  DLL_NAME=$(basename "$DLL")
+  cp "$DLL" "$BIN_DIR/$DLL_NAME"
+  echo "[download-llama-server] Bundled DLL: $DLL_NAME"
+done
+
 rm -rf "$TMP_DIR" "$TMP_ZIP"
 
-echo "[download-llama-server] Installed $DEST ($(du -h "$DEST" | cut -f1))"
+echo "[download-llama-server] Done. Contents of $BIN_DIR:"
+ls -lh "$BIN_DIR/"
