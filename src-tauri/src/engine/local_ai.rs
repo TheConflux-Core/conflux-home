@@ -255,16 +255,22 @@ impl LocalAiManager {
         // Find the llama-server binary
         let server_bin = find_llama_server()?;
 
-        // On Windows: set the working dir to where llama-server.exe lives
-        // so it can find ggml.dll and any other collocated DLLs
+        // On Windows: set the working dir AND PATH to where llama-server.exe lives
+        // so it can find ggml.dll, cublas.dll, and any other collocated DLLs
+        // Also use DETACHED_PROCESS flag to suppress any console window
         #[cfg(target_os = "windows")]
         let _old_workdir = {
+            use std::os::windows::process::CommandExt;
             use std::path::Path;
             if let Some(parent) = server_bin.as_path().parent() {
-                Some(std::env::current_dir().ok().map(|old| {
-                    let _ = std::env::set_current_dir(parent);
-                    old
-                }))
+                let old = std::env::current_dir().ok();
+                let _ = std::env::set_current_dir(parent);
+                // Prepend binary directory to PATH so any DLL dependencies are resolved
+                if let Ok(current_path) = std::env::var("PATH") {
+                    let new_path = format!("{};{}", parent.to_string_lossy(), current_path);
+                    let _ = std::env::set_var("PATH", new_path);
+                }
+                old
             } else {
                 None
             }
@@ -278,8 +284,12 @@ impl LocalAiManager {
             self.config.model_path.display()
         );
 
-        let mut child = Command::new(&server_bin)
-            .arg("--model")
+        // Redirect stdout to NUL (suppress) and stderr to a temp file for crash diagnostics
+        let stderr_file_path = std::env::temp_dir().join("conflux-llama-server-stderr.log");
+        let stderr_file = std::fs::File::create(&stderr_file_path).ok();
+
+        let mut cmd = Command::new(&server_bin);
+        cmd.arg("--model")
             .arg(&self.config.model_path)
             .arg("--port")
             .arg(self.config.port.to_string())
@@ -287,37 +297,39 @@ impl LocalAiManager {
             .arg(self.config.ctx_size.to_string())
             .arg("--threads")
             .arg(self.config.threads.to_string())
-            .arg("--no-webui")
-            .arg("--log-disable")
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
+            .arg("--no-webui");
 
-        // Read and log any early stderr output (errors during startup)
-        // Non-blocking read to avoid blocking on a process that may never output
-        if let Some(mut stderr) = child.stderr.take() {
-            use std::io::Read;
-            let mut buf = [0u8; 4096];
-            let mut all = String::new();
-            loop {
-                match stderr.read(&mut buf) {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        if let Ok(s) = std::str::from_utf8(&buf[..n]) {
-                            all.push_str(s);
-                        }
-                    }
-                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
-                    Err(e) => {
-                        log::warn!("[LocalAI] stderr read error: {}", e);
-                        break;
-                    }
-                }
-            }
-            if !all.trim().is_empty() {
-                log::warn!("[LocalAI] llama-server stderr: {}", all.trim());
-            }
+        // Only add --log-disable if supported (newer llama.cpp versions)
+        let check_version = Command::new(&server_bin).arg("--help")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .output();
+        let supports_log_disable = check_version
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+        if supports_log_disable {
+            cmd.arg("--log-disable");
         }
+
+        // Redirect stdout to NUL (don't show console)
+        cmd.stdout(Stdio::null());
+
+        // Redirect stderr to file so we can capture crash messages
+        if let Some(ref f) = stderr_file {
+            cmd.stderr(Stdio::from(f.try_clone().map_err(|e| anyhow!("clone stderr file: {}", e))?));
+        } else {
+            cmd.stderr(Stdio::null());
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            // DETACHED_PROCESS prevents a console window from appearing on Windows
+            // CREATE_NO_WINDOW is an alternative that still inherits console but doesn't show it
+            cmd.creation_flags(0x08000000); // DETACHED_PROCESS
+        }
+
+        let mut child = cmd.spawn()?;
 
         *self.process.lock().unwrap() = Some(child);
 
