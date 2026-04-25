@@ -24,10 +24,20 @@ jobs:
           VER="${{ github.ref_name }}"
           VER="${VER#v}"
           echo "Patching version to $VER"
-          sed -i "s/^version = .*/version = \"$VER\"/" src-tauri/Cargo.toml
-          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/" src-tauri/tauri.conf.json
-          sed -i '0,/"version": "[^"]*"/{s/"version": "[^"]*"/"version": "'$VER'"/}' package.json
-
+          python3 << 'PYEOF'
+          import re, sys
+          ver = sys.argv[1]
+          for f in ['src-tauri/Cargo.toml', 'src-tauri/tauri.conf.json', 'package.json']:
+              with open(f, 'r') as fh:
+                  txt = fh.read()
+              if f == 'src-tauri/Cargo.toml':
+                  txt = re.sub(r'^version = .+$', f'version = "{ver}"', txt, flags=re.MULTILINE)
+              else:
+                  txt = re.sub(r'"version":\s*"[^"]*"', f'"version": "{ver}"', txt)
+              with open(f, 'w') as fh:
+                  fh.write(txt)
+          PYEOF
+          "$VER"
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -124,15 +134,24 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Patch version from tag
-        shell: bash
         run: |
           VER="${{ github.ref_name }}"
           VER="${VER#v}"
           echo "Patching version to $VER"
-          sed -i "s/^version = .*/version = \"$VER\"/" src-tauri/Cargo.toml
-          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/" src-tauri/tauri.conf.json
-          sed -i '0,/"version": "[^"]*"/{s/"version": "[^"]*"/"version": "'$VER'"/}' package.json
-
+          python3 << 'PYEOF'
+          import re, sys
+          ver = sys.argv[1]
+          for f in ['src-tauri/Cargo.toml', 'src-tauri/tauri.conf.json', 'package.json']:
+              with open(f, 'r') as fh:
+                  txt = fh.read()
+              if f == 'src-tauri/Cargo.toml':
+                  txt = re.sub(r'^version = .+$', f'version = "{ver}"', txt, flags=re.MULTILINE)
+              else:
+                  txt = re.sub(r'"version":\s*"[^"]*"', f'"version": "{ver}"', txt)
+              with open(f, 'w') as fh:
+                  fh.write(txt)
+          PYEOF
+          "$VER"
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -246,10 +265,20 @@ jobs:
           VER="${{ github.ref_name }}"
           VER="${VER#v}"
           echo "Patching version to $VER"
-          sed -i "s/^version = .*/version = \"$VER\"/" src-tauri/Cargo.toml
-          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/" src-tauri/tauri.conf.json
-          sed -i '0,/"version": "[^"]*"/{s/"version": "[^"]*"/"version": "'$VER'"/}' package.json
-
+          python3 << 'PYEOF'
+          import re, sys
+          ver = sys.argv[1]
+          for f in ['src-tauri/Cargo.toml', 'src-tauri/tauri.conf.json', 'package.json']:
+              with open(f, 'r') as fh:
+                  txt = fh.read()
+              if f == 'src-tauri/Cargo.toml':
+                  txt = re.sub(r'^version = .+$', f'version = "{ver}"', txt, flags=re.MULTILINE)
+              else:
+                  txt = re.sub(r'"version":\s*"[^"]*"', f'"version": "{ver}"', txt)
+              with open(f, 'w') as fh:
+                  fh.write(txt)
+          PYEOF
+          "$VER"
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -426,10 +455,20 @@ jobs:
           VER="${{ github.ref_name }}"
           VER="${VER#v}"
           echo "Patching version to $VER"
-          sed -i "s/^version = .*/version = \"$VER\"/" src-tauri/Cargo.toml
-          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VER\"/" src-tauri/tauri.conf.json
-          sed -i '0,/"version": "[^"]*"/{s/"version": "[^"]*"/"version": "'$VER'"/}' package.json
-
+          python3 << 'PYEOF'
+          import re, sys
+          ver = sys.argv[1]
+          for f in ['src-tauri/Cargo.toml', 'src-tauri/tauri.conf.json', 'package.json']:
+              with open(f, 'r') as fh:
+                  txt = fh.read()
+              if f == 'src-tauri/Cargo.toml':
+                  txt = re.sub(r'^version = .+$', f'version = "{ver}"', txt, flags=re.MULTILINE)
+              else:
+                  txt = re.sub(r'"version":\s*"[^"]*"', f'"version": "{ver}"', txt)
+              with open(f, 'w') as fh:
+                  fh.write(txt)
+          PYEOF
+          "$VER"
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
