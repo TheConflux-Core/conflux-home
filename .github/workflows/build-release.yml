@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g. 0.1.85)'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -21,7 +26,7 @@ jobs:
 
       - name: Patch version from tag
         run: |
-          VER="${{ github.ref_name }}"
+          VER="${{ github.event.inputs.version || github.ref_name }}"
           VER="${VER#v}"
           echo "Patching version to $VER"
           cat << 'PYEOF' > /tmp/patch_version.py
@@ -136,7 +141,7 @@ jobs:
       - name: Patch version from tag
         shell: bash
         run: |
-          VER="${{ github.ref_name }}"
+          VER="${{ github.event.inputs.version || github.ref_name }}"
           VER="${VER#v}"
           echo "Patching version to $VER"
           cat << 'PYEOF' > /tmp/patch_version.py
@@ -263,7 +268,7 @@ jobs:
 
       - name: Patch version from tag
         run: |
-          VER="${{ github.ref_name }}"
+          VER="${{ github.event.inputs.version || github.ref_name }}"
           VER="${VER#v}"
           echo "Patching version to $VER"
           cat << 'PYEOF' > /tmp/patch_version.py
@@ -392,7 +397,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="${{ github.ref_name }}"
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
           VER="${VERSION#v}"
           REPO="${{ github.repository }}"
           TAG="${{ github.ref_name }}"
@@ -454,7 +459,7 @@ jobs:
 
       - name: Patch version from tag
         run: |
-          VER="${{ github.ref_name }}"
+          VER="${{ github.event.inputs.version || github.ref_name }}"
           VER="${VER#v}"
           echo "Patching version to $VER"
           cat << 'PYEOF' > /tmp/patch_version.py
