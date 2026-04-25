@@ -1,7 +1,7 @@
 {
     "$schema": "https://raw.githubusercontent.com/nicehash/tauri-schema/v2/schema.json",
     "productName": "Conflux Home",
-    "version": "0.1.72",
+    "version": "0.1.78",
     "identifier": "com.conflux.home",
     "build": {
         "frontendDist": "../dist",
@@ -55,7 +55,7 @@
     },
     "bundle": {
         "active": true,
-        "createUpdaterArtifacts": true,
+        "createUpdaterArtifacts": false,
         "resources": [
             "models",
             "binaries"
