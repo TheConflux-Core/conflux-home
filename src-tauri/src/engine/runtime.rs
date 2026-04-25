@@ -303,11 +303,19 @@ pub async fn process_turn(
                     let user_id = get_session_user_id(db, session_id);
 
                     // Validate/correct tool name (270M model often truncates to category prefix)
-                    let validated_name = validate_tool_name(&tool_call.name, &local_tools)
-                        .unwrap_or_else(|| tool_call.name.clone());
-                    if validated_name != tool_call.name {
-                        log::info!("[Engine] Local AI tool name corrected: '{}' → '{}'", tool_call.name, validated_name);
-                    }
+                    // If no valid match found, skip this tool call entirely — do NOT fall through
+                    // with the raw hallucinated name, which would hit the cloud router as invalid.
+                    let validated_name = match validate_tool_name(&tool_call.name, &local_tools) {
+                        Some(name) => name,
+                        None => {
+                            let name = tool_call.name.clone();
+                            log::warn!(
+                                "[Engine] Local AI tool '{}' has no valid match — skipping tool call",
+                                name
+                            );
+                            continue;
+                        }
+                    };
 
                     match tools::execute_tool(&validated_name, &args, &user_id).await {
                         Ok(result) => {
