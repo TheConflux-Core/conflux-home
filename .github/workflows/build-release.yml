@@ -385,7 +385,8 @@ jobs:
             --pattern '*.sig' \
             --dir /tmp/sigs/ \
             --repo "${{ github.repository }}" \
-            --skip-existing
+            --skip-existing \
+            || echo "No sig files found (this is OK if signing is disabled)"
 
       - name: Generate updates.json
         env:
@@ -401,11 +402,11 @@ jobs:
 
           # macOS updater artifacts: .app.tar.gz.sig (one per arch)
           # Try to get x64 and aarch64 sigs separately by matching naming convention
-          MAC_X64_SIG=$(find /tmp/sigs/ -name '*x64*.app.tar.gz.sig' -exec cat {} \; | head -1)
-          MAC_ARM_SIG=$(find /tmp/sigs/ -name '*aarch64*.app.tar.gz.sig' -exec cat {} \; | head -1)
+          MAC_X64_SIG=$(find /tmp/sigs/ -name '*x64*.app.tar.gz.sig' -exec cat {} \; 2>/dev/null | head -1 || echo "")
+          MAC_ARM_SIG=$(find /tmp/sigs/ -name '*aarch64*.app.tar.gz.sig' -exec cat {} \; 2>/dev/null | head -1 || echo "")
           # Fallback: if naming doesn't distinguish, use whatever .app.tar.gz.sig files exist
           if [ -z "$MAC_X64_SIG" ]; then
-            ALL_MAC_SIGS=($(find /tmp/sigs/ -name '*.app.tar.gz.sig' -exec cat {} \;))
+            ALL_MAC_SIGS=($(find /tmp/sigs/ -name '*.app.tar.gz.sig' -exec cat {} \; 2>/dev/null || echo ""))
             MAC_X64_SIG="${ALL_MAC_SIGS[0]:-}"
             MAC_ARM_SIG="${ALL_MAC_SIGS[1]:-${ALL_MAC_SIGS[0]:-}}"
           fi
