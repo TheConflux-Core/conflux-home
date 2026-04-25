@@ -182,7 +182,7 @@ jobs:
         shell: bash
         env:
           LLAMA_SERVER_VERSION: ${{ secrets.LLAMA_SERVER_VERSION }}
-          LLAMA_SERVER_PLATFORM: win-avx2-x64
+          LLAMA_SERVER_PLATFORM: win-cpu-x64
         run: ./scripts/download-llama-server.sh
 
       - name: Build Tauri app (signed)

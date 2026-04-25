@@ -37,6 +37,10 @@ case "$PLATFORM" in
   macos-x64)
     ASSET="llama-${VERSION}-bin-macos-x64.zip"
     ;;
+  win-cpu-x64)
+    ASSET="llama-${VERSION}-bin-win-cpu-x64.zip"
+    EXE_NAME="llama-server.exe"
+    ;;
   win-avx2-x64)
     ASSET="llama-${VERSION}-bin-win-avx2-x64.zip"
     EXE_NAME="llama-server.exe"
