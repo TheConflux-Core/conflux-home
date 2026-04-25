@@ -278,20 +278,6 @@ impl LocalAiManager {
             self.config.model_path.display()
         );
 
-        // On Windows, llama-server needs its DLLs. Write stderr to a temp log file
-        // so we can capture startup errors even when the process dies immediately.
-        let stderr_log_path = std::env::temp_dir().join("conflux-llama-server-stderr.log");
-
-        let stderr_file: Stdio = match std::fs::File::create(&stderr_log_path) {
-            Ok(f) => Stdio::from(f),
-            Err(e) => {
-                log::warn!("[LocalAI] Could not create stderr log file {}: {}", stderr_log_path.display(), e);
-                Stdio::piped()
-            }
-        };
-
-        log::info!("[LocalAI] llama-server stderr log: {}", stderr_log_path.display());
-
         let mut child = Command::new(&server_bin)
             .arg("--model")
             .arg(&self.config.model_path)
@@ -304,11 +290,34 @@ impl LocalAiManager {
             .arg("--no-webui")
             .arg("--log-disable")
             .stdout(Stdio::piped())
-            .stderr(stderr_file)
+            .stderr(Stdio::piped())
             .spawn()?;
 
-        // Log the stderr file path so we can check it if the process dies
-        log::info!("[LocalAI] llama-server stderr log: {}", stderr_log_path.display());
+        // Read and log any early stderr output (errors during startup)
+        // Non-blocking read to avoid blocking on a process that may never output
+        if let Some(mut stderr) = child.stderr.take() {
+            use std::io::Read;
+            let mut buf = [0u8; 4096];
+            let mut all = String::new();
+            loop {
+                match stderr.read(&mut buf) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        if let Ok(s) = std::str::from_utf8(&buf[..n]) {
+                            all.push_str(s);
+                        }
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
+                    Err(e) => {
+                        log::warn!("[LocalAI] stderr read error: {}", e);
+                        break;
+                    }
+                }
+            }
+            if !all.trim().is_empty() {
+                log::warn!("[LocalAI] llama-server stderr: {}", all.trim());
+            }
+        }
 
         *self.process.lock().unwrap() = Some(child);
 
@@ -347,15 +356,7 @@ impl LocalAiManager {
 
         while Instant::now() < deadline {
             if !self.is_process_alive() {
-                // Read the stderr log file to capture any error output
-                let stderr_log_path = std::env::temp_dir().join("conflux-llama-server-stderr.log");
-                let stderr_snippet = std::fs::read_to_string(&stderr_log_path)
-                    .map(|s| s.trim().to_string())
-                    .unwrap_or_default();
-                log::warn!("[LocalAI] llama-server process died during startup. stderr log ({}): {}",
-                    stderr_log_path.display(),
-                    if stderr_snippet.is_empty() { "(empty)".to_string() } else { stderr_snippet.clone() }
-                );
+                log::warn!("[LocalAI] llama-server process died during startup");
                 return Err(anyhow!("llama-server process died during startup"));
             }
 
