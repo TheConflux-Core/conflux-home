@@ -327,7 +327,7 @@ pub async fn process_turn(
                                     "id": tool_call.id,
                                     "type": "function",
                                     "function": {
-                                        "name": tool_call.name,
+                                        "name": validated_name,
                                         "arguments": tool_call.arguments,
                                     }
                                 })]),
