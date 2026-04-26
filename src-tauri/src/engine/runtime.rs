@@ -285,7 +285,14 @@ pub async fn process_turn(
     // 8. Local AI fast-path (try local routing first, fall back to cloud)
     //    Only attempt on first iteration (no tool results in context yet)
     //    Skip for conversational messages (no tools needed)
-    if needs_tools { // Only route locally if message needs tools
+    //    DISABLED 2026-04-26: local_ai tool routing is producing garbled outputs
+    //    in production (UNK bytes, hallucinated field names) which corrupts the
+    //    conversation context and causes cloud tool execution to fail with
+    //    "Unknown error". Re-enable once the toolrouter GGUF is fixed.
+    let local_ai_enabled = std::env::var("CONFLUX_LOCAL_AI_TOOLS")
+        .map(|v| v == "1")
+        .unwrap_or(false);
+    if needs_tools && local_ai_enabled { // Only route locally if message needs tools
         let local_tools = get_filtered_tools(user_message, MAX_LOCAL_TOOLS);
         if let Some(local_response) = try_local_routing(user_message, &local_tools).await {
             if !local_response.tool_calls.is_empty() {

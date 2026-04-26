@@ -367,7 +367,7 @@ fn check_tool_permission(db: &EngineDb, agent_id: &str, tool_name: &str) -> Resu
 
 /// Execute a tool by name with the given arguments and user context.
 pub async fn execute_tool(tool_name: &str, args: &Value, user_id: &str) -> Result<ToolResult> {
-    log::info!("[tools] execute_tool ENTRY: tool_name={}, args={:?}", tool_name, args);
+    log::info!("[tools] execute_tool ENTRY: tool_name={}, args={:?}, user_id={}", tool_name, args, user_id);
     // Security gate — check permission before execution
     if let Err(security_err) = check_security_gate(tool_name, args, user_id) {
         log::warn!("[tools] Security gate BLOCKED: {}", security_err);
@@ -381,6 +381,10 @@ pub async fn execute_tool(tool_name: &str, args: &Value, user_id: &str) -> Resul
     let result = execute_tool_for_user(tool_name, args, user_id).await;
     // Security telemetry — fire and forget (use "conflux" as agent — we're the executor)
     let success = result.as_ref().map(|r| r.success).unwrap_or(false);
+    log::info!("[tools] execute_tool EXIT: tool_name={}, success={}, output_len={}, error={:?}",
+        tool_name, success,
+        result.as_ref().map(|r| r.output.len()).unwrap_or(0),
+        result.as_ref().map(|r| r.error.clone()).unwrap_or(None));
     log_tool_security_event(tool_name, args, success, "conflux");
     result
 }
@@ -4647,15 +4651,22 @@ async fn fetch_and_attach_meal_image(meal_id: String, meal_name: String) -> Opti
 }
 
 fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
+    eprintln!("[DEBUG kitchen_add_meal] ═══ ENTERED v2. args={:?}", args);
+    log::info!("[tools] KITCHEN_ADD_MEAL FN ENTRY: args={:?}", args);
     let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
+    log::info!("[tools] KITCHEN_ADD_MEAL name extracted: '{}'", name);
+    eprintln!("[DEBUG kitchen_add_meal] name extracted: '{}'", name);
     log::info!("[tools] BUILD-TEST: kitchen_add_meal called at fn start, args: {:?}", args);
     if name.is_empty() {
+        eprintln!("[DEBUG kitchen_add_meal] name is EMPTY — returning 'Meal name is required'");
+        log::warn!("[tools] KITCHEN_ADD_MEAL: name is empty, returning error");
         return Ok(ToolResult {
             success: false,
             output: String::new(),
             error: Some("Meal name is required".into()),
         });
     }
+    eprintln!("[DEBUG kitchen_add_meal] name is '{}' — proceeding to DB", name);
 
     let id = uuid::Uuid::new_v4().to_string();
     let engine = super::get_engine();
@@ -4664,8 +4675,10 @@ fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
     let instructions = args.get("instructions").and_then(|v| v.as_str());
     let prep_time_min = args.get("prep_time_min").and_then(|v| v.as_i64());
     let cook_time_min = args.get("cook_time_min").and_then(|v| v.as_i64());
+    eprintln!("[DEBUG kitchen_add_meal] calling db.create_meal now...");
 
-    let meal = match tokio::task::block_in_place(|| {
+    log::info!("[tools] kitchen_add_meal: calling db.create_meal id={} name={}", id, name);
+    let db_result = tokio::task::block_in_place(|| {
         Handle::current().block_on(engine.db().create_meal(
             &id,
             name,
@@ -4681,17 +4694,24 @@ fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
             None,
             "agent",
         ))
-    }) {
-        Ok(meal) => meal,
+    });
+    let meal = match db_result {
+        Ok(meal) => {
+            eprintln!("[DEBUG kitchen_add_meal] DB SUCCESS: meal.id={}", meal.id);
+            log::info!("[tools] KITCHEN_ADD_MEAL DB OK: id={}, name={}", meal.id, meal.name);
+            meal
+        }
         Err(e) => {
-            log::error!("[tools] kitchen_add_meal FAILED: {:?}", e);
+            eprintln!("[DEBUG kitchen_add_meal] DB ERROR: {:?}", e);
+            log::error!("[tools] KITCHEN_ADD_MEAL DB ERROR: {:?}", e);
             return Ok(ToolResult {
                 success: false,
                 output: String::new(),
-                error: Some(format!("Database error: {:?}", e)),
+                error: Some(format!("DB error: {:?}", e)),
             });
         }
     };
+
 
     // Fire-and-forget image fetch so agent-added meals also get photos.
     let meal_id = meal.id.clone();
