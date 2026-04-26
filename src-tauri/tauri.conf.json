@@ -28,8 +28,7 @@
         "security": {
             "csp": null,
             "dangerousDisableAssetCspModification": true,
-            "freezePrototype": false,
-            "devtools": true
+            "freezePrototype": false
         }
     },
     "plugins": {
