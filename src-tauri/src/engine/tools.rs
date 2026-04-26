@@ -367,6 +367,7 @@ fn check_tool_permission(db: &EngineDb, agent_id: &str, tool_name: &str) -> Resu
 
 /// Execute a tool by name with the given arguments and user context.
 pub async fn execute_tool(tool_name: &str, args: &Value, user_id: &str) -> Result<ToolResult> {
+    log::info!("[tools] execute_tool ENTRY: tool_name={}, args={:?}", tool_name, args);
     // Security gate — check permission before execution
     if let Err(security_err) = check_security_gate(tool_name, args, user_id) {
         log::warn!("[tools] Security gate BLOCKED: {}", security_err);
@@ -408,7 +409,7 @@ pub async fn execute_tool_for_user(
     }
 
     match tool_name {
-        "web_search" => execute_web_search(args).await,
+        "web_search" => { log::info!("[tools] dispatching web_search"); execute_web_search(args).await }
         "web_fetch" => execute_web_fetch(args).await,
         "file_read" => execute_file_read(args),
         "file_write" => execute_file_write(args),
