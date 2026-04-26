@@ -22,6 +22,8 @@ jobs:
   build-linux:
     runs-on: ubuntu-22.04
     steps:
+      - uses: actions/checkout@v4
+
       - name: Create GitHub Release
         if: github.event.inputs.version != ''
         env:
@@ -31,8 +33,6 @@ jobs:
           gh release create "${TAG#v}" \
             --title "Conflux Home ${TAG#v}" \
             --notes "See release notes"
-
-      - uses: actions/checkout@v4
 
       - name: Patch version from tag
         run: |
