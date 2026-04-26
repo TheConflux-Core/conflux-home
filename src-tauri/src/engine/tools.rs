@@ -4682,11 +4682,11 @@ fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
     }) {
         Ok(meal) => meal,
         Err(e) => {
-            log::error!("[tools] kitchen_add_meal FAILED: {}", e);
+            log::error!("[tools] kitchen_add_meal FAILED: {:?}", e);
             return Ok(ToolResult {
                 success: false,
                 output: String::new(),
-                error: Some(e.to_string()),
+                error: Some(format!("Database error: {:?}", e)),
             });
         }
     };
