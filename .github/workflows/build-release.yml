@@ -23,11 +23,11 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Create GitHub Release
-        if: github.event.inputs.version == ''
+        if: github.event.inputs.version != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="${{ github.event.inputs.version || github.ref_name }}"
+          TAG="${{ github.event.inputs.version }}"
           gh release create "${TAG#v}" \
             --title "Conflux Home ${TAG#v}" \
             --notes "See release notes"
