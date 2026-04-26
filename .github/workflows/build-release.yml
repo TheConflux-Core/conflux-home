@@ -30,8 +30,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ github.event.inputs.version }}"
-          gh release create "${TAG#v}" \
-            --title "Conflux Home ${TAG#v}" \
+          VER="${TAG#v}"
+          gh release create "v${VER}" \
+            --title "Conflux Home v${VER}" \
             --notes "See release notes"
 
       - name: Patch version from tag
