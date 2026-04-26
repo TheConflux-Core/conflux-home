@@ -269,6 +269,7 @@ pub fn run() {
                         match id {
                             "quit" => {
                                 log::info!("[Tray] Quitting application");
+                                engine::local_ai::shutdown_local_ai();
                                 std::process::exit(0);
                             }
                             "show" => {
