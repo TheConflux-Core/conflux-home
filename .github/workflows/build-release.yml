@@ -34,7 +34,7 @@ jobs:
         run: |
           TAG="${{ github.event.inputs.version }}"
           VER="${TAG#v}"
-          gh release create "v${VER}" \
+          gh release view "v${VER}" &>/dev/null && echo "Release v${VER} already exists, skipping create" || gh release create "v${VER}" \
             --title "Conflux Home v${VER}" \
             --notes "See release notes"
 
@@ -136,6 +136,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
+          overwrite_files: true
           files: |
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/deb/*.deb.sig
@@ -254,6 +255,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
+          overwrite_files: true
           files: |
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/msi/*.msi.sig
@@ -378,6 +380,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
+          overwrite_files: true
           files: |
             src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
             src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
@@ -598,6 +601,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
+          overwrite_files: true
           files: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
 
       - name: Upload APK to R2
