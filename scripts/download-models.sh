@@ -44,8 +44,9 @@ download() {
 # Conflux fine-tuned tool router v2 (primary local model)
 download "conflux-toolrouter-q4-v2.gguf" || echo "[download-models] WARNING: failed to download conflux-toolrouter-q4-v2.gguf"
 
-# Gemma 3 1B base (local chat fallback)
-download "gemma3-1b-q4.gguf" || echo "[download-models] WARNING: gemma3-1b-q4.gguf not found (optional)"
+# Gemma 3 1B base (local chat fallback — DISABLED 2026-04-26: model causes garbled
+# tool extraction on Windows, breaking kitchen_add_meal. Re-enable once fixed.
+# download "gemma3-1b-q4.gguf" || echo "[download-models] WARNING: gemma3-1b-q4.gguf not found (optional)"
 
 echo "[download-models] Done. Contents of $MODEL_DIR:"
 ls -lh "$MODEL_DIR"
