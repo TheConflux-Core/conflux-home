@@ -4647,6 +4647,7 @@ async fn fetch_and_attach_meal_image(meal_id: String, meal_name: String) -> Opti
 
 fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
     let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
+    log::info!("[tools] kitchen_add_meal called with args: {:?}", args);
     if name.is_empty() {
         return Ok(ToolResult {
             success: false,
@@ -4694,6 +4695,7 @@ fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
     // Fire-and-forget image fetch so agent-added meals also get photos.
     let meal_id = meal.id.clone();
     let meal_name = meal.name.clone();
+    log::info!("[tools] kitchen_add_meal SUCCESS: id={}, name={}", meal.id, meal.name);
     std::thread::spawn(move || {
         let rt = match tokio::runtime::Runtime::new() {
             Ok(rt) => rt,
