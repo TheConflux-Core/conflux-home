@@ -4647,7 +4647,7 @@ async fn fetch_and_attach_meal_image(meal_id: String, meal_name: String) -> Opti
 
 fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
     let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
-    log::info!("[tools] kitchen_add_meal called with args: {:?}", args);
+    log::info!("[tools] BUILD-TEST: kitchen_add_meal called at fn start, args: {:?}", args);
     if name.is_empty() {
         return Ok(ToolResult {
             success: false,
