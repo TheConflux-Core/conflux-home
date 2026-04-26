@@ -16,6 +16,9 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # Always use the version tag (v0.1.93) for release uploads/downloads — NOT github.ref_name
+  # github.ref_name is 'main' (branch) when triggered via workflow_dispatch, not the tag
+  RELEASE_TAG: "v${{ github.event.inputs.version || github.ref_name }}"
 
 jobs:
   # ── Linux (.deb) ──
@@ -132,6 +135,7 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
+          tag: ${{ env.RELEASE_TAG }}
           files: |
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/deb/*.deb.sig
@@ -249,6 +253,7 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
+          tag: ${{ env.RELEASE_TAG }}
           files: |
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/msi/*.msi.sig
@@ -372,6 +377,7 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
+          tag: ${{ env.RELEASE_TAG }}
           files: |
             src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
             src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
@@ -397,7 +403,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p /tmp/sigs
-          gh release download "${{ github.ref_name }}" \
+          gh release download "${{ env.RELEASE_TAG }}" \
             --pattern '*.sig' \
             --dir /tmp/sigs/ \
             --repo "${{ github.repository }}" \
@@ -411,7 +417,7 @@ jobs:
           VERSION="${{ github.event.inputs.version || github.ref_name }}"
           VER="${VERSION#v}"
           REPO="${{ github.repository }}"
-          TAG="${{ github.ref_name }}"
+          TAG="${{ env.RELEASE_TAG }}"
 
           DEB_SIG=$(cat /tmp/sigs/*.deb.sig 2>/dev/null | head -1 || echo "")
           NSIS_SIG=$(cat /tmp/sigs/*.exe.sig 2>/dev/null | head -1 || echo "")
@@ -460,7 +466,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "${{ github.ref_name }}" updates.json --clobber
+          gh release upload "${{ env.RELEASE_TAG }}" updates.json --clobber
 
   # ── Android (.apk) ──
   build-android:
@@ -591,6 +597,7 @@ jobs:
       - name: Upload APK to release
         uses: softprops/action-gh-release@v2
         with:
+          tag: ${{ env.RELEASE_TAG }}
           files: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
 
       - name: Upload APK to R2
