@@ -3418,14 +3418,14 @@ fn execute_home_add_bill(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
     tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().add_home_bill(
+        engine.db().add_home_bill_sync(
             &id,
             bill_type,
             amount,
             usage,
             billing_month,
             notes,
-        ))
+        )
     })?;
     let usage_str = usage
         .map(|u| format!(" ({:.1} units)", u))
@@ -3446,7 +3446,7 @@ fn execute_home_get_bills(args: &Value) -> Result<ToolResult> {
 
     let engine = super::get_engine();
     let bills = tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_home_bills(bill_type, limit))
+        engine.db().get_home_bills_sync(bill_type, limit)
     })?;
 
     if bills.is_empty() {
@@ -3513,7 +3513,7 @@ fn execute_home_add_maintenance(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let id = uuid::Uuid::new_v4().to_string();
     tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().add_home_maintenance(
+        engine.db().add_home_maintenance_sync(
             &id,
             task,
             category,
@@ -3522,7 +3522,7 @@ fn execute_home_add_maintenance(args: &Value) -> Result<ToolResult> {
             priority,
             estimated_cost,
             notes,
-        ))
+        )
     })?;
 
     let interval_str = interval_months
@@ -3544,7 +3544,7 @@ fn execute_home_add_maintenance(args: &Value) -> Result<ToolResult> {
 fn execute_home_get_appliances(_args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let appliances = tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_home_appliances())
+        engine.db().get_home_appliances_sync()
     })?;
 
     if appliances.is_empty() {
@@ -3592,7 +3592,7 @@ fn execute_home_get_appliances(_args: &Value) -> Result<ToolResult> {
 fn execute_home_get_dashboard(_args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_home_dashboard())
+        engine.db().get_home_dashboard_sync()
     }) {
         Ok(dash) => {
             let mut lines = vec![
@@ -3668,7 +3668,7 @@ fn execute_home_delete_bill(args: &Value) -> Result<ToolResult> {
     }
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().delete_home_bill(id))
+        engine.db().delete_home_bill_sync(id)
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -3694,7 +3694,7 @@ fn execute_home_upsert_profile(args: &Value) -> Result<ToolResult> {
     let water_heater_type = args.get("water_heater_type").and_then(|v| v.as_str());
     let roof_type = args.get("roof_type").and_then(|v| v.as_str());
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().upsert_home_profile(
+        engine.db().upsert_home_profile_sync(
             id,
             address,
             year_built,
@@ -3705,7 +3705,7 @@ fn execute_home_upsert_profile(args: &Value) -> Result<ToolResult> {
             roof_type,
             None,
             None,
-        ))
+        )
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -3728,7 +3728,7 @@ fn execute_home_upsert_profile(args: &Value) -> Result<ToolResult> {
 fn execute_home_get_insights(_args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_home_dashboard())
+        engine.db().get_home_dashboard_sync()
     }) {
         Ok(dash) => {
             let mut insights = Vec::new();
@@ -3791,7 +3791,7 @@ fn execute_home_get_upcoming_maintenance(args: &Value) -> Result<ToolResult> {
     let days = args.get("days").and_then(|v| v.as_i64()).unwrap_or(30);
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_upcoming_maintenance(days))
+        engine.db().get_upcoming_maintenance_sync(days)
     }) {
         Ok(items) => {
             if items.is_empty() {
@@ -3840,7 +3840,7 @@ fn execute_home_get_upcoming_maintenance(args: &Value) -> Result<ToolResult> {
 fn execute_home_get_overdue_maintenance(_args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_overdue_maintenance())
+        engine.db().get_overdue_maintenance_sync()
     }) {
         Ok(items) => {
             if items.is_empty() {
@@ -3977,7 +3977,7 @@ fn execute_home_complete_maintenance(args: &Value) -> Result<ToolResult> {
 fn execute_home_get_year_summary(_args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_home_dashboard())
+        engine.db().get_home_dashboard_sync()
     }) {
         Ok(dash) => {
             let mut lines = vec![
@@ -4731,7 +4731,7 @@ fn execute_kitchen_list_meals(args: &Value) -> Result<ToolResult> {
         .unwrap_or(false);
 
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_meals(category, cuisine, favorites_only))
+        engine.db().get_meals_sync(category, cuisine, favorites_only)
     }) {
         Ok(meals) => {
             if meals.is_empty() {
@@ -4782,7 +4782,7 @@ fn execute_kitchen_add_to_plan(args: &Value) -> Result<ToolResult> {
 
     // Find the meal by name
     let meals = match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_meals(None, None, false))
+        engine.db().get_meals_sync(None, None, false)
     }) {
         Ok(m) => m,
         Err(e) => {
@@ -4820,14 +4820,14 @@ fn execute_kitchen_add_to_plan(args: &Value) -> Result<ToolResult> {
         .unwrap_or("dinner");
 
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().set_plan_entry(
+        engine.db().set_plan_entry_sync(
             &id,
             week_start,
             day_of_week,
             meal_slot,
             Some(&meal_id),
             None,
-        ))
+        )
     }) {
         Ok(()) => {
             let day_names = [
@@ -4872,7 +4872,7 @@ fn execute_kitchen_get_plan(args: &Value) -> Result<ToolResult> {
 
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_weekly_plan(week_start))
+        engine.db().get_weekly_plan_sync(week_start)
     }) {
         Ok(plan) => {
             let mut lines = Vec::new();
@@ -4934,9 +4934,9 @@ fn execute_kitchen_add_inventory(args: &Value) -> Result<ToolResult> {
     let location = args.get("location").and_then(|v| v.as_str());
 
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().add_inventory_item(
+        engine.db().add_inventory_item_sync(
             &id, &member_id, name, quantity, unit, category, expiry, location,
-        ))
+        )
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -4966,7 +4966,7 @@ fn execute_kitchen_get_inventory(args: &Value) -> Result<ToolResult> {
     let location = args.get("location").and_then(|v| v.as_str());
 
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_inventory(&member_id, location))
+        engine.db().get_inventory_sync(&member_id, location)
     }) {
         Ok(items) => {
             if items.is_empty() {
@@ -5026,7 +5026,7 @@ fn execute_kitchen_get_meal(args: &Value) -> Result<ToolResult> {
         id.to_string()
     } else {
         let meals = match tokio::task::block_in_place(|| {
-            Handle::current().block_on(engine.db().get_meals(None, None, false))
+            engine.db().get_meals_sync(None, None, false)
         }) {
             Ok(m) => m,
             Err(e) => {
@@ -5053,7 +5053,7 @@ fn execute_kitchen_get_meal(args: &Value) -> Result<ToolResult> {
     };
 
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_meal_with_ingredients(&meal_id))
+        engine.db().get_meal_with_ingredients_sync(&meal_id)
     }) {
         Ok(Some(meal)) => {
             let mut lines = vec![format!("🍽️ {} (id: {})", meal.meal.name, meal.meal.id)];
@@ -5127,7 +5127,7 @@ fn execute_kitchen_toggle_favorite(args: &Value) -> Result<ToolResult> {
         id.to_string()
     } else {
         let meals = match tokio::task::block_in_place(|| {
-            Handle::current().block_on(engine.db().get_meals(None, None, false))
+            engine.db().get_meals_sync(None, None, false)
         }) {
             Ok(m) => m,
             Err(e) => {
@@ -5154,7 +5154,7 @@ fn execute_kitchen_toggle_favorite(args: &Value) -> Result<ToolResult> {
     };
 
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().toggle_favorite(&meal_id))
+        engine.db().toggle_favorite_sync(&meal_id)
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -5193,7 +5193,7 @@ fn execute_kitchen_add_ingredient(args: &Value) -> Result<ToolResult> {
         meal_id.to_string()
     } else {
         let meals = match tokio::task::block_in_place(|| {
-            Handle::current().block_on(engine.db().get_meals(None, None, false))
+            engine.db().get_meals_sync(None, None, false)
         }) {
             Ok(m) => m,
             Err(e) => {
@@ -5231,7 +5231,7 @@ fn execute_kitchen_add_ingredient(args: &Value) -> Result<ToolResult> {
     let notes = args.get("notes").and_then(|v| v.as_str());
 
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().add_meal_ingredient(
+        engine.db().add_meal_ingredient_sync(
             &id,
             &resolved_meal_id,
             name,
@@ -5241,7 +5241,7 @@ fn execute_kitchen_add_ingredient(args: &Value) -> Result<ToolResult> {
             category,
             is_optional,
             notes,
-        ))
+        )
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -5271,7 +5271,7 @@ fn execute_kitchen_clear_week_plan(args: &Value) -> Result<ToolResult> {
 
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().clear_week_plan(week_start))
+        engine.db().clear_week_plan_sync(week_start)
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -5301,7 +5301,7 @@ fn execute_kitchen_generate_grocery(args: &Value) -> Result<ToolResult> {
 
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().generate_grocery_list(week_start))
+        engine.db().generate_grocery_list_sync(week_start)
     }) {
         Ok(items) => {
             if items.is_empty() {
@@ -5362,7 +5362,7 @@ fn execute_kitchen_get_grocery(args: &Value) -> Result<ToolResult> {
 
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_grocery_list(week_start))
+        engine.db().get_grocery_list_sync(week_start)
     }) {
         Ok(items) => {
             if items.is_empty() {
@@ -5422,7 +5422,7 @@ fn execute_kitchen_toggle_grocery(args: &Value) -> Result<ToolResult> {
 
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().toggle_grocery_item(id))
+        engine.db().toggle_grocery_item_sync(id)
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -5468,7 +5468,7 @@ fn execute_fridge_scan(args: &Value) -> Result<ToolResult> {
         // Try to extract item name — just add the whole line as an item
         let id = uuid::Uuid::new_v4().to_string();
         match tokio::task::block_in_place(|| {
-            Handle::current().block_on(engine.db().add_inventory_item(
+            engine.db().add_inventory_item_sync(
                 &id,
                 &member_id,
                 line,
@@ -5477,7 +5477,7 @@ fn execute_fridge_scan(args: &Value) -> Result<ToolResult> {
                 None,
                 None,
                 Some("fridge"),
-            ))
+            )
         }) {
             Ok(()) => added.push(line.to_string()),
             Err(_) => {} // skip items that fail
@@ -5553,7 +5553,7 @@ fn execute_fridge_what_can_i_make(args: &Value) -> Result<ToolResult> {
     }
 
     let meals = match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_meals(None, None, false))
+        engine.db().get_meals_sync(None, None, false)
     }) {
         Ok(m) => m,
         Err(e) => {
@@ -5568,7 +5568,7 @@ fn execute_fridge_what_can_i_make(args: &Value) -> Result<ToolResult> {
     let mut matches = Vec::new();
     for meal in &meals {
         let ingredients = match tokio::task::block_in_place(|| {
-            Handle::current().block_on(engine.db().get_meal_ingredients(&meal.id))
+            engine.db().get_meal_ingredients_sync(&meal.id)
         }) {
             Ok(ings) => ings,
             Err(_) => continue,
@@ -5650,7 +5650,7 @@ fn execute_fridge_expiring(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
 
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_expiring_items(days))
+        engine.db().get_expiring_items_sync(days)
     }) {
         Ok(items) => {
             if items.is_empty() {
@@ -5733,7 +5733,7 @@ fn execute_fridge_shopping_for_meals(args: &Value) -> Result<ToolResult> {
 
     // Get all ingredients from all meals
     let meals = match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_meals(None, None, false))
+        engine.db().get_meals_sync(None, None, false)
     }) {
         Ok(m) => m,
         Err(e) => {
@@ -5748,7 +5748,7 @@ fn execute_fridge_shopping_for_meals(args: &Value) -> Result<ToolResult> {
     let mut needed: Vec<(String, Option<f64>, Option<String>, Option<String>)> = Vec::new();
     for meal in &meals {
         let ingredients = match tokio::task::block_in_place(|| {
-            Handle::current().block_on(engine.db().get_meal_ingredients(&meal.id))
+            engine.db().get_meal_ingredients_sync(&meal.id)
         }) {
             Ok(ings) => ings,
             Err(_) => continue,
@@ -5805,7 +5805,7 @@ fn execute_fridge_shopping_for_meals(args: &Value) -> Result<ToolResult> {
 fn execute_kitchen_pantry_heatmap(_args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_pantry_heatmap())
+        engine.db().get_pantry_heatmap_sync()
     }) {
         Ok(items) => {
             if items.is_empty() {
@@ -5863,7 +5863,7 @@ fn execute_kitchen_get_cooking_steps(args: &Value) -> Result<ToolResult> {
         meal_id.to_string()
     } else {
         let meals = match tokio::task::block_in_place(|| {
-            Handle::current().block_on(engine.db().get_meals(None, None, false))
+            engine.db().get_meals_sync(None, None, false)
         }) {
             Ok(m) => m,
             Err(e) => {
@@ -5891,7 +5891,7 @@ fn execute_kitchen_get_cooking_steps(args: &Value) -> Result<ToolResult> {
 
     // Cooking steps are derived from the meal's instructions field
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_meal_with_ingredients(&resolved_id))
+        engine.db().get_meal_with_ingredients_sync(&resolved_id)
     }) {
         Ok(Some(meal)) => match meal.meal.instructions {
             Some(ref inst) => {
@@ -5942,7 +5942,7 @@ fn execute_kitchen_get_meal_photos(args: &Value) -> Result<ToolResult> {
 
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_meal_photos(meal_id))
+        engine.db().get_meal_photos_sync(meal_id)
     }) {
         Ok(photos) => {
             if photos.is_empty() {
@@ -6116,7 +6116,7 @@ fn execute_budget_get_summary(args: &Value) -> Result<ToolResult> {
         .and_then(|v| v.as_str())
         .unwrap_or_default();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_budget_summary(&member_id, month))
+        engine.db().get_budget_summary_sync(&member_id, month)
     }) {
         Ok(summary) => {
             let cat_lines: Vec<String> = summary
@@ -6165,14 +6165,14 @@ fn execute_budget_create_goal(args: &Value) -> Result<ToolResult> {
     let deadline = args.get("deadline").and_then(|v| v.as_str());
 
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().create_budget_goal(
+        engine.db().create_budget_goal_sync(
             &id,
             None,
             name,
             target_amount,
             deadline,
             None,
-        ))
+        )
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -6195,7 +6195,7 @@ fn execute_budget_create_goal(args: &Value) -> Result<ToolResult> {
 fn execute_budget_get_goals(_args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_budget_goals(None))
+        engine.db().get_budget_goals_sync(None)
     }) {
         Ok(goals) => {
             if goals.is_empty() {
@@ -6349,7 +6349,7 @@ fn execute_budget_parse_natural(args: &Value) -> Result<ToolResult> {
 fn execute_budget_detect_patterns(_args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().detect_budget_patterns(None))
+        engine.db().detect_budget_patterns_sync(None)
     }) {
         Ok(patterns) => {
             if patterns.is_empty() {
@@ -6413,7 +6413,7 @@ fn execute_budget_update_goal(args: &Value) -> Result<ToolResult> {
         id.to_string()
     } else {
         let goals = match tokio::task::block_in_place(|| {
-            Handle::current().block_on(engine.db().get_budget_goals(None))
+            engine.db().get_budget_goals_sync(None)
         }) {
             Ok(g) => g,
             Err(e) => {
@@ -6440,7 +6440,7 @@ fn execute_budget_update_goal(args: &Value) -> Result<ToolResult> {
     };
 
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().update_budget_goal(&goal_id, current_amount))
+        engine.db().update_budget_goal_sync(&goal_id, current_amount)
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -6471,7 +6471,7 @@ fn execute_budget_delete_goal(args: &Value) -> Result<ToolResult> {
         id.to_string()
     } else {
         let goals = match tokio::task::block_in_place(|| {
-            Handle::current().block_on(engine.db().get_budget_goals(None))
+            engine.db().get_budget_goals_sync(None)
         }) {
             Ok(g) => g,
             Err(e) => {
@@ -6498,7 +6498,7 @@ fn execute_budget_delete_goal(args: &Value) -> Result<ToolResult> {
     };
 
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().delete_budget_goal(&goal_id))
+        engine.db().delete_budget_goal_sync(&goal_id)
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -6516,7 +6516,7 @@ fn execute_budget_delete_goal(args: &Value) -> Result<ToolResult> {
 fn execute_budget_goal_status(_args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_budget_goals(None))
+        engine.db().get_budget_goals_sync(None)
     }) {
         Ok(goals) => {
             if goals.is_empty() {
@@ -6596,7 +6596,7 @@ fn execute_budget_generate_report(args: &Value) -> Result<ToolResult> {
         .unwrap_or_else(|| "default_user".to_string());
 
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_monthly_report(&member_id, month))
+        engine.db().get_monthly_report_sync(&member_id, month)
     }) {
         Ok(report) => {
             let mut lines = vec![
@@ -6667,7 +6667,7 @@ fn execute_budget_can_afford(args: &Value) -> Result<ToolResult> {
         .unwrap_or_else(|| "default_user".to_string());
 
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_budget_summary(&member_id, &this_month))
+        engine.db().get_budget_summary_sync(&member_id, &this_month)
     }) {
         Ok(summary) => {
             let remaining = summary.total_income - summary.total_expenses;
@@ -6718,7 +6718,7 @@ fn execute_life_add_task(args: &Value) -> Result<ToolResult> {
     let energy_type = args.get("energy_type").and_then(|v| v.as_str());
 
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().add_life_task(
+        engine.db().add_life_task_sync(
             &id,
             "NULL",
             title,
@@ -6726,7 +6726,7 @@ fn execute_life_add_task(args: &Value) -> Result<ToolResult> {
             priority,
             due_date,
             energy_type,
-        ))
+        )
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -6752,7 +6752,7 @@ fn execute_life_list_tasks(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let status = args.get("status").and_then(|v| v.as_str());
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_life_tasks("NULL", status))
+        engine.db().get_life_tasks_sync("NULL", status)
     }) {
         Ok(tasks) => {
             if tasks.is_empty() {
@@ -6805,11 +6805,11 @@ fn execute_life_complete_task(args: &Value) -> Result<ToolResult> {
 
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().update_life_task_status(
+        engine.db().update_life_task_status_sync(
             "NULL",
             task_id,
             "completed",
-        ))
+        )
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -6847,14 +6847,14 @@ fn execute_life_add_habit(args: &Value) -> Result<ToolResult> {
         .unwrap_or(1);
 
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().add_life_habit(
+        engine.db().add_life_habit_sync(
             &id,
             "NULL",
             name,
             category,
             frequency,
             target_count,
-        ))
+        )
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -6891,13 +6891,13 @@ fn execute_life_log_habit(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let now = chrono::Utc::now().format("%Y-%m-%d").to_string();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().log_life_habit(
+        engine.db().log_life_habit_sync(
             &uuid::Uuid::new_v4().to_string(),
             habit_id,
             "NULL",
             &now,
             1,
-        ))
+        )
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -6961,7 +6961,7 @@ fn execute_life_delete_task(args: &Value) -> Result<ToolResult> {
 
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().delete_life_task("NULL", task_id))
+        engine.db().delete_life_task_sync("NULL", task_id)
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -6979,7 +6979,7 @@ fn execute_life_delete_task(args: &Value) -> Result<ToolResult> {
 fn execute_life_get_dashboard(_args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_life_dashboard())
+        engine.db().get_life_dashboard_sync()
     }) {
         Ok(dash) => {
             let mut sections = Vec::new();
@@ -7025,7 +7025,7 @@ fn execute_life_get_habits(args: &Value) -> Result<ToolResult> {
         .and_then(|v| v.as_bool())
         .unwrap_or(true);
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_life_habits("NULL", active_only))
+        engine.db().get_life_habits_sync("NULL", active_only)
     }) {
         Ok(habits) => {
             if habits.is_empty() {
@@ -7091,7 +7091,7 @@ fn execute_life_dismiss_nudge(args: &Value) -> Result<ToolResult> {
 fn execute_life_get_heatmap(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_life_tasks("NULL", None))
+        engine.db().get_life_tasks_sync("NULL", None)
     }) {
         Ok(tasks) => {
             let mut days: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
@@ -7133,7 +7133,7 @@ fn execute_life_get_heatmap(args: &Value) -> Result<ToolResult> {
 fn execute_life_morning_brief(_args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_orbit_dashboard("NULL"))
+        engine.db().get_orbit_dashboard_sync("NULL")
     }) {
         Ok(dash) => {
             let mut brief = String::from("☀️ Good morning!\n\n");
@@ -7264,7 +7264,7 @@ fn execute_life_get_reminders(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let days = args.get("days").and_then(|v| v.as_i64()).unwrap_or(30);
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_upcoming_reminders(days))
+        engine.db().get_upcoming_reminders_sync(days)
     }) {
         Ok(reminders) => {
             if reminders.is_empty() {
@@ -7306,7 +7306,7 @@ fn execute_life_get_knowledge(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let category = args.get("category").and_then(|v| v.as_str());
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_knowledge(None, category))
+        engine.db().get_knowledge_sync(None, category)
     }) {
         Ok(knowledge) => {
             if knowledge.is_empty() {
@@ -7342,7 +7342,7 @@ fn execute_life_get_documents(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let doc_type = args.get("doc_type").and_then(|v| v.as_str());
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_documents(None, doc_type))
+        engine.db().get_documents_sync(None, doc_type)
     }) {
         Ok(docs) => {
             if docs.is_empty() {
@@ -7730,14 +7730,14 @@ fn execute_dream_add(args: &Value) -> Result<ToolResult> {
     let target_date = args.get("target_date").and_then(|v| v.as_str());
 
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().add_dream(
+        engine.db().add_dream_sync(
             &id,
             None,
             title,
             description,
             category,
             target_date,
-        ))
+        )
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -7763,7 +7763,7 @@ fn execute_dream_list(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let status = args.get("status").and_then(|v| v.as_str());
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_dreams("NULL", status))
+        engine.db().get_dreams_sync("NULL", status)
     }) {
         Ok(dreams) => {
             if dreams.is_empty() {
@@ -7824,7 +7824,7 @@ fn execute_dream_add_milestone(args: &Value) -> Result<ToolResult> {
     let sort_order = args.get("sort_order").and_then(|v| v.as_i64()).unwrap_or(1);
 
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().add_milestone(
+        engine.db().add_milestone_sync(
             &id,
             &dream_id,
             "NULL",
@@ -7832,7 +7832,7 @@ fn execute_dream_add_milestone(args: &Value) -> Result<ToolResult> {
             description,
             target_date,
             sort_order,
-        ))
+        )
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -7873,7 +7873,7 @@ fn execute_dream_add_task(args: &Value) -> Result<ToolResult> {
     let frequency = args.get("frequency").and_then(|v| v.as_str());
 
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().add_dream_task(
+        engine.db().add_dream_task_sync(
             &id,
             dream_id,
             milestone_id,
@@ -7882,7 +7882,7 @@ fn execute_dream_add_task(args: &Value) -> Result<ToolResult> {
             description,
             due_date,
             frequency,
-        ))
+        )
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -7909,7 +7909,7 @@ fn execute_dream_add_task(args: &Value) -> Result<ToolResult> {
 fn execute_dream_get_dashboard(_args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_dream_dashboard("NULL"))
+        engine.db().get_dream_dashboard_sync("NULL")
     }) {
         Ok(dash) => {
             let mut lines = vec![
@@ -7967,7 +7967,7 @@ fn execute_dream_complete_milestone(args: &Value) -> Result<ToolResult> {
     }
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().complete_milestone("NULL", id))
+        engine.db().complete_milestone_sync("NULL", id)
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -7993,7 +7993,7 @@ fn execute_dream_get_tasks(args: &Value) -> Result<ToolResult> {
     }
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_dream_tasks(dream_id, "NULL"))
+        engine.db().get_dream_tasks_sync(dream_id, "NULL")
     }) {
         Ok(tasks) => {
             if tasks.is_empty() {
@@ -8043,7 +8043,7 @@ fn execute_dream_complete_task(args: &Value) -> Result<ToolResult> {
     }
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().complete_dream_task("NULL", id))
+        engine.db().complete_dream_task_sync("NULL", id)
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -8074,14 +8074,14 @@ fn execute_dream_add_progress(args: &Value) -> Result<ToolResult> {
     let ai_insight = args.get("ai_insight").and_then(|v| v.as_str());
 
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().add_dream_progress(
+        engine.db().add_dream_progress_sync(
             &id,
             dream_id,
             "NULL",
             note,
             progress_change,
             ai_insight,
-        ))
+        )
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -8116,7 +8116,7 @@ fn execute_dream_delete(args: &Value) -> Result<ToolResult> {
         id.to_string()
     } else {
         let dreams = match tokio::task::block_in_place(|| {
-            Handle::current().block_on(engine.db().get_dreams("NULL", None))
+            engine.db().get_dreams_sync("NULL", None)
         }) {
             Ok(d) => d,
             Err(e) => {
@@ -8143,7 +8143,7 @@ fn execute_dream_delete(args: &Value) -> Result<ToolResult> {
     };
 
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().delete_dream("NULL", &dream_id))
+        engine.db().delete_dream_sync("NULL", &dream_id)
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -8169,7 +8169,7 @@ fn execute_dream_get_velocity(args: &Value) -> Result<ToolResult> {
     }
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_dream_velocity(dream_id, "NULL"))
+        engine.db().get_dream_velocity_sync(dream_id, "NULL")
     }) {
         Ok(v) => {
             let pct = (v.progress_pct * 100.0).round();
@@ -8210,7 +8210,7 @@ fn execute_dream_get_timeline(args: &Value) -> Result<ToolResult> {
     }
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_dream_timeline(dream_id, "NULL"))
+        engine.db().get_dream_timeline_sync(dream_id, "NULL")
     }) {
         Ok(tl) => {
             if tl.entries.is_empty() {
@@ -8272,7 +8272,7 @@ fn execute_dream_update_progress(args: &Value) -> Result<ToolResult> {
     };
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().set_dream_progress("NULL", dream_id, pct))
+        engine.db().set_dream_progress_sync("NULL", dream_id, pct)
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -8290,7 +8290,7 @@ fn execute_dream_update_progress(args: &Value) -> Result<ToolResult> {
 fn execute_dream_active_overview(_args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_active_dreams_with_velocity("NULL"))
+        engine.db().get_active_dreams_with_velocity_sync("NULL")
     }) {
         Ok(pairs) => {
             if pairs.is_empty() {
@@ -9047,7 +9047,7 @@ fn execute_weekly_summary(_args: &Value) -> Result<ToolResult> {
         .unwrap_or_default()
         .unwrap_or_else(|| "default_user".to_string());
     if let Ok(summary) = tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_budget_summary(&member_id, &this_month))
+        engine.db().get_budget_summary_sync(&member_id, &this_month)
     }) {
         sections.push(format!(
             "💰 Budget ({}): Spent ${:.2} | Income ${:.2} | Net ${:.2}",
@@ -9060,12 +9060,12 @@ fn execute_weekly_summary(_args: &Value) -> Result<ToolResult> {
         .unwrap_or_default()
         .unwrap_or_else(|| "default_user".to_string());
     if let Ok(meals) = tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_meals(None, None, false))
+        engine.db().get_meals_sync(None, None, false)
     }) {
         sections.push(format!("🍳 Kitchen: {} meals in collection", meals.len()));
     }
     if let Ok(inventory) = tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_inventory(&member_id, None))
+        engine.db().get_inventory_sync(&member_id, None)
     }) {
         let expiring: Vec<_> = inventory
             .iter()
@@ -9087,12 +9087,12 @@ fn execute_weekly_summary(_args: &Value) -> Result<ToolResult> {
 
     // 3. Life — pending tasks and active habits
     if let Ok(tasks) = tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_life_tasks("NULL", Some("pending")))
+        engine.db().get_life_tasks_sync("NULL", Some("pending"))
     }) {
         sections.push(format!("🧠 Life: {} pending tasks", tasks.len()));
     }
     if let Ok(habits) = tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_life_habits("NULL", true))
+        engine.db().get_life_habits_sync("NULL", true)
     }) {
         sections.push(format!(
             "📊 Habits: {} active, best streak: {}",
@@ -9103,7 +9103,7 @@ fn execute_weekly_summary(_args: &Value) -> Result<ToolResult> {
 
     // 4. Dreams — active
     if let Ok(dashboard) = tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_dream_dashboard("NULL"))
+        engine.db().get_dream_dashboard_sync("NULL")
     }) {
         let names: Vec<_> = dashboard
             .dreams
@@ -9118,7 +9118,7 @@ fn execute_weekly_summary(_args: &Value) -> Result<ToolResult> {
 
     // 5. Home — bills
     if let Ok(bills) = tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_home_bills(None, 5))
+        engine.db().get_home_bills_sync(None, 5)
     }) {
         let total: f64 = bills.iter().map(|b| b.amount).sum();
         sections.push(format!(
@@ -9150,7 +9150,7 @@ fn execute_can_afford(args: &Value) -> Result<ToolResult> {
         .unwrap_or_default()
         .unwrap_or_else(|| "default_user".to_string());
     let summary = tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_budget_summary(&member_id, &this_month))
+        engine.db().get_budget_summary_sync(&member_id, &this_month)
     })?;
     let discretionary = summary.total_income - summary.total_expenses;
 
@@ -9175,7 +9175,7 @@ fn execute_can_afford(args: &Value) -> Result<ToolResult> {
 
     // Show savings goals
     if let Ok(goals) = tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_budget_goals(None))
+        engine.db().get_budget_goals_sync(None)
     }) {
         for goal in &goals {
             let remaining = goal.target_amount - goal.current_amount;
@@ -9206,7 +9206,7 @@ fn execute_day_overview(_args: &Value) -> Result<ToolResult> {
 
     // 1. Tasks due today or overdue
     if let Ok(tasks) = tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_life_tasks("NULL", Some("pending")))
+        engine.db().get_life_tasks_sync("NULL", Some("pending"))
     }) {
         let today_tasks: Vec<_> = tasks
             .iter()
@@ -9223,7 +9223,7 @@ fn execute_day_overview(_args: &Value) -> Result<ToolResult> {
         .unwrap_or_default()
         .unwrap_or_else(|| "default_user".to_string());
     if let Ok(inventory) = tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_inventory(&member_id, None))
+        engine.db().get_inventory_sync(&member_id, None)
     }) {
         let urgent: Vec<_> = inventory
             .iter()
@@ -9245,7 +9245,7 @@ fn execute_day_overview(_args: &Value) -> Result<ToolResult> {
 
     // 3. Upcoming bills (due within 3 days — using billing_month as proxy)
     if let Ok(bills) = tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_home_bills(None, 5))
+        engine.db().get_home_bills_sync(None, 5)
     }) {
         if !bills.is_empty() {
             sections.push(format!("🏠 Bills: {} recent bills on file", bills.len()));
@@ -9254,7 +9254,7 @@ fn execute_day_overview(_args: &Value) -> Result<ToolResult> {
 
     // 4. Active dreams quick check
     if let Ok(dreams) = tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().get_dreams("NULL", Some("active")))
+        engine.db().get_dreams_sync("NULL", Some("active"))
     }) {
         if !dreams.is_empty() {
             let items: Vec<_> = dreams
