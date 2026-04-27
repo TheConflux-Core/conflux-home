@@ -217,12 +217,9 @@ impl EngineDb {
     /// Blocks the current thread until the lock is acquired.
     /// Requires a Tokio runtime context.
     pub fn conn_blocking(&self) -> tokio::sync::MutexGuard<'_, Connection> {
-        eprintln!("[DEBUG conn_blocking] CALLED");
         let result = tokio::task::block_in_place(|| {
-            eprintln!("[DEBUG conn_blocking] inside block_in_place");
             self.conn.blocking_lock()
         });
-        eprintln!("[DEBUG conn_blocking] returning");
         result
     }
 
@@ -3453,9 +3450,7 @@ impl EngineDb {
         tags: Option<&str>,
         source: &str,
     ) -> Result<super::types::Meal> {
-        eprintln!("[DEBUG create_meal_sync] CALLED with id={}, name={}", id, name);
         let conn = self.conn_blocking();
-        eprintln!("[DEBUG create_meal_sync] got conn");
         let now = Self::now();
         conn.execute(
             "INSERT INTO meals (id, name, description, cuisine, category, photo_url, prep_time_min, cook_time_min, servings, difficulty, instructions, tags, source, created_at, updated_at)
