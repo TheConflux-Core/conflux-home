@@ -526,12 +526,21 @@ pub async fn process_turn(
             let result_content = if tool_result.success {
                 tool_result.output.clone()
             } else {
-                format!(
-                    "Error: {}",
-                    tool_result
-                        .error
-                        .unwrap_or_else(|| "Unknown error".to_string())
-                )
+                // Tools put real error messages in EITHER output (actual tool error)
+                // or error (structured error). Prefer output > error > "Unknown error".
+                let display = tool_result
+                    .output
+                    .is_empty()
+                    .then_some(())
+                    .and_then(|_| tool_result.error.clone())
+                    .or_else(|| {
+                        let out = &tool_result.output;
+                        if out.is_empty() { None } else { Some(out.clone()) }
+                    })
+                    .unwrap_or_else(|| "Unknown error".to_string());
+                eprintln!("[ENGINE ERROR] tool={}, display='{}', full={:?}", tool_call.name, display, tool_result);
+                log::error!("[ENGINE] tool_name={}, display={}", tool_call.name, display);
+                format!("Error: {}", display)
             };
 
             // Add assistant message with tool_calls to conversation
@@ -797,12 +806,21 @@ pub async fn process_turn_stream(
             let result_content = if tool_result.success {
                 tool_result.output.clone()
             } else {
-                format!(
-                    "Error: {}",
-                    tool_result
-                        .error
-                        .unwrap_or_else(|| "Unknown error".to_string())
-                )
+                // Tools put real error messages in EITHER output (actual tool error)
+                // or error (structured error). Prefer output > error > "Unknown error".
+                let display = tool_result
+                    .output
+                    .is_empty()
+                    .then_some(())
+                    .and_then(|_| tool_result.error.clone())
+                    .or_else(|| {
+                        let out = &tool_result.output;
+                        if out.is_empty() { None } else { Some(out.clone()) }
+                    })
+                    .unwrap_or_else(|| "Unknown error".to_string());
+                eprintln!("[ENGINE ERROR] tool={}, display='{}', full={:?}", tool_call.name, display, tool_result);
+                log::error!("[ENGINE] tool_name={}, display={}", tool_call.name, display);
+                format!("Error: {}", display)
             };
 
             // Notify the frontend about the tool call
