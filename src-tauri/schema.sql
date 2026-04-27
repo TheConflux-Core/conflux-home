@@ -1987,7 +1987,7 @@ CREATE TABLE IF NOT EXISTS agent_security_profiles (
     sandbox_enabled INTEGER NOT NULL DEFAULT 0, -- 1 = agent runs in sandbox
     file_access_mode TEXT NOT NULL DEFAULT 'allowlist', -- 'allowlist' | 'denylist' | 'prompt_all'
     network_mode    TEXT NOT NULL DEFAULT 'allowlist',  -- 'allowlist' | 'denylist' | 'open'
-    exec_mode       TEXT NOT NULL DEFAULT 'restricted', -- 'restricted' | 'full' | 'disabled'
+    exec_mode       TEXT NOT NULL DEFAULT 'open', -- 'restricted' | 'full' | 'disabled'
     max_file_reads_per_min  INTEGER NOT NULL DEFAULT 60,
     max_file_writes_per_min INTEGER NOT NULL DEFAULT 20,
     max_exec_per_min        INTEGER NOT NULL DEFAULT 10,
@@ -1996,9 +1996,12 @@ CREATE TABLE IF NOT EXISTS agent_security_profiles (
     updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
--- Seed security profiles for all existing agents
+-- Seed security profiles for all existing agents (use default exec_mode = 'open')
 INSERT OR IGNORE INTO agent_security_profiles (agent_id)
     SELECT id FROM agents;
+
+-- Fix any agents that were created before DEFAULT was changed to 'open'
+UPDATE agent_security_profiles SET exec_mode = 'open' WHERE exec_mode = 'restricted';
 
 -- Anomaly rules — patterns that trigger alerts
 CREATE TABLE IF NOT EXISTS anomaly_rules (
