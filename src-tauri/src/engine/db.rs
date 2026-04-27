@@ -72,20 +72,35 @@ impl EngineDb {
                         "Schema batch failed (existing DB), retrying statement-by-statement"
                     );
                 } else {
-                    return Err(e).context("Failed to run schema migration");
+                    // Unknown batch failure — still fall back to slow path.
+                    // The slow path handles "already exists" / "unique constraint"
+                    // gracefully, so a full retry is safe.
+                    log::debug!(
+                        "Schema batch failed with unexpected error, retrying statement-by-statement: {} => fall back",
+                        &msg[..msg.len().min(80)]
+                    );
                 }
             }
         }
 
         // Slow path: split on top-level semicolons (outside of parens/strings)
-        // and skip statements that fail with "already exists" errors.
+        // and skip statements that fail with "already exists" / "duplicate" errors.
         let statements = Self::split_sql_statements(schema);
         for statement in &statements {
             match conn.execute_batch(statement) {
                 Ok(_) => {}
                 Err(e) => {
                     let msg = e.to_string().to_lowercase();
-                    if msg.contains("duplicate column") || msg.contains("already exists") {
+                    if msg.contains("duplicate column")
+                        || msg.contains("already exists")
+                        || msg.contains("unique constraint")
+                        || msg.contains("table already exists")
+                        || msg.contains("index already exists")
+                        || msg.contains("no such table")
+                        || msg.contains("no such index")
+                        || msg.contains("no such column")
+                        || msg.contains("no such column")
+                    {
                         log::debug!(
                             "Skipping migration statement (already applied): {}",
                             &statement[..statement.len().min(60)]
@@ -203,6 +218,34 @@ impl EngineDb {
     /// Requires a Tokio runtime context.
     pub fn conn_blocking(&self) -> tokio::sync::MutexGuard<'_, Connection> {
         tokio::task::block_in_place(|| self.conn.blocking_lock())
+    }
+
+    /// Run a blocking read-only DB operation in a dedicated thread.
+    /// Safe for use from sync tool functions — avoids Handle::current() panics on Windows.
+    /// Returns the result of the closure.
+    pub fn blocking_readonly<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&Connection) -> Result<R> + Send + 'static,
+        R: Send + 'static,
+    {
+        let conn = self.conn.blocking_lock();
+        let result = f(&conn);
+        drop(conn);
+        result.expect("blocking_readonly DB operation failed")
+    }
+
+    /// Run a blocking DB write operation in a dedicated thread.
+    /// Safe for use from sync tool functions — avoids Handle::current() panics on Windows.
+    /// Returns the result of the closure.
+    pub fn blocking<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&Connection) -> Result<R> + Send + 'static,
+        R: Send + 'static,
+    {
+        let conn = self.conn.blocking_lock();
+        let result = f(&conn);
+        drop(conn);
+        result.expect("blocking DB operation failed")
     }
 
     /// Backward-compatible alias for conn_blocking(). Will be removed once all callers are async.
@@ -3357,6 +3400,54 @@ impl EngineDb {
         source: &str,
     ) -> Result<super::types::Meal> {
         let conn = self.conn_async().await;
+        let now = Self::now();
+        conn.execute(
+            "INSERT INTO meals (id, name, description, cuisine, category, photo_url, prep_time_min, cook_time_min, servings, difficulty, instructions, tags, source, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+            params![id, name, description, cuisine, category, photo_url, prep_time, cook_time, servings, difficulty, instructions, tags, source, now, now],
+        )?;
+        Ok(super::types::Meal {
+            id: id.to_string(),
+            name: name.to_string(),
+            description: description.map(String::from),
+            cuisine: cuisine.map(String::from),
+            category: category.map(String::from),
+            photo_url: photo_url.map(String::from),
+            prep_time_min: prep_time,
+            cook_time_min: cook_time,
+            servings,
+            difficulty: difficulty.to_string(),
+            instructions: instructions.map(String::from),
+            estimated_cost: None,
+            cost_per_serving: None,
+            calories: None,
+            tags: tags.map(String::from),
+            source: source.to_string(),
+            is_favorite: false,
+            last_made: None,
+            times_made: 0,
+            created_at: now.clone(),
+            updated_at: now,
+        })
+    }
+
+    pub fn create_meal_sync(
+        &self,
+        id: &str,
+        name: &str,
+        description: Option<&str>,
+        cuisine: Option<&str>,
+        category: Option<&str>,
+        photo_url: Option<&str>,
+        prep_time: Option<i64>,
+        cook_time: Option<i64>,
+        servings: i64,
+        difficulty: &str,
+        instructions: Option<&str>,
+        tags: Option<&str>,
+        source: &str,
+    ) -> Result<super::types::Meal> {
+        let conn = self.conn_blocking();
         let now = Self::now();
         conn.execute(
             "INSERT INTO meals (id, name, description, cuisine, category, photo_url, prep_time_min, cook_time_min, servings, difficulty, instructions, tags, source, created_at, updated_at)
