@@ -4651,7 +4651,7 @@ async fn fetch_and_attach_meal_image(meal_id: String, meal_name: String) -> Opti
 }
 
 fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
-    eprintln!("[DEBUG kitchen_add_meal] ═══ ENTERED v2. args={:?}", args);
+    eprintln!("[DEBUG kitchen_add_meal] ��� ENTERED v3. args={:?}", args);
     log::info!("[tools] KITCHEN_ADD_MEAL FN ENTRY: args={:?}", args);
     let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
     log::info!("[tools] KITCHEN_ADD_MEAL name extracted: '{}'", name);
@@ -4678,21 +4678,10 @@ fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
     eprintln!("[DEBUG kitchen_add_meal] calling db.create_meal now...");
 
     log::info!("[tools] kitchen_add_meal: calling db.create_meal id={} name={}", id, name);
-    let meal = match engine.db().create_meal_sync(
-        &id,
-        name,
-        None, // description
-        cuisine,
-        category,
-        None, // photo_url
-        prep_time_min,
-        cook_time_min,
-        4,
-        "normal",
-        instructions,
-        None,
-        "agent",
-    ) {
+    eprintln!("[DEBUG kitchen_add_meal] calling create_meal_sync now...");
+    let meal_raw = engine.db().create_meal_sync(&id, name, None, cuisine, category, None, prep_time_min, cook_time_min, 4, "normal", instructions, None, "agent");
+    eprintln!("[DEBUG kitchen_add_meal] create_meal_sync returned: {:?}", meal_raw);
+    let meal = match meal_raw {
         Ok(meal) => {
             eprintln!("[DEBUG kitchen_add_meal] DB SUCCESS: meal.id={}", meal.id);
             log::info!("[tools] KITCHEN_ADD_MEAL DB OK: id={}, name={}", meal.id, meal.name);
