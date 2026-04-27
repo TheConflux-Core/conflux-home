@@ -4678,24 +4678,21 @@ fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
     eprintln!("[DEBUG kitchen_add_meal] calling db.create_meal now...");
 
     log::info!("[tools] kitchen_add_meal: calling db.create_meal id={} name={}", id, name);
-    let db_result = tokio::task::block_in_place(|| {
-        Handle::current().block_on(engine.db().create_meal(
-            &id,
-            name,
-            None, // description
-            cuisine,
-            category,
-            None, // photo_url
-            prep_time_min,
-            cook_time_min,
-            4,
-            "normal",
-            instructions,
-            None,
-            "agent",
-        ))
-    });
-    let meal = match db_result {
+    let meal = match engine.db().create_meal_sync(
+        &id,
+        name,
+        None, // description
+        cuisine,
+        category,
+        None, // photo_url
+        prep_time_min,
+        cook_time_min,
+        4,
+        "normal",
+        instructions,
+        None,
+        "agent",
+    ) {
         Ok(meal) => {
             eprintln!("[DEBUG kitchen_add_meal] DB SUCCESS: meal.id={}", meal.id);
             log::info!("[tools] KITCHEN_ADD_MEAL DB OK: id={}, name={}", meal.id, meal.name);
