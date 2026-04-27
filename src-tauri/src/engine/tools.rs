@@ -4651,14 +4651,11 @@ async fn fetch_and_attach_meal_image(meal_id: String, meal_name: String) -> Opti
 }
 
 fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
-    eprintln!("[DEBUG kitchen_add_meal] ��� ENTERED v3. args={:?}", args);
     log::info!("[tools] KITCHEN_ADD_MEAL FN ENTRY: args={:?}", args);
     let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
     log::info!("[tools] KITCHEN_ADD_MEAL name extracted: '{}'", name);
-    eprintln!("[DEBUG kitchen_add_meal] name extracted: '{}'", name);
     log::info!("[tools] BUILD-TEST: kitchen_add_meal called at fn start, args: {:?}", args);
     if name.is_empty() {
-        eprintln!("[DEBUG kitchen_add_meal] name is EMPTY — returning 'Meal name is required'");
         log::warn!("[tools] KITCHEN_ADD_MEAL: name is empty, returning error");
         return Ok(ToolResult {
             success: false,
@@ -4666,7 +4663,6 @@ fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
             error: Some("Meal name is required".into()),
         });
     }
-    eprintln!("[DEBUG kitchen_add_meal] name is '{}' — proceeding to DB", name);
 
     let id = uuid::Uuid::new_v4().to_string();
     let engine = super::get_engine();
@@ -4675,20 +4671,15 @@ fn execute_kitchen_add_meal(args: &Value) -> Result<ToolResult> {
     let instructions = args.get("instructions").and_then(|v| v.as_str());
     let prep_time_min = args.get("prep_time_min").and_then(|v| v.as_i64());
     let cook_time_min = args.get("cook_time_min").and_then(|v| v.as_i64());
-    eprintln!("[DEBUG kitchen_add_meal] calling db.create_meal now...");
 
     log::info!("[tools] kitchen_add_meal: calling db.create_meal id={} name={}", id, name);
-    eprintln!("[DEBUG kitchen_add_meal] calling create_meal_sync now...");
     let meal_raw = engine.db().create_meal_sync(&id, name, None, cuisine, category, None, prep_time_min, cook_time_min, 4, "normal", instructions, None, "agent");
-    eprintln!("[DEBUG kitchen_add_meal] create_meal_sync returned: {:?}", meal_raw);
     let meal = match meal_raw {
         Ok(meal) => {
-            eprintln!("[DEBUG kitchen_add_meal] DB SUCCESS: meal.id={}", meal.id);
             log::info!("[tools] KITCHEN_ADD_MEAL DB OK: id={}, name={}", meal.id, meal.name);
             meal
         }
         Err(e) => {
-            eprintln!("[DEBUG kitchen_add_meal] DB ERROR: {:?}", e);
             log::error!("[tools] KITCHEN_ADD_MEAL DB ERROR: {:?}", e);
             return Ok(ToolResult {
                 success: false,

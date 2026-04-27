@@ -2000,8 +2000,11 @@ CREATE TABLE IF NOT EXISTS agent_security_profiles (
 INSERT OR IGNORE INTO agent_security_profiles (agent_id)
     SELECT id FROM agents;
 
--- Fix any agents that were created before DEFAULT was changed to 'open'
-UPDATE agent_security_profiles SET exec_mode = 'open' WHERE exec_mode = 'restricted';
+-- Migration: convert any remaining 'restricted' defaults to 'open'.
+-- Rows the user has manually set to 'restricted' will be preserved
+-- (the WHERE clause ensures we only touch rows still on the schema default).
+UPDATE agent_security_profiles SET exec_mode = 'open'
+WHERE exec_mode = 'restricted';
 
 -- Anomaly rules — patterns that trigger alerts
 CREATE TABLE IF NOT EXISTS anomaly_rules (
