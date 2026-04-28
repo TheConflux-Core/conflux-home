@@ -2,7 +2,7 @@
 // Replaces the blocking local Whisper inference with a real-time streaming transcription.
 
 use anyhow::{Context, Result};
-use base64::Engine;
+use base64::Engine as _;
 use futures_util::{SinkExt, StreamExt};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -147,60 +147,65 @@ pub async fn start_stream(
     let recv_task = tokio::spawn(async move {
         while let Some(msg) = ws_receiver.next().await {
             match msg {
-                Ok(Message::Text(text)) => {
-                    // Parse JSON response from ElevenLabs
-                    // ElevenLabs sends: { "message_type": "partial_transcript" | "committed_transcript", "text": "..." }
-                    // Note: no top-level "text" key, no "is_final" key — message_type determines finality
-                    if let Ok(transcript) = serde_json::from_str::<serde_json::Value>(&text) {
-                        let message_type = transcript.get("message_type").and_then(|v| v.as_str());
-                        let is_final = message_type == Some("committed_transcript")
-                            || message_type == Some("committed_transcript_with_timestamps");
-                        let text_val = transcript.get("text").and_then(|v| v.as_str());
+                    Ok(Message::Text(text)) => {
+                        // Parse JSON response from ElevenLabs
+                        // Protocol: { "message_type": "partial_transcript" | "committed_transcript" | "session_started", "text": "..." }
+                        if let Ok(transcript) = serde_json::from_str::<serde_json::Value>(&text) {
+                            let message_type = transcript.get("message_type").and_then(|v| v.as_str());
 
-                        if let Some(text_val) = text_val {
-                            let chunk = TranscriptChunk {
-                                text: text_val.to_string(),
-                                is_final,
-                            };
+                            match message_type {
+                                Some("session_started") => {
+                                    log::info!("[ElevenLabs STT] Session started OK");
+                                }
+                                Some("partial_transcript") | Some("committed_transcript") | Some("committed_transcript_with_timestamps") => {
+                                    let is_final = message_type != Some("partial_transcript");
+                                    let text_val = transcript.get("text").and_then(|v| v.as_str());
 
-                            log::debug!(
-                                "[ElevenLabs STT] Chunk: {:?} (final: {}, type: {:?})",
-                                chunk.text,
-                                chunk.is_final,
-                                message_type
-                            );
+                                    if let Some(text_val) = text_val {
+                                        let chunk = TranscriptChunk { text: text_val.to_string(), is_final };
 
-                            // Emit to frontend for the Fairy to react (interim & final)
-                            let event_payload = serde_json::json!({
-                                "listeningCadence": {
-                                    "tokens": chunk.text.split_whitespace().collect::<Vec<_>>(),
-                                    "intervalMs": 90,
-                                    "strength": 9,
-                                    "burstsPerToken": 2,
-                                    "route": ["perception", "reasoning"],
-                                },
-                                "mode": "listen",
-                                "status": if is_final { "Transcript finalized" } else { "Receiving speech..." },
-                            });
-                            let _ = window_clone.emit("conflux:state", event_payload);
+                                        log::debug!(
+                                            "[ElevenLabs STT] Chunk: {:?} (final: {}, type: {:?})",
+                                            chunk.text, chunk.is_final, message_type
+                                        );
 
-                            // On final transcript, persist it for sync retrieval AND emit dedicated event
-                            if is_final {
-                                let trimmed = chunk.text.trim().to_string();
-                                if !trimmed.is_empty() {
-                                    // Store in static for voice_capture_stop to return
-                                    let mut transcript_guard = STREAMING_TRANSCRIPT.lock().unwrap();
-                                    *transcript_guard = Some(trimmed.clone());
-                                    // Emit dedicated transcription event for any listeners
-                                    let _ = window_clone.emit(
-                                        "conflux:transcription",
-                                        serde_json::json!({ "text": trimmed, "is_final": true }),
-                                    );
+                                        let event_payload = serde_json::json!({
+                                            "listeningCadence": {
+                                                "tokens": chunk.text.split_whitespace().collect::<Vec<_>>(),
+                                                "intervalMs": 90,
+                                                "strength": 9,
+                                                "burstsPerToken": 2,
+                                                "route": ["perception", "reasoning"],
+                                            },
+                                            "mode": "listen",
+                                            "status": if is_final { "Transcript finalized" } else { "Receiving speech..." },
+                                        });
+                                        let _ = window_clone.emit("conflux:state", event_payload);
+
+                                        if is_final {
+                                            let trimmed = chunk.text.trim().to_string();
+                                            if !trimmed.is_empty() {
+                                                let mut transcript_guard = STREAMING_TRANSCRIPT.lock().unwrap();
+                                                *transcript_guard = Some(trimmed.clone());
+                                                let _ = window_clone.emit(
+                                                    "conflux:transcription",
+                                                    serde_json::json!({ "text": trimmed, "is_final": true }),
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                                Some("error") | Some("auth_error") | Some("quota_exceeded") => {
+                                    let err = transcript.get("error").and_then(|v| v.as_str()).unwrap_or("unknown");
+                                    log::error!("[ElevenLabs STT] Server error: {}", err);
+                                }
+                                _ => {
+                                    // Ignorable: rate_limited, throttled, etc.
+                                    log::debug!("[ElevenLabs STT] Unhandled message type: {:?}", message_type);
                                 }
                             }
                         }
                     }
-                }
                 Ok(Message::Close(_)) | Err(_) => {
                     break;
                 }
@@ -215,7 +220,18 @@ pub async fn start_stream(
         while let Some(msg) = audio_rx.recv().await {
             match msg {
                 StreamMessage::Audio(bytes) => {
-                    let _ = ws_sender.send(Message::Binary(bytes)).await;
+                    // ElevenLabs expects a JSON input_audio_chunk message with base64-encoded audio
+                    use base64::engine::general_purpose::STANDARD as BASE64;
+                    let audio_b64 = BASE64.encode(&bytes);
+                    let payload = serde_json::json!({
+                        "message_type": "input_audio_chunk",
+                        "audio_base_64": audio_b64,
+                        "commit": false,
+                        "sample_rate": 16000
+                    });
+                    if let Err(e) = ws_sender.send(Message::Text(payload.to_string())).await {
+                        log::warn!("[ElevenLabs STT] Audio send failed: {}", e);
+                    }
                 }
                 StreamMessage::StreamStop => {
                     log::info!("[ElevenLabs STT] Closing stream on request.");

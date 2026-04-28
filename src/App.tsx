@@ -414,18 +414,10 @@ export default function App() {
             return;
           }
 
-          // Last resort: batch Whisper / ElevenLabs
-          console.log('[Voice] Transcribing with OpenAI Whisper...');
-          const text = await invoke<string>('voice_transcribe');
-          
-          if (text && typeof text === 'string' && text.trim().length > 0) {
-            console.log('[Voice] Transcribed:', text);
-            // Send to Conflux for a response
-            await handleVoiceInput(text);
-          } else {
-            console.log('[Voice] No speech detected.');
-            window.dispatchEvent(new CustomEvent('conflux-idle'));
-          }
+          // Last resort: only if no ElevenLabs key is configured at all
+          // (This path exists only for environments without any STT key — never for Whisper)
+          // if neither realtime nor event gave us text, check if we should try batch ElevenLabs
+          console.log('[Voice] No realtime transcript received — backend will attempt ElevenLabs batch if key is set.');
         } catch (err) {
           console.error('[Voice] Transcription/Chat failed:', err);
           window.dispatchEvent(new CustomEvent('conflux-idle'));

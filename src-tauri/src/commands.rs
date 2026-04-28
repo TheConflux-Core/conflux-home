@@ -8315,18 +8315,9 @@ pub mod voice_cmds {
         // Convert f32 samples to WAV bytes
         let wav_bytes = audio_to_wav_bytes(&audio);
 
-        // Try OpenAI Whisper first
-        let openai_config = crate::voice::openai::OpenAIConfig::default();
-        if !openai_config.api_key.is_empty() {
-            println!("[STT] Trying OpenAI Whisper...");
-            match crate::voice::openai::transcribe_audio(wav_bytes.clone(), openai_config).await {
-                Ok(text) => return Ok(text),
-                Err(e) => println!("[STT] OpenAI failed: {}", e),
-            }
-        }
-
-        // Fallback to ElevenLabs batch STT
-        println!("[STT] Falling back to ElevenLabs...");
+        // ElevenLabs batch STT — only used if realtime stream failed to capture transcript.
+        // OpenAI Whisper is not used as a fallback (ElevenLabs is the primary STT provider).
+        println!("[STT] Attempting ElevenLabs batch transcription...");
         let eleven_key = {
             let engine = crate::engine::get_engine();
             engine
