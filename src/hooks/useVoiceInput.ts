@@ -59,11 +59,45 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
     setIsListening(false);
 
     try {
-      // Stop recording
-      const result = await invoke<{ samples: number; duration_seconds: number }>('voice_capture_stop');
+      // Stop recording — backend returns transcript if realtime STT delivered it
+      const result = await invoke<{ samples: number; duration_seconds: number; transcript?: string | null }>('voice_capture_stop');
 
       if (result.samples > 1600) { // At least 0.1s of audio
         setIsTranscribing(true);
+
+        // Fast path: realtime STT already gave us a transcript synchronously
+        if (result.transcript && result.transcript.trim()) {
+          options.onTranscription(result.transcript.trim());
+          return;
+        }
+
+        // Fallback: wait for conflux:transcription event (realtime STT arrived after stop)
+        // This handles the case where transcript arrived just after voice_capture_stop returned.
+        const transcriptPromise = new Promise<string>((resolve) => {
+          let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+          const handler = (_event: any, payload: any) => {
+            if (timeoutId) clearTimeout(timeoutId);
+            window.removeEventListener('conflux:transcription', handler);
+            if (payload?.text) resolve(payload.text);
+            else resolve('');
+          };
+
+          timeoutId = setTimeout(() => {
+            window.removeEventListener('conflux:transcription', handler);
+            resolve('');
+          }, 3000);
+
+          window.addEventListener('conflux:transcription', handler as EventListener);
+        });
+
+        const eventText = await transcriptPromise;
+        if (eventText && eventText.trim()) {
+          options.onTranscription(eventText.trim());
+          return;
+        }
+
+        // Last resort: batch Whisper / ElevenLabs
         const text = await invoke<string>('voice_transcribe');
         if (text) {
           options.onTranscription(text);

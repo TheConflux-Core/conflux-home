@@ -4,13 +4,20 @@
 use anyhow::{Context, Result};
 use base64::Engine;
 use futures_util::{SinkExt, StreamExt};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{Emitter, Window};
 use tokio::sync::mpsc;
 use tokio_tungstenite::{
     connect_async, tungstenite::client::IntoClientRequest, tungstenite::protocol::Message,
 };
+
+/// Holds the final transcript from the current streaming session.
+/// Accessed from both the async WebSocket task (write) and the sync Tauri command (read).
+pub static STREAMING_TRANSCRIPT: Lazy<Mutex<Option<String>>> =
+    Lazy::new(|| Mutex::new(None));
 
 /// Configuration for the ElevenLabs streaming session.
 #[derive(Debug, Clone)]
@@ -53,7 +60,7 @@ impl Default for StreamConfig {
                     .unwrap_or_default()
             },
             sample_rate: 16000,
-            model_id: Some("scribe_v1".to_string()),
+            model_id: Some("scribe_v2_realtime".to_string()),
             include_interim: true,
         }
     }
@@ -74,12 +81,15 @@ pub enum StreamMessage {
 
 /// Start an ElevenLabs streaming transcription session.
 ///
-/// Returns a `Sender` that accepts raw PCM audio bytes.
+/// Returns an `UnboundedSender` that accepts raw PCM audio bytes.
 /// The caller should feed audio into this sender while PTT is active.
 pub async fn start_stream(
     config: StreamConfig,
     window: Window,
-) -> Result<mpsc::Sender<StreamMessage>> {
+) -> Result<mpsc::UnboundedSender<StreamMessage>> {
+    // Clear any stale transcript from a previous session
+    STREAMING_TRANSCRIPT.lock().unwrap().take();
+
     let api_key = &config.api_key;
     if api_key.is_empty() {
         return Err(anyhow::anyhow!(
@@ -87,10 +97,13 @@ pub async fn start_stream(
         ));
     }
 
-    let model_id = config.model_id.unwrap_or_else(|| "scribe_v1".into());
+    let mut model_id = config.model_id.unwrap_or_else(|| "scribe_v2_realtime".into());
+    if model_id == "scribe_v1" || model_id == "scribe_v2" {
+        model_id = "scribe_v2_realtime".to_string();
+    }
     let url = format!(
-        "wss://api.elevenlabs.io/v1/speech-to-text?model_id={}&include_interim={}&language_code=en",
-        model_id, config.include_interim
+        "wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id={}&audio_format=pcm_16000",
+        model_id
     );
 
     println!("[ElevenLabs STT] Connecting to {}", url);
@@ -121,11 +134,9 @@ pub async fn start_stream(
 
     println!("[ElevenLabs STT] Connected. Status: {}", response.status());
 
-    println!("[ElevenLabs STT] Connected. Status: {}", response.status());
-
     let (mut ws_sender, mut ws_receiver) = socket.split();
 
-    let (audio_tx, mut audio_rx) = mpsc::channel::<StreamMessage>(64);
+    let (audio_tx, mut audio_rx) = mpsc::unbounded_channel::<StreamMessage>();
 
     // Set up a task to send initial ping/keepalive if needed, or start streaming immediately
     // (Sending empty audio or a "start" signal is usually not required for ElevenLabs STT,
@@ -138,25 +149,28 @@ pub async fn start_stream(
             match msg {
                 Ok(Message::Text(text)) => {
                     // Parse JSON response from ElevenLabs
+                    // ElevenLabs sends: { "message_type": "partial_transcript" | "committed_transcript", "text": "..." }
+                    // Note: no top-level "text" key, no "is_final" key — message_type determines finality
                     if let Ok(transcript) = serde_json::from_str::<serde_json::Value>(&text) {
-                        if let Some(text_val) = transcript.get("text").and_then(|v| v.as_str()) {
-                            let is_final = transcript
-                                .get("is_final")
-                                .and_then(|v| v.as_bool())
-                                .unwrap_or(false);
+                        let message_type = transcript.get("message_type").and_then(|v| v.as_str());
+                        let is_final = message_type == Some("committed_transcript")
+                            || message_type == Some("committed_transcript_with_timestamps");
+                        let text_val = transcript.get("text").and_then(|v| v.as_str());
 
+                        if let Some(text_val) = text_val {
                             let chunk = TranscriptChunk {
                                 text: text_val.to_string(),
                                 is_final,
                             };
 
                             log::debug!(
-                                "[ElevenLabs STT] Chunk: {:?} (final: {})",
+                                "[ElevenLabs STT] Chunk: {:?} (final: {}, type: {:?})",
                                 chunk.text,
-                                chunk.is_final
+                                chunk.is_final,
+                                message_type
                             );
 
-                            // Emit to frontend for the Fairy to react
+                            // Emit to frontend for the Fairy to react (interim & final)
                             let event_payload = serde_json::json!({
                                 "listeningCadence": {
                                     "tokens": chunk.text.split_whitespace().collect::<Vec<_>>(),
@@ -168,8 +182,22 @@ pub async fn start_stream(
                                 "mode": "listen",
                                 "status": if is_final { "Transcript finalized" } else { "Receiving speech..." },
                             });
-
                             let _ = window_clone.emit("conflux:state", event_payload);
+
+                            // On final transcript, persist it for sync retrieval AND emit dedicated event
+                            if is_final {
+                                let trimmed = chunk.text.trim().to_string();
+                                if !trimmed.is_empty() {
+                                    // Store in static for voice_capture_stop to return
+                                    let mut transcript_guard = STREAMING_TRANSCRIPT.lock().unwrap();
+                                    *transcript_guard = Some(trimmed.clone());
+                                    // Emit dedicated transcription event for any listeners
+                                    let _ = window_clone.emit(
+                                        "conflux:transcription",
+                                        serde_json::json!({ "text": trimmed, "is_final": true }),
+                                    );
+                                }
+                            }
                         }
                     }
                 }
