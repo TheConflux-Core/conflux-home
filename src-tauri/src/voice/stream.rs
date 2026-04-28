@@ -102,7 +102,7 @@ pub async fn start_stream(
         model_id = "scribe_v2_realtime".to_string();
     }
     let url = format!(
-        "wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id={}&audio_format=pcm_16000",
+        "wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id={}&audio_format=pcm_16000&commit_strategy=vad",
         model_id
     );
 
@@ -118,9 +118,6 @@ pub async fn start_stream(
     request
         .headers_mut()
         .insert("xi-api-key", api_key.parse().unwrap());
-    request
-        .headers_mut()
-        .insert("Content-Type", "application/octet-stream".parse().unwrap());
 
     println!(
         "[ElevenLabs STT] Request prepared with API key starting with: {}",
@@ -226,7 +223,6 @@ pub async fn start_stream(
                     let payload = serde_json::json!({
                         "message_type": "input_audio_chunk",
                         "audio_base_64": audio_b64,
-                        "commit": false,
                         "sample_rate": 16000
                     });
                     if let Err(e) = ws_sender.send(Message::Text(payload.to_string())).await {
