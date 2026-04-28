@@ -8260,7 +8260,12 @@ pub mod voice_cmds {
     use crate::engine;
     use crate::voice;
     use crate::voice::capture::{self, AUDIO_BUFFER};
+    use crate::voice::stream::STREAMING_TRANSCRIPT;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use tauri::Manager;
+
+    /// Flag to prevent Whisper fallback when realtime STT already delivered a transcript.
+    static ELEVENLABS_TRANSCRIPT_RECEIVED: AtomicBool = AtomicBool::new(false);
 
     /// Start recording from the default microphone and begin volume monitoring.
     #[tauri::command]
@@ -8273,15 +8278,23 @@ pub mod voice_cmds {
         result
     }
 
-    /// Stop recording and return sample count.
+    /// Stop recording and return sample count and transcript (if available from realtime STT).
     #[tauri::command]
     pub fn voice_capture_stop(window: tauri::Window) -> Result<serde_json::Value, String> {
         println!("[STT] voice_capture_stop command triggered");
-        // TODO: Stop the ElevenLabs stream sender here
         let count = capture::stop_recording(window.clone())?;
+
+        // Retrieve the final transcript from the realtime STT static (if any)
+        let transcript = STREAMING_TRANSCRIPT.lock().unwrap().take();
+        if transcript.is_some() {
+            // Mark that we got a realtime transcript — downstream can skip Whisper fallback
+            ELEVENLABS_TRANSCRIPT_RECEIVED.store(true, Ordering::Relaxed);
+        }
+
         Ok(serde_json::json!({
             "samples": count,
             "duration_seconds": count as f64 / 16000.0,
+            "transcript": transcript,
         }))
     }
 
@@ -8363,7 +8376,7 @@ pub mod voice_cmds {
             .map_err(|e| e.to_string())?;
 
         let form = reqwest::multipart::Form::new()
-            .text("model_id", "scribe_v1")
+            .text("model_id", "scribe_v2")
             .part("file", part);
 
         let response = client

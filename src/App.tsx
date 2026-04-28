@@ -376,14 +376,47 @@ export default function App() {
         window.dispatchEvent(new CustomEvent('push-to-talk-end'));
 
         try {
-          await invoke('voice_capture_stop');
-          
+          // Stop recording — may contain realtime STT transcript
+          const result = await invoke<{ samples: number; duration_seconds: number; transcript?: string | null }>('voice_capture_stop');
+
           // Transition to Thinking state while transcribing
           window.dispatchEvent(new CustomEvent('conflux-thinking', { detail: { text: '(transcribing...)' } }));
-          
-          // Transcribe using OpenAI Whisper
+
+          // Fast path: realtime STT already gave us a transcript synchronously
+          if (result.transcript && result.transcript.trim()) {
+            console.log('[Voice] Realtime STT transcript:', result.transcript);
+            await handleVoiceInput(result.transcript.trim());
+            return;
+          }
+
+          // Fallback: wait for conflux:transcription event (realtime STT arrived after stop)
+          const eventText = await new Promise<string>((resolve) => {
+            let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+            const handler = (_e: any, payload: any) => {
+              if (timeoutId) clearTimeout(timeoutId);
+              window.removeEventListener('conflux:transcription', handler);
+              if (payload?.text) resolve(payload.text);
+              else resolve('');
+            };
+
+            timeoutId = setTimeout(() => {
+              window.removeEventListener('conflux:transcription', handler);
+              resolve('');
+            }, 3000);
+
+            window.addEventListener('conflux:transcription', handler);
+          });
+
+          if (eventText && eventText.trim()) {
+            console.log('[Voice] Realtime STT via event:', eventText);
+            await handleVoiceInput(eventText.trim());
+            return;
+          }
+
+          // Last resort: batch Whisper / ElevenLabs
           console.log('[Voice] Transcribing with OpenAI Whisper...');
-          const text = await invoke('voice_transcribe');
+          const text = await invoke<string>('voice_transcribe');
           
           if (text && typeof text === 'string' && text.trim().length > 0) {
             console.log('[Voice] Transcribed:', text);

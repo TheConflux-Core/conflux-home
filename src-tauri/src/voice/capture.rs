@@ -2,7 +2,7 @@
 // Records 16kHz mono f32 samples from the default input device.
 
 use crate::engine::state_events::ConfluxState;
-use crate::voice::stream::{start_stream, StreamConfig, StreamMessage};
+use crate::voice::stream::{start_stream, StreamConfig, StreamMessage, STREAMING_TRANSCRIPT};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use once_cell::sync::Lazy;
 use std::sync::{
@@ -11,12 +11,12 @@ use std::sync::{
 };
 use std::time::Duration;
 use tauri::{Emitter, Window};
-use tokio::sync::mpsc::Sender;
+use tokio::sync::mpsc::UnboundedSender;
 
 pub static AUDIO_BUFFER: Lazy<Arc<Mutex<Vec<f32>>>> =
     Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
 static IS_RECORDING: Lazy<Arc<AtomicBool>> = Lazy::new(|| Arc::new(AtomicBool::new(false)));
-static ELEVENLABS_SENDER: Lazy<Arc<Mutex<Option<Sender<StreamMessage>>>>> =
+static ELEVENLABS_SENDER: Lazy<Arc<Mutex<Option<UnboundedSender<StreamMessage>>>>> =
     Lazy::new(|| Arc::new(Mutex::new(None)));
 // cpal::Stream is not Send, so we use a thread-local holder instead
 thread_local! {
@@ -237,7 +237,7 @@ pub fn start_recording(window: Window) -> Result<String, String> {
                             i16_val.to_le_bytes()
                         })
                         .collect();
-                    let _ = tx.try_send(StreamMessage::Audio(pcm_bytes));
+                    let _ = tx.send(StreamMessage::Audio(pcm_bytes));
                 }
             },
             |err| {
@@ -280,13 +280,24 @@ pub fn stop_recording(window: Window) -> Result<u64, String> {
 
     // Signal ElevenLabs stream to close
     if let Some(tx) = ELEVENLABS_SENDER.lock().unwrap().take() {
-        let _ = tx.try_send(StreamMessage::StreamStop);
+        let _ = tx.send(StreamMessage::StreamStop);
     }
 
     // Drop the stream
     STREAM_HANDLE.with(|cell| {
         *cell.borrow_mut() = None;
     });
+
+    // Wait briefly for the WebSocket task to write the final transcript
+    // Poll STREAMING_TRANSCRIPT every 20ms, timeout after 3 seconds.
+    let wait_start = std::time::Instant::now();
+    while STREAMING_TRANSCRIPT.lock().unwrap().is_none() {
+        if wait_start.elapsed() > std::time::Duration::from_secs(3) {
+            log::warn!("[STT] Timed out waiting for realtime transcript");
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
 
     let count = {
         let buf = AUDIO_BUFFER.lock().map_err(|e| e.to_string())?;
