@@ -281,12 +281,60 @@ export default function App() {
           break;
         case 'sidebar':
           // action: 'toggle' | 'set', value: boolean
-          if (action === 'toggle') setSidebarCollapsed(prev => !prev);
-          else if (typeof value === 'boolean') setSidebarCollapsed(value);
+          if (action === 'toggle') setSidebarOpen(prev => !prev);
+          else if (typeof value === 'boolean') setSidebarOpen(value);
           break;
         case 'activeApp':
-          // value: view name string
+          // value: view name string (dashboard, kitchen, budget, life, etc.)
           if (value) setView(value as View);
+          break;
+        case 'chat':
+          // action: 'open' | 'close' | 'toggle', value: optionally agent id
+          if (action === 'toggle') setChatOpen(prev => !prev);
+          else if (action === 'open') { setChatOpen(true); if (value) { /* route to specific agent */ } }
+          else if (action === 'close') setChatOpen(false);
+          break;
+        case 'voiceChat':
+          // action: 'toggle' | 'open' | 'close'
+          if (action === 'toggle') setVoiceChatOpen(prev => !prev);
+          else if (action === 'open') setVoiceChatOpen(true);
+          else if (action === 'close') setVoiceChatOpen(false);
+          break;
+        case 'controlRoom':
+          // action: 'toggle' | 'open' | 'close'
+          if (action === 'toggle') setControlRoom(prev => !prev);
+          else if (action === 'open') setControlRoom(true);
+          else if (action === 'close') setControlRoom(false);
+          break;
+        case 'immersiveApp':
+          // value: app name to enter immersive mode (kitchen, budget, life, dreams, home, vault)
+          if (value) setImmersiveView(value as View);
+          break;
+        case 'exitImmersive':
+          // exit immersive/fullscreen app mode
+          setImmersiveView(null);
+          break;
+        case 'pushToTalk':
+          // action: 'toggle' | 'start' | 'stop', value: optionally duration in ms
+          if (action === 'toggle') setIsPushToTalkActive(prev => !prev);
+          else if (action === 'start') setIsPushToTalkActive(true);
+          else if (action === 'stop') setIsPushToTalkActive(false);
+          break;
+        case 'barVersion':
+          // value: 'v1' or 'v2'
+          if (value === 'v1') setUseBarV2(false);
+          else if (value === 'v2') setUseBarV2(true);
+          break;
+        case 'confluxBar':
+          // value: 'show' or 'hide'
+          if (value === 'show') setUseBarV2(true);
+          else if (value === 'hide') setUseBarV2(false);
+          break;
+        case 'chatExpanded':
+          // action: 'expand' | 'collapse' | 'toggle'
+          if (action === 'toggle') setExpandedChat(prev => !prev);
+          else if (action === 'expand') setExpandedChat(true);
+          else if (action === 'collapse') setExpandedChat(false);
           break;
         default:
           console.log('[App] Unknown ui_action widget:', widget);
