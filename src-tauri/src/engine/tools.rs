@@ -386,6 +386,12 @@ pub async fn execute_tool(tool_name: &str, args: &Value, user_id: &str) -> Resul
         result.as_ref().map(|r| r.output.len()).unwrap_or(0),
         result.as_ref().map(|r| r.error.clone()).unwrap_or(None));
     log_tool_security_event(tool_name, args, success, "conflux");
+
+    // ── Tool Call Telemetry ──
+    let sanitized_args = sanitize_for_telemetry(args);
+    log_to_tool_audit(tool_name, &sanitized_args, success,
+        result.as_ref().ok().and_then(|r| r.error.clone()).unwrap_or_default());
+
     result
 }
 
@@ -425,6 +431,7 @@ pub async fn execute_tool_for_user(
         // Phase 5: Integration tools
         "web_post" => execute_web_post(args).await,
         "notify" => execute_notify(args),
+        "ui_action" => execute_ui_action(args),
         "email_send" => execute_email_send(args),
         "email_receive" => execute_email_receive(args),
         // App tools: Life Autopilot, Feed, Dreams
@@ -797,6 +804,22 @@ pub fn get_integration_tool_definitions() -> Vec<Value> {
                         "body": { "type": "string", "description": "Notification body text" }
                     },
                     "required": ["title", "body"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "ui_action",
+                "description": "Change any UI element in Conflux Home — theme, accent color, wallpaper, sidebar, active app, or any setting. The frontend interprets this and applies the change live. Example: Conflux can change the app theme by calling this with widget='theme' and value='dark'.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "widget": { "type": "string", "description": "Widget path (e.g., 'theme', 'accentColor', 'wallpaper', 'sidebar', 'activeApp')" },
+                        "action": { "type": "string", "description": "Action: 'set' (default), 'toggle', 'increment', 'decrement'" },
+                        "value": { "type": "any", "description": "New value for the widget (e.g., 'dark', 'blue', 'true', '/wallpapers/wallpaper-dark.webp')" }
+                    },
+                    "required": ["widget"]
                 }
             }
         }),
@@ -3282,6 +3305,38 @@ fn execute_notify(args: &Value) -> Result<ToolResult> {
     Ok(ToolResult {
         success: true,
         output: format!("Notification sent: {} - {}", title, body),
+        error: None,
+    })
+}
+
+/// Execute a UI action — change any controllable widget in the app.
+/// This is the universal remote for the entire Conflux Home interface.
+/// The frontend maintains a widget registry and listens for conflux:ui-action events.
+fn execute_ui_action(args: &Value) -> Result<ToolResult> {
+    let widget = args.get("widget").and_then(|v| v.as_str()).unwrap_or("");
+    let action = args.get("action").and_then(|v| v.as_str()).unwrap_or("set");
+    let value = args.get("value").cloned().unwrap_or(serde_json::Value::Null);
+
+    if widget.is_empty() {
+        return Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some("widget path is required (e.g., 'theme', 'accentColor', 'sidebar')".into()),
+        });
+    }
+
+    let engine = super::get_engine();
+    engine.emit_tauri_event("conflux:ui-action", serde_json::json!({
+        "widget": widget,
+        "action": action,
+        "value": value,
+    }));
+
+    log::info!("[tools] UI action: {} {} → {:?}", widget, action, value);
+
+    Ok(ToolResult {
+        success: true,
+        output: format!("UI action applied: {} {} to {:?}", widget, action, value),
         error: None,
     })
 }
@@ -9265,4 +9320,53 @@ fn execute_day_overview(_args: &Value) -> Result<ToolResult> {
         output: sections.join("\n"),
         error: None,
     })
+}
+
+// ── Tool Call Telemetry ──
+
+/// Sanitize args for telemetry — remove sensitive fields.
+fn sanitize_for_telemetry(args: &Value) -> Value {
+    let sensitive = ["password", "api_key", "secret", "token", "credential"];
+    if let Some(obj) = args.as_object() {
+        let cleaned: serde_json::Map<String, Value> = obj
+            .iter()
+            .filter(|(k, _)| !sensitive.iter().any(|s| k.to_lowercase().contains(s)))
+            .map(|(k, v)| (k.clone(), sanitize_for_telemetry(v)))
+            .collect();
+        serde_json::Value::Object(cleaned)
+    } else {
+        args.clone()
+    }
+}
+
+/// Log a tool call to RUN_LOG.md for audit and debugging.
+fn log_to_tool_audit(tool_name: &str, args: &Value, success: bool, error: Option<String>) {
+    let timestamp = chrono::Utc::now().to_rfc3339();
+    let args_str = serde_json::to_string(args).unwrap_or_else(|_| "{}".into());
+    let error_str = error.unwrap_or_default();
+
+    let line = format!(
+        "[{}] tool={} args={} status={} error={}\n",
+        timestamp, tool_name, args_str,
+        if success { "OK" } else { "FAIL" },
+        error_str
+    );
+
+    // Log to stdout (tauri-plugin-log captures this)
+    log::info!("[TOOL_AUDIT] {}", line.trim());
+
+    // Also append to RUN_LOG.md if it exists
+    let run_log = std::path::Path::new("/home/calo/.openclaw/shared/RUN_LOG.md");
+    if run_log.exists() {
+        if let Ok(mut file) = std::fs::OpenOptions::new().append(true).open(run_log) {
+            use std::io::Write;
+            let _ = writeln!(file, "[{}] TOOL_AUDIT {} {} — {} [args: {}]",
+                timestamp,
+                if success { "OK" } else { "FAIL" },
+                tool_name,
+                if error_str.is_empty() { "OK" } else { &error_str },
+                args_str
+            );
+        }
+    }
 }
