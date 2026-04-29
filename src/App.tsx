@@ -414,10 +414,19 @@ export default function App() {
             return;
           }
 
-          // Last resort: only if no ElevenLabs key is configured at all
-          // (This path exists only for environments without any STT key — never for Whisper)
-          // if neither realtime nor event gave us text, check if we should try batch ElevenLabs
-          console.log('[Voice] No realtime transcript received — backend will attempt ElevenLabs batch if key is set.');
+          // Last resort: call ElevenLabs batch STT via backend
+          console.log('[Voice] No realtime transcript received — calling ElevenLabs batch STT...');
+          try {
+            const text = await invoke<string>('voice_transcribe');
+            if (text && text.trim()) {
+              console.log('[Voice] Batch STT transcript:', text);
+              await handleVoiceInput(text.trim());
+              return;
+            }
+            console.warn('[Voice] Batch STT returned empty text.');
+          } catch (e) {
+            console.error('[Voice] Batch STT failed:', e);
+          }
         } catch (err) {
           console.error('[Voice] Transcription/Chat failed:', err);
           window.dispatchEvent(new CustomEvent('conflux-idle'));

@@ -8298,10 +8298,12 @@ pub mod voice_cmds {
         }))
     }
 
-    /// Transcribe the current audio buffer using Whisper (primary) or ElevenLabs (fallback).
+    /// Transcribe the current audio buffer using the ElevenLabs SDK (via Node.js script).
+    /// This is the primary STT path. The realtime WebSocket (stream.rs) handles live transcripts;
+    /// this batch path is the fallback when realtime didn't capture a final result.
     #[tauri::command]
     pub async fn voice_transcribe() -> Result<String, String> {
-        println!("[STT] Transcribing...");
+        println!("[STT] Transcribing via ElevenLabs SDK...");
 
         let audio = {
             let buf = AUDIO_BUFFER.lock().map_err(|e| e.to_string())?;
@@ -8315,82 +8317,97 @@ pub mod voice_cmds {
         // Convert f32 samples to WAV bytes
         let wav_bytes = audio_to_wav_bytes(&audio);
 
-        // ElevenLabs batch STT — only used if realtime stream failed to capture transcript.
-        // OpenAI Whisper is not used as a fallback (ElevenLabs is the primary STT provider).
-        println!("[STT] Attempting ElevenLabs batch transcription...");
+        // Write WAV to a temp file for the Node.js script
+        let temp_wav = std::env::temp_dir().join("conflux_stt_temp.wav");
+        std::fs::write(&temp_wav, &wav_bytes)
+            .map_err(|e| format!("Failed to write temp WAV: {}", e))?;
+
+        // Get API key (sync — must happen outside async block)
         let eleven_key = {
             let engine = crate::engine::get_engine();
             engine
                 .db()
-                .get_config("elevenlabs_key")
+                .get_config("studio_elevenlabs_key")
                 .ok()
                 .flatten()
                 .filter(|k| !k.is_empty())
-                .or_else(|| {
-                    engine
-                        .db()
-                        .get_config("studio_elevenlabs_key")
-                        .ok()
-                        .flatten()
-                        .filter(|k| !k.is_empty())
-                })
-                .or_else(|| {
-                    std::env::var("ELEVENLABS_API_KEY")
-                        .ok()
-                        .filter(|k| !k.is_empty())
-                })
-                .or_else(|| {
-                    option_env!("ELEVENLABS_API_KEY")
-                        .map(|s| s.to_string())
-                        .filter(|k| !k.is_empty())
-                })
+                .or_else(|| std::env::var("ELEVENLABS_API_KEY").ok().filter(|k| !k.is_empty()))
+                .or_else(|| option_env!("ELEVENLABS_API_KEY").map(|s| s.to_string()).filter(|k| !k.is_empty()))
+                .unwrap_or_default()
         };
 
-        match eleven_key {
-            Some(key) if !key.is_empty() => match elevenlabs_stt(&wav_bytes, &key).await {
-                Ok(text) => Ok(text),
-                Err(e) => Err(format!("All STT providers failed. ElevenLabs: {}", e)),
-            },
-            _ => Err(
-                "No STT API keys configured. Set OPENAI_API_KEY or ELEVENLABS_API_KEY.".to_string(),
-            ),
+        if eleven_key.is_empty() {
+            let _ = std::fs::remove_file(&temp_wav);
+            return Err("No ElevenLabs API key configured.".to_string());
         }
-    }
 
-    /// ElevenLabs batch speech-to-text.
-    async fn elevenlabs_stt(audio_data: &[u8], api_key: &str) -> Result<String, String> {
-        let client = reqwest::Client::new();
+        // Resolve script path (supports dev + release + CONFLUX_SCRIPTS_DIR override).
+        // cargo run from src-tauri/: cwd=src-tauri/, exe=target/debug/conflux-home
+        // Walk: target/debug/ → target/ → src-tauri/ → <workspace root>/
+        fn get_workspace_scripts_path() -> std::path::PathBuf {
+            let mut path = std::path::PathBuf::from("scripts/elevenlabs-stt.js");
+            if let Ok(exe) = std::env::current_exe() {
+                if let Some(target_dir) = exe.parent() {            // target/debug/ or target/release/
+                    if let Some(profile_dir) = target_dir.parent() { // target/
+                        if let Some(src_tauri) = profile_dir.parent() { // src-tauri/
+                            // Go one more up to workspace root (conflux-home/)
+                            if let Some(workspace) = src_tauri.parent() {
+                                let scripts = workspace.join("scripts/elevenlabs-stt.js");
+                                if scripts.exists() {
+                                    path = scripts;
+                                    return path;
+                                }
+                            }
+                            // Fallback: check src-tauri/ itself (in case workspace structure differs)
+                            let scripts = src_tauri.join("scripts/elevenlabs-stt.js");
+                            if scripts.exists() {
+                                path = scripts;
+                            }
+                        }
+                    }
+                }
+            }
+            path
+        }
+        let script_path = std::env::var("CONFLUX_SCRIPTS_DIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| get_workspace_scripts_path());
 
-        let part = reqwest::multipart::Part::bytes(audio_data.to_vec())
-            .file_name("audio.wav")
-            .mime_str("audio/wav")
-            .map_err(|e| e.to_string())?;
-
-        let form = reqwest::multipart::Form::new()
-            .text("model_id", "scribe_v2")
-            .part("file", part);
-
-        let response = client
-            .post("https://api.elevenlabs.io/v1/speech-to-text")
-            .header("xi-api-key", api_key)
-            .multipart(form)
-            .send()
+        let result = tokio::process::Command::new("node")
+            .arg(&script_path)
+            .arg(temp_wav.as_os_str())
+            .arg(&eleven_key)
+            .output()
             .await
-            .map_err(|e| format!("Request failed: {}", e))?;
+            .map_err(|e| format!("Failed to run STT script: {}. Is Node.js installed?", e))?;
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().await.unwrap_or_default();
-            return Err(format!("ElevenLabs STT Error {}: {}", status, body));
+        let _ = std::fs::remove_file(&temp_wav);
+
+        let stdout = String::from_utf8_lossy(&result.stdout);
+        let stderr = String::from_utf8_lossy(&result.stderr);
+
+        if !result.status.success() {
+            // Try to parse error JSON from stderr
+            if let Ok(err_json) = serde_json::from_str::<serde_json::Value>(&stdout) {
+                let msg = err_json.get("error").and_then(|v| v.as_str()).unwrap_or("Unknown error");
+                let status = err_json.get("status").and_then(|v| v.as_str()).unwrap_or("unknown");
+                return Err(format!("ElevenLabs STT error [{}]: {}", status, msg));
+            }
+            return Err(format!("STT script failed ({}): {}", result.status, stderr));
         }
 
-        #[derive(serde::Deserialize)]
-        struct ScribeResponse {
-            text: String,
-        }
+        // Parse JSON response: { "text": "...", "transcriptionId": "..." }
+        let parsed: serde_json::Value = serde_json::from_str(&stdout)
+            .map_err(|e| format!("Failed to parse STT response: {} — output: {}", e, stdout))?;
 
-        let result: ScribeResponse = response.json().await.map_err(|e| e.to_string())?;
-        Ok(result.text)
+        let text = parsed.get("text")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+
+        println!("[STT] Transcribed: {}", text);
+        Ok(text)
     }
 
     fn audio_to_wav_bytes(samples: &[f32]) -> Vec<u8> {

@@ -48,7 +48,26 @@ impl Default for TTSConfig {
                     })
                     .unwrap_or_default()
             },
-            voice_id: "JBFqnCBsd6RMkjVDRZzb".to_string(), // "George" (Free tier compatible)
+            voice_id: {
+                let engine = crate::engine::get_engine();
+                engine
+                    .db()
+                    .get_config("elevenlabs_voice_id")
+                    .ok()
+                    .flatten()
+                    .filter(|v| !v.is_empty())
+                    .or_else(|| {
+                        std::env::var("ELEVENLABS_VOICE_ID")
+                            .ok()
+                            .filter(|v| !v.is_empty())
+                    })
+                    .or_else(|| {
+                        option_env!("ELEVENLABS_VOICE_ID")
+                            .map(|s| s.to_string())
+                            .filter(|v| !v.is_empty())
+                    })
+                    .unwrap_or_else(|| "TvxTBL9RtGW6tVhl4NoI".to_string()) // Don's trained voice
+            },
             model_id: "eleven_turbo_v2_5".to_string(),    // Free tier compatible model
             latency: "low".to_string(),
             sample_rate: 44100,
