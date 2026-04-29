@@ -390,7 +390,7 @@ pub async fn execute_tool(tool_name: &str, args: &Value, user_id: &str) -> Resul
     // ── Tool Call Telemetry ──
     let sanitized_args = sanitize_for_telemetry(args);
     log_to_tool_audit(tool_name, &sanitized_args, success,
-        result.as_ref().ok().and_then(|r| r.error.clone()).unwrap_or_default());
+        result.as_ref().ok().and_then(|r| r.error.clone()));
 
     result
 }
