@@ -232,8 +232,14 @@ fn get_tool_priority(name: &str, category: &str) -> u8 {
         // Core tools — always include
         "time" | "calc" | "web_search" | "file_read" | "file_write" | "notify" => 10,
         "web_fetch" | "web_post" | "exec" | "memory_read" | "memory_write" => 9,
-        // High-use domain tools
+        // UI action — universal remote, high priority
+        "ui_action" => 9,
+        // High-use domain tools (the most common user actions)
+        "kitchen_add_meal" | "dream_add" | "budget_add_entry" | "life_add_task" => 8,
+        "kitchen_list_meals" | "dream_list" | "budget_get_summary" | "life_list_tasks" => 7,
         "email_send" | "email_receive" | "gmail_send" | "gmail_search" => 5,
+        // Echo/journal — emotional intelligence
+        "echo_write_entry" | "echo_counselor_start_session" => 6,
         // Everything else gets a base priority by category
         _ => match category {
             "kitchen" | "home" | "life" | "budget" | "vault" => 3,

@@ -18,10 +18,9 @@ use super::tool_selector::{select_tools, ToolSelector, validate_tool_name, messa
 const MAX_TOOL_ITERATIONS: usize = 3;
 /// Maximum tools to send per request. Anthropic Claude caps at 128.
 const MAX_TOOLS_PER_REQUEST: usize = 128;
-/// Maximum tools for local AI routing (small context window).
-const MAX_LOCAL_TOOLS: usize = 18;
-/// Maximum tools for cloud AI routing.
-const MAX_CLOUD_TOOLS: usize = 45;
+const MAX_LOCAL_TOOLS: usize = 15;
+/// Maximum tools for cloud AI routing (limit to prevent context overflow).
+const MAX_CLOUD_TOOLS: usize = 20;
 
 /// Assemble and smart-filter tool definitions for a user message.
 /// Core tools (time, calc, web_search, file ops) are always included.
