@@ -61,6 +61,8 @@ export const AGENT_COLORS: Record<string, string> = {
   catalyst: '#ffcc00',  // gold/yellow
   aegis: '#6366f1',     // steel indigo
   viper: '#22c55e',     // venom green
+  hearth: '#f59e0b',    // warm orange (chef's egg / nutrition)
+  echo:   '#a78bfa',    // soft violet (wellbeing coach)
 };
 
 // ── Family Profiles ──
