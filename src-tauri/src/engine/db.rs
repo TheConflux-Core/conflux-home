@@ -3849,6 +3849,12 @@ impl EngineDb {
         Ok(())
     }
 
+    pub fn delete_meal_sync(&self, id: &str) -> Result<()> {
+        let conn = self.conn_blocking();
+        conn.execute("DELETE FROM meals WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
     pub async fn update_meal_photo(&self, id: &str, photo_url: &str) -> Result<()> {
         let conn = self.conn_async().await;
         conn.execute(

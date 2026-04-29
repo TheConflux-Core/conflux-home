@@ -517,6 +517,7 @@ pub async fn execute_tool_for_user(
         "kitchen_get_inventory" => execute_kitchen_get_inventory(args),
         "kitchen_get_meal" => execute_kitchen_get_meal(args),
         "kitchen_toggle_favorite" => execute_kitchen_toggle_favorite(args),
+        "kitchen_delete_meal" => execute_kitchen_delete_meal(args),
         "kitchen_add_ingredient" => execute_kitchen_add_ingredient(args),
         "kitchen_clear_week_plan" => execute_kitchen_clear_week_plan(args),
         "kitchen_generate_grocery" => execute_kitchen_generate_grocery(args),
@@ -1518,6 +1519,20 @@ pub fn get_app_tool_definitions() -> Vec<Value> {
                     "properties": {
                         "id": { "type": "string", "description": "Meal UUID" },
                         "name": { "type": "string", "description": "Meal name (case-insensitive lookup)" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "kitchen_delete_meal",
+                "description": "Delete a meal from the kitchen menu permanently by id or name.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string", "description": "Meal UUID (optional if name provided)" },
+                        "name": { "type": "string", "description": "Meal name to look up and delete (case-insensitive)" }
                     }
                 }
             }
@@ -5302,6 +5317,62 @@ fn execute_kitchen_add_ingredient(args: &Value) -> Result<ToolResult> {
     }
 }
 
+/// Delete a meal from the kitchen by id or name.
+fn execute_kitchen_delete_meal(args: &Value) -> Result<ToolResult> {
+    let id = args.get("id").and_then(|v| v.as_str()).unwrap_or("");
+    let name = args.get("name").and_then(|v| v.as_str()).unwrap_or("");
+    if id.is_empty() && name.is_empty() {
+        return Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some("Either id or name is required".into()),
+        });
+    }
+
+    let engine = super::get_engine();
+    let meal_id = if !id.is_empty() {
+        id.to_string()
+    } else {
+        let meals = match tokio::task::block_in_place(|| {
+            engine.db().get_meals_sync(None, None, false)
+        }) {
+            Ok(m) => m,
+            Err(e) => {
+                return Ok(ToolResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some(e.to_string()),
+                });
+            }
+        };
+        match meals.iter().find(|m| m.name.to_lowercase() == name.to_lowercase()) {
+            Some(m) => m.id.clone(),
+            None => {
+                return Ok(ToolResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some(format!("Meal '{}' not found", name)),
+                });
+            }
+        }
+    };
+
+    match tokio::task::block_in_place(|| {
+        engine.db().delete_meal_sync(&meal_id)
+    }) {
+        Ok(()) => Ok(ToolResult {
+            success: true,
+            output: format!("Deleted meal {}", meal_id),
+            error: None,
+        }),
+        Err(e) => Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
 fn execute_kitchen_clear_week_plan(args: &Value) -> Result<ToolResult> {
     let week_start = args
         .get("week_start")
@@ -6766,7 +6837,7 @@ fn execute_life_add_task(args: &Value) -> Result<ToolResult> {
     match tokio::task::block_in_place(|| {
         engine.db().add_life_task_sync(
             &id,
-            "NULL",
+            "",   // empty member_id — no family member linked
             title,
             category,
             priority,
