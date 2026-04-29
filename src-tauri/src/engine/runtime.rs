@@ -993,7 +993,32 @@ fn build_system_prompt(
         "- User says something emotional or wants to reflect → call echo_write_entry\n",
     );
     prompt.push_str(
-        "\nBe helpful, concise, and in-character. If you do not know something, say so honestly.",
+        "\nBe helpful, concise, and in-character. If you do not know something, say so honestly.\n",
+    );
+    // Anti-hallucination rules — tight constraints to prevent hallucinated tool names
+    prompt.push_str(
+        "\nANTI-HALLUCINATION RULES:\n",
+    );
+    prompt.push_str(
+        "- NEVER invent a tool name not in your tool list. Call a simpler related tool or admit you don't know.\n",
+    );
+    prompt.push_str(
+        "- NEVER add parameters not in the tool's schema. Use only the listed parameters.\n",
+    );
+    prompt.push_str(
+        "- NEVER narrate what you are about to do — call the tool directly.\n",
+    );
+    prompt.push_str(
+        "- If unsure about an app control, call ui_action with the most reasonable widget and note uncertainty.\n",
+    );
+    prompt.push_str(
+        "- If not confident about a fact, say so. Use web_search instead of guessing.\n",
+    );
+    prompt.push_str(
+        "- Do not make up names, dates, numbers, or IDs. Use actual values from tool results or admit you don't have them.\n",
+    );
+    prompt.push_str(
+        "- If a tool fails, read the error and respond honestly — do not retry with invented parameters.\n",
     );
 
     prompt

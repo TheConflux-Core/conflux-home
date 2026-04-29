@@ -97,13 +97,45 @@ impl ToolSelector {
         let message_lower = user_message.to_lowercase();
         let words = extract_words(&message_lower);
         
+        // ── Intent Classification ──
+        // Fast keyword router: detect what the user is trying to DO.
+        // Boost tools of the matching intent type.
+        let add_intent = words.contains("add") || words.contains("create") || words.contains("new") || words.contains("set") || words.contains("log") || words.contains("track") || words.contains("save") || message_lower.contains("i want to") || message_lower.contains("i'd like") || message_lower.contains("add a") || message_lower.contains("set a");
+        let view_intent = words.contains("show") || words.contains("view") || words.contains("see") || words.contains("get") || words.contains("list") || words.contains("check") || words.contains("what") || words.contains("how") || message_lower.contains("what's") || message_lower.contains("what is") || message_lower.contains("show me") || message_lower.contains("can i see");
+        let delete_intent = words.contains("delete") || words.contains("remove") || words.contains("clear") || words.contains("cancel") || message_lower.contains("get rid of") || message_lower.contains("take off");
+        let edit_intent = words.contains("change") || words.contains("update") || words.contains("edit") || words.contains("rename") || words.contains("modify") || message_lower.contains("switch to") || message_lower.contains("set to");
+        let do_intent = message_lower.contains("i spent") || message_lower.contains("i bought") || message_lower.contains("i earned") || message_lower.contains("i worked") || message_lower.contains("i exercised") || words.contains("spent") || words.contains("bought") || words.contains("earned") || words.contains("worked out");
+        
         // Score each tool
         let mut scores: Vec<(usize, f32)> = self.metas.iter().enumerate().map(|(i, meta)| {
             let mut score = meta.priority as f32;
 
+            // ── Intent matching (most important routing signal) ──
+            let name_lower = &meta.name;
+            
+            // "Add" intent → boost add/create tools
+            if add_intent && (name_lower.contains("_add_") || name_lower.ends_with("_add") || name_lower.contains("_create") || name_lower.ends_with("_log")) {
+                score += 25.0;
+            }
+            // "View" intent → boost get/list tools
+            if view_intent && (name_lower.contains("_get_") || name_lower.contains("_list_") || name_lower.ends_with("_get") || name_lower.ends_with("_list") || name_lower.ends_with("_dashboard") || name_lower.ends_with("_overview")) {
+                score += 25.0;
+            }
+            // "Do" intent → boost add/execute tools (spending, tracking, logging)
+            if do_intent && (name_lower.contains("_add_") || name_lower.contains("_execute") || name_lower.ends_with("_add") || name_lower.ends_with("_log") || name_lower.contains("_complete")) {
+                score += 20.0;
+            }
+            // "Edit" intent → boost update tools
+            if edit_intent && (name_lower.contains("_update") || name_lower.contains("_edit") || name_lower.contains("_complete") || name_lower.contains("_toggle")) {
+                score += 20.0;
+            }
+            // "Delete" intent → boost delete tools
+            if delete_intent && (name_lower.contains("_delete") || name_lower.contains("_remove")) {
+                score += 25.0;
+            }
+
             // 1. Direct name match (strongest signal)
-            let name_lower = meta.name.to_lowercase();
-            if message_lower.contains(&name_lower) {
+            if message_lower.contains(name_lower) {
                 score += 50.0;
             }
             // Partial name match (e.g., "meal" matches "kitchen_add_meal")

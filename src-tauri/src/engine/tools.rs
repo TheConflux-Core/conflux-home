@@ -811,13 +811,13 @@ pub fn get_integration_tool_definitions() -> Vec<Value> {
             "type": "function",
             "function": {
                 "name": "ui_action",
-                "description": "Change any UI element in Conflux Home — theme, accent color, wallpaper, sidebar, active app, or any setting. The frontend interprets this and applies the change live. Example: Conflux can change the app theme by calling this with widget='theme' and value='dark'.",
+                "description": "Change any UI element in Conflux Home. Controls: theme/dark/light/system, accentColor (blue/purple/green/orange/pink/cyan), wallpaper URL, sidebar toggle/open/close, activeApp view name (dashboard/kitchen/budget/life/dreams/echo/vault/home), chat open/close/toggle, voiceChat toggle/open/close, controlRoom toggle/open/close, immersiveApp app name, exitImmersive, pushToTalk toggle/start/stop, barVersion v1/v2, chatExpanded expand/collapse/toggle.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "widget": { "type": "string", "description": "Widget path (e.g., 'theme', 'accentColor', 'wallpaper', 'sidebar', 'activeApp')" },
-                        "action": { "type": "string", "description": "Action: 'set' (default), 'toggle', 'increment', 'decrement'" },
-                        "value": { "type": "any", "description": "New value for the widget (e.g., 'dark', 'blue', 'true', '/wallpapers/wallpaper-dark.webp')" }
+                        "widget": { "type": "string", "description": "Widget path (e.g., 'theme', 'accentColor', 'wallpaper', 'sidebar', 'activeApp', 'chat', 'voiceChat', 'controlRoom', 'immersiveApp', 'exitImmersive', 'pushToTalk', 'barVersion', 'confluxBar', 'chatExpanded')" },
+                        "action": { "type": "string", "description": "Action: 'set' (default), 'toggle', 'open', 'close', 'start', 'stop', 'expand', 'collapse', 'increment', 'decrement'" },
+                        "value": { "type": "any", "description": "New value for the widget (e.g., 'dark', 'blue', '/wallpapers/wallpaper-dark.webp', 'kitchen', 'v2')" }
                     },
                     "required": ["widget"]
                 }
