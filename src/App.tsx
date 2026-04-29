@@ -75,7 +75,7 @@ import { useSubscription } from './hooks/useSubscription';
 import { AuthProvider } from './contexts/AuthContext';
 import { useStoryGames, useStoryGame, useStorySeeds } from './hooks/useStoryGame';
 import { useLearningProgress, useLearningGoals } from './hooks/useLearning';
-import { initTheme, getSavedWallpaper, getSavedColorTheme, BASE_THEMES, COLOR_THEMES } from './lib/theme';
+import { initTheme, getSavedWallpaper, getSavedColorTheme, BASE_THEMES, COLOR_THEMES, applyTheme, saveTheme, applyAccent, saveAccent, applyColorTheme, saveColorTheme } from './lib/theme';
 import { registerShortcuts } from './lib/shortcuts';
 import { trackEvent } from './lib/telemetry';
 import './styles/animations.css';
@@ -269,11 +269,27 @@ export default function App() {
       switch (widget) {
         case 'theme':
           // value: 'light', 'dark', 'system'
-          applyTheme(value ?? 'dark');
+          if (value) {
+            const themeVal = value === 'system' ? 'dark' : value; // system maps to dark per initTheme()
+            applyTheme(themeVal as 'light' | 'dark');
+            saveTheme(themeVal as any);
+          }
           break;
         case 'accentColor':
-          // value: 'blue', 'purple', 'green', 'orange', 'pink', 'cyan'
-          if (value) applyAccent(value);
+          // value: 'blue', 'purple', 'green', 'orange', 'pink', 'cyan', or theme name like 'viper'
+          if (value) {
+            const v = value as string;
+            // Check if it's a known accent color
+            const knownAccents: string[] = ['blue', 'purple', 'green', 'orange', 'pink', 'cyan'];
+            if (knownAccents.includes(v)) {
+              applyAccent(v as any);
+              saveAccent(v as any);
+            } else {
+              // Treat as a color theme name (e.g., 'viper' → green accent)
+              applyColorTheme(v);
+              saveColorTheme(v);
+            }
+          }
           break;
         case 'wallpaper':
           // value: wallpaper URL string
