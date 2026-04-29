@@ -196,6 +196,11 @@ pub async fn start_stream(
 
     let (audio_tx, mut audio_rx) = mpsc::unbounded_channel::<StreamMessage>();
 
+    // Shared state: accumulated transcript text updated by recv_task, read by send_task
+    let accumulated_text = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    let accumulated_text_send = accumulated_text.clone();
+    let accumulated_text_recv = accumulated_text.clone();
+
     // ── Incoming Messages (Transcripts) ───────────────────────────────────
     let window_clone = window.clone();
     let accumulated_text_clone = accumulated_text_recv;
@@ -283,11 +288,6 @@ pub async fn start_stream(
     });
 
     // ── Outgoing Messages (Audio) ────────────────────────────────────────
-    // Shared state: accumulated transcript text updated by recv_task, read by send_task
-    let accumulated_text = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
-    let accumulated_text_send = accumulated_text.clone();
-    let accumulated_text_recv = accumulated_text.clone();
-
     let send_task = tokio::spawn(async move {
         while let Some(msg) = audio_rx.recv().await {
             match msg {
