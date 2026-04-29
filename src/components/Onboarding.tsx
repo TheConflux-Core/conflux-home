@@ -34,8 +34,8 @@ interface OnboardingProps {
 // Conflux voice = ELEVENLABS_VOICE_ID from .env (TvxTBL9RtGW6tVhl4NoI)
 const AGENT_VOICE_IDS: Record<string, string> = {
   conflux: 'TvxTBL9RtGW6tVhl4NoI', // From .env ELEVENLABS_VOICE_ID
-  helix:   'USEXQnsXRJlw2k9LUzG4',
-  pulse:   'auq43ws1oslv0tO4BDa7',
+  helix:   'NQMJRVvPew6HsaebYnZj',
+  pulse:   'iLVmqjzCGGvqtMCk6vVQ',
   hearth:  'W7iR5kTNHozpIl2Jqq15',
   echo:    'EST9Ui6982FZPSi7gCHi',
   aegis:   'WtA85syCrJwasGeHGH2p',
@@ -63,7 +63,7 @@ const KEY_PLAYERS: KeyPlayer[] = [
     color: '#00d4ff',
     tagline: 'Your co-founder who never sleeps.',
     voiceLine: 'Online. Ready to build.',
-    delay: 600,
+    delay: 800,
     narrative: 'I\'m the one who brought us all together.',
   },
   {
@@ -73,7 +73,7 @@ const KEY_PLAYERS: KeyPlayer[] = [
     color: '#00cc88',
     tagline: 'Research at the speed of thought.',
     voiceLine: 'I find the signal in the noise.',
-    delay: 3000,
+    delay: 4000,
     narrative: 'Helix — my research powerhouse. Dives deeper than you thought possible.',
   },
   {
@@ -83,7 +83,7 @@ const KEY_PLAYERS: KeyPlayer[] = [
     color: '#10b981',
     tagline: 'Your financial heartbeat.',
     voiceLine: 'Let\'s make your money move smarter.',
-    delay: 5400,
+    delay: 6000,
     narrative: 'Pulse — your financial heartbeat. Knows your numbers better than you do.',
   },
   {
@@ -93,7 +93,7 @@ const KEY_PLAYERS: KeyPlayer[] = [
     color: '#f59e0b',
     tagline: 'Your personal nutritionist.',
     voiceLine: 'Good food. Good fuel. Let\'s cook.',
-    delay: 7800,
+    delay: 8000,
     narrative: 'Hearth — your personal nutritionist. Turns "what\'s for dinner" into a plan.',
   },
   {
@@ -103,7 +103,7 @@ const KEY_PLAYERS: KeyPlayer[] = [
     color: '#a78bfa',
     tagline: 'Your wellbeing coach.',
     voiceLine: 'I\'m here. However you\'re doing.',
-    delay: 10200,
+    delay: 11000,
     narrative: 'Echo — your wellbeing coach. Checks in on the human behind the screen.',
   },
 ];
@@ -117,7 +117,7 @@ const PROTECTORS: KeyPlayer[] = [
     color: '#6366f1',
     tagline: 'I watch the walls.',
     voiceLine: 'Your fortress is my responsibility.',
-    delay: 12200,
+    delay: 14000,
     narrative: 'And these two? They protect everything.',
   },
   {
@@ -127,7 +127,7 @@ const PROTECTORS: KeyPlayer[] = [
     color: '#22c55e',
     tagline: 'I find the cracks.',
     voiceLine: 'I break things so nothing breaks you.',
-    delay: 12200,
+    delay: 14000,
     narrative: 'Aegis watches the walls. Viper finds the cracks before anyone else does.',
   },
 ];
@@ -525,6 +525,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [visibleAgents, setVisibleAgents] = useState<Set<string>>(new Set());
   const [showProtectors, setShowProtectors] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [narrationStarted, setNarrationStarted] = useState(false);
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const narrationTimerRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -567,7 +568,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   }, [stopAudio]);
 
   // ── Play base64 MP3 audio via Web Audio API ──
-  const playBase64Audio = useCallback((base64: string): Promise<void> => {
+  const playBase64Audio = useCallback((base64: string, opts?: { onstart?: () => void }): Promise<void> => {
     stopAudio(); // stop any existing playback
     return new Promise((resolve, reject) => {
       if (!audioContextRef.current) {
@@ -588,6 +589,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           resolve();
         };
         source.start(0);
+        opts?.onstart?.();
       }).catch(reject);
     });
   }, [stopAudio]);
@@ -626,14 +628,18 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const speakNarration = useCallback(async () => {
     const text = getNarrationScript(userName);
     setIsSpeaking(true);
+    setNarrationStarted(false); // ensure clean state
     try {
       const result = await invoke<{ audio_base64: string }>('tts_speak', {
         text,
         voice: AGENT_VOICE_IDS.conflux,
       });
-      await playBase64Audio(result.audio_base64);
+      await playBase64Audio(result.audio_base64, {
+        onstart: () => setNarrationStarted(true),
+      });
     } catch (err) {
       console.warn('[Onboarding] TTS failed (non-fatal):', err);
+      setNarrationStarted(true); // still start agents on error
     } finally {
       setIsSpeaking(false);
     }
@@ -659,15 +665,25 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     if (savedName) setUserName(savedName);
   }, []);
 
-  // ── Step 1: Start narration + staggered agent appearances ──
+  // ── Step 1: Start Conflux narration ──
   useEffect(() => {
     if (step !== 1) return;
 
     playNarrationSignal();
-    // Start TTS narration
-    speakNarration();
+    speakNarration(); // triggers setNarrationStarted when audio begins
 
-    // Stagger agent card appearances
+    return () => {
+      // Cleanup: stop any pending agent timers when leaving step
+      narrationTimerRef.current.forEach(clearTimeout);
+      narrationTimerRef.current = [];
+      setNarrationStarted(false);
+    };
+  }, [step, speakNarration]);
+
+  // ── Step 1: Stagger agent card appearances (triggered when narration audio starts) ──
+  useEffect(() => {
+    if (step !== 1 || !narrationStarted) return;
+
     const allPlayers = [...KEY_PLAYERS, ...PROTECTORS];
     allPlayers.forEach(player => {
       const timer = setTimeout(() => {
@@ -681,14 +697,14 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     const protectorTimer = setTimeout(() => {
       setShowProtectors(true);
       playTeamAliveNew(); // celebratory chime when protectors arrive
-    }, 13200);
+    }, 15000);
     narrationTimerRef.current.push(protectorTimer);
 
     return () => {
       narrationTimerRef.current.forEach(clearTimeout);
       narrationTimerRef.current = [];
     };
-  }, [step, speakNarration]);
+  }, [step, narrationStarted]);
 
   // ── Audio cleanup ──
   // Stop any voice playback when leaving the team-intro step (or unmounting)
