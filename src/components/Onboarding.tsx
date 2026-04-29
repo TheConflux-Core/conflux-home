@@ -63,7 +63,7 @@ const KEY_PLAYERS: KeyPlayer[] = [
     color: '#00d4ff',
     tagline: 'Your co-founder who never sleeps.',
     voiceLine: 'Online. Ready to build.',
-    delay: 800,
+    delay: 1100,
     narrative: 'I\'m the one who brought us all together.',
   },
   {
@@ -73,7 +73,7 @@ const KEY_PLAYERS: KeyPlayer[] = [
     color: '#00cc88',
     tagline: 'Research at the speed of thought.',
     voiceLine: 'I find the signal in the noise.',
-    delay: 4000,
+    delay: 4300,
     narrative: 'Helix — my research powerhouse. Dives deeper than you thought possible.',
   },
   {
@@ -83,7 +83,7 @@ const KEY_PLAYERS: KeyPlayer[] = [
     color: '#10b981',
     tagline: 'Your financial heartbeat.',
     voiceLine: 'Let\'s make your money move smarter.',
-    delay: 6000,
+    delay: 6300,
     narrative: 'Pulse — your financial heartbeat. Knows your numbers better than you do.',
   },
   {
@@ -93,7 +93,7 @@ const KEY_PLAYERS: KeyPlayer[] = [
     color: '#f59e0b',
     tagline: 'Your personal nutritionist.',
     voiceLine: 'Good food. Good fuel. Let\'s cook.',
-    delay: 8000,
+    delay: 8300,
     narrative: 'Hearth — your personal nutritionist. Turns "what\'s for dinner" into a plan.',
   },
   {
@@ -103,7 +103,7 @@ const KEY_PLAYERS: KeyPlayer[] = [
     color: '#a78bfa',
     tagline: 'Your wellbeing coach.',
     voiceLine: 'I\'m here. However you\'re doing.',
-    delay: 11000,
+    delay: 11300,
     narrative: 'Echo — your wellbeing coach. Checks in on the human behind the screen.',
   },
 ];
@@ -117,7 +117,7 @@ const PROTECTORS: KeyPlayer[] = [
     color: '#6366f1',
     tagline: 'I watch the walls.',
     voiceLine: 'Your fortress is my responsibility.',
-    delay: 14000,
+    delay: 14300,
     narrative: 'And these two? They protect everything.',
   },
   {
@@ -127,7 +127,7 @@ const PROTECTORS: KeyPlayer[] = [
     color: '#22c55e',
     tagline: 'I find the cracks.',
     voiceLine: 'I break things so nothing breaks you.',
-    delay: 14000,
+    delay: 14300,
     narrative: 'Aegis watches the walls. Viper finds the cracks before anyone else does.',
   },
 ];
@@ -697,7 +697,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     const protectorTimer = setTimeout(() => {
       setShowProtectors(true);
       playTeamAliveNew(); // celebratory chime when protectors arrive
-    }, 15000);
+    }, 15300);
     narrationTimerRef.current.push(protectorTimer);
 
     return () => {
@@ -898,8 +898,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       {/* Neural brain pulsing during narration */}
       <div style={{ position: 'absolute', top: -100, left: '50%', transform: 'translateX(-50%)', zIndex: 0 }}>
         <NeuralBrainScene
-          command={isSpeaking ? COMMANDS[3] : COMMANDS[1]}
-          pulseImpulse={isSpeaking ? 20 : 8}
+          command={narrationStarted ? COMMANDS[3] : COMMANDS[1]}
+          pulseImpulse={narrationStarted ? 20 : 8}
           transparent={true}
         />
       </div>
