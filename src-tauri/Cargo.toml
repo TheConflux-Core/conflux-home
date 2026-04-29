@@ -57,7 +57,7 @@ dirs = "6.0.0"
 # Voice Engine — desktop only (cpal for capture, ElevenLabs for STT/TTS)
 [target.'cfg(not(target_os = "android"))'.dependencies]
 cpal = "0.15"
-# Removed whisper-rs, piper-rs, and hound to avoid ort-sys linker conflicts and remove unused local processing
+hound = "3.5"
 
 # imap = "2"                                              # TODO: Add when OpenSSL available
 # native-tls = "0.2"                                      # TODO: Add when OpenSSL available
