@@ -227,17 +227,16 @@ pub fn start_recording(window: Window) -> Result<String, String> {
                 }
 
                 // Send audio data to ElevenLabs stream sender
-                // Convert f32 samples to 16-bit PCM bytes for ElevenLabs
+                // Convert f32 samples to 16-bit PCM and send as Vec<i16>
                 if let Some(tx) = ELEVENLABS_SENDER.lock().ok().and_then(|s| s.clone()) {
-                    let pcm_bytes: Vec<u8> = resampled
+                    let pcm_samples: Vec<i16> = resampled
                         .iter()
-                        .flat_map(|&s| {
+                        .map(|&s| {
                             let clamped = s.max(-1.0).min(1.0);
-                            let i16_val = (clamped * i16::MAX as f32) as i16;
-                            i16_val.to_le_bytes()
+                            (clamped * i16::MAX as f32) as i16
                         })
                         .collect();
-                    let _ = tx.send(StreamMessage::Audio(pcm_bytes));
+                    let _ = tx.send(StreamMessage::Audio(pcm_samples));
                 }
             },
             |err| {
