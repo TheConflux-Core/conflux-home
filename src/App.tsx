@@ -259,13 +259,49 @@ export default function App() {
       setWallpaper(detail);
     };
 
+    const onUiAction = (e: Event) => {
+      const { widget, action, value } = (e as CustomEvent).detail as {
+        widget: string;
+        action: string;
+        value: any;
+      };
+      console.log('[App] UI action:', widget, action, value);
+      switch (widget) {
+        case 'theme':
+          // value: 'light', 'dark', 'system'
+          applyTheme(value ?? 'dark');
+          break;
+        case 'accentColor':
+          // value: 'blue', 'purple', 'green', 'orange', 'pink', 'cyan'
+          if (value) applyAccent(value);
+          break;
+        case 'wallpaper':
+          // value: wallpaper URL string
+          if (value) setWallpaper(value);
+          break;
+        case 'sidebar':
+          // action: 'toggle' | 'set', value: boolean
+          if (action === 'toggle') setSidebarCollapsed(prev => !prev);
+          else if (typeof value === 'boolean') setSidebarCollapsed(value);
+          break;
+        case 'activeApp':
+          // value: view name string
+          if (value) setView(value as View);
+          break;
+        default:
+          console.log('[App] Unknown ui_action widget:', widget);
+      }
+    };
+
     window.addEventListener('conflux:theme-change', onThemeChange);
     window.addEventListener('conflux:accent-change', onAccentChange);
     window.addEventListener('conflux:wallpaper-change', onWallpaperChange);
+    window.addEventListener('conflux:ui-action', onUiAction);
     return () => {
       window.removeEventListener('conflux:theme-change', onThemeChange);
       window.removeEventListener('conflux:accent-change', onAccentChange);
       window.removeEventListener('conflux:wallpaper-change', onWallpaperChange);
+      window.removeEventListener('conflux:ui-action', onUiAction);
     };
   }, []);
 
@@ -286,6 +322,7 @@ export default function App() {
         try {
           const profile = await invoke<any>('get_user_profile');
           if (cancelled) return;
+          console.log('[App] get_user_profile returned:', JSON.stringify(profile));
           if (profile?.onboarded) {
             setIsOnboarded(true);
             if (profile.name) setUserName(profile.name);
@@ -516,13 +553,18 @@ export default function App() {
     setShowBrief(false);
   }, []);
   const [userName, setUserName] = useState(() => localStorage.getItem('conflux-name') || 'there');
+  // Keep in sync with AgentsView DEFAULT_ACTIVE_AGENTS
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>(() => {
     try {
       const stored = localStorage.getItem('conflux-selected-agents');
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    // Fresh install or empty — use same defaults as AgentsView so Desktop
+    // renders with the right agents while AgentsView boots async
+    return ['conflux', 'helix', 'pulse', 'aegis', 'viper'];
   });
 
   // Listen for agent selection changes from AgentsView
@@ -961,8 +1003,12 @@ const [activeSnake, setActiveSnake] = useState(false);
   }
 
   // ── Gate: Onboarding ──
+          console.log('[App] Gate check — isOnboarded:', isOnboarded, '| authLoading:', authLoading, '| loaded:', loaded);
   if (!isOnboarded) {
+    console.log('[App] → Rendering Onboarding (isOnboarded=false)');
     return <Onboarding onComplete={handleOnboardingComplete} />;
+  } else {
+    console.log('[App] → Skipping Onboarding (isOnboarded=true)');
   }
 
   // ── Gate: Welcome overlay ──

@@ -1,6 +1,6 @@
 // Conflux Home — Kitchen View (Hearth Overhaul)
 import { playSuccess } from '../lib/sound';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
 import { useState, useCallback, useEffect, useMemo, useTransition } from 'react';
@@ -381,11 +381,12 @@ export default function KitchenView() {
               <div className="meal-detail-photo">
                 {selectedMeal.photo_url ? (
                   <img
-                    src={selectedMeal.photo_url}
+                    src={convertFileSrc(selectedMeal.photo_url)}
                     alt={selectedMeal.name}
                     className="meal-detail-img"
                     onError={(e) => {
                       const target = e.currentTarget;
+                      console.error('[KitchenView] Photo failed to load:', convertFileSrc(selectedMeal.photo_url), target.error);
                       target.style.display = 'none';
                       const parent = target.parentElement;
                       if (parent) {
@@ -407,16 +408,20 @@ export default function KitchenView() {
                   className="replace-photo-btn"
                   onClick={async () => {
                     try {
+                      console.log('[KitchenView] Replace photo clicked, opening dialog...');
                       const selected = await open({
                         multiple: false,
                         filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif'] }],
                       });
+                      console.log('[KitchenView] Dialog returned:', selected, typeof selected);
                       if (selected && typeof selected === 'string') {
                         // Upload the file — in this app we store the file path as photo_url
                         // For cross-platform compatibility, we copy to app data directory
+                        console.log('[KitchenView] Calling kitchen_update_meal_photo for meal:', selectedMeal.id, '→', selected);
                         await invoke('kitchen_update_meal_photo', {
-                          meal_id: selectedMeal.id, photo_url: selected,
+                          mealId: selectedMeal.id, photoUrl: selected,
                         });
+                        console.log('[KitchenView] kitchen_update_meal_photo succeeded');
                         // Reload meals to get updated photo_url
                         await reloadMeals();
                         // Update the selected meal in state
@@ -435,7 +440,7 @@ export default function KitchenView() {
                     onClick={async () => {
                       try {
                         await invoke('kitchen_update_meal_photo', {
-                          meal_id: selectedMeal.id, photo_url: '',
+                          mealId: selectedMeal.id, photoUrl: '',
                         });
                         await reloadMeals();
                         setSelectedMeal((prev: Meal | null) => prev ? { ...prev, photo_url: null } : prev);
