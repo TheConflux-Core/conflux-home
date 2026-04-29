@@ -6,7 +6,6 @@ import {
   playBootUp,
   playTourBlip,
   playTeamAlive,
-  playTeamAliveNew,
 } from '../lib/sound';
 import {
   playNarrationSignal,
@@ -15,6 +14,7 @@ import {
   playLogoReveal,
   playBuildComplete,
   playVoiceClick,
+  playTeamAliveNew,
 } from '../lib/onboarding-sounds';
 import { NeuralBrainScene } from './NeuralBrainScene';
 import { COMMANDS } from '../lib/neuralBrain';
