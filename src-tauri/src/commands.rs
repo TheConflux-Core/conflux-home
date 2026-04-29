@@ -7852,11 +7852,19 @@ pub async fn tts_speak(text: String, voice: Option<String>) -> Result<serde_json
         return Err("ElevenLabs API key not configured.".to_string());
     }
 
-    // Map voice name → ElevenLabs voice ID
+    // Map agent name → ElevenLabs voice ID
+    // Configured by Don on 2026-04-29
+    // Conflux voice = ELEVENLABS_VOICE_ID from .env (TvxTBL9RtGW6tVhl4NoI)
     let voice_id = match voice.as_deref() {
-        Some("Conflux") | Some("conflux") => "JBFqnCBsd6RMkjVDRZzb", // George
-        Some(id) => id,
-        None => "JBFqnCBsd6RMkjVDRZzb",
+        Some("Conflux") | Some("conflux") => "TvxTBL9RtGW6tVhl4NoI", // From .env ELEVENLABS_VOICE_ID
+        Some("Helix") | Some("helix") => "USEXQnsXRJlw2k9LUzG4",
+        Some("Pulse") | Some("pulse") => "auq43ws1oslv0tO4BDa7",
+        Some("Hearth") | Some("hearth") => "W7iR5kTNHozpIl2Jqq15",
+        Some("Echo") | Some("echo") => "EST9Ui6982FZPSi7gCHi",
+        Some("Aegis") | Some("aegis") => "WtA85syCrJwasGeHGH2p",
+        Some("Viper") | Some("viper") => "Mtmp3KhFIjYpWYRycDe3",
+        Some(id) => id, // Pass through raw voice ID if not a known agent
+        None => "TvxTBL9RtGW6tVhl4NoI", // Default: Conflux voice from .env
     };
 
     let client = reqwest::Client::new();

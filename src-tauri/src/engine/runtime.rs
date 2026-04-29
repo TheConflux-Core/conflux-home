@@ -970,6 +970,30 @@ fn build_system_prompt(
         "\nAlways prefer searching the web for current information rather than guessing. Use the calculator for math.\n",
     );
     prompt.push_str(
+        "\nUI CONTROL: You can change the app's appearance using the ui_action tool. When the user asks to change the theme, set a color, or adjust the wallpaper — call ui_action with widget=\"theme\" value=\"dark\" (or \"light\"), widget=\"accentColor\" value=\"blue\" (or purple/green/orange/pink/cyan), widget=\"wallpaper\" value=\"/wallpapers/wallpaper-dark.webp\".\n",
+    );
+    prompt.push_str(
+        "\nINTENT MAPPING — call the right tool immediately, no narration:\n",
+    );
+    prompt.push_str(
+        "- User mentions a goal or dream → call dream_add\n",
+    );
+    prompt.push_str(
+        "- User mentions cooking or a meal → call kitchen_add_meal\n",
+    );
+    prompt.push_str(
+        "- User mentions spending money → call budget_add_entry\n",
+    );
+    prompt.push_str(
+        "- User mentions a task or to-do → call life_add_task\n",
+    );
+    prompt.push_str(
+        "- User asks to change app theme/appearance → call ui_action\n",
+    );
+    prompt.push_str(
+        "- User says something emotional or wants to reflect → call echo_write_entry\n",
+    );
+    prompt.push_str(
         "\nBe helpful, concise, and in-character. If you do not know something, say so honestly.",
     );
 
