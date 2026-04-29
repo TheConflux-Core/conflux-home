@@ -73,7 +73,7 @@ const KEY_PLAYERS: KeyPlayer[] = [
     color: '#00cc88',
     tagline: 'Research at the speed of thought.',
     voiceLine: 'I find the signal in the noise.',
-    delay: 2200,
+    delay: 3000,
     narrative: 'Helix — my research powerhouse. Dives deeper than you thought possible.',
   },
   {
@@ -83,7 +83,7 @@ const KEY_PLAYERS: KeyPlayer[] = [
     color: '#10b981',
     tagline: 'Your financial heartbeat.',
     voiceLine: 'Let\'s make your money move smarter.',
-    delay: 3800,
+    delay: 5400,
     narrative: 'Pulse — your financial heartbeat. Knows your numbers better than you do.',
   },
   {
@@ -93,7 +93,7 @@ const KEY_PLAYERS: KeyPlayer[] = [
     color: '#f59e0b',
     tagline: 'Your personal nutritionist.',
     voiceLine: 'Good food. Good fuel. Let\'s cook.',
-    delay: 5400,
+    delay: 7800,
     narrative: 'Hearth — your personal nutritionist. Turns "what\'s for dinner" into a plan.',
   },
   {
@@ -103,7 +103,7 @@ const KEY_PLAYERS: KeyPlayer[] = [
     color: '#a78bfa',
     tagline: 'Your wellbeing coach.',
     voiceLine: 'I\'m here. However you\'re doing.',
-    delay: 7000,
+    delay: 10200,
     narrative: 'Echo — your wellbeing coach. Checks in on the human behind the screen.',
   },
 ];
@@ -117,7 +117,7 @@ const PROTECTORS: KeyPlayer[] = [
     color: '#6366f1',
     tagline: 'I watch the walls.',
     voiceLine: 'Your fortress is my responsibility.',
-    delay: 8800,
+    delay: 12200,
     narrative: 'And these two? They protect everything.',
   },
   {
@@ -127,7 +127,7 @@ const PROTECTORS: KeyPlayer[] = [
     color: '#22c55e',
     tagline: 'I find the cracks.',
     voiceLine: 'I break things so nothing breaks you.',
-    delay: 8800,
+    delay: 12200,
     narrative: 'Aegis watches the walls. Viper finds the cracks before anyone else does.',
   },
 ];
@@ -379,7 +379,7 @@ function AgentIntroCard({
   player,
   visible,
   isPlaying,
-  onPlayVoice,
+  onToggleVoice,
 }: {
   player: KeyPlayer;
   visible: boolean;
@@ -484,7 +484,7 @@ function AgentIntroCard({
       <motion.button
         whileHover={{ scale: 1.06 }}
         whileTap={{ scale: 0.95 }}
-        onClick={(e) => { e.stopPropagation(); onPlayVoice(); }}
+        onClick={(e) => { e.stopPropagation(); onToggleVoice(); }}
         style={{
           background: 'transparent',
           border: `1px solid ${player.color}44`,
@@ -612,6 +612,16 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     }
   }, [stopAudio, playBase64Audio]);
 
+  // Voice toggle — stop if same agent, speak if different
+  const handleVoiceToggle = useCallback((agentId: string, voiceLine: string) => {
+    if (playingVoiceId === agentId) {
+      stopAudio();
+    } else {
+      stopAudio();
+      speakWithVoice(voiceLine, agentId);
+    }
+  }, [playingVoiceId, stopAudio, speakWithVoice]);
+
   // ── Conflux narration (uses Conflux voice) ──
   const speakNarration = useCallback(async () => {
     const text = getNarrationScript(userName);
@@ -671,7 +681,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     const protectorTimer = setTimeout(() => {
       setShowProtectors(true);
       playTeamAliveNew(); // celebratory chime when protectors arrive
-    }, 8600);
+    }, 13200);
     narrationTimerRef.current.push(protectorTimer);
 
     return () => {
