@@ -817,7 +817,7 @@ pub fn get_integration_tool_definitions() -> Vec<Value> {
                     "properties": {
                         "widget": { "type": "string", "description": "Widget path (e.g., 'theme', 'accentColor', 'wallpaper', 'sidebar', 'activeApp', 'chat', 'voiceChat', 'controlRoom', 'immersiveApp', 'exitImmersive', 'pushToTalk', 'barVersion', 'confluxBar', 'chatExpanded')" },
                         "action": { "type": "string", "description": "Action: 'set' (default), 'toggle', 'open', 'close', 'start', 'stop', 'expand', 'collapse', 'increment', 'decrement'" },
-                        "value": { "type": "any", "description": "New value for the widget (e.g., 'dark', 'blue', '/wallpapers/wallpaper-dark.webp', 'kitchen', 'v2')" }
+                        "value": { "description": "New value for the widget (e.g., 'dark', 'blue', '/wallpapers/wallpaper-dark.webp', 'kitchen', 'v2', true, false)" }
                     },
                     "required": ["widget"]
                 }
