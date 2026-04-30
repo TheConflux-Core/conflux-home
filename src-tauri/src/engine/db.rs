@@ -8215,7 +8215,7 @@ pub fn studio_get_generations(
     let conn = get_conn();
     if let Some(m) = module {
         let mut stmt = conn.prepare(
-            "SELECT id, module, prompt, remix_of, model, provider, status, output_path, output_url, metadata_json, cost_cents, vault_file_id, created_at FROM studio_generations WHERE module = ?1 ORDER BY created_at DESC LIMIT ?2"
+            "SELECT id, module, prompt, remix_of, model, provider, status, output_path, output_url, metadata_json, cost_cents, vault_file_id, created_at, project_id FROM studio_generations WHERE module = ?1 ORDER BY created_at DESC LIMIT ?2"
         )?;
         let rows = stmt.query_map(params![m, limit], |row| {
             Ok(super::types::StudioGeneration {
@@ -8232,12 +8232,13 @@ pub fn studio_get_generations(
                 cost_cents: row.get(10)?,
                 vault_file_id: row.get(11)?,
                 created_at: row.get(12)?,
+                project_id: row.get(13)?,
             })
         })?;
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     } else {
         let mut stmt = conn.prepare(
-            "SELECT id, module, prompt, remix_of, model, provider, status, output_path, output_url, metadata_json, cost_cents, vault_file_id, created_at FROM studio_generations ORDER BY created_at DESC LIMIT ?1"
+            "SELECT id, module, prompt, remix_of, model, provider, status, output_path, output_url, metadata_json, cost_cents, vault_file_id, created_at, project_id FROM studio_generations ORDER BY created_at DESC LIMIT ?1"
         )?;
         let rows = stmt.query_map(params![limit], |row| {
             Ok(super::types::StudioGeneration {
@@ -8254,6 +8255,7 @@ pub fn studio_get_generations(
                 cost_cents: row.get(10)?,
                 vault_file_id: row.get(11)?,
                 created_at: row.get(12)?,
+                project_id: row.get(13)?,
             })
         })?;
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
@@ -8263,7 +8265,7 @@ pub fn studio_get_generations(
 pub fn studio_get_generation(id: &str) -> Result<Option<super::types::StudioGeneration>> {
     let conn = get_conn();
     let result = conn.query_row(
-        "SELECT id, module, prompt, remix_of, model, provider, status, output_path, output_url, metadata_json, cost_cents, vault_file_id, created_at FROM studio_generations WHERE id = ?1",
+        "SELECT id, module, prompt, remix_of, model, provider, status, output_path, output_url, metadata_json, cost_cents, vault_file_id, created_at, project_id FROM studio_generations WHERE id = ?1",
         params![id],
         |row| {
             Ok(super::types::StudioGeneration {
@@ -8280,6 +8282,7 @@ pub fn studio_get_generation(id: &str) -> Result<Option<super::types::StudioGene
                 cost_cents: row.get(10)?,
                 vault_file_id: row.get(11)?,
                 created_at: row.get(12)?,
+                project_id: row.get(13)?,
             })
         },
     );
@@ -8296,6 +8299,47 @@ pub fn studio_delete_generation(id: &str) -> Result<()> {
     Ok(())
 }
 
+// === Studio Projects ===
+
+/// Create a new Studio project (no-op if id already exists)
+pub fn studio_create_project(id: &str, name: &str) -> Result<()> {
+    let conn = get_conn();
+    conn.execute(
+        "INSERT OR IGNORE INTO projects (id, name) VALUES (?1, ?2)",
+        params![id, name],
+    )?;
+    Ok(())
+}
+
+/// Get all Studio projects (ascending by name)
+pub fn studio_get_projects() -> Result<Vec<super::types::StudioProject>> {
+    let conn = get_conn();
+    let mut stmt = conn.prepare(
+        "SELECT id, name, '' as path FROM projects ORDER BY name"
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok(super::types::StudioProject {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            path: row.get(2)?,
+        })
+    })?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+}
+
+/// Assign a generation to a project
+pub fn studio_set_generation_project(generation_id: &str, project_id: &str) -> Result<()> {
+    let conn = get_conn();
+    conn.execute(
+        "UPDATE studio_generations SET project_id = ?1 WHERE id = ?2",
+        params![project_id, generation_id],
+    )?;
+    Ok(())
+}
+
+// === Vault linking ===
+
+/// Link a vault file to a generation
 pub fn studio_link_vault_file(generation_id: &str, vault_file_id: &str) -> Result<()> {
     let conn = get_conn();
     conn.execute(

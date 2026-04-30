@@ -1499,6 +1499,7 @@ export interface StudioGeneration {
   metadata_json: string | null;
   cost_cents: number;
   vault_file_id: string | null;
+  project_id?: string;
   created_at: string;
 }
 

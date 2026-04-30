@@ -1861,6 +1861,16 @@ CREATE TABLE IF NOT EXISTS vault_file_tags (
 -- STUDIO — Creator Workspace
 -- ============================================================
 
+CREATE TABLE IF NOT EXISTS projects (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- Ensure default project always exists (idempotent)
+INSERT OR IGNORE INTO projects (id, name) VALUES ('default', 'Default');
+
 CREATE TABLE IF NOT EXISTS studio_generations (
     id              TEXT PRIMARY KEY,
     module          TEXT NOT NULL,        -- 'image' | 'video' | 'music' | 'voice' | 'code' | 'design'
@@ -1874,12 +1884,19 @@ CREATE TABLE IF NOT EXISTS studio_generations (
     metadata_json   TEXT,                 -- dimensions, duration, format, etc
     cost_cents      INTEGER NOT NULL DEFAULT 0,
     vault_file_id   TEXT,                 -- linked vault file
+    project_id      TEXT REFERENCES projects(id),
     created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_studio_gen_module ON studio_generations(module);
 CREATE INDEX IF NOT EXISTS idx_studio_gen_status ON studio_generations(status);
 CREATE INDEX IF NOT EXISTS idx_studio_gen_date ON studio_generations(created_at);
+CREATE INDEX IF NOT EXISTS idx_studio_gen_project ON studio_generations(project_id);
+
+-- Add project_id column to existing databases (no-op on fresh DB where column already exists in CREATE TABLE)
+ALTER TABLE studio_generations ADD COLUMN project_id TEXT REFERENCES projects(id);
+-- Backfill existing rows with 'default' project (safe to run every startup)
+UPDATE studio_generations SET project_id = 'default' WHERE project_id IS NULL;
 
 CREATE TABLE IF NOT EXISTS studio_prompts (
     id              TEXT PRIMARY KEY,

@@ -7504,6 +7504,21 @@ pub async fn studio_get_usage(
     engine::db::studio_get_usage(&user_id, &month).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub fn studio_create_project(id: String, name: String) -> Result<(), String> {
+    engine::db::studio_create_project(&id, &name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn studio_get_projects() -> Result<Vec<engine::types::StudioProject>, String> {
+    engine::db::studio_get_projects().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn studio_set_generation_project(generation_id: String, project_id: String) -> Result<(), String> {
+    engine::db::studio_set_generation_project(&generation_id, &project_id).map_err(|e| e.to_string())
+}
+
 // ── Studio: API Key Management ──
 
 #[tauri::command]

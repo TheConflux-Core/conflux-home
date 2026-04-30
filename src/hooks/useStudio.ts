@@ -92,6 +92,15 @@ export function useStudio() {
     }));
   }, []);
 
+  // Project assignment
+  const setGenerationProject = useCallback(async (generationId: string, projectId: string) => {
+    try {
+      await invoke('studio_set_generation_project', { generationId, projectId });
+    } catch (e) {
+      console.error('Failed to set generation project:', e);
+    }
+  }, []);
+
   // Generate with current settings
   const generate = useCallback(async () => {
     if (!prompt.trim() || isGenerating) return;
@@ -119,6 +128,12 @@ export function useStudio() {
         model: activeModule === 'image' ? 'dall-e-3' : activeModule === 'voice' ? 'eleven_multilingual_v2' : 'mock-model',
         provider: activeModule === 'image' ? 'openai' : activeModule === 'voice' ? 'elevenlabs' : 'mock',
       });
+      // Assign to current project
+      try {
+        await setGenerationProject(generationId, currentProject);
+      } catch (e) {
+        console.error('Failed to set generation project:', e);
+      }
     } catch (e) {
       console.error('Failed to create generation:', e);
       setIsGenerating(false);
@@ -237,6 +252,12 @@ export function useStudio() {
             provider: activeModule === 'image' ? 'openai' : activeModule === 'voice' ? 'elevenlabs' : 'mock',
           });
           batchIds.push(genId);
+          // Assign to current project
+          try {
+            await setGenerationProject(genId, currentProject);
+          } catch (e) {
+            console.error('Failed to set batch generation project:', e);
+          }
           return genId;
         } catch (e) {
           console.error('Failed to create batch generation:', e);
@@ -385,6 +406,7 @@ export function useStudio() {
     generateBatch,
     saveToVault,
     remix,
+    setGenerationProject,
     selectGeneration,
     deleteGeneration,
     loadHistory,
