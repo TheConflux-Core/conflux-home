@@ -969,7 +969,19 @@ fn build_system_prompt(
         "\nAlways prefer searching the web for current information rather than guessing. Use the calculator for math.\n",
     );
     prompt.push_str(
-        "\nUI CONTROL: You can change the app's appearance using the ui_action tool. When the user asks to change the theme, set a color, or adjust the wallpaper — call ui_action with widget=\"theme\" value=\"dark\" (or \"light\"), widget=\"accentColor\" value=\"blue\" (or purple/green/orange/pink/cyan), widget=\"wallpaper\" value=\"/wallpapers/wallpaper-dark.webp\".\n",
+        "\nUI CONTROL: You can change the app's appearance using the ui_action tool.\n",
+    );
+    prompt.push_str(
+        "Theme (widget=\"theme\"): use \"dark\" for dark mode, \"light\" for light mode, OR a color theme name (\"pulse\" for green/pulse theme, \"viper\" for green/viper theme) — color themes set the full visual style.\n",
+    );
+    prompt.push_str(
+        "Accent color (widget=\"accentColor\"): \"blue\", \"purple\", \"green\", \"orange\", \"pink\", or \"cyan\".\n",
+    );
+    prompt.push_str(
+        "Wallpaper (widget=\"wallpaper\"): URL to a wallpaper image.\n",
+    );
+    prompt.push_str(
+        "Active app (widget=\"activeApp\"): \"kitchen\", \"budget\", \"life\", \"dreams\", \"echo\", \"vault\", \"home\", \"dashboard\".\n",
     );
     prompt.push_str(
         "\nINTENT MAPPING — call the right tool immediately, no narration:\n",
