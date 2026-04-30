@@ -2637,8 +2637,9 @@ async fn execute_web_search(args: &Value) -> Result<ToolResult> {
 
     // Source 1: Weather — use wttr.in (free, no key needed)
     if is_weather_query(&query) {
-        if let Ok(weather) = fetch_weather(&query) {
-            results.push(format!("=== Current Weather ===\n{}", weather));
+        match fetch_weather(&query).await {
+            Ok(weather) => results.push(format!("=== Current Weather ===\n{}", weather)),
+            Err(e) => log::warn!("[tools] weather fetch failed: {}", e),
         }
     }
 
@@ -2682,8 +2683,9 @@ fn is_weather_query(query: &str) -> bool {
         || q.contains("degrees") || q.contains("°") || q.contains("°f") || q.contains("°c")
 }
 
-/// Fetch weather using wttr.in (free, no API key).
-fn fetch_weather(query: &str) -> Result<String> {
+/// Fetch weather using wttr.in (free, no API key). Uses async reqwest to avoid
+/// blocking runtime issues in the async context of execute_web_search.
+async fn fetch_weather(query: &str) -> Result<String> {
     // Extract location from query — strip common weather words
     let location = query
         .to_lowercase()
@@ -2702,12 +2704,12 @@ fn fetch_weather(query: &str) -> Result<String> {
         format!("https://wttr.in/{}?format=3", urlencoding::encode(&location))
     };
 
-    let client = reqwest::blocking::Client::builder()
+    let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(5))
         .build()?;
 
-    let resp = client.get(&url).send()?;
-    let body = resp.text()?;
+    let resp = client.get(&url).send().await?;
+    let body = resp.text().await?;
 
     // wttr.in format: "Location: 🌤 +72°F"
     if body.trim().is_empty() {
