@@ -92,6 +92,14 @@ export default function StudioGallery() {
     setLastSelectedId(null);
   };
 
+  const handleSelectAll = () => {
+    const allIds = filtered.map(g => g.id);
+    setSelectedIds(allIds);
+    if (allIds.length > 0) {
+      setLastSelectedId(allIds[allIds.length - 1]);
+    }
+  };
+
   // Bulk actions
   const handleBulkSave = async () => {
     if (selectedIds.length === 0) return;
@@ -197,6 +205,7 @@ export default function StudioGallery() {
             <span className="bulk-action-count">
               {selectedIds.length} selected
             </span>
+            <button className="bulk-action-btn select-all" onClick={handleSelectAll}>✅ Select All</button>
             <button className="bulk-action-btn save" onClick={handleBulkSave}>💾 Save to Vault</button>
             <button className="bulk-action-btn delete" onClick={handleBulkDelete}>🗑️ Delete</button>
             <button className="bulk-action-btn export" onClick={handleBulkExport}>📤 Export ZIP</button>
