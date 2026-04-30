@@ -7907,6 +7907,8 @@ pub async fn studio_generate_voice(
     generation_id: String,
     text: String,
     voice_id: Option<String>,
+    speed: Option<f64>,
+    stability: Option<f64>,
 ) -> Result<serde_json::Value, String> {
     let api_key = {
         let engine = engine::get_engine();
@@ -7977,8 +7979,9 @@ pub async fn studio_generate_voice(
             "text": text,
             "model_id": "eleven_multilingual_v2",
             "voice_settings": {
-                "stability": 0.5,
-                "similarity_boost": 0.75
+                "stability": stability.unwrap_or(0.5),
+                "similarity_boost": 0.75,
+                "speed": speed.unwrap_or(1.0)
             }
         }))
         .send()

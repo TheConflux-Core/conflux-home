@@ -268,11 +268,20 @@ export default function App() {
       console.log('[App] UI action:', widget, action, value);
       switch (widget) {
         case 'theme':
-          // value: 'light', 'dark', 'system'
+          // value: 'light', 'dark', 'system', OR a color theme name (pulse, viper, etc.)
           if (value) {
-            const themeVal = value === 'system' ? 'dark' : value; // system maps to dark per initTheme()
-            applyTheme(themeVal as 'light' | 'dark');
-            saveTheme(themeVal as any);
+            const v = value as string;
+            // Check if it's a color theme name (applyColorTheme handles wallpaper + CSS vars)
+            if (v !== 'light' && v !== 'dark' && v !== 'system') {
+              // It's a named color theme (pulse, viper, etc.)
+              applyColorTheme(v);
+              saveColorTheme(v);
+            } else {
+              // Base theme
+              const themeVal = v === 'system' ? 'dark' : v;
+              applyTheme(themeVal as 'light' | 'dark');
+              saveTheme(themeVal as any);
+            }
           }
           break;
         case 'accentColor':
