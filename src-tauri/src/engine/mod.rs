@@ -128,10 +128,15 @@ impl ConfluxEngine {
     /// Emit a Tauri event to all listeners.
     pub fn emit_tauri_event(&self, event: &str, payload: impl serde::Serialize + Clone) {
         use tauri::Emitter;
-        if let Some(handle) = self.app_handle.lock().unwrap().as_ref() {
-            if let Err(e) = handle.emit(event, payload) {
-                log::warn!("[Engine] Failed to emit {}: {}", event, e);
+        let handle_guard = self.app_handle.lock().unwrap();
+        if let Some(handle) = handle_guard.as_ref() {
+            log::info!("[Engine] Emitting Tauri event '{}', payload: {:?}", event, serde_json::to_string(&payload).unwrap_or_default());
+            match handle.emit(event, payload) {
+                Ok(()) => log::info!("[Engine] Tauri event '{}' emitted successfully", event),
+                Err(e) => log::warn!("[Engine] Failed to emit {}: {}", event, e),
             }
+        } else {
+            log::warn!("[Engine] Cannot emit Tauri event '{}' — app_handle not registered (engine startup incomplete)", event);
         }
     }
 
