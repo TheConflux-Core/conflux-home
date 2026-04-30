@@ -160,12 +160,29 @@ export default function IntelView() {
   const [loading, setLoading] = useState(true);
 
   // Load active agents from DB so INTEL always reflects the user's selection
-  const loadActiveAgents = async () => {
+  // On fresh launch this may fail while the engine initializes — show localStorage as fallback
+  const loadActiveAgents = async (retries = 3) => {
     try {
       const allAgents = await invoke<AgentFromDB[]>('engine_get_agents');
-      setActiveAgents(allAgents.filter(a => a.is_active));
+      const active = allAgents.filter(a => a.is_active);
+      setActiveAgents(active);
+      // Sync localStorage so we have a fallback if next launch is also before engine init
+      localStorage.setItem('conflux-active-agents', JSON.stringify(active.map(a => a.id)));
     } catch (err) {
-      console.error('[IntelView] Failed to load agents:', err);
+      console.warn('[IntelView] engine_get_agents failed, trying localStorage fallback:', err);
+      // Engine not ready yet — try localStorage (written by AgentsView on every toggle)
+      try {
+        const stored = localStorage.getItem('conflux-selected-agents');
+        if (stored) {
+          const selectedIds: string[] = JSON.parse(stored);
+          const allAgents = await invoke<AgentFromDB[]>('engine_get_agents');
+          // Filter to only the selected IDs that are also in the DB
+          const active = allAgents.filter(a => selectedIds.includes(a.id) && a.is_active);
+          setActiveAgents(active.length > 0 ? active : allAgents.filter(a => selectedIds.includes(a.id)));
+        }
+      } catch (_e) {
+        // localStorage also failed — nothing we can do, keep empty state
+      }
     } finally {
       setLoading(false);
     }
