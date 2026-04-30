@@ -28,7 +28,7 @@ const TABS: { key: Tab; label: string }[] = [
 const workAgents = AGENT_PROFILES.filter((a) => !a.comingSoon);
 
 // Core agents shown as \"active\" by default (onboarding selection)
-const DEFAULT_ACTIVE_AGENTS = ['conflux', 'helix', 'pulse', 'aegis', 'viper'];
+const DEFAULT_ACTIVE_AGENTS = ['conflux', 'helix', 'pulse', 'hearth', 'echo', 'aegis', 'viper'];
 
 function loadSelectedIds(): string[] {
   try {

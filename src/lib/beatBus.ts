@@ -15,11 +15,14 @@ export interface BeatEvent {
 }
 
 export const AGENTS = [
+  { id: 'conflux', label: 'Conflux', emoji: '🤖', color: '#8b5cf6' },
   { id: 'helix',   label: 'Helix',   emoji: '🔬', color: '#a78bfa' },
-  { id: 'forge',   label: 'Forge',   emoji: '🔨', color: '#f97316' },
-  { id: 'aegis',   label: 'Aegis',   emoji: '🛡️', color: '#38bdf8' },
   { id: 'pulse',   label: 'Pulse',   emoji: '💚', color: '#34d399' },
   { id: 'hearth',  label: 'Hearth',  emoji: '🔥', color: '#fb923c' },
+  { id: 'echo',    label: 'Echo',    emoji: '🫂', color: '#f472b6' },
+  { id: 'aegis',   label: 'Aegis',   emoji: '🛡️', color: '#38bdf8' },
+  { id: 'viper',   label: 'Viper',   emoji: '🐍', color: '#22c55e' },
+  { id: 'forge',   label: 'Forge',   emoji: '🔨', color: '#f97316' },
   { id: 'orbit',   label: 'Orbit',    emoji: '🧠', color: '#e879f9' },
   { id: 'horizon', label: 'Horizon',  emoji: '🎯', color: '#f472b6' },
 ] as const;

@@ -3,13 +3,35 @@
 // Wired to BeatEventBus — every beat fires visibly
 
 import { useState, useEffect, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { ConfluxPresence } from './conflux';
 import { triggerFairyNudge } from '../lib/triggerFairyNudge';
 import { AGENTS, useBeatTimeline, useAgentActivity, emitBeat, startDemoBeats, type BeatEvent } from '../lib/beatBus';
 import './IntelView.css';
 
+interface AgentFromDB {
+  id: string;
+  name: string;
+  emoji: string;
+  role: string;
+  soul: string | null;
+  instructions: string | null;
+  model_alias: string;
+  tier: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // ── Agent row ─────────────────────────────────────────────────────────────────
-function AgentRow({ agent }: { agent: typeof AGENTS[number] }) {
+interface DisplayAgent {
+  id: string;
+  label: string;
+  emoji: string;
+  color: string;
+}
+
+function AgentRow({ agent }: { agent: DisplayAgent }) {
   const { lastActive, isActive } = useAgentActivity(agent.id);
   const ago = lastActive ? timeAgo(lastActive) : '—';
 
@@ -134,6 +156,28 @@ function StatsBar({ events }: { events: BeatEvent[] }) {
 export default function IntelView() {
   const events = useBeatTimeline();
   const [started, setStarted] = useState(false);
+  const [activeAgents, setActiveAgents] = useState<AgentFromDB[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Load active agents from DB so INTEL always reflects the user's selection
+  const loadActiveAgents = async () => {
+    try {
+      const allAgents = await invoke<AgentFromDB[]>('engine_get_agents');
+      setActiveAgents(allAgents.filter(a => a.is_active));
+    } catch (err) {
+      console.error('[IntelView] Failed to load agents:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadActiveAgents();
+    // Listen for agent selection changes from AgentsView so INTEL updates in real time
+    const handler = () => loadActiveAgents();
+    window.addEventListener('conflux:agents-selected', handler);
+    return () => window.removeEventListener('conflux:agents-selected', handler);
+  }, []);
 
   useEffect(() => {
     if (!started) {
@@ -162,6 +206,11 @@ export default function IntelView() {
     }
   }, [events.length]);
 
+  // Build a lookup from AGENTS for display metadata (emoji, color)
+  const agentMeta = Object.fromEntries(AGENTS.map(a => [a.id, a])) as Record<string, typeof AGENTS[number]>;
+  // or simpler: just use find() in the map
+  const getMeta = (id: string) => AGENTS.find(a => a.id === id);
+
   return (
     <div className="intel-view">
       {/* Header */}
@@ -179,12 +228,31 @@ export default function IntelView() {
         <StatsBar events={events} />
       </div>
 
-      {/* Agent status grid */}
+      {/* Agent status grid — only DB-active agents */}
       <div className="intel-section-label">AGENT STATUS</div>
       <div className="intel-agents">
-        {AGENTS.map(agent => (
-          <AgentRow key={agent.id} agent={agent} />
-        ))}
+        {loading ? (
+          <div className="intel-empty">Loading agents...</div>
+        ) : activeAgents.length === 0 ? (
+          <div className="intel-empty">No active agents. Enable agents in Settings.</div>
+        ) : (
+          activeAgents.map(agent => {
+            const meta = AGENTS.find(a => a.id === agent.id);
+            if (!meta) return null;
+            const rowAgent: DisplayAgent = {
+              id: agent.id,
+              label: agent.name,
+              emoji: meta.emoji,
+              color: meta.color,
+            };
+            return (
+              <AgentRow
+                key={agent.id}
+                agent={rowAgent}
+              />
+            );
+          })
+        )}
       </div>
 
       {/* Beat timeline */}
