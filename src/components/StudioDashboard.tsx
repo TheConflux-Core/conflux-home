@@ -56,11 +56,7 @@ export default function StudioDashboard() {
     setEnterGallery,
   } = useStudio();
 
-  // Gallery / Project overlay modes
-  if (enterGallery) {
-    return selectedGeneration ? <StudioProject /> : <StudioGallery />;
-  }
-
+  // All hooks (must be called unconditionally)
   const [credits, setCredits] = useState<number | null>(null);
   const [toolPaletteCollapsed, setToolPaletteCollapsed] = useState(false);
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
@@ -130,6 +126,11 @@ export default function StudioDashboard() {
   }, [saveToVault, loadHistory]);
 
   const moduleInfo = STUDIO_MODULES[activeModule];
+
+  // Gallery / Project overlay modes
+  if (enterGallery) {
+    return selectedGeneration ? <StudioProject /> : <StudioGallery />;
+  }
 
   return (
     <div className="studio-dashboard-container">
