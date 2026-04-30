@@ -11,6 +11,10 @@ export default function StudioProject() {
     selectedGeneration,
     selectGeneration,
     setEnterGallery,
+    currentProject,
+    saveToVault,
+    remix,
+    deleteGeneration,
     bulkDelete,
     bulkSaveToVault,
     exportGenerationsZip,
@@ -68,6 +72,28 @@ export default function StudioProject() {
     setLastSelectedId(null);
   };
 
+  const handleSelectAll = () => {
+    const allIds = projectGenerations.map(g => g.id);
+    setSelectedIds(allIds);
+    if (allIds.length > 0) {
+      setLastSelectedId(allIds[allIds.length - 1]);
+    }
+  };
+
+  // Single generation export (download as ZIP to user-chosen location)
+  const handleExport = async () => {
+    if (!selectedGeneration) return;
+    try {
+      const path = await exportGenerationsZip([selectedGeneration.id]);
+      console.log('Exported to:', path);
+    } catch (err) {
+      console.error('Export failed:', err);
+      if (typeof err === 'string' && err !== 'Export cancelled') {
+        alert(`Export failed: ${err}`);
+      }
+    }
+  };
+
   // Selection helpers
   const isBulkSelected = (id: string) => selectedIds.includes(id);
 
@@ -114,7 +140,7 @@ export default function StudioProject() {
     <div className="studio-project-container">
       {/* Header */}
       <div className="project-header">
-        <button className="project-back-btn" onClick={() => selectGeneration(null)}>
+        <button className="project-back-btn" onClick={() => { selectGeneration(null); setEnterGallery(true); }}>
           ← Back to Gallery
         </button>
         <div className="project-title">
@@ -144,6 +170,12 @@ export default function StudioProject() {
               <span className="bulk-action-count">
                 {selectedIds.length} selected
               </span>
+              <button
+                className="bulk-action-btn select-all"
+                onClick={handleSelectAll}
+              >
+                ✅ Select All
+              </button>
               <button
                 className="bulk-action-btn save"
                 onClick={handleBulkSave}
@@ -345,7 +377,7 @@ export default function StudioProject() {
                 className="project-action-btn export"
                 onClick={handleExport}
               >
-                📤 Export
+                📤 Export ZIP
               </button>
               <button
                 className="project-action-btn delete"
