@@ -665,6 +665,7 @@ pub fn run() {
             commands::studio_generate_image,
             commands::studio_generate_voice,
             commands::studio_save_to_vault,
+            commands::studio_export_generations_zip,
             commands::get_studio_user_id,
             commands::studio_generate_wallpaper,
             commands::tts_speak,
