@@ -98,6 +98,19 @@ export default function TopBar({ selectedAgent, controlRoom, currentView, onNavi
     return () => { clearTimeout(timer); document.removeEventListener('mousedown', handler); };
   }, [showNotifMenu]);
 
+  // Sync colorTheme state when Conflux AI changes the theme via ui_action.
+  // TopBar's colorTheme only initializes from localStorage on mount — this keeps it
+  // in sync when the theme is changed by the AI through the Tauri event system.
+  useEffect(() => {
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      listen<{widget: string; value: any}>('conflux:ui-action', (event) => {
+        if (event.payload.widget === 'theme' && event.payload.value) {
+          setColorTheme(event.payload.value as string);
+        }
+      }).catch(e => console.warn('[TopBar] listen conflux:ui-action error:', e));
+    });
+  }, []);
+
   useEffect(() => {
     const updateClock = () => {
       const now = new Date();

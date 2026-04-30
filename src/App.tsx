@@ -377,7 +377,30 @@ export default function App() {
     window.addEventListener('conflux:theme-change', onThemeChange);
     window.addEventListener('conflux:accent-change', onAccentChange);
     window.addEventListener('conflux:wallpaper-change', onWallpaperChange);
-    window.addEventListener('conflux:ui-action', onUiAction);
+    // Tauri v2: custom Tauri events must use @tauri-apps/api/event listen(),
+    // NOT window.addEventListener (different event delivery systems).
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      // Handle theme changes from Conflux AI (ui_action with widget="theme")
+      // Call applyColorTheme + saveColorTheme directly — same as TopBar dropdown.
+      listen<{widget: string; action: string; value: any}>('conflux:ui-action', (event) => {
+        const { widget, action, value } = event.payload;
+        if (widget === 'theme' && value) {
+          const v = value as string;
+          if (v !== 'light' && v !== 'dark' && v !== 'system') {
+            console.log('[App] Tauri: applying color theme via listen():', v);
+            applyColorTheme(v);
+            saveColorTheme(v);
+          } else {
+            const themeVal = v === 'system' ? 'dark' : v;
+            applyTheme(themeVal as 'light' | 'dark');
+            saveTheme(themeVal as any);
+          }
+        } else {
+          // Pass other widgets to the existing onUiAction handler
+          onUiAction({ detail: event.payload } as any);
+        }
+      }).catch(e => console.warn('[App] listen conflux:ui-action error:', e));
+    });
     return () => {
       window.removeEventListener('conflux:theme-change', onThemeChange);
       window.removeEventListener('conflux:accent-change', onAccentChange);
@@ -596,8 +619,29 @@ export default function App() {
         const chatResponse = response as any;
         if (chatResponse.content) {
           try {
-            await invoke('voice_synthesize', { 
-              text: chatResponse.content, 
+            // Strip JSON tool-call blocks from TTS input.
+            // The model sometimes outputs JSON tool calls as text (e.g. {"name": "ui_action", ...}).
+            // Remove anything that looks like a JSON object with "name" and "arguments" fields.
+            const rawText = chatResponse.content;
+            let cleaned = rawText;
+            try {
+              // Parse and reconstruct, removing any top-level key whose value looks like a tool call
+              const parsed = JSON.parse(rawText);
+              cleaned = typeof parsed === 'string' ? parsed : rawText;
+            } catch {
+              // Not valid JSON — try to strip tool-call JSON fragments from plain text.
+              // Match {...} blocks containing "name" and "arguments" (tool-call pattern).
+              cleaned = rawText.replace(
+                /\{\s*"name"\s*:\s*"[^"]+"\s*,\s*"arguments"\s*:\s*\{[^}]*\}\s*\}/g,
+                ''
+              ).replace(
+                /\{\s*"name"\s*:\s*"[^"]+"\s*,\s*"arguments"\s*:\s*\{[^}]*\}\s*,?\s*\}/g,
+                ''
+              ).replace(/\n{3,}/g, '\n\n').trim();
+            }
+            const textToSpeak = cleaned.length > 3 ? cleaned : rawText;
+            await invoke('voice_synthesize', {
+              text: textToSpeak,
             });
           } catch (ttsErr) {
             // TTS failed — ensure fairy returns to idle so it doesn't get stuck
