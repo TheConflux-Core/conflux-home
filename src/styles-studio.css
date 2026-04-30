@@ -1037,7 +1037,8 @@
 .dashboard-header-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  margin-right: 136px; /* Make room for immersive back button (top-right) */
 }
 
 .dashboard-header-title {
