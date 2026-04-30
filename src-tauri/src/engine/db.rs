@@ -3851,6 +3851,8 @@ impl EngineDb {
 
     pub fn delete_meal_sync(&self, id: &str) -> Result<()> {
         let conn = self.conn_blocking();
+        // Clear meal_plans_v2 references first (ON DELETE SET NULL for non-cascade FK)
+        conn.execute("UPDATE meal_plans_v2 SET meal_id = NULL WHERE meal_id = ?1", params![id])?;
         conn.execute("DELETE FROM meals WHERE id = ?1", params![id])?;
         Ok(())
     }
