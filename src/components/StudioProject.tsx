@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useStudio } from '../hooks/useStudio';
@@ -20,8 +20,13 @@ export default function StudioProject() {
     exportGenerationsZip,
   } = useStudio();
 
-  // Filter generations for this project (future: when DB has project_id, use that)
-  const projectGenerations = generations; // TODO: filter by project_id when available
+  // Filter generations for this project
+  const projectGenerations = useMemo(() => {
+    return generations.filter(gen => {
+      const genProject = gen.project_id ?? 'default';
+      return genProject === currentProject;
+    });
+  }, [generations, currentProject]);
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);

@@ -1409,7 +1409,15 @@ pub struct StudioGeneration {
     pub metadata_json: Option<String>,
     pub cost_cents: i64,
     pub vault_file_id: Option<String>,
+    pub project_id: Option<String>,
     pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StudioProject {
+    pub id: String,
+    pub name: String,
+    pub path: String, // compatibility placeholder; Studio projects are not file-based
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
