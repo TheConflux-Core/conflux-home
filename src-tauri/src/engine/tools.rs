@@ -6949,7 +6949,7 @@ fn execute_life_complete_task(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
         engine.db().update_life_task_status_sync(
-            "NULL",
+            "",
             task_id,
             "completed",
         )
@@ -6992,7 +6992,7 @@ fn execute_life_add_habit(args: &Value) -> Result<ToolResult> {
     match tokio::task::block_in_place(|| {
         engine.db().add_life_habit_sync(
             &id,
-            "NULL",
+            "",
             name,
             category,
             frequency,
@@ -7037,7 +7037,7 @@ fn execute_life_log_habit(args: &Value) -> Result<ToolResult> {
         engine.db().log_life_habit_sync(
             &uuid::Uuid::new_v4().to_string(),
             habit_id,
-            "NULL",
+            "",
             &now,
             1,
         )
@@ -7104,7 +7104,7 @@ fn execute_life_delete_task(args: &Value) -> Result<ToolResult> {
 
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        engine.db().delete_life_task_sync("NULL", task_id)
+        engine.db().delete_life_task_sync("", task_id)
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
