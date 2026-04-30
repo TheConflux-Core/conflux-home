@@ -972,16 +972,25 @@ fn build_system_prompt(
         "\nUI CONTROL: You can change the app's appearance using the ui_action tool.\n",
     );
     prompt.push_str(
-        "Theme (widget=\"theme\"): use \"dark\" for dark mode, \"light\" for light mode, OR a color theme name (\"pulse\" for green/pulse theme, \"viper\" for green/viper theme) — color themes set the full visual style.\n",
+        "Theme (widget=\"theme\"):\n",
     );
     prompt.push_str(
-        "Accent color (widget=\"accentColor\"): \"blue\", \"purple\", \"green\", \"orange\", \"pink\", or \"cyan\".\n",
+        "  - Base: \"dark\" (default), \"light\", \"system\"\n",
     );
     prompt.push_str(
-        "Wallpaper (widget=\"wallpaper\"): URL to a wallpaper image.\n",
+        "  - Color themes: \"conflux\" (⚡), \"nexus\" (🌐), \"hearth\" (🔥), \"pulse\" (💚), \"orbit\" (🛸), \"radar\" (📡), \"horizon\" (🌅), \"echo\" (🔔), \"aegis\" (🛡️), \"viper\" (🐍)\n",
     );
     prompt.push_str(
-        "Active app (widget=\"activeApp\"): \"kitchen\", \"budget\", \"life\", \"dreams\", \"echo\", \"vault\", \"home\", \"dashboard\".\n",
+        "  - Color themes set the accent color AND wallpaper — full visual transformation.\n",
+    );
+    prompt.push_str(
+        "  - Example: ui_action { widget: \"theme\", value: \"echo\" } or ui_action { widget: \"theme\", value: \"pulse\" }\n",
+    );
+    prompt.push_str(
+        "Accent color (widget=\"accentColor\"): \"blue\", \"purple\", \"green\", \"orange\", \"pink\", \"cyan\".\n",
+    );
+    prompt.push_str(
+        "Navigate apps (widget=\"activeApp\"): \"dashboard\", \"kitchen\", \"budget\", \"life\", \"dreams\", \"echo\", \"vault\", \"home\".\n",
     );
     prompt.push_str(
         "\nINTENT MAPPING — call the right tool immediately, no narration:\n",
