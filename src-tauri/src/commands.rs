@@ -9,6 +9,8 @@ use chrono::{Datelike, Timelike};
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Manager};
 use uuid::Uuid;
+use std::io::{Cursor, Write};
+use tauri_plugin_dialog::{DialogExt, FileDialogBuilder};
 
 // ── Request/Response Types ──
 
@@ -8260,6 +8262,108 @@ pub async fn studio_save_to_vault(generation_id: String) -> Result<serde_json::V
         "name": filename,
         "size_bytes": size_bytes,
     }))
+}
+
+// ── Studio: Bulk Export (ZIP) ──
+
+#[tauri::command]
+pub async fn studio_export_generations_zip(
+    generation_ids: Vec<String>,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    use std::path::PathBuf;
+    use zip::{ZipWriter, write::FileOptions};
+    use zip::CompressionMethod;
+
+    let engine = engine::get_engine();
+
+    // Collect (filename, bytes) pairs
+    let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+
+    for id in &generation_ids {
+        let gen = engine::db::studio_get_generation(id)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| format!("Generation {} not found", id))?;
+
+        if gen.status != "complete" {
+            return Err(format!("Generation {} is not complete", id));
+        }
+
+        let (ext, filename) = match gen.module.as_str() {
+            "image" => ("png", format!("image_{}.png", &id[..8])),
+            "voice" => ("mp3", format!("voice_{}.mp3", &id[..8])),
+            _ => ("bin", format!("{}_{}.bin", gen.module, &id[..8])),
+        };
+
+        // Acquire file bytes (download or copy)
+        let data = if let Some(url) = &gen.output_url {
+            if url.starts_with("http") {
+                // Download from remote URL
+                let client = reqwest::Client::new();
+                let resp = client.get(url).send().await.map_err(|e| e.to_string())?;
+                let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+                bytes.to_vec()
+            } else {
+                return Err(format!("Unsupported output_url scheme for {}", id));
+            }
+        } else if let Some(path) = &gen.output_path {
+            // Read local file (async)
+            tokio::fs::read(path).await.map_err(|e| e.to_string())?
+        } else {
+            return Err(format!("Generation {} has no output", id));
+        };
+
+        files.push((filename, data));
+    }
+
+    // Build ZIP in memory
+    let mut zip_buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = ZipWriter::new(Cursor::new(&mut zip_buf));
+        let options = FileOptions::default()
+            .compression_method(CompressionMethod::Deflated)
+            .unix_permissions(0o644);
+
+        for (filename, data) in &files {
+            writer
+                .start_file(filename, options)
+                .map_err(|e| e.to_string())?;
+            writer.write_all(data).map_err(|e| e.to_string())?;
+        }
+        writer.finish().map_err(|e| e.to_string())?;
+    }
+
+    // Write ZIP to temp file
+    let temp_dir = std::env::temp_dir();
+    let zip_filename = format!("studio_export_{}.zip", Uuid::new_v4().as_u128());
+    let zip_temp_path = temp_dir.join(&zip_filename);
+    tokio::fs::write(&zip_temp_path, &zip_buf)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Prompt user to choose save location using dialog plugin
+    let dialog = app_handle.dialog().clone();
+    let chosen_path = dialog
+        .file()
+        .set_title("Export Studio Generations")
+        .set_file_name(&zip_filename)
+        .blocking_save_file();
+
+    if let Some(file_path) = chosen_path {
+        // Convert FilePath to PathBuf
+        let dest: std::path::PathBuf = file_path.into_path().map_err(|e| format!("Invalid file path: {}", e))?;
+        // Copy temp to chosen destination
+        tokio::fs::copy(&zip_temp_path, &dest)
+            .await
+            .map_err(|e| e.to_string())?;
+        // Clean up temp
+        let _ = tokio::fs::remove_file(&zip_temp_path).await;
+        Ok(dest.to_string_lossy().to_string())
+    } else {
+        // User cancelled — clean up temp
+        let _ = tokio::fs::remove_file(&zip_temp_path).await;
+        Err("User cancelled save dialog".to_string())
+    }
 }
 
 // ═══════════════════════════════════════════════════════

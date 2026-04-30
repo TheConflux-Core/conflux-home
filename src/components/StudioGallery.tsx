@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useStudio } from '../hooks/useStudio';
@@ -9,12 +9,24 @@ type FilterModule = StudioModule | 'all';
 type FilterVault = 'all' | 'vaulted' | 'unvaulted';
 
 export default function StudioGallery() {
-  const { generations, selectedGeneration, selectGeneration, setEnterGallery } = useStudio();
+  const {
+    generations,
+    selectedGeneration,
+    selectGeneration,
+    setEnterGallery,
+    bulkDelete,
+    bulkSaveToVault,
+    exportGenerationsZip,
+  } = useStudio();
 
   // Filters
   const [moduleFilter, setModuleFilter] = useState<FilterModule>('all');
   const [vaultFilter, setVaultFilter] = useState<FilterVault>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     return generations.filter((gen) => {
@@ -34,13 +46,78 @@ export default function StudioGallery() {
 
   const handleGenerationClick = (gen: typeof generations[0]) => {
     selectGeneration(gen);
-    // Stay in gallery mode — when a generation is selected, we could show the project panel
-    // For now, just select. We'll open a separate overlay? According to flow: clicking opens Project view.
-    // We'll replace the whole gallery with Project component in render below.
-    // Actually easier: we handle via conditional render: if selectedGeneration, show Project (via separate component)
-    // But to avoid circular deps, we can navigate back to Dashboard to show Project? Simpler:
-    // Closing gallery to reveal Dashboard will show selectedGeneration in preview
     setEnterGallery(false);
+  };
+
+  // Selection handlers
+  const isSelected = (id: string) => selectedIds.includes(id);
+
+  const handleToggleSelect = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+    setLastSelectedId(id);
+  };
+
+  const handleRangeSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!lastSelectedId) {
+      handleToggleSelect(id);
+      return;
+    }
+    const filteredIds = filtered.map((g) => g.id);
+    const curIdx = filteredIds.indexOf(id);
+    const lastIdx = filteredIds.indexOf(lastSelectedId);
+    if (curIdx === -1 || lastIdx === -1) return;
+
+    const start = Math.min(curIdx, lastIdx);
+    const end = Math.max(curIdx, lastIdx);
+    const range = filteredIds.slice(start, end + 1);
+    const allSelected = range.every((x) => selectedIds.includes(x));
+    setSelectedIds((prev) => {
+      const newSet = new Set(prev);
+      if (allSelected) {
+        range.forEach((x) => newSet.delete(x));
+      } else {
+        range.forEach((x) => newSet.add(x));
+      }
+      return Array.from(newSet);
+    });
+    setLastSelectedId(id);
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds([]);
+    setLastSelectedId(null);
+  };
+
+  // Bulk actions
+  const handleBulkSave = async () => {
+    if (selectedIds.length === 0) return;
+    await bulkSaveToVault(selectedIds);
+    handleClearSelection();
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Delete ${selectedIds.length} generation(s)?`)) return;
+    await bulkDelete(selectedIds);
+    handleClearSelection();
+  };
+
+  const handleBulkExport = async () => {
+    if (selectedIds.length === 0) return;
+    try {
+      const path = await exportGenerationsZip(selectedIds);
+      console.log('Exported zip to:', path);
+      handleClearSelection();
+    } catch (err) {
+      console.error('Export failed:', err);
+      if (typeof err === 'string' && err !== 'Export cancelled') {
+        alert(`Export failed: ${err}`);
+      }
+    }
   };
 
   return (
@@ -109,10 +186,23 @@ export default function StudioGallery() {
             />
           </div>
         </div>
+
+
       </div>
 
       {/* Grid */}
       <div className="gallery-grid">
+        {selectedIds.length > 0 && (
+          <div className="bulk-action-bar">
+            <span className="bulk-action-count">
+              {selectedIds.length} selected
+            </span>
+            <button className="bulk-action-btn save" onClick={handleBulkSave}>💾 Save to Vault</button>
+            <button className="bulk-action-btn delete" onClick={handleBulkDelete}>🗑️ Delete</button>
+            <button className="bulk-action-btn export" onClick={handleBulkExport}>📤 Export ZIP</button>
+            <button className="bulk-action-btn cancel" onClick={handleClearSelection}>✕ Cancel</button>
+          </div>
+        )}
         <AnimatePresence>
           {filtered.map((gen, idx) => {
             const displayUrl = gen.output_url?.startsWith('http')
@@ -123,7 +213,7 @@ export default function StudioGallery() {
             return (
               <motion.div
                 key={gen.id}
-                className="gallery-item"
+                className={`gallery-item ${isSelected(gen.id) ? 'selected' : ''}`}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
@@ -153,6 +243,21 @@ export default function StudioGallery() {
                   {gen.status === 'generating' && (
                     <div className="gallery-generating-overlay">Generating…</div>
                   )}
+
+                  {/* Selection checkbox overlay */}
+                  <div
+                    className={`selection-checkbox ${isSelected(gen.id) ? 'checked' : ''}`}
+                    onClick={(e) => {
+                      if (e.shiftKey && lastSelectedId) {
+                        handleRangeSelect(gen.id, e);
+                      } else {
+                        handleToggleSelect(gen.id, e);
+                      }
+                    }}
+                    title={isSelected(gen.id) ? 'Deselect' : 'Select'}
+                  >
+                    {isSelected(gen.id) && '✓'}
+                  </div>
                 </div>
                 <div className="gallery-item-info">
                   <div className="gallery-item-module">{STUDIO_MODULES[gen.module]?.icon}</div>
@@ -180,4 +285,3 @@ export default function StudioGallery() {
     </div>
   );
 }
-

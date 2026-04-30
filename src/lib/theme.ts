@@ -167,6 +167,21 @@ export function applyTheme(theme: 'light' | 'dark'): void {
 
 export function applyAccent(accent: AccentColor): void {
   document.body.setAttribute('data-accent', accent);
+  // Also sync --current-accent so app CSS that uses this var gets the color
+  const accentMap: Record<AccentColor, string> = {
+    blue: '#0066FF',
+    purple: '#8b5cf6',
+    green: '#22c55e',
+    orange: '#f97316',
+    pink: '#ec4899',
+    cyan: '#06b6d4',
+  };
+  const color = accentMap[accent] ?? '#0066FF';
+  const root = document.documentElement;
+  root.style.setProperty('--current-accent', color);
+  root.style.setProperty('--current-accent-10', `${color}1a`);
+  root.style.setProperty('--current-accent-15', `${color}26`);
+  root.style.setProperty('--current-accent-20', `${color}33`);
 }
 
 export function watchSystemTheme(callback: (theme: 'light' | 'dark') => void): () => void {
@@ -191,11 +206,23 @@ export function applyColorTheme(themeId: string): void {
   // Always clear previous accent vars first
   clearColorThemeVars();
 
-  // Apply new accent vars
+  // Apply new accent vars to :root
   const root = document.documentElement;
   for (const [key, value] of Object.entries(theme.vars)) {
     root.style.setProperty(key, value);
   }
+
+  // Also sync --current-accent and derived opacity variants (used by app styles)
+  // Extract the primary color from --theme-accent or --accent-primary
+  const primaryColor = (theme.vars['--theme-accent'] as string | undefined)
+    ?? (theme.vars['--accent-primary'] as string | undefined)
+    ?? '#0071e3';
+  root.style.setProperty('--current-accent', primaryColor);
+  // Derive opacity variants from the primary
+  root.style.setProperty('--current-accent-10', `${primaryColor}1a`);
+  root.style.setProperty('--current-accent-15', `${primaryColor}26`);
+  root.style.setProperty('--current-accent-20', `${primaryColor}33`);
+  root.style.setProperty('--current-accent-30', `${primaryColor}4d`);
 
   // Set data attribute for CSS targeting (base themes get per-app category colors)
   document.body.setAttribute('data-color-theme', themeId);
