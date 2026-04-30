@@ -28,7 +28,7 @@ export default function StudioAnalytics({ generations, onClose }: StudioAnalytic
         setUserId(uid);
 
         // Fetch usage stats for current month
-        const usage = await invoke<StudioUsageStats[]>('studio_get_usage', { user_id: uid, month: currentMonth });
+        const usage = await invoke<StudioUsageStats[]>('studio_get_usage', { userId: uid, month: currentMonth });
         setUsageStats(usage);
 
         // Fetch credit balance
