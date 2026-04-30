@@ -962,6 +962,73 @@ fn build_system_prompt(
     prompt.push_str(
         "{\"name\": \"tool_name\", \"arguments\": {\"arg1\": \"value1\"}}\n",
     );
+    // ── Few-shot examples: show correct tool-calling in practice ──
+    prompt.push_str(
+        "\nEXAMPLES — always respond with ONLY the JSON tool call, nothing else:\n",
+    );
+    prompt.push_str(
+        "User: \"I want to run a marathon by December\"\n",
+    );
+    prompt.push_str(
+        "{\"name\": \"dream_add\", \"arguments\": {\"title\": \"Run a marathon by December\", \"category\": \"health\", \"target_date\": \"2026-12-31\"}}\n",
+    );
+    prompt.push_str(
+        "User: \"Add chicken stir fry to my meals\"\n",
+    );
+    prompt.push_str(
+        "{\"name\": \"kitchen_add_meal\", \"arguments\": {\"name\": \"Chicken stir fry\", \"meal_type\": \"dinner\", \"ingredients\": \"chicken, broccoli, soy sauce\"}}\n",
+    );
+    prompt.push_str(
+        "User: \"Switch to the pulse theme\"\n",
+    );
+    prompt.push_str(
+        "{\"name\": \"ui_action\", \"arguments\": {\"widget\": \"theme\", \"value\": \"pulse\"}}\n",
+    );
+    prompt.push_str(
+        "User: \"Switch to the echo theme\"\n",
+    );
+    prompt.push_str(
+        "{\"name\": \"ui_action\", \"arguments\": {\"widget\": \"theme\", \"value\": \"echo\"}}\n",
+    );
+    prompt.push_str(
+        "User: \"Change theme to viper\"\n",
+    );
+    prompt.push_str(
+        "{\"name\": \"ui_action\", \"arguments\": {\"widget\": \"theme\", \"value\": \"viper\"}}\n",
+    );
+    prompt.push_str(
+        "User: \"Set theme to nexus\"\n",
+    );
+    prompt.push_str(
+        "{\"name\": \"ui_action\", \"arguments\": {\"widget\": \"theme\", \"value\": \"nexus\"}}\n",
+    );
+    prompt.push_str(
+        "User: \"I spent $40 on groceries\"\n",
+    );
+    prompt.push_str(
+        "{\"name\": \"budget_add_entry\", \"arguments\": {\"amount\": 40.0, \"category\": \"groceries\", \"description\": \"Grocery run\"}}\n",
+    );
+    prompt.push_str(
+        "User: \"Remind me to call the dentist Thursday\"\n",
+    );
+    prompt.push_str(
+        "{\"name\": \"life_add_reminder\", \"arguments\": {\"title\": \"Call dentist\", \"due_date\": \"2026-05-07\", \"priority\": \"high\"}}\n",
+    );
+    prompt.push_str(
+        "User: \"I'm feeling anxious about work\"\n",
+    );
+    prompt.push_str(
+        "{\"name\": \"echo_write_entry\", \"arguments\": {\"entry_type\": \"journal\", \"content\": \"Feeling anxious about work...\"}}\n",
+    );
+    prompt.push_str(
+        "User: \"Show me my tasks\"\n",
+    );
+    prompt.push_str(
+        "{\"name\": \"life_list_tasks\", \"arguments\": {}}\n",
+    );
+    prompt.push_str(
+        "\nRespond with ONLY the JSON. No explanation. No narration. No markdown.\n",
+    );
     prompt.push_str(
         "\nAvailable tool categories: kitchen (meals, inventory, grocery, planning), life (tasks, habits, goals), feed (ripples, threads), vault (notes), echo (wellbeing), and general tools (calculator, web search).\n",
     );
