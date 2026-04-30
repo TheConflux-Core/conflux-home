@@ -266,19 +266,27 @@ export default function App() {
         value: any;
       };
       console.log('[App] UI action:', widget, action, value);
+      if (!widget) {
+        console.warn('[App] ui_action: no widget provided');
+        return;
+      }
+      console.log('[App] UI action handler:', { widget, action, value });
       switch (widget) {
         case 'theme':
-          // value: 'light', 'dark', 'system', OR a color theme name (pulse, viper, etc.)
+          // value: 'light', 'dark', 'system', OR a color theme name (pulse, viper, echo, etc.)
           if (value) {
             const v = value as string;
+            console.log('[App] theme widget, value:', v, 'checking against known themes');
             // Check if it's a color theme name (applyColorTheme handles wallpaper + CSS vars)
             if (v !== 'light' && v !== 'dark' && v !== 'system') {
-              // It's a named color theme (pulse, viper, etc.)
+              // It's a named color theme (pulse, viper, echo, etc.)
+              console.log('[App] Applying color theme:', v);
               applyColorTheme(v);
               saveColorTheme(v);
             } else {
               // Base theme
               const themeVal = v === 'system' ? 'dark' : v;
+              console.log('[App] Applying base theme:', themeVal);
               applyTheme(themeVal as 'light' | 'dark');
               saveTheme(themeVal as any);
             }
