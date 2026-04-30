@@ -2635,7 +2635,14 @@ async fn execute_web_search(args: &Value) -> Result<ToolResult> {
 
     let mut results = Vec::new();
 
-    // Source 1: DuckDuckGo HTML lite (no API key, no JS)
+    // Source 1: Weather — use wttr.in (free, no key needed)
+    if is_weather_query(&query) {
+        if let Ok(weather) = fetch_weather(&query) {
+            results.push(format!("=== Current Weather ===\n{}", weather));
+        }
+    }
+
+    // Source 2: DuckDuckGo HTML lite (no API key, no JS)
     match search_duckduckgo(&client, query).await {
         Ok(ddg_results) if !ddg_results.is_empty() => {
             results.push(format!("=== Web Results ===\n{}", ddg_results));
@@ -2643,7 +2650,7 @@ async fn execute_web_search(args: &Value) -> Result<ToolResult> {
         _ => {}
     }
 
-    // Source 2: Wikipedia (free knowledge API)
+    // Source 3: Wikipedia (free knowledge API)
     match search_wikipedia(&client, query).await {
         Ok(wiki_results) if !wiki_results.is_empty() => {
             results.push(format!("=== Wikipedia ===\n{}", wiki_results));
@@ -2664,6 +2671,59 @@ async fn execute_web_search(args: &Value) -> Result<ToolResult> {
         output: results.join("\n\n"),
         error: None,
     })
+}
+
+/// Detect if a query is asking about weather.
+fn is_weather_query(query: &str) -> bool {
+    let q = query.to_lowercase();
+    q.contains("weather") || q.contains("temperature") || q.contains("forecast")
+        || q.contains("rain") || q.contains("snow") || q.contains("sunny")
+        || q.contains("hot") || q.contains("cold") || q.contains("humid")
+        || q.contains("degrees") || q.contains("°") || q.contains("°f") || q.contains("°c")
+}
+
+/// Fetch weather using wttr.in (free, no API key).
+fn fetch_weather(query: &str) -> Result<String> {
+    // Extract location from query — strip common weather words
+    let location = query
+        .to_lowercase()
+        .replace("weather in", "")
+        .replace("weather", "")
+        .replace("current", "")
+        .replace("in", "")
+        .replace("the", "")
+        .replace("  ", " ")
+        .trim()
+        .to_string();
+
+    let url = if location.is_empty() {
+        "https://wttr.in/?format=3".to_string()
+    } else {
+        format!("https://wttr.in/{}?format=3", urlencoding::encode(&location))
+    };
+
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()?;
+
+    let resp = client.get(&url).send()?;
+    let body = resp.text()?;
+
+    // wttr.in format: "Location: 🌤 +72°F"
+    if body.trim().is_empty() {
+        return Err(anyhow::anyhow!("empty response"));
+    }
+
+    // Parse into readable format
+    let line = body.trim();
+    if line.contains(':') {
+        let parts: Vec<&str> = line.splitn(2, ':').collect();
+        let location_name = parts[0].trim();
+        let weather = parts.get(1).unwrap_or(&line).trim();
+        Ok(format!("📍 {} {}", location_name, weather))
+    } else {
+        Ok(format!("🌤 {}", line))
+    }
 }
 
 /// Search DuckDuckGo via their lite HTML page (no API key needed).
