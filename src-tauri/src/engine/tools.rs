@@ -197,25 +197,27 @@ fn log_tool_security_event(tool_name: &str, args: &Value, success: bool, agent_i
     let risk = if !success { base_risk + 20 } else { base_risk };
 
     let db = super::get_engine().db();
-    if let Err(e) = tokio::task::block_in_place(|| {
-        tokio::runtime::Handle::current().block_on(log_security_event(
+    let agent_id_owned = agent_id.to_string();
+    let tool_name_owned = tool_name.to_string();
+    let target_owned = target.map(|s| s.to_string());
+    // Spawn a fresh Tokio runtime on a dedicated thread to avoid Windows panic
+    let handle = std::thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let _ = rt.block_on(log_security_event(
             db,
-            agent_id,
+            &agent_id_owned,
             None, // session_id — Phase 1 doesn't track per-session yet
             event_type,
             category,
-            Some(tool_name),
-            target.as_deref(),
+            Some(&tool_name_owned),
+            target_owned.as_deref(),
             None, // details
             risk,
             success,
-        ))
-    }) {
-        log::warn!(
-            "[Security] Failed to log tool event for {}: {}",
-            tool_name,
-            e
-        );
+        ));
+    });
+    if let Err(panic) = handle.join() {
+        log::warn!("[Security] Telemetry thread panicked: {:?}", panic);
     }
 }
 
@@ -226,11 +228,15 @@ fn check_security_gate(tool_name: &str, args: &Value, agent_id: &str) -> Result<
     use super::security::permissions::{get_security_profile, ResourceType};
 
     let db = super::get_engine().db();
-
+    let agent_id_owned = agent_id.to_string();
     // Get agent security profile — if none, default to open
-    let profile = match tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(get_security_profile(db, agent_id))) {
-        Ok(p) => p,
-        Err(_) => return Ok(()), // No profile = allow all
+    let profile_handle = std::thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(get_security_profile(db, &agent_id_owned))
+    });
+    let profile = match profile_handle.join() {
+        Ok(Ok(p)) => p,
+        Ok(Err(_)) | Err(_) => return Ok(()), // No profile = allow all
     };
 
     // Map tool name to resource type and value for permission checking
@@ -573,11 +579,18 @@ pub async fn execute_tool_for_user(
             execute_echo_counselor_get_weekly_letter_history(args)
         }
         "echo_counselor_set_evening_reminder" => execute_echo_counselor_set_evening_reminder(args),
-        _ => Ok(ToolResult {
-            success: false,
-            output: String::new(),
-            error: Some(format!("Unknown tool: {}", tool_name)),
-        }),
+        _ => {
+            // Log hallucinated tool names at WARN level so they surface in log queries
+            log::warn!("[tools] UNKNOWN TOOL (possible hallucination): '{}'", tool_name);
+            Ok(ToolResult {
+                success: false,
+                output: String::new(),
+                error: Some(format!(
+                    "Unknown tool: '{}'. Use one of the tools listed above. If the user asked for something vague, call a simpler related tool or ask for clarification.",
+                    tool_name
+                )),
+            })
+        }
     }
 }
 

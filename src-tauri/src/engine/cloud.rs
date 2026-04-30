@@ -517,6 +517,42 @@ pub async fn get_usage_history(user_id: &str, limit: i32) -> Result<Vec<UsageEnt
 const CLOUD_ROUTER_URL: &str =
     "https://zcvhozqrssotirabdlzr.functions.supabase.co/conflux-router/v1/chat/completions";
 
+/// If the text content looks like a JSON tool call (the model sometimes puts it in content
+/// instead of the tool_calls field), extract it and return the remaining text.
+/// Tool calls in content look like: {"name": "tool_name", "arguments": {...}}
+fn maybe_extract_tool_call_from_text(text: &str) -> (Option<ToolCallRequest>, String) {
+    let trimmed = text.trim();
+    if !trimmed.starts_with('{') || !trimmed.ends_with('}') {
+        return (None, text.to_string());
+    }
+
+    // Only consider it a tool call if it has "name" and "arguments" fields
+    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        if parsed.get("name").and_then(|v| v.as_str()).is_some()
+            && parsed.get("arguments").is_some()
+        {
+            let name = parsed["name"].as_str().unwrap().to_string();
+            let arguments = parsed["arguments"].to_string();
+            let id = format!("text-call-{}", uuid::Uuid::new_v4());
+            log::warn!(
+                "[cloud] Model output JSON tool call as text — extracted: name={}, arguments={}",
+                name,
+                &arguments[..arguments.len().min(80)]
+            );
+            return (
+                Some(ToolCallRequest {
+                    id,
+                    name,
+                    arguments,
+                }),
+                String::new(),
+            );
+        }
+    }
+
+    (None, text.to_string())
+}
+
 /// Send a chat completion request to the cloud router.
 /// This is the main entry point for all inference in cloud-only mode.
 pub async fn cloud_chat(
@@ -627,12 +663,16 @@ pub async fn cloud_chat(
 
     let choice = parsed.choices.first();
 
-    let content = choice
+    let raw_content = choice
         .and_then(|c| c.message.as_ref())
         .and_then(|m| m.content.clone())
         .unwrap_or_default();
 
-    let tool_calls = choice
+    // Some models put tool calls in the content text instead of the tool_calls field.
+    // Detect and extract them so they are properly handled as tool calls.
+    let (extracted_tool_call, raw_content) = maybe_extract_tool_call_from_text(&raw_content);
+
+    let mut tool_calls: Vec<ToolCallRequest> = choice
         .and_then(|c| c.message.as_ref())
         .and_then(|m| m.tool_calls.as_ref())
         .map(|tc| {
@@ -659,6 +699,18 @@ pub async fn cloud_chat(
                 .collect()
         })
         .unwrap_or_default();
+
+    // If the model put a tool call in the text content, prepend it to tool_calls
+    if let Some(ref tc) = extracted_tool_call {
+        tool_calls.insert(0, tc.clone());
+    }
+
+    // If we extracted a tool call from text, clear the content so it doesn't get spoken as JSON
+    let content = if extracted_tool_call.is_some() {
+        String::new()
+    } else {
+        raw_content
+    };
 
     let tokens_used = parsed
         .usage
