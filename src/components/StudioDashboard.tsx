@@ -11,6 +11,7 @@ import HistoryStrip from './HistoryStrip';
 import StudioBackground from './StudioBackground';
 import StudioGallery from './StudioGallery';
 import StudioProject from './StudioProject';
+import StudioAnalytics from './StudioAnalytics';
 import '../styles-studio.css';
 
 function getDisplayUrl(gen: { output_url: string | null; output_path: string | null }): string | null {
@@ -63,6 +64,9 @@ export default function StudioDashboard() {
   const [credits, setCredits] = useState<number | null>(null);
   const [toolPaletteCollapsed, setToolPaletteCollapsed] = useState(false);
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
+
+  // Analytics panel state
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   // Load credit balance
   const loadCredits = useCallback(async () => {
@@ -183,8 +187,25 @@ export default function StudioDashboard() {
           >
             {isFullscreen ? '⛶' : '⛶'}
           </button>
+          <button
+            className={`dashboard-analytics-btn ${showAnalytics ? 'active' : ''}`}
+            onClick={() => setShowAnalytics(!showAnalytics)}
+            title="Analytics"
+          >
+            📊
+          </button>
         </div>
       </div>
+
+      {/* Analytics Panel */}
+      {showAnalytics && (
+        <div className="studio-analytics-panel">
+          <StudioAnalytics
+            generations={generations}
+            onClose={() => setShowAnalytics(false)}
+          />
+        </div>
+      )}
 
       {/* Main Dashboard Layout */}
       <div className="studio-dashboard-main">
