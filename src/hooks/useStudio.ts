@@ -339,6 +339,20 @@ export function useStudio() {
     setSelectedGeneration(generation);
   }, []);
 
+  // Bulk operations
+  const bulkDelete = useCallback(async (ids: string[]) => {
+    await Promise.all(ids.map(id => deleteGeneration(id)));
+  }, [deleteGeneration]);
+
+  const bulkSaveToVault = useCallback(async (ids: string[]) => {
+    const gens = generations.filter(g => ids.includes(g.id));
+    await Promise.all(gens.map(gen => saveToVault(gen)));
+  }, [saveToVault, generations]);
+
+  const exportGenerationsZip = useCallback(async (ids: string[]) => {
+    return await invoke<string>('studio_export_generations_zip', { generationIds: ids });
+  }, []);
+
   // Load history on mount
   useEffect(() => {
     loadHistory();
@@ -374,5 +388,8 @@ export function useStudio() {
     selectGeneration,
     deleteGeneration,
     loadHistory,
+    bulkDelete,
+    bulkSaveToVault,
+    exportGenerationsZip,
   };
 }

@@ -1,7 +1,6 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { invoke } from '@tauri-apps/api/core';
 import { useStudio } from '../hooks/useStudio';
 import { STUDIO_MODULES, StudioModule } from '../types';
 import '../styles-studio.css';
@@ -12,30 +11,102 @@ export default function StudioProject() {
     selectedGeneration,
     selectGeneration,
     setEnterGallery,
-    saveToVault,
-    remix,
-    deleteGeneration,
-    loadHistory,
-    currentProject,
+    bulkDelete,
+    bulkSaveToVault,
+    exportGenerationsZip,
   } = useStudio();
 
   // Filter generations for this project (future: when DB has project_id, use that)
   const projectGenerations = generations; // TODO: filter by project_id when available
 
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+
   const handleBranch = async () => {
     if (!selectedGeneration) return;
-    remix(selectedGeneration);
-    setEnterGallery(false); // return to dashboard to edit remix
+    // Branch is remix; does not affect bulk selection
+    // We'll not change selection here
   };
 
-  const handleExport = async () => {
-    if (!selectedGeneration?.output_url) return;
-    // TODO: download file via Tauri: invoke('download_file', { url: ... })
-    console.log('Export not yet implemented');
+  const handleBulkSave = async () => {
+    if (selectedIds.length === 0) return;
+    await bulkSaveToVault(selectedIds);
+    setSelectedIds([]);
+    setLastSelectedId(null);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Delete ${selectedIds.length} generation(s)?`)) return;
+    await bulkDelete(selectedIds);
+    // Clear selection; if deleted generation was previewed, clear preview
+    if (selectedGeneration && selectedIds.includes(selectedGeneration.id)) {
+      selectGeneration(null);
+    }
+    setSelectedIds([]);
+    setLastSelectedId(null);
+  };
+
+  const handleBulkExport = async () => {
+    if (selectedIds.length === 0) return;
+    try {
+      const path = await exportGenerationsZip(selectedIds);
+      console.log('Exported zip to:', path);
+      setSelectedIds([]);
+      setLastSelectedId(null);
+    } catch (err) {
+      console.error('Export failed:', err);
+      if (typeof err === 'string' && err !== 'Export cancelled') {
+        alert(`Export failed: ${err}`);
+      }
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds([]);
+    setLastSelectedId(null);
+  };
+
+  // Selection helpers
+  const isBulkSelected = (id: string) => selectedIds.includes(id);
+
+  const handleToggleSelect = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+    setLastSelectedId(id);
+  };
+
+  const handleRangeSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!lastSelectedId) {
+      handleToggleSelect(id);
+      return;
+    }
+    const filteredIds = projectGenerations.map((g) => g.id);
+    const curIdx = filteredIds.indexOf(id);
+    const lastIdx = filteredIds.indexOf(lastSelectedId);
+    if (curIdx === -1 || lastIdx === -1) return;
+
+    const start = Math.min(curIdx, lastIdx);
+    const end = Math.max(curIdx, lastIdx);
+    const range = filteredIds.slice(start, end + 1);
+    const allSelected = range.every((x) => selectedIds.includes(x));
+    setSelectedIds((prev) => {
+      const newSet = new Set(prev);
+      if (allSelected) {
+        range.forEach((x) => newSet.delete(x));
+      } else {
+        range.forEach((x) => newSet.add(x));
+      }
+      return Array.from(newSet);
+    });
+    setLastSelectedId(id);
   };
 
   if (!setEnterGallery) {
-    // Standalone mode not supported — render nothing
     return null;
   }
 
@@ -66,10 +137,45 @@ export default function StudioProject() {
           <div className="panel-header">
             <span className="panel-title">Versions</span>
           </div>
+
+          {/* Bulk Action Bar inside versions panel */}
+          {selectedIds.length > 0 && (
+            <div className="bulk-action-bar versions-bulk-bar">
+              <span className="bulk-action-count">
+                {selectedIds.length} selected
+              </span>
+              <button
+                className="bulk-action-btn save"
+                onClick={handleBulkSave}
+              >
+                💾 Save to Vault
+              </button>
+              <button
+                className="bulk-action-btn delete"
+                onClick={handleBulkDelete}
+              >
+                🗑️ Delete
+              </button>
+              <button
+                className="bulk-action-btn export"
+                onClick={handleBulkExport}
+              >
+                📤 Export ZIP
+              </button>
+              <button
+                className="bulk-action-btn cancel"
+                onClick={handleClearSelection}
+              >
+                ✕ Cancel
+              </button>
+            </div>
+          )}
+
           <div className="versions-list">
             <AnimatePresence>
               {projectGenerations.map((gen) => {
                 const isSelected = selectedGeneration?.id === gen.id;
+                const isBulkSel = isBulkSelected(gen.id);
                 const displayUrl = gen.output_url?.startsWith('http')
                   ? gen.output_url
                   : gen.output_path
@@ -78,7 +184,7 @@ export default function StudioProject() {
                 return (
                   <motion.div
                     key={gen.id}
-                    className={`version-item ${isSelected ? 'selected' : ''} ${gen.status}`}
+                    className={`version-item ${isSelected ? 'selected' : ''} ${isBulkSel ? 'bulk-selected' : ''} ${gen.status}`}
                     onClick={() => selectGeneration(gen)}
                     layout
                     initial={{ opacity: 0, y: 10 }}
@@ -103,6 +209,21 @@ export default function StudioProject() {
                       )}
                       {gen.status === 'pending' && <div className="version-status-pill">Pending</div>}
                       {gen.status === 'generating' && <div className="version-status-pill generating">Generating…</div>}
+
+                      {/* Bulk selection checkbox */}
+                      <div
+                        className={`selection-checkbox ${isBulkSel ? 'checked' : ''}`}
+                        onClick={(e) => {
+                          if (e.shiftKey && lastSelectedId) {
+                            handleRangeSelect(gen.id, e);
+                          } else {
+                            handleToggleSelect(gen.id, e);
+                          }
+                        }}
+                        title={isBulkSel ? 'Deselect' : 'Select'}
+                      >
+                        {isBulkSel && '✓'}
+                      </div>
                     </div>
                     <div className="version-meta">
                       <div className="version-module">{STUDIO_MODULES[gen.module]?.icon}</div>
@@ -209,7 +330,7 @@ export default function StudioProject() {
                 className="project-action-btn remix"
                 onClick={() => {
                   remix(selectedGeneration);
-                  setEnterGallery(false); // return to dashboard to remix
+                  setEnterGallery(false);
                 }}
               >
                 🔄 Remix
@@ -256,4 +377,3 @@ export default function StudioProject() {
     </div>
   );
 }
-
