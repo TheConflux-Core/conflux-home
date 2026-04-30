@@ -55,12 +55,22 @@ fn get_allowed_paths() -> Vec<String> {
     paths
 }
 
+fn expand_tilde(path: &str) -> String {
+    if path.starts_with("~") {
+        if let Ok(home) = std::env::var("HOME") {
+            return format!("{}{}", home, &path[1..]);
+        }
+    }
+    path.to_string()
+}
+
 /// Check if a file path is within allowed directories.
 fn is_path_allowed(path: &str) -> bool {
+    let expanded = expand_tilde(path);
     let allowed = get_allowed_paths();
-    let normalized = std::path::Path::new(path)
+    let normalized = std::path::Path::new(&expanded)
         .canonicalize()
-        .unwrap_or_else(|_| std::path::PathBuf::from(path));
+        .unwrap_or_else(|_| std::path::PathBuf::from(&expanded));
     let normalized_str = normalized.to_string_lossy();
 
     // Check blocked paths first
@@ -1254,7 +1264,8 @@ pub fn get_app_tool_definitions() -> Vec<Value> {
                         "dream_id": { "type": "string", "description": "Dream ID (required)" },
                         "title": { "type": "string", "description": "Milestone title (required)" },
                         "description": { "type": "string", "description": "Milestone description" },
-                        "target_date": { "type": "string", "description": "Target date in YYYY-MM-DD format" }
+                        "target_date": { "type": "string", "description": "Target date in YYYY-MM-DD format" },
+                        "sort_order": { "type": "integer", "description": "Order of this milestone within the dream (optional, default 1)" }
                     },
                     "required": ["dream_id", "title"]
                 }
@@ -1758,7 +1769,8 @@ pub fn get_app_tool_definitions() -> Vec<Value> {
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "month": { "type": "string", "description": "Month in YYYY-MM format (e.g. '2026-03')" }
+                        "month": { "type": "string", "description": "Month in YYYY-MM format (e.g. '2026-03')" },
+                        "member_id": { "type": "string", "description": "Member ID (optional, defaults to current user)" }
                     },
                     "required": ["month"]
                 }
@@ -1988,7 +2000,8 @@ pub fn get_app_tool_definitions() -> Vec<Value> {
                         "hvac_type": { "type": "string", "description": "HVAC type (central, window, mini-split, etc.)" },
                         "hvac_filter_size": { "type": "string", "description": "HVAC filter size (e.g. '16x25x1')" },
                         "water_heater_type": { "type": "string", "description": "Water heater type (tank, tankless, heat pump)" },
-                        "roof_type": { "type": "string", "description": "Roof type (shingle, tile, metal, flat)" }
+                        "roof_type": { "type": "string", "description": "Roof type (shingle, tile, metal, flat)" },
+                        "id": { "type": "string", "description": "Profile ID (optional, defaults to 'default')" }
                     }
                 }
             }
