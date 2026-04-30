@@ -816,7 +816,7 @@ pub fn get_integration_tool_definitions() -> Vec<Value> {
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "widget": { "type": "string", "description": "Widget path (e.g., 'theme', 'accentColor', 'wallpaper', 'sidebar', 'activeApp', 'chat', 'voiceChat', 'controlRoom', 'immersiveApp', 'exitImmersive', 'pushToTalk', 'barVersion', 'confluxBar', 'chatExpanded')" },
+                        "widget": { "type": "string", "description": "Widget to control. Common values:\n- 'theme': base theme ('dark', 'light', 'system') OR color theme name ('pulse', 'viper' — these apply full color theme with wallpaper)\n- 'accentColor': accent color ('blue', 'purple', 'green', 'orange', 'pink', 'cyan') or color theme name\n- 'wallpaper': wallpaper URL\n- 'activeApp': view name ('dashboard', 'kitchen', 'budget', 'life', 'dreams', 'echo', 'vault', 'home')\n- 'sidebar', 'chat', 'voiceChat', 'controlRoom': open/close/toggle\n- 'pushToTalk': toggle/start/stop\n- 'barVersion': 'v1' or 'v2'" },
                         "action": { "type": "string", "description": "Action: 'set' (default), 'toggle', 'open', 'close', 'start', 'stop', 'expand', 'collapse', 'increment', 'decrement'" },
                         "value": { "description": "New value for the widget (e.g., 'dark', 'blue', '/wallpapers/wallpaper-dark.webp', 'kitchen', 'v2', true, false)" }
                     },
