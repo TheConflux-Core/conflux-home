@@ -1371,7 +1371,111 @@ pub fn engine_google_get_credentials() -> Result<serde_json::Value, String> {
     }))
 }
 
+// ── Self-Improvement: Guided Skill Creation ─────────────────────────
+
+#[tauri::command]
+pub fn engine_accept_skill_prompt(
+    skill_name: String,
+    description: String,
+    triggers: String,
+    procedure: String,
+) -> Result<String, String> {
+    use std::fs;
+    let engine = engine::get_engine();
+
+    // Slugify the skill name
+    let slug = skill_name.to_lowercase().replace(" ", "-").replace("_", "-");
+    let dir = std::path::Path::new("/tmp/conflux-skills").join(&slug);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
+
+    let content = format!(
+        r#"---
+name: {name}
+description: {description}
+version: 1.0.0
+skill_type: learned
+triggers: {triggers}
+agents: [conflux]
+emoji: 🧩
+---
+
+# {name}
+
+## When to Use
+{procedure}
+"#,
+        name = skill_name,
+        description = description,
+        procedure = procedure,
+        triggers = triggers,
+    );
+
+    let path = dir.join("SKILL.md");
+    fs::write(&path, &content).map_err(|e| e.to_string())?;
+    log::info!("[SkillPrompt] Wrote skill to {}", path.display());
+
+    let skill_id = engine
+        .install_skill_from_file(&path.to_string_lossy())
+        .map_err(|e| e.to_string())?;
+
+
+    // Emit skill-created event
+    engine.emit_tauri_event("conflux:skill-created", serde_json::json!({
+        "skill_name": skill_name,
+        "skill_id": skill_id,
+    }));
+
+    // Clear pending draft
+    let _ = engine.db().set_config("pending_skill_draft", "");
+
+
+    Ok(skill_id)
+}
+
+#[tauri::command]
+pub fn engine_dismiss_skill_prompt() -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.db().set_config("pending_skill_draft", "").map_err(|e| e.to_string())
+}
+
+// ── Self-Improvement: Trajectory Mining ───────────────────────────
+
+#[tauri::command]
+pub fn engine_get_skill_fragments() -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let fragments = engine
+        .db()
+        .get_skill_fragments()
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(fragments).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub fn engine_get_trajectory_patterns(
+    agent_id: String,
+    min_count: Option<i64>,
+) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let patterns = engine
+        .db()
+        .get_trajectory_patterns(&agent_id, min_count.unwrap_or(3))
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(patterns).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub fn engine_get_today_lessons(agent_id: String) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let lessons = engine
+        .db()
+        .get_today_lessons(&agent_id)
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(lessons).map_err(|e| e.to_string())?)
+}
+
 // ── Health ──
+
 
 #[tauri::command]
 pub fn engine_health() -> Result<serde_json::Value, String> {

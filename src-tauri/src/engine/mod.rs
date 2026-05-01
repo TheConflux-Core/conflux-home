@@ -27,6 +27,7 @@ pub use db::EngineDb;
 use anyhow::Result;
 use std::path::Path;
 use std::sync::OnceLock;
+use uuid::Uuid;
 
 /// Global engine instance.
 static ENGINE: OnceLock<ConfluxEngine> = OnceLock::new();
@@ -1145,6 +1146,64 @@ impl ConfluxEngine {
         )?;
 
         Ok(id.to_string())
+    }
+
+    /// Install a skill from a SKILL.md file (YAML frontmatter + markdown body).
+    pub fn install_skill_from_file(&self, path: &str) -> Result<String> {
+        use std::fs;
+        let content = fs::read_to_string(path)?;
+
+
+        // Strip YAML frontmatter
+        let content = content.trim_start();
+        let body = if content.starts_with("---") {
+            let end = content
+                .find("\n---\n")
+                .map(|i| i + 6)
+                .unwrap_or(0);
+            &content[end..]
+        } else {
+            content
+        };
+
+
+        let mut json = serde_json::Map::new();
+
+        // Parse frontmatter from raw content
+        if content.starts_with("---") {
+            if let Some(end) = content.find("\n---\n") {
+                let fm = &content[4..end];
+                for line in fm.lines() {
+                    if let Some(col) = line.find(':') {
+                        let key = line[..col].trim();
+                        let val = line[col + 1..].trim().trim_matches('"');
+                        if key == "agents" || key == "triggers" {
+                            json.insert(key.to_string(), serde_json::Value::String(val.to_string()));
+                        } else {
+                            json.insert(key.to_string(), serde_json::Value::String(val.to_string()));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Extract name from the first H1 heading in body
+        if let Some(line) = body.lines().find(|l| l.starts_with("# ")) {
+            json.insert("name".to_string(), serde_json::Value::String(line[2..].to_string()));
+        }
+
+        let id = uuid::Uuid::new_v4().to_string();
+        json.insert("id".to_string(), serde_json::Value::String(id.clone()));
+
+        json.insert(
+            "instructions".to_string(),
+            serde_json::Value::String(body.trim().to_string()),
+        );
+        json.insert("author".to_string(), serde_json::Value::String("conflux".to_string()));
+        json.insert("source".to_string(), serde_json::Value::String(path.to_string()));
+
+
+        self.install_skill_from_json(&serde_json::to_string(&json)?)
     }
 
     pub fn toggle_skill(&self, id: &str, active: bool) -> Result<()> {
