@@ -2156,6 +2156,84 @@ impl EngineDb {
         Ok(())
     }
 
+    /// Get skill fragments from the lessons_learned table (sprouting seeds for skills).
+    pub fn get_skill_fragments(&self) -> Result<Vec<serde_json::Value>> {
+        let conn = self.conn();
+        let seven_days_ago = chrono::Utc::now() - chrono::Duration::days(7);
+        let cutoff = seven_days_ago.format("%Y-%m-%d %H:%M:%S").to_string();
+        let mut stmt = conn.prepare(
+            "SELECT id, category, lesson, created_at FROM lessons_learned WHERE category = 'skill-fragment' AND created_at >= ?1 ORDER BY created_at DESC LIMIT 50",
+        )?;
+        let fragments: Vec<serde_json::Value> = stmt
+            .query_map([&cutoff], |row| {
+                Ok(serde_json::json!({
+                    "id": row.get::<_, i64>(0)?,
+                    "category": row.get::<_, String>(1)?,
+                    "lesson": row.get::<_, String>(2)?,
+                    "created_at": row.get::<_, String>(3)?,
+                }))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+        // Fallback: if no fragments found, return last 10 lessons_learned entries as seed
+        if fragments.is_empty() {
+            let mut stmt2 = conn.prepare(
+                "SELECT id, category, lesson, created_at FROM lessons_learned ORDER BY created_at DESC LIMIT 10",
+            )?;
+            let fallback: Vec<serde_json::Value> = stmt2
+                .query_map([], |row| {
+                    Ok(serde_json::json!({
+                        "id": row.get::<_, i64>(0)?,
+                        "category": row.get::<_, String>(1)?,
+                        "lesson": row.get::<_, String>(2)?,
+                        "created_at": row.get::<_, String>(3)?,
+                    }))
+                })?
+                .filter_map(|r| r.ok())
+                .collect();
+            return Ok(fallback);
+        }
+        Ok(fragments)
+    }
+
+    pub fn get_trajectory_patterns(&self, agent_id: &str, min_count: i64) -> Result<Vec<serde_json::Value>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare(
+            "SELECT sequence_hash, call_count, last_used FROM trajectory_patterns WHERE agent_id = ?1 AND call_count >= ?2 ORDER BY call_count DESC LIMIT 20",
+        )?;
+        let patterns: Vec<serde_json::Value> = stmt
+            .query_map([agent_id, &min_count.to_string()], |row| {
+                Ok(serde_json::json!({
+                    "sequence_hash": row.get::<_, String>(0)?,
+                    "call_count": row.get::<_, i64>(1)?,
+                    "last_used": row.get::<_, String>(2)?,
+                }))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(patterns)
+    }
+
+    pub fn get_today_lessons(&self, agent_id: &str) -> Result<Vec<serde_json::Value>> {
+        let conn = self.conn();
+        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        let mut stmt = conn.prepare(
+            "SELECT id, category, lesson, created_at FROM lessons_learned WHERE agent_id = ?1 AND date(created_at) = ?2 ORDER BY created_at DESC LIMIT 20",
+        )?;
+        let lessons: Vec<serde_json::Value> = stmt
+            .query_map([agent_id, &today], |row| {
+                Ok(serde_json::json!({
+                    "id": row.get::<_, i64>(0)?,
+                    "category": row.get::<_, String>(1)?,
+                    "lesson": row.get::<_, String>(2)?,
+                    "created_at": row.get::<_, String>(3)?,
+                }))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(lessons)
+    }
+
     pub fn toggle_skill(&self, id: &str, active: bool) -> Result<()> {
         let conn = self.conn();
         let a: i64 = if active { 1 } else { 0 };
