@@ -20,6 +20,7 @@ import AgentIntroductions from './components/AgentIntroductions';
 import ConfluxOrbit from './components/ConfluxOrbit';
 import LoginScreen from './components/LoginScreen';
 import Settings from './components/Settings';
+import SkillCreationPrompt from './components/settings/SkillCreationPrompt';
 import SplashScreen from './components/SplashScreen';
 import ToastContainer from './components/Toast';
 import UpdateBanner from './components/UpdateBanner';
@@ -313,9 +314,7 @@ export default function App() {
           if (value) setWallpaper(value);
           break;
         case 'sidebar':
-          // action: 'toggle' | 'set', value: boolean
-          if (action === 'toggle') setSidebarOpen(prev => !prev);
-          else if (typeof value === 'boolean') setSidebarOpen(value);
+          // sidebar control removed — kept as no-op for event compat
           break;
         case 'activeApp':
           // value: view name string (dashboard, kitchen, budget, life, etc.)
@@ -400,6 +399,12 @@ export default function App() {
           onUiAction({ detail: event.payload } as any);
         }
       }).catch(e => console.warn('[App] listen conflux:ui-action error:', e));
+
+      // Listen for skill-prompt events (Phase 4 Guided Skill Creation)
+      listen<{skill_name: string; description: string; triggers: string; procedure: string; tool_sequence: string; total_tool_calls: number}>('conflux:skill-prompt', (event) => {
+        console.log('[App] skill-prompt event:', event.payload);
+        setSkillPromptDraft(event.payload);
+      }).catch(e => console.warn('[App] listen conflux:skill-prompt error:', e));
     });
     return () => {
       window.removeEventListener('conflux:theme-change', onThemeChange);
@@ -411,6 +416,7 @@ export default function App() {
 
   const [isOnboarded, setIsOnboarded] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [skillPromptDraft, setSkillPromptDraft] = useState<any>(null);
   const [showIntroductions, setShowIntroductions] = useState(true);
   const [showBootCards, setShowBootCards] = useState(() => {
     // Disabled by ZigBot on 2026-04-06 per Don's request
@@ -1237,6 +1243,9 @@ const [activeSnake, setActiveSnake] = useState(false);
           {immersiveView === 'echo' && <EchoView />}
           {immersiveView === 'vault' && <VaultView />}
           {immersiveView === 'studio' && <StudioView />}
+          {immersiveView === 'settings' && skillPromptDraft && (
+            <SkillCreationPrompt draft={skillPromptDraft} onClose={() => setSkillPromptDraft(null)} />
+          )}
           {immersiveView === 'settings' && <Settings />}
           {immersiveView === 'security' && <SecurityDashboard />}
           {immersiveView === 'aegis' && <AegisDashboard />}

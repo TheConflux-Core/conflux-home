@@ -169,6 +169,8 @@ pub async fn process_turn(
     user_message: &str,
     max_tokens: Option<i64>,
 ) -> Result<ModelResponse> {
+    let mut total_tool_calls_in_turn: usize = 0;
+    let mut all_tool_names: Vec<String> = Vec::new();
     // 1. Load agent config
     let agent = db
         .get_agent(agent_id)?
@@ -398,11 +400,24 @@ pub async fn process_turn(
             break;
         }
 
-        // Execute tool calls
+        total_tool_calls_in_turn += response.tool_calls.len();
         for tool_call in &response.tool_calls {
+            all_tool_names.push(tool_call.name.clone());
+            // ── Tool Name Repair ──
+            let repaired_name = if tool_defs.iter().any(|t| {
+                t.get("function").and_then(|f| f.get("name")).and_then(|n| n.as_str()) == Some(&tool_call.name)
+            }) {
+                tool_call.name.clone()
+            } else if let Some(valid) = validate_tool_name(&tool_call.name, &tool_defs) {
+                log::warn!("[Engine] Auto-repaired tool name: '{}' → '{}'", tool_call.name, valid);
+                valid
+            } else {
+                tool_call.name.clone()
+            };
+
             log::info!(
                 "[Engine] Tool call: {}({})",
-                tool_call.name,
+                repaired_name,
                 tool_call.arguments
             );
 
@@ -414,7 +429,7 @@ pub async fn process_turn(
             let user_id = get_session_user_id(db, session_id);
 
             // ── Security: Permission Gate ──
-            let (resource_type, resource_value) = match tool_call.name.as_str() {
+            let (resource_type, resource_value) = match repaired_name.as_str() {
                 "file_read" | "file_write" | "file_delete" | "file_list" | "file_append" => {
                     let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("");
                     ("file_path".to_string(), path.to_string())
@@ -435,7 +450,7 @@ pub async fn process_turn(
                     let endpoint = args.get("endpoint").or_else(|| args.get("url")).and_then(|v| v.as_str()).unwrap_or("");
                     ("api_endpoint".to_string(), endpoint.to_string())
                 }
-                _ => ("exec_command".to_string(), tool_call.name.clone()),
+                _ => ("exec_command".to_string(), repaired_name.clone()),
             };
 
             let session_id_owned = session_id.to_string();
@@ -446,7 +461,7 @@ pub async fn process_turn(
                 &resource_type,
                 &resource_value,
                 "default",
-                &tool_call.name,
+                &repaired_name,
             ).await {
                 Ok(result) => result,
                 Err(e) => {
@@ -462,7 +477,7 @@ pub async fn process_turn(
             };
 
             log::debug!("[Engine] Permission check for '{}': allowed={}, action={}", 
-                tool_call.name, perm_result.allowed, perm_result.action);
+                repaired_name, perm_result.allowed, perm_result.action);
 
             let tool_result = if !perm_result.allowed {
                 // Log the denied event
@@ -472,7 +487,7 @@ pub async fn process_turn(
                     Some(&session_id_owned),
                     EventType::PermissionDenied,
                     EventCategory::Warning,
-                    Some(&tool_call.name),
+                    Some(&repaired_name),
                     Some(&resource_value),
                     Some(&format!("{}: {}", perm_result.action, perm_result.reason)),
                     50,
@@ -484,7 +499,7 @@ pub async fn process_turn(
                         use crate::engine::get_engine;
                         let notif_body = format!(
                             "Agent '{}' wants to use '{}' on '{}'",
-                            agent_id, tool_call.name, resource_value
+                            agent_id, repaired_name, resource_value
                         );
                         get_engine().send_security_notification(
                             "🔔 Agent Permission Request",
@@ -493,13 +508,13 @@ pub async fn process_turn(
 
                         format!(
                             "Agent '{}' is requesting permission to use '{}' on '{}'.\nReason: {}\n\nWaiting for your approval in the Security Center.",
-                            agent_id, tool_call.name, resource_value, perm_result.reason
+                            agent_id, repaired_name, resource_value, perm_result.reason
                         )
                     }
                     _ => {
                         format!(
                             "Permission denied: Agent '{}' cannot use '{}' on '{}'.\nReason: {}",
-                            agent_id, tool_call.name, resource_value, perm_result.reason
+                            agent_id, repaired_name, resource_value, perm_result.reason
                         )
                     }
                 };
@@ -512,21 +527,19 @@ pub async fn process_turn(
                     Some(&session_id_owned),
                     EventType::FileAccess,
                     EventCategory::Info,
-                    Some(&tool_call.name),
+                    Some(&repaired_name),
                     Some(&resource_value),
                     None,
                     0,
                     true,
                 );
 
-                tools::execute_tool(&tool_call.name, &args, &user_id).await?
+                tools::execute_tool(&repaired_name, &args, &user_id).await?
             };
 
             let result_content = if tool_result.success {
                 tool_result.output.clone()
             } else {
-                // Tools put real error messages in EITHER output (actual tool error)
-                // or error (structured error). Prefer output > error > "Unknown error".
                 let display = tool_result
                     .output
                     .is_empty()
@@ -537,8 +550,8 @@ pub async fn process_turn(
                         if out.is_empty() { None } else { Some(out.clone()) }
                     })
                     .unwrap_or_else(|| "Unknown error".to_string());
-                eprintln!("[ENGINE ERROR] tool={}, display='{}', full={:?}", tool_call.name, display, tool_result);
-                log::error!("[ENGINE] tool_name={}, display={}", tool_call.name, display);
+                eprintln!("[ENGINE ERROR] tool={}, display='{}', full={:?}", repaired_name, display, tool_result);
+                log::error!("[ENGINE] tool_name={}, display={}", repaired_name, display);
                 format!("Error: {}", display)
             };
 
@@ -551,7 +564,7 @@ pub async fn process_turn(
                     "id": tool_call.id,
                     "type": "function",
                     "function": {
-                        "name": tool_call.name,
+                        "name": repaired_name,
                         "arguments": tool_call.arguments,
                     }
                 })]),
@@ -652,6 +665,54 @@ pub async fn process_turn(
 
     // 11. Session compaction (if over threshold)
     let _ = maybe_compact_session(db, session_id, agent_id).await;
+
+    // 12. Guided Skill Creation Check
+    if total_tool_calls_in_turn >= 5 && !all_tool_names.is_empty() {
+        use std::collections::HashMap;
+        let mut freq = HashMap::new();
+        for name in &all_tool_names {
+            *freq.entry(name).or_insert(0) += 1;
+        }
+        let dominant_tool = freq
+            .into_iter()
+            .max_by_key(|(_, count)| *count)
+            .map(|(name, _)| name)
+            .unwrap_or(&"unknown".to_string())
+            .clone();
+        let skill_name = format!("{}-workflow", dominant_tool.replace("_", "-"));
+        let tool_sequence = all_tool_names.join(" → ");
+        let description = format!(
+            "Learned from {} tool calls in a single turn. Sequence: {}.",
+            total_tool_calls_in_turn, tool_sequence
+        );
+        let triggers = format!("When the user wants to {}", dominant_tool.replace("_", " "));
+        let procedure = format!(
+            "1. Analyze the user's request\n2. Call the appropriate tools in sequence: {}\n3. Return a concise summary of results",
+            tool_sequence
+        );
+
+        let draft = serde_json::json!({
+            "skill_name": skill_name,
+            "description": description,
+            "triggers": triggers,
+            "procedure": procedure,
+            "tool_sequence": tool_sequence,
+            "total_tool_calls": total_tool_calls_in_turn,
+        });
+        let _ = db.set_config("pending_skill_draft", &serde_json::to_string(&draft).unwrap_or_default());
+        log::info!("[Engine] Generated skill draft '{}' from {} tool calls", skill_name, total_tool_calls_in_turn);
+
+        // Emit skill-prompt event via engine's emit_tauri_event (no AppHandle parameter needed)
+        use crate::engine::get_engine;
+        get_engine().emit_tauri_event("conflux:skill-prompt", serde_json::json!({
+            "skill_name": skill_name,
+            "description": description,
+            "triggers": triggers,
+            "procedure": procedure,
+            "tool_sequence": tool_sequence,
+            "total_tool_calls": total_tool_calls_in_turn,
+        }));
+    }
 
     Ok(response)
 }

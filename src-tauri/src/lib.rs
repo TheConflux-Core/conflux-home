@@ -401,6 +401,12 @@ pub fn run() {
             commands::engine_install_skill,
             commands::engine_toggle_skill,
             commands::engine_uninstall_skill,
+            // Self-Improvement (Phase 4/5)
+            commands::engine_accept_skill_prompt,
+            commands::engine_dismiss_skill_prompt,
+            commands::engine_get_skill_fragments,
+            commands::engine_get_trajectory_patterns,
+            commands::engine_get_today_lessons,
             // Notifications
             commands::engine_send_notification,
             // Email Config
