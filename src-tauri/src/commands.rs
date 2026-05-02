@@ -206,27 +206,31 @@ pub async fn engine_chat_stream(window: tauri::Window, req: ChatRequest) -> Resu
     let engine = engine::get_engine();
     log::info!("[engine_chat_stream] ✅ Engine instance obtained");
 
+    let is_offline = engine::is_offline_mode();
+
     // Get real Supabase user ID for cloud credit operations
     let user_id = get_supabase_user_id();
     log::info!("[engine_chat_stream] Supabase user ID: {}", user_id);
 
-    // Check quota (cloud-aware)
-    log::info!("[engine_chat_stream] Checking quota for user: {}", user_id);
-    let quota = engine
-        .has_quota(&user_id)
-        .await
-        .map_err(|e| e.to_string())?;
-    log::info!(
-        "[engine_chat_stream] Quota check result: allowed={}, source={}",
-        quota.allowed,
-        quota.source
-    );
-    if !quota.allowed {
-        let msg = format!("{} limit reached. Upgrade for more credits.", quota.source);
-        window
-            .emit("engine:error", &msg)
+    // Check quota (cloud-only — skip in offline mode)
+    if !is_offline {
+        log::info!("[engine_chat_stream] Checking quota for user: {}", user_id);
+        let quota = engine
+            .has_quota(&user_id)
+            .await
             .map_err(|e| e.to_string())?;
-        return Err(msg);
+        log::info!(
+            "[engine_chat_stream] Quota check result: allowed={}, source={}",
+            quota.allowed,
+            quota.source
+        );
+        if !quota.allowed {
+            let msg = format!("{} limit reached. Upgrade for more credits.", quota.source);
+            window
+                .emit("engine:error", &msg)
+                .map_err(|e| e.to_string())?;
+            return Err(msg);
+        }
     }
 
     let _ = window.emit("engine:thinking", ());
@@ -251,55 +255,41 @@ pub async fn engine_chat_stream(window: tauri::Window, req: ChatRequest) -> Resu
                 response.content.len()
             );
 
-            let calls = engine
-                .increment_quota(&user_id, response.tokens_used, &response.provider_id)
-                .map_err(|e| e.to_string())?;
-            log::info!("[engine_chat_stream] Quota incremented: {} calls", calls);
+            // Cloud-only: quota increment, logging, credit charging
+            let (calls, credits_remaining, limit, quota_source) = if !is_offline {
+                let calls = engine
+                    .increment_quota(&user_id, response.tokens_used, &response.provider_id)
+                    .map_err(|e| e.to_string())?;
+                log::info!("[engine_chat_stream] Quota incremented: {} calls", calls);
 
-            let limit = get_daily_limit(engine);
+                let limit = get_daily_limit(engine);
 
-            // Log to cloud and charge credits (fire and forget)
-            let credit_costs = super::engine::cloud::get_credit_costs()
-                .await
-                .unwrap_or_default();
-            let credits = super::engine::cloud::credit_cost_for_model(
-                &response.model,
-                &response.provider_id,
-                "core",
-                &credit_costs,
-            );
-            log::info!(
-                "[engine_chat_stream] Credit cost for this request: {}",
-                credits
-            );
+                let credit_costs = super::engine::cloud::get_credit_costs()
+                    .await
+                    .unwrap_or_default();
+                let credits = super::engine::cloud::credit_cost_for_model(
+                    &response.model,
+                    &response.provider_id,
+                    "core",
+                    &credit_costs,
+                );
+                log::info!("[engine_chat_stream] Credit cost: {}", credits);
 
-            let _ = super::engine::cloud::log_usage_to_cloud(
-                &user_id,
-                &req.session_id,
-                &req.agent_id,
-                &response.model,
-                &response.provider_id,
-                "core",
-                response.tokens_used,
-                response.latency_ms,
-                "success",
-                credits,
-            )
-            .await;
-            log::info!("[engine_chat_stream] ✅ Logged usage to cloud");
+                let _ = super::engine::cloud::log_usage_to_cloud(
+                    &user_id, &req.session_id, &req.agent_id,
+                    &response.model, &response.provider_id, "core",
+                    response.tokens_used, response.latency_ms, "success", credits,
+                ).await;
 
-            let credits_remaining =
-                match super::engine::cloud::charge_credits(&user_id, credits, "").await {
+                let credits_remaining = match super::engine::cloud::charge_credits(&user_id, credits, "").await {
                     Ok(new_balance) => Some(new_balance),
-                    Err(e) => {
-                        log::warn!("[Engine] Credit charge failed: {}", e);
-                        None
-                    }
+                    Err(e) => { log::warn!("[Engine] Credit charge failed: {}", e); None }
                 };
-            log::info!(
-                "[engine_chat_stream] Credits remaining: {:?}",
-                credits_remaining
-            );
+                (calls, credits_remaining, limit, "cloud".to_string())
+            } else {
+                log::info!("[engine_chat_stream] Offline mode — skipping quota/cloud logging");
+                (0i64, None, 0i64, "local".to_string())
+            };
 
             // Emit response in word-chunks for streaming feel
             let words: Vec<&str> = response.content.split_whitespace().collect();
@@ -326,7 +316,7 @@ pub async fn engine_chat_stream(window: tauri::Window, req: ChatRequest) -> Resu
                         "latency_ms": response.latency_ms,
                         "calls_remaining": (limit - calls).max(0),
                         "credits_remaining": credits_remaining,
-                        "credit_source": quota.source,
+                        "credit_source": quota_source,
                     }),
                 )
                 .map_err(|e| e.to_string())?;
@@ -491,6 +481,35 @@ pub fn engine_get_quota() -> Result<serde_json::Value, String> {
     let user_id = get_supabase_user_id();
     let quota = engine.get_quota(&user_id).map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(quota).map_err(|e| e.to_string())?)
+}
+
+// ── Offline Mode Commands ──
+
+#[tauri::command]
+pub fn engine_set_offline_mode(offline: bool) -> Result<(), String> {
+    engine::set_offline_mode(offline);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn engine_get_offline_mode() -> Result<bool, String> {
+    Ok(engine::is_offline_mode())
+}
+
+#[tauri::command]
+pub async fn engine_preload_local_ai() -> Result<serde_json::Value, String> {
+    use engine::local_ai::get_or_init_local_ai;
+    log::info!("[Engine] engine_preload_local_ai() called — starting background warm-up...");
+    match get_or_init_local_ai().await {
+        Some(_manager) => {
+            log::info!("[Engine] Local AI ready");
+            Ok(serde_json::json!({ "status": "ready" }))
+        }
+        None => {
+            log::warn!("[Engine] Local AI not available — llama-server failed to start");
+            Err("Local AI not available — check if llama-server binary and model exist".to_string())
+        }
+    }
 }
 
 // ── Memory Commands ──
@@ -1472,6 +1491,81 @@ pub fn engine_get_today_lessons(agent_id: String) -> Result<serde_json::Value, S
         .get_today_lessons(&agent_id)
         .map_err(|e| e.to_string())?;
     Ok(serde_json::to_value(lessons).map_err(|e| e.to_string())?)
+}
+
+// ── Self-Improvement: Dream Skill Synthesis + Trajectory Mining ───
+
+/// Write a synthesized skill from dream-cycle or trajectory-mining to a SKILL.md file
+/// and auto-install it via install_skill_from_file().
+#[tauri::command]
+pub fn engine_write_lesson_skill(
+    skill_id: String,
+    name: String,
+    description: String,
+    triggers: String,
+    procedure: String,
+    skill_type: String,
+) -> Result<String, String> {
+    use std::fs;
+    let engine = engine::get_engine();
+
+
+    // Determine subdir based on skill_type
+    let subdir = match skill_type.as_str() {
+        "synthesized" => "auto",
+        "mined" => "mined",
+        _ => "learned",
+    };
+
+
+    let slug = name.to_lowercase().replace(" ", "-").replace("_", "-");
+    let dir = std::path::Path::new("/tmp/conflux-skills").join(subdir).join(&slug);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
+    let content = format!(
+        r#"---
+name: {name}
+description: {description}
+version: 1.0.0
+skill_type: {skill_type}
+triggers: {triggers}
+agents: [conflux]
+emoji: 🧩
+---
+
+# {name}
+
+## When to Use
+{trigger_text}
+
+## Procedure
+{procedure}
+"#,
+        name = name,
+        description = description,
+        skill_type = skill_type,
+        triggers = triggers,
+        trigger_text = triggers,
+        procedure = procedure,
+    );
+
+
+    let path = dir.join("SKILL.md");
+    fs::write(&path, &content).map_err(|e| e.to_string())?;
+    log::info!("[SkillSynthesis] Wrote skill to {}", path.display());
+
+    let installed_id = engine
+        .install_skill_from_file(&path.to_string_lossy())
+        .map_err(|e| e.to_string())?;
+
+
+    // Emit skill-created for bloom animation
+    engine.emit_tauri_event("conflux:skill-created", serde_json::json!({
+        "skill_name": name,
+        "skill_id": installed_id,
+    }));
+
+    Ok(installed_id)
 }
 
 // ── Health ──

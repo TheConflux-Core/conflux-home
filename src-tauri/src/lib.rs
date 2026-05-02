@@ -332,6 +332,10 @@ pub fn run() {
             commands::get_user_profile,
             // Quota
             commands::engine_get_quota,
+            // Offline Mode
+            commands::engine_set_offline_mode,
+            commands::engine_get_offline_mode,
+            commands::engine_preload_local_ai,
             // Memory
             commands::engine_store_memory,
             commands::engine_search_memory,
@@ -402,6 +406,7 @@ pub fn run() {
             commands::engine_toggle_skill,
             commands::engine_uninstall_skill,
             // Self-Improvement (Phase 4/5)
+            commands::engine_write_lesson_skill,
             commands::engine_accept_skill_prompt,
             commands::engine_dismiss_skill_prompt,
             commands::engine_get_skill_fragments,
