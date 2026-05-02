@@ -59,7 +59,11 @@ export default function SkillGarden() {
     return () => { unlisten.then(fn => fn()); };
   }, []);
 
-  const learned = skills.filter(s => (s as any).skill_type === 'learned' || (s as any).skill_type === 'mined');
+  const learned = skills.filter(s =>
+    (s as any).skill_type === 'learned'
+    || (s as any).skill_type === 'mined'
+    || (s as any).skill_type === 'synthesized'
+  );
   const domain = skills.filter(s => (s as any).skill_type === 'domain');
 
   if (loading) {
