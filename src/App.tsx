@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { soundManager } from './lib/sound';
 import { initHeartbeatGlobal } from './lib/heartbeatGlobal';
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
@@ -545,7 +546,7 @@ export default function App() {
               else resolve('');
             });
 
-            let timeoutId: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+            let timeoutId: ReturnType<typeof setTimeout> | undefined = setTimeout(() => {
               unlisten();
               resolve('');
             }, 3000);
