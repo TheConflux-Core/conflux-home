@@ -27,10 +27,25 @@ pub use db::EngineDb;
 use anyhow::Result;
 use std::path::Path;
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 use uuid::Uuid;
 
 /// Global engine instance.
 static ENGINE: OnceLock<ConfluxEngine> = OnceLock::new();
+
+/// Global offline mode flag. Set by the frontend toggle or auto-fallback.
+static GLOBAL_OFFLINE: AtomicBool = AtomicBool::new(false);
+
+/// Check if the engine is in offline mode (user-toggled or auto-fallback).
+pub fn is_offline_mode() -> bool {
+    GLOBAL_OFFLINE.load(Ordering::Relaxed)
+}
+
+/// Set offline mode on/off. Called from the `engine_set_offline_mode` Tauri command.
+pub fn set_offline_mode(offline: bool) {
+    GLOBAL_OFFLINE.store(offline, Ordering::Relaxed);
+    log::info!("[Engine] Offline mode set: {}", offline);
+}
 
 /// Get the global engine instance. Panics if not initialized.
 pub fn get_engine() -> &'static ConfluxEngine {
@@ -131,13 +146,12 @@ impl ConfluxEngine {
         use tauri::Emitter;
         let handle_guard = self.app_handle.lock().unwrap();
         if let Some(handle) = handle_guard.as_ref() {
-            log::info!("[Engine] Emitting Tauri event '{}', payload: {:?}", event, serde_json::to_string(&payload).unwrap_or_default());
             match handle.emit(event, payload) {
-                Ok(()) => log::info!("[Engine] Tauri event '{}' emitted successfully", event),
+                Ok(()) => log::debug!("[Engine] Tauri event '{}' emitted", event),
                 Err(e) => log::warn!("[Engine] Failed to emit {}: {}", event, e),
             }
         } else {
-            log::warn!("[Engine] Cannot emit Tauri event '{}' — app_handle not registered (engine startup incomplete)", event);
+            log::warn!("[Engine] Cannot emit Tauri event '{}' — app_handle not registered", event);
         }
     }
 
@@ -774,6 +788,32 @@ impl ConfluxEngine {
               If all scans are clean, store a brief memory with category 'security-status' noting the clean scan. \
               Do NOT send a notification to the user unless there is a critical finding. \
               Keep output minimal — just the scan results summary."),
+
+            ("dream-skill-synthesis", "conflux", "0 23 * * *", "local",
+             "Skill Synthesis — Dream Cycle Phase 4. \
+              You are the Dream Weaver. Today you collected fragments of wisdom; now weave them into lasting skills. \
+              1. Use engine_get_today_lessons with agent_id='conflux' to read all lessons learned today. \
+              2. Group lessons by category. If 3+ lessons share the same category, synthesize them into a skill: \
+                 a. Generate a name (kebab-case, e.g., 'meal-preference-learning'). \
+                 b. Write a SKILL.md to /tmp/conflux-skills/auto/{name}/SKILL.md with YAML frontmatter (name, description, version: 1.0.0, skill_type: synthesized, triggers, agents: [conflux]) and a Procedure section. \
+                 c. Call engine_write_lesson_skill with the skill details to install it. \
+                 d. Log '🧩 Synthesized skill: {name}' to the run log. \
+              3. For groups with fewer than 3 lessons, store as skill fragments — no action needed. \
+              4. If you synthesized any skills, emit conflux:skill-created for each. \
+              Be concise — this cron must complete within its timeout window."),
+
+
+            ("trajectory-mine", "conflux", "50 23 * * *", "local",
+             "Trajectory Mining — find reusable tool sequences. \
+              1. Use engine_get_trajectory_patterns with agent_id='conflux' and min_count=3 to find tool sequences seen 3+ times. \
+              2. For each pattern, check that no existing skill covers the same tool sequence. \
+              3. For genuinely new patterns: \
+                 a. Generate a skill name from the dominant tool (e.g., 'budget-query-week'). \
+                 b. Write a SKILL.md to /tmp/conflux-skills/mined/{name}/SKILL.md. \
+                 c. Call engine_write_lesson_skill to install it. \
+                 d. Log '🧩 Mined trajectory skill: {name}' to the run log. \
+              4. Archive trajectory data older than 30 days (delete from tool_trajectories where created_at < date('now', '-30 days')). \
+              Only create a skill if the sequence is genuinely new and useful."),
         ];
 
         for (name, agent_id, schedule, tz, message) in system_jobs {
@@ -1201,6 +1241,8 @@ impl ConfluxEngine {
         );
         json.insert("author".to_string(), serde_json::Value::String("conflux".to_string()));
         json.insert("source".to_string(), serde_json::Value::String(path.to_string()));
+        // skill_type defaults to 'learned' if not found in frontmatter
+        json.entry("skill_type".to_string()).or_insert(serde_json::Value::String("learned".to_string()));
 
 
         self.install_skill_from_json(&serde_json::to_string(&json)?)
