@@ -1347,34 +1347,17 @@ async fn local_offline_turn(
         total_chars, total_chars / 4, messages.len(), role_seq
     );
 
-    // Format as raw Gemma prompt for /completion endpoint (skips Jinja template processing)
-    let mut raw_prompt = String::new();
-    for msg in &messages {
-        let role = msg.get("role").and_then(|r| r.as_str()).unwrap_or("user");
-        let content = msg.get("content").and_then(|c| c.as_str()).unwrap_or("");
-        raw_prompt.push_str(&format!("<start_of_turn>{}\n{}<end_of_turn>\n", role, content));
-    }
-    raw_prompt.push_str("<start_of_turn>model\n");
-
-    // Single model call — NO tools, conversational only
+    // Single model call via chat completions API (uses model's built-in chat template)
     let llm_start = std::time::Instant::now();
-    let content = manager.completion(&raw_prompt, 512, 0.7).await
-        .map_err(|e| anyhow::anyhow!("Local completion failed: {}", e))?;
+    let content = manager.chat_completion(&messages, 512, 0.7).await
+        .map_err(|e| anyhow::anyhow!("Local chat completion failed: {}", e))?;
     let llm_ms = llm_start.elapsed().as_millis();
     log::info!("[Engine][Offline] LLM responded in {}ms, {} chars", llm_ms, content.len());
 
-    // Offline mode: NO tool execution. Strip any hallucinated tool calls.
-    let final_content = if content.trim_start().starts_with('{') || content.contains("\"name\"") {
-        log::info!("[Engine][Offline] Stripped hallucinated tool call from response");
-        "I'm here! I'm running in offline mode right now, so I can only chat — I don't have access to my tools. What's on your mind?".to_string()
-    } else {
-        content.clone()
-    };
-
-    // Clean up any UNK byte artifacts from fine-tuned models
+    // Clean up any UNK byte artifacts (for fine-tuned models that may produce them)
     let cleaned = regex::Regex::new(r"\[UNK_BYTE_[^\]]*\]")
         .unwrap()
-        .replace_all(&final_content, "")
+        .replace_all(&content, "")
         .replace('▁', "")
         .trim()
         .to_string();
