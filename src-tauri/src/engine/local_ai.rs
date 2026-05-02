@@ -425,10 +425,41 @@ impl LocalAiManager {
 
         Ok(content.to_string())
     }
+
+    /// Send a chat completion request (uses model's built-in chat template).
+    pub async fn chat_completion(&self, messages: &[serde_json::Value], max_tokens: i32, temperature: f32) -> Result<String> {
+        let url = format!("http://localhost:{}/v1/chat/completions", self.config.port);
+
+        let body = serde_json::json!({
+            "model": self.config.model_path.file_stem().and_then(|s| s.to_str()).unwrap_or("model"),
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        });
+
+        let resp = self.client.post(&url).json(&body).send().await?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let text = resp.text().await.unwrap_or_default();
+            return Err(anyhow!("llama-server chat returned {}: {}", status, text));
+        }
+
+        let result: serde_json::Value = resp.json().await?;
+        let content = result["choices"]
+            .get(0)
+            .and_then(|c| c.get("message"))
+            .and_then(|m| m.get("content"))
+            .and_then(|c| c.as_str())
+            .ok_or_else(|| anyhow!("No 'content' in llama-server chat response"))?;
+
+
+        Ok(content.to_string())
+    }
 }
 
-// Note: No Drop impl — server lifecycle is managed by the global LOCAL_AI static.
+// Note: No Drop impl -- server lifecycle is managed by the global LOCAL_AI static.
 // Call shutdown_local_ai() on app exit to clean up.
+
 
 // ── Tool Routing ──
 
