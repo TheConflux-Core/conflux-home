@@ -48,15 +48,16 @@ export default function TopBar({ selectedAgent, controlRoom, currentView, onNavi
     }
   }, [effectiveMode]);
 
-  // Sync backend offline mode on mount (in case "local" was persisted)
+  // Sync backend offline mode whenever effective mode changes
+  // (includes mount, manual switch, and auto-fallback on network drop)
   useEffect(() => {
     const isLocal = effectiveMode === 'local';
     invoke('engine_set_offline_mode', { offline: isLocal }).catch(() => {});
     if (isLocal) {
+      // Warm up llama-server before first offline request
       invoke('engine_preload_local_ai').catch(() => {});
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [effectiveMode]);
 
   const [notifUnread, setNotifUnread] = useState(() => {
     const stored = localStorage.getItem('conflux-notif-unread');
