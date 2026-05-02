@@ -381,12 +381,15 @@ export default function KitchenView() {
               <div className="meal-detail-photo">
                 {selectedMeal.photo_url ? (
                   <img
-                    src={convertFileSrc(selectedMeal.photo_url)}
-                    alt={selectedMeal.name}
+                    src={(() => {
+                      const url: string = selectedMeal.photo_url!;
+                      return convertFileSrc(url);
+                    })()}
+                    alt={selectedMeal.name ?? ''}
                     className="meal-detail-img"
                     onError={(e) => {
                       const target = e.currentTarget;
-                      console.error('[KitchenView] Photo failed to load:', convertFileSrc(selectedMeal.photo_url), target.error);
+                      console.error('[KitchenView] Photo failed to load:', convertFileSrc(selectedMeal.photo_url!));
                       target.style.display = 'none';
                       const parent = target.parentElement;
                       if (parent) {
