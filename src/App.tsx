@@ -537,22 +537,18 @@ export default function App() {
           }
 
           // Fallback: wait for conflux:transcription event (realtime STT arrived after stop)
-          const eventText = await new Promise<string>((resolve) => {
-            let timeoutId: ReturnType<typeof setTimeout> | null = null;
-
-            const handler = (_e: any, payload: any) => {
-              if (timeoutId) clearTimeout(timeoutId);
-              window.removeEventListener('conflux:transcription', handler);
-              if (payload?.text) resolve(payload.text);
+          const eventText = await new Promise<string>(async (resolve) => {
+            const unlisten = await listen<{ text: string }>('conflux:transcription', (event) => {
+              clearTimeout(timeoutId);
+              unlisten();
+              if (event.payload?.text) resolve(event.payload.text);
               else resolve('');
-            };
+            });
 
-            timeoutId = setTimeout(() => {
-              window.removeEventListener('conflux:transcription', handler);
+            let timeoutId: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+              unlisten();
               resolve('');
             }, 3000);
-
-            window.addEventListener('conflux:transcription', handler);
           });
 
           if (eventText && eventText.trim()) {

@@ -4,6 +4,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 
 interface UseVoiceInputOptions {
   onTranscription: (text: string) => void;
@@ -73,23 +74,17 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
 
         // Fallback: wait for conflux:transcription event (realtime STT arrived after stop)
         // This handles the case where transcript arrived just after voice_capture_stop returned.
-        const transcriptPromise = new Promise<string>((resolve) => {
-          let timeoutId: ReturnType<typeof setTimeout> | null = null;
-
-          const handler = (_event: any, payload: any) => {
-            if (timeoutId) clearTimeout(timeoutId);
-            window.removeEventListener('conflux:transcription', handler);
-            if (payload?.text) resolve(payload.text);
-            else resolve('');
-          };
-
-          timeoutId = setTimeout(() => {
-            window.removeEventListener('conflux:transcription', handler);
-            resolve('');
-          }, 3000);
-
-          window.addEventListener('conflux:transcription', handler as EventListener);
+        const unlisten = await listen<{ text: string }>('conflux:transcription', (event) => {
+          if (timeoutId) clearTimeout(timeoutId);
+          unlisten();
+          if (event.payload?.text) resolve(event.payload.text);
+          else resolve('');
         });
+
+        let timeoutId: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+          unlisten();
+          resolve('');
+        }, 3000);
 
         const eventText = await transcriptPromise;
         if (eventText && eventText.trim()) {

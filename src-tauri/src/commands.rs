@@ -3753,6 +3753,10 @@ Be specific with ingredient names. Use standard grocery terms."
         tool_calls: None,
     }];
 
+    if engine::is_offline_mode() {
+        return Err("Fridge scan requires cloud mode.".to_string());
+    }
+
     let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(1500), None, None)
         .await
         .map_err(|e| format!("AI failed: {}", e))?;
