@@ -169,6 +169,12 @@ pub async fn process_turn(
     user_message: &str,
     max_tokens: Option<i64>,
 ) -> Result<ModelResponse> {
+    // Check offline mode — hard switch, no fallback
+    if super::is_offline_mode() {
+        log::info!("[Engine] Offline mode — routing to local AI only");
+        return local_offline_turn(db, session_id, agent_id, user_message, max_tokens).await;
+    }
+
     let mut total_tool_calls_in_turn: usize = 0;
     let mut all_tool_names: Vec<String> = Vec::new();
     // 1. Load agent config
@@ -728,6 +734,12 @@ pub async fn process_turn_stream(
     max_tokens: Option<i64>,
     on_chunk: &mut dyn FnMut(&str) -> Result<()>,
 ) -> Result<ModelResponse> {
+    // Check offline mode — hard switch, no fallback
+    if super::is_offline_mode() {
+        log::info!("[Engine][Stream] Offline mode — routing to local AI only");
+        return local_offline_turn(db, session_id, agent_id, user_message, max_tokens).await;
+    }
+
     // 1. Load agent config
     let agent = db
         .get_agent(agent_id)?
@@ -1171,6 +1183,227 @@ fn build_system_prompt(
     );
 
     prompt
+}
+
+// ── Offline System Prompt ──
+
+/// Build a minimal system prompt for offline/local mode.
+/// Target: <500 tokens. No tools, no memories, no skills, no few-shot examples.
+/// Just identity + basic conversational instructions.
+fn build_offline_system_prompt(
+    db: &super::db::EngineDb,
+    agent: &super::types::Agent,
+) -> String {
+    let mut prompt = String::new();
+
+    // User name (one line)
+    if let Ok(Some(user_name)) = db.get_config("user_name") {
+        if !user_name.is_empty() {
+            prompt.push_str(&format!("The user's name is {}.\n\n", user_name));
+        }
+    }
+
+    // Agent identity — name + role only, no soul dump
+    prompt.push_str(&format!("You are {}, {}.\n\n", agent.name, agent.role));
+
+    // Brief personality (first 2 sentences of soul if available)
+    if let Some(soul) = &agent.soul {
+        let brief: String = soul
+            .split(". ")
+            .take(2)
+            .collect::<Vec<_>>()
+            .join(". ");
+        if !brief.is_empty() {
+            prompt.push_str(&format!("{}\n\n", brief));
+        }
+    }
+
+    // Basic instructions — conversational only
+    prompt.push_str(
+        "You are a helpful, friendly AI assistant. Respond conversationally. \
+         Keep responses concise and natural. You do NOT have access to tools right now — \
+         just talk to the user like a friend would. If they ask you to do something \
+         that requires tools, explain you can't do that in offline mode but you're \
+         happy to chat.",
+    );
+
+    prompt
+}
+
+/// Process a chat turn in offline mode — local inference only, no cloud path.
+/// This is the hard offline path. If local fails, it returns an error, not cloud.
+/// Optimized for speed: minimal prompt, no tools, no memories, no synthesis call.
+async fn local_offline_turn(
+    db: &EngineDb,
+    session_id: &str,
+    agent_id: &str,
+    user_message: &str,
+    _max_tokens: Option<i64>,
+) -> Result<ModelResponse> {
+    use super::local_ai::get_or_init_local_ai;
+
+    let turn_start = std::time::Instant::now();
+    log::info!("[Engine][Offline] Processing turn for agent '{}', session '{}'", agent_id, session_id);
+
+    // Load agent config
+    let agent = db
+        .get_agent(agent_id)?
+        .ok_or_else(|| anyhow::anyhow!("Agent not found: {}", agent_id))?;
+
+    // Build MINIMAL system prompt — no tools, no memories, no skills
+    let system_prompt = build_offline_system_prompt(db, &agent);
+
+    // Get local llama-server manager
+    let manager = get_or_init_local_ai().await
+        .ok_or_else(|| anyhow::anyhow!("Local AI not available — llama-server not running"))?;
+
+    // Emit thinking state
+    let state_manager = super::state_manager::get_state_manager();
+    let _ = state_manager.lock().map(|mut mgr| {
+        mgr.transition_with_context(
+            super::state_events::ConfluxState::Thinking,
+            Some(agent_id.to_string()),
+            Some(session_id.to_string()),
+            Some(serde_json::json!({
+                "model": "local-offline",
+                "mode": "offline"
+            })),
+        )
+    });
+
+    // Build message array — minimal history for speed
+    // IMPORTANT: Gemma Jinja template only supports user/model roles (no "system")
+    // System prompt merged into the first user message
+    let mut messages: Vec<serde_json::Value> = Vec::new();
+
+    // Only last 1 exchange (2 messages) — CPU inference is slow with long context
+    let history = db.get_messages(session_id, 4)?;
+    let mut last_role = String::new();
+    let mut system_merged = false;
+    let mut started = false;
+    let history_limit = 2; // 1 exchange — maximum speed
+    for msg in history.iter().take(history_limit) {
+        if msg.role == "user" || msg.role == "assistant" {
+            let effective_role = if msg.role == "assistant" { "model" } else { "user" };
+
+            // Skip leading model messages — conversation must start with user
+            if !started && effective_role == "model" {
+                continue;
+            }
+            started = true;
+
+            if effective_role == last_role {
+                // Merge with previous message of same role
+                if let Some(last) = messages.last_mut() {
+                    if let Some(content) = last.get_mut("content") {
+                        if let Some(s) = content.as_str() {
+                            *content = serde_json::json!(format!("{}\n{}", s, msg.content));
+                        }
+                    }
+                }
+            } else {
+                // For the first user message, prepend the system prompt
+                if effective_role == "user" && !system_merged {
+                    let combined = format!("{}\n\n{}", system_prompt, msg.content);
+                    messages.push(serde_json::json!({"role": "user", "content": combined}));
+                    system_merged = true;
+                } else {
+                    messages.push(serde_json::json!({
+                        "role": effective_role,
+                        "content": msg.content
+                    }));
+                }
+                last_role = effective_role.to_string();
+            }
+        }
+    }
+
+    // Add user's new message (with system prompt if not yet merged)
+    if last_role == "user" {
+        // Merge with last user message
+        if let Some(last) = messages.last_mut() {
+            if let Some(content) = last.get_mut("content") {
+                if let Some(s) = content.as_str() {
+                    *content = serde_json::json!(format!("{}\n{}", s, user_message));
+                }
+            }
+        }
+    } else {
+        let content = if !system_merged {
+            format!("{}\n\n{}", system_prompt, user_message)
+        } else {
+            user_message.to_string()
+        };
+        messages.push(serde_json::json!({"role": "user", "content": content}));
+    }
+
+    // Log prompt size for diagnostics
+    let total_chars: usize = messages.iter()
+        .filter_map(|m| m.get("content").and_then(|c| c.as_str()).map(|s| s.len()))
+        .sum();
+    let role_seq: Vec<&str> = messages.iter().filter_map(|m| m.get("role").and_then(|r| r.as_str())).collect();
+    log::info!(
+        "[Engine][Offline] Prompt: {} chars (~{} tokens), {} messages, roles: {:?}",
+        total_chars, total_chars / 4, messages.len(), role_seq
+    );
+
+    // Format as raw Gemma prompt for /completion endpoint (skips Jinja template processing)
+    let mut raw_prompt = String::new();
+    for msg in &messages {
+        let role = msg.get("role").and_then(|r| r.as_str()).unwrap_or("user");
+        let content = msg.get("content").and_then(|c| c.as_str()).unwrap_or("");
+        raw_prompt.push_str(&format!("<start_of_turn>{}\n{}<end_of_turn>\n", role, content));
+    }
+    raw_prompt.push_str("<start_of_turn>model\n");
+
+    // Single model call — NO tools, conversational only
+    let llm_start = std::time::Instant::now();
+    let content = manager.completion(&raw_prompt, 512, 0.7).await
+        .map_err(|e| anyhow::anyhow!("Local completion failed: {}", e))?;
+    let llm_ms = llm_start.elapsed().as_millis();
+    log::info!("[Engine][Offline] LLM responded in {}ms, {} chars", llm_ms, content.len());
+
+    // Offline mode: NO tool execution. Strip any hallucinated tool calls.
+    let final_content = if content.trim_start().starts_with('{') || content.contains("\"name\"") {
+        log::info!("[Engine][Offline] Stripped hallucinated tool call from response");
+        "I'm here! I'm running in offline mode right now, so I can only chat — I don't have access to my tools. What's on your mind?".to_string()
+    } else {
+        content.clone()
+    };
+
+    // Clean up any UNK byte artifacts from fine-tuned models
+    let cleaned = regex::Regex::new(r"\[UNK_BYTE_[^\]]*\]")
+        .unwrap()
+        .replace_all(&final_content, "")
+        .replace('▁', "")
+        .trim()
+        .to_string();
+
+    // Store assistant message
+    db.add_message(session_id, "assistant", &cleaned, 0, Some("local-offline"), Some("local"), None)?;
+
+    // Emit done state
+    let _ = state_manager.lock().map(|mut mgr| {
+        mgr.transition_with_context(
+            super::state_events::ConfluxState::Speaking,
+            Some(agent_id.to_string()),
+            Some(session_id.to_string()),
+            None,
+        )
+    });
+
+    let total_ms = turn_start.elapsed().as_millis();
+    log::info!("[Engine][Offline] Turn complete in {}ms total (LLM: {}ms)", total_ms, llm_ms);
+
+    Ok(ModelResponse {
+        content: cleaned,
+        model: "local-offline".to_string(),
+        provider_id: "local".to_string(),
+        provider_name: "Local AI (Offline)".to_string(),
+        tokens_used: 0,
+        latency_ms: total_ms as i64,
+        tool_calls: vec![], // No tools in offline mode
+    })
 }
 
 // ── Session Compaction ──

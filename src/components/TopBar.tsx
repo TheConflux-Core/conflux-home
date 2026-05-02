@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { Agent } from '../types';
 import { Theme, getEffectiveTheme, applyTheme, saveTheme, BASE_THEMES, COLOR_THEMES, getSavedColorTheme, saveColorTheme } from '../lib/theme';
 import ConnectivityWidget from './ConnectivityWidget';
@@ -46,6 +47,16 @@ export default function TopBar({ selectedAgent, controlRoom, currentView, onNavi
       window.dispatchEvent(new CustomEvent('conflux:connection-mode-changed', { detail: effectiveMode }));
     }
   }, [effectiveMode]);
+
+  // Sync backend offline mode on mount (in case "local" was persisted)
+  useEffect(() => {
+    const isLocal = effectiveMode === 'local';
+    invoke('engine_set_offline_mode', { offline: isLocal }).catch(() => {});
+    if (isLocal) {
+      invoke('engine_preload_local_ai').catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [notifUnread, setNotifUnread] = useState(() => {
     const stored = localStorage.getItem('conflux-notif-unread');
@@ -174,6 +185,16 @@ export default function TopBar({ selectedAgent, controlRoom, currentView, onNavi
     setManualMode(mode);
     localStorage.setItem('conflux-connection-mode', mode);
     setShowModePopup(false);
+    // Tell the backend
+    invoke('engine_set_offline_mode', { offline: mode === 'local' }).catch(e =>
+      console.error('[TopBar] Failed to set offline mode:', e)
+    );
+    // Preload local AI when switching to local
+    if (mode === 'local') {
+      invoke('engine_preload_local_ai').catch(e =>
+        console.warn('[TopBar] Preload local AI failed:', e)
+      );
+    }
   };
 
   const currentThemeDef = BASE_THEMES.find(t => t.id === colorTheme) ?? COLOR_THEMES.find(t => t.id === colorTheme);
