@@ -3648,6 +3648,10 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
 Make the content genuinely useful and interesting. Not generic filler."
     );
 
+    if engine::is_offline_mode() {
+        return Err("Fridge scanning requires cloud mode.".to_string());
+    }
+
     let messages = vec![OpenAIMessage {
         role: "user".to_string(),
         content: Some(prompt),
@@ -4316,6 +4320,10 @@ USER QUESTION: {question}
 
 Provide a helpful, specific answer based on the information above. If you don't have the information, say so honestly and suggest how to find out."
     );
+
+    if engine::is_offline_mode() {
+        return Err("Life Q&A requires cloud mode.".to_string());
+    }
 
     let messages = vec![OpenAIMessage {
         role: "user".to_string(),
