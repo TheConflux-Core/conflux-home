@@ -1347,6 +1347,9 @@ async fn local_offline_turn(
         total_chars, total_chars / 4, messages.len(), role_seq
     );
 
+    // Persist user message so chat history is saved
+    db.add_message(session_id, "user", user_message, 0, None, None, None)?;
+
     // Single model call via chat completions API (uses model's built-in chat template)
     let llm_start = std::time::Instant::now();
     let content = manager.chat_completion(&messages, 512, 0.7).await
