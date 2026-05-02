@@ -303,32 +303,12 @@ export function useEngineChat(agent_id: string | null, user_id?: string): UseEng
       setMessages(prev =>
         prev.map(m =>
           m.id === assistantIdRef.current && m.content === ''
-            ? { ...m, content: data.content }
+            ? { ...m, content: data.content, model: data.model }
             : m
         )
       );
-
-      // Reload from DB to capture tool call entries
-      const sid = sessionIdRef.current;
-      if (sid) {
-        invoke<EngineMessage[]>('engine_get_messages', { session_id: sid, limit: 50 })
-          .then(history => {
-            const currentA = agentIdRef.current;
-            const uiMessages: AgentMessage[] = history
-              .filter(m => m.role === 'user' || m.role === 'assistant' || m.role === 'tool')
-              .map(m => ({
-                id: m.id,
-                agentId: m.role === 'user' ? 'user' : m.role === 'tool' ? 'system' : (currentA ?? 'unknown'),
-                content: m.role === 'tool' && m.tool_name
-                  ? `🔧 **${m.tool_name}**\n${m.content}`
-                  : m.content,
-                timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
-                type: m.role === 'user' ? 'user' as const : m.role === 'tool' ? 'system' as const : 'agent' as const,
-              }));
-            setMessages(uiMessages);
-          })
-          .catch(() => {});
-      }
+      // Note: DB reload removed — full message reload causes UI flicker/disappearance.
+      // Tool call display can be added incrementally if needed later.
     });
 
     const unlistenError = await listen<string>('engine:error', (event) => {
