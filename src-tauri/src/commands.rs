@@ -117,70 +117,56 @@ pub struct EchoDailyBrief {
 
 #[tauri::command]
 pub async fn engine_chat(window: tauri::Window, req: ChatRequest) -> Result<ChatResponse, String> {
-    let engine = engine::get_engine();
+    let is_offline = engine::is_offline_mode();
 
-    // Get real Supabase user ID for cloud credit operations
-    let user_id = get_supabase_user_id();
-
-    // Check quota (cloud-aware)
-    let quota = engine
-        .has_quota(&user_id)
-        .await
-        .map_err(|e| e.to_string())?;
-    if !quota.allowed {
-        return Err(format!(
-            "{} limit reached. Upgrade for more credits.",
-            quota.source
-        ));
-    }
+    // Cloud quota check — skip entirely in offline mode
+    let quota_source = if !is_offline {
+        let engine = engine::get_engine();
+        let user_id = get_supabase_user_id();
+        let quota = engine.has_quota(&user_id).await.map_err(|e| e.to_string())?;
+        if !quota.allowed {
+            return Err(format!("{} limit reached. Upgrade for more credits.", quota.source));
+        }
+        quota.source.clone()
+    } else {
+        "local".to_string()
+    };
 
     let _ = window.emit("engine:thinking", ());
 
-    let response = engine
+    let response = engine::get_engine()
         .chat(&req.session_id, &req.agent_id, &req.message, req.max_tokens)
         .await
         .map_err(|e| e.to_string())?;
 
-    let calls = engine
-        .increment_quota(&user_id, response.tokens_used, &response.provider_id)
-        .map_err(|e| e.to_string())?;
+    // Cloud accounting — skip in offline mode
+    let (calls_remaining, credits_remaining) = if !is_offline {
+        let engine = engine::get_engine();
+        let user_id = get_supabase_user_id();
 
-    let limit = get_daily_limit(engine);
+        let calls = engine.increment_quota(&user_id, response.tokens_used, &response.provider_id)
+            .map_err(|e| e.to_string())?;
+        let limit = get_daily_limit(engine);
 
-    // Log to cloud and charge credits (fire and forget)
-    let credit_costs = super::engine::cloud::get_credit_costs()
-        .await
-        .unwrap_or_default();
-    let credits = super::engine::cloud::credit_cost_for_model(
-        &response.model,
-        &response.provider_id,
-        "core",
-        &credit_costs,
-    );
+        let credit_costs = super::engine::cloud::get_credit_costs().await.unwrap_or_default();
+        let credits = super::engine::cloud::credit_cost_for_model(
+            &response.model, &response.provider_id, "core", &credit_costs,
+        );
+        let _ = super::engine::cloud::log_usage_to_cloud(
+            &user_id, &req.session_id, &req.agent_id,
+            &response.model, &response.provider_id, "core",
+            response.tokens_used, response.latency_ms, "success", credits,
+        ).await;
 
-    let _ = super::engine::cloud::log_usage_to_cloud(
-        &user_id,
-        &req.session_id,
-        &req.agent_id,
-        &response.model,
-        &response.provider_id,
-        "core",
-        response.tokens_used,
-        response.latency_ms,
-        "success",
-        credits,
-    )
-    .await;
-
-    // Charge credits (don't fail the response if this fails for free users)
-    let (credits_remaining, credit_source) =
-        match super::engine::cloud::charge_credits(&user_id, credits, "").await {
-            Ok(new_balance) => (Some(new_balance), Some(quota.source.clone())),
-            Err(e) => {
-                log::warn!("[Engine] Credit charge failed: {}", e);
-                (None, None)
-            }
+        let credits_remaining = match super::engine::cloud::charge_credits(&user_id, credits, "").await {
+            Ok(new_balance) => Some(new_balance),
+            Err(e) => { log::warn!("[Engine] Credit charge failed: {}", e); None }
         };
+
+        ((limit - calls).max(0), credits_remaining)
+    } else {
+        (0, None)
+    };
 
     Ok(ChatResponse {
         content: response.content,
@@ -189,9 +175,9 @@ pub async fn engine_chat(window: tauri::Window, req: ChatRequest) -> Result<Chat
         provider_name: response.provider_name,
         tokens_used: response.tokens_used,
         latency_ms: response.latency_ms,
-        calls_remaining: (limit - calls).max(0),
+        calls_remaining,
         credits_remaining,
-        credit_source,
+        credit_source: Some(quota_source),
     })
 }
 
@@ -1771,6 +1757,10 @@ pub async fn story_generate_next_chapter(
     game_id: String,
     choice_id: String,
 ) -> Result<engine::types::StoryChapter, String> {
+    if engine::is_offline_mode() {
+        return Err("Story generation requires cloud mode.".to_string());
+    }
+    
     let engine = engine::get_engine();
 
     // Load game state
@@ -2402,6 +2392,10 @@ pub async fn kitchen_ai_add_meal(
     description: String,
     member_id: Option<String>,
 ) -> Result<engine::types::MealWithIngredients, String> {
+    if engine::is_offline_mode() {
+        return Err("Meal additions require cloud mode.".to_string());
+    }
+    
     let _member_id = member_id;
     let engine = engine::get_engine();
 
@@ -2734,6 +2728,10 @@ pub async fn kitchen_nl_add_inventory(
     text: String,
     member_id: Option<String>,
 ) -> Result<NlInventoryResult, String> {
+    if engine::is_offline_mode() {
+        return Err("Inventory updates require cloud mode.".to_string());
+    }
+    
     let user_id = member_id.unwrap_or_else(|| get_supabase_user_id());
     let engine = engine::get_engine();
     let family_member_id = engine
@@ -3608,6 +3606,10 @@ pub async fn feed_generate(
     member_id: Option<String>,
     interests: Option<String>,
 ) -> Result<Vec<engine::types::ContentFeedItem>, String> {
+    if engine::is_offline_mode() {
+        return Err("Feed generation requires cloud mode.".to_string());
+    }
+    
     #[allow(unused_variables)]
     let _uid = user_id;
     let engine = engine::get_engine();
@@ -4023,6 +4025,10 @@ pub async fn life_analyze_document(
     text: String,
     doc_type: Option<String>,
 ) -> Result<engine::types::LifeDocument, String> {
+    if engine::is_offline_mode() {
+        return Err("Document analysis requires cloud mode.".to_string());
+    }
+    
     let engine = engine::get_engine();
 
     let doc_type_str = doc_type.as_deref().unwrap_or("unknown");
@@ -4926,6 +4932,10 @@ pub async fn home_get_appliances() -> Result<Vec<engine::types::HomeAppliance>, 
 
 #[tauri::command]
 pub async fn home_get_insights() -> Result<Vec<engine::types::HomeInsight>, String> {
+    if engine::is_offline_mode() {
+        return Err("Home insights require cloud mode.".to_string());
+    }
+    
     let engine = engine::get_engine();
     let dashboard = engine
         .db()
@@ -5918,6 +5928,10 @@ pub async fn dream_ai_plan(
     category: String,
     target_date: Option<String>,
 ) -> Result<serde_json::Value, String> {
+    if engine::is_offline_mode() {
+        return Err("Dream planning requires cloud mode.".to_string());
+    }
+    
     let engine = engine::get_engine();
     let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
     let prompt = format!(
@@ -6092,6 +6106,10 @@ pub async fn dream_ai_narrate(user_id: String, dream_id: String) -> Result<Strin
 
 #[tauri::command]
 pub async fn diary_generate_entry(agent_id: String) -> Result<engine::types::DiaryEntry, String> {
+    if engine::is_offline_mode() {
+        return Err("Diary generation requires cloud mode.".to_string());
+    }
+    
     let engine = engine::get_engine();
 
     // Get agent info
@@ -6337,6 +6355,10 @@ pub async fn echo_get_entries_by_date(date: String) -> Result<Vec<EchoEntry>, St
 pub async fn current_daily_briefing(
     member_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
+    if engine::is_offline_mode() {
+        return Err("Daily briefings require cloud mode.".to_string());
+    }
+    
     let engine = engine::get_engine();
 
     // Pull feed context before the await
@@ -6447,6 +6469,10 @@ Make items genuinely insightful, not generic filler."
 pub async fn current_detect_ripples(
     member_id: Option<String>,
 ) -> Result<Vec<serde_json::Value>, String> {
+    if engine::is_offline_mode() {
+        return Err("Ripple detection requires cloud mode.".to_string());
+    }
+    
     let engine = engine::get_engine();
 
     let prompt = "You are Current, an intelligence analyst AI. Detect weak signals and emerging trends that most people haven't noticed yet.
@@ -6560,6 +6586,10 @@ pub async fn current_create_signal_thread(
     topic: String,
     initial_content: String,
 ) -> Result<serde_json::Value, String> {
+    if engine::is_offline_mode() {
+        return Err("This feature requires cloud mode.".to_string());
+    }
+    
     let engine = engine::get_engine();
 
     let prompt = format!(
@@ -6634,6 +6664,10 @@ pub async fn current_ask(
     member_id: Option<String>,
     question: String,
 ) -> Result<serde_json::Value, String> {
+    if engine::is_offline_mode() {
+        return Err("This feature requires cloud mode.".to_string());
+    }
+    
     let engine = engine::get_engine();
 
     // Pull feed context before the await
@@ -6777,6 +6811,10 @@ pub async fn current_cognitive_patterns(
     member_id: Option<String>,
     time_range: Option<String>,
 ) -> Result<serde_json::Value, String> {
+    if engine::is_offline_mode() {
+        return Err("Cognitive analysis requires cloud mode.".to_string());
+    }
+    
     let engine = engine::get_engine();
 
     // Pull feed data before the await
@@ -6897,6 +6935,10 @@ pub async fn current_synthesize(
     _member_id: Option<String>,
     topic: String,
 ) -> Result<serde_json::Value, String> {
+    if engine::is_offline_mode() {
+        return Err("This feature requires cloud mode.".to_string());
+    }
+    
     let engine = engine::get_engine();
 
     // Pull relevant feed items before the await
@@ -7106,6 +7148,10 @@ pub fn google_get_tasks() -> Result<serde_json::Value, String> {
 /// Create a calendar event from natural language
 #[tauri::command]
 pub async fn google_create_event_nl(nl_text: String) -> Result<serde_json::Value, String> {
+    if engine::is_offline_mode() {
+        return Err("Calendar events require cloud mode.".to_string());
+    }
+    
     use crate::engine::cloud;
     use crate::engine::router::OpenAIMessage;
 
