@@ -74,21 +74,22 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
 
         // Fallback: wait for conflux:transcription event (realtime STT arrived after stop)
         // This handles the case where transcript arrived just after voice_capture_stop returned.
-        const unlisten = await listen<{ text: string }>('conflux:transcription', (event) => {
-          if (timeoutId) clearTimeout(timeoutId);
-          unlisten();
-          if (event.payload?.text) resolve(event.payload.text);
-          else resolve('');
+        const transcriptionText = await new Promise<string>(async (resolve) => {
+          const unlisten = await listen<{ text: string }>('conflux:transcription', (event) => {
+            if (timeoutId) clearTimeout(timeoutId);
+            unlisten();
+            if (event.payload?.text) resolve(event.payload.text);
+            else resolve('');
+          });
+
+          let timeoutId: ReturnType<typeof setTimeout> | undefined = setTimeout(() => {
+            unlisten();
+            resolve('');
+          }, 3000);
         });
 
-        let timeoutId: ReturnType<typeof setTimeout> | null = setTimeout(() => {
-          unlisten();
-          resolve('');
-        }, 3000);
-
-        const eventText = await transcriptPromise;
-        if (eventText && eventText.trim()) {
-          options.onTranscription(eventText.trim());
+        if (transcriptionText && transcriptionText.trim()) {
+          options.onTranscription(transcriptionText.trim());
           return;
         }
 
