@@ -196,8 +196,8 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
   const { stats, loading: statsLoading } = useUsageStats(7);
   const { entries, loading: historyLoading } = useUsageHistory(10);
 
-  // Heartbeat interval — default 1hr (3_600_000 ms)
-  const [heartbeatInterval, setHeartbeatInterval] = useState(3_600_000);
+  // Heartbeat interval — default 30min (1_800_000 ms)
+  const [heartbeatInterval, setHeartbeatInterval] = useState(1_800_000);
   const [lastBeat, setLastBeat] = useState(() => {
     const cached = localStorage.getItem('conflux-last-beat');
     return cached ? parseInt(cached, 10) : Date.now();

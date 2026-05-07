@@ -71,7 +71,7 @@ export default function StudioDashboard() {
       if (!userId) return;
       const result = await invoke<{ balance: number; has_active_subscription: boolean }>(
         'get_credit_balance',
-        { userId }
+        { user_id: userId }
       );
       setCredits(result.balance);
     } catch {
