@@ -1208,7 +1208,7 @@ const [activeSnake, setActiveSnake] = useState(false);
       ) : (
         useQuadrants ? (
           <DesktopV2
-            agents={selectedAgentIds.length > 0 ? filteredAgents : agents}
+            agents={agents}
             wallpaper={wallpaper || undefined}
             onNavigate={(v) => setImmersiveView(v)}
           />

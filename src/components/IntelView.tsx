@@ -152,46 +152,62 @@ function StatsBar({ events }: { events: BeatEvent[] }) {
   );
 }
 
+// Default active agents (must match AgentsView)
+const DEFAULT_ACTIVE_AGENTS = ['conflux', 'helix', 'pulse', 'hearth', 'echo', 'aegis', 'viper'];
+
 // ── Main IntelView ─────────────────────────────────────────────────────────────
 export default function IntelView() {
   const events = useBeatTimeline();
   const [started, setStarted] = useState(false);
   const [activeAgents, setActiveAgents] = useState<AgentFromDB[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  // Load active agents from DB so INTEL always reflects the user's selection
-  // On fresh launch this may fail while the engine initializes — show localStorage as fallback
-  const loadActiveAgents = async (retries = 3) => {
+  // Load from localStorage after mount — runs once, always reliable
+  useEffect(() => {
+    const stored = localStorage.getItem('conflux-selected-agents');
+    let selectedIds: string[];
     try {
-      const allAgents = await invoke<AgentFromDB[]>('engine_get_agents');
-      const active = allAgents.filter(a => a.is_active);
-      setActiveAgents(active);
-      // Sync localStorage so we have a fallback if next launch is also before engine init
-      localStorage.setItem('conflux-active-agents', JSON.stringify(active.map(a => a.id)));
-    } catch (err) {
-      console.warn('[IntelView] engine_get_agents failed, trying localStorage fallback:', err);
-      // Engine not ready yet — try localStorage (written by AgentsView on every toggle)
+      selectedIds = stored ? JSON.parse(stored) : DEFAULT_ACTIVE_AGENTS;
+    } catch {
+      selectedIds = DEFAULT_ACTIVE_AGENTS;
+    }
+    setActiveAgents(AGENTS.filter(a => selectedIds.includes(a.id)).map(a => ({
+      id: a.id,
+      name: a.label,
+      emoji: a.emoji,
+      role: a.id,
+      soul: null,
+      instructions: null,
+      model_alias: 'conflux-core',
+      tier: 'free',
+      is_active: true,
+      created_at: '',
+      updated_at: '',
+    })));
+  }, []);
+
+  // Sync with AgentsView toggle events
+  useEffect(() => {
+    const handler = () => {
       try {
         const stored = localStorage.getItem('conflux-selected-agents');
-        if (stored) {
-          const selectedIds: string[] = JSON.parse(stored);
-          const allAgents = await invoke<AgentFromDB[]>('engine_get_agents');
-          // Filter to only the selected IDs that are also in the DB
-          const active = allAgents.filter(a => selectedIds.includes(a.id) && a.is_active);
-          setActiveAgents(active.length > 0 ? active : allAgents.filter(a => selectedIds.includes(a.id)));
-        }
-      } catch (_e) {
-        // localStorage also failed — nothing we can do, keep empty state
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadActiveAgents();
-    // Listen for agent selection changes from AgentsView so INTEL updates in real time
-    const handler = () => loadActiveAgents();
+        if (!stored) return;
+        const selectedIds: string[] = JSON.parse(stored);
+        setActiveAgents(AGENTS.filter(a => selectedIds.includes(a.id)).map(a => ({
+          id: a.id,
+          name: a.label,
+          emoji: a.emoji,
+          role: a.id,
+          soul: null,
+          instructions: null,
+          model_alias: 'conflux-core',
+          tier: 'free',
+          is_active: true,
+          created_at: '',
+          updated_at: '',
+        })));
+      } catch (_e) {}
+    };
     window.addEventListener('conflux:agents-selected', handler);
     return () => window.removeEventListener('conflux:agents-selected', handler);
   }, []);
