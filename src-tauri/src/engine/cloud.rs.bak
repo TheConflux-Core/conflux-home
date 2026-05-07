@@ -516,11 +516,10 @@ pub async fn get_usage_history(user_id: &str, limit: i32) -> Result<Vec<UsageEnt
 /// Cloud router endpoint (conflux-cloud)
 const CLOUD_ROUTER_URL: &str =
     "https://zcvhozqrssotirabdlzr.functions.supabase.co/conflux-router/v1/chat/completions";
+
 /// MiniMax API endpoint (fallback when Groq is rate-limited)
-const MINIMAX_URL: &str = "https://api.minimax.io/v1/chat/completions";
+const MINIMAX_URL: &str = "https://api.minimax.io/anthropic/v1/chat/completions";
 const MINIMAX_API_KEY: &str = "sk-cp-AxyJOwuIvJwh43_M1YmtZrotLA1AwQeNRTslJNZQhnbi3LEbI4PEeNHCzwnzN0CAZuMTxUvHfvlVnWosELY04lkb2DYMSStTs85v-rdOdhC0YeZHr04HekY";
-
-
 
 /// If the text content looks like a JSON tool call (the model sometimes puts it in content
 /// instead of the tool_calls field), extract it and return the remaining text.
@@ -558,7 +557,6 @@ fn maybe_extract_tool_call_from_text(text: &str) -> (Option<ToolCallRequest>, St
     (None, text.to_string())
 }
 
-
 /// Build the OpenAI-compatible request body for cloud_chat/cloud_chat_stream.
 fn build_chat_request_body(
     messages: &[OpenAIMessage],
@@ -594,8 +592,10 @@ fn build_chat_request_body(
     body
 }
 
-/// Call the MiniMax API (non-streaming fallback for 429s).
-async fn call_minimax(request_body: serde_json::Value) -> Result<ModelResponse> {
+/// Call the MiniMax API with the given request body (non-streaming).
+async fn call_minimax(
+    request_body: serde_json::Value,
+) -> Result<ModelResponse> {
     let client = reqwest::Client::new();
     let response = client
         .post(MINIMAX_URL)
@@ -619,12 +619,14 @@ async fn call_minimax(request_body: serde_json::Value) -> Result<ModelResponse> 
         choices: Vec<CloudChoice>,
         usage: Option<CloudUsage>,
     }
-    #[derive(Debug, serde::Deserialize)]
+
+    #[derive(Debug, serde:: Deserialize)]
     struct CloudChoice {
         index: Option<i64>,
         message: Option<OpenAIMessage>,
         finish_reason: Option<String>,
     }
+
     #[derive(Debug, serde::Deserialize)]
     struct CloudUsage {
         prompt_tokens: Option<i64>,
@@ -663,7 +665,11 @@ async fn call_minimax(request_body: serde_json::Value) -> Result<ModelResponse> 
                         .and_then(|a| a.as_str())
                         .unwrap_or("{}")
                         .to_string();
-                    Some(ToolCallRequest { id, name, arguments })
+                    Some(ToolCallRequest {
+                        id,
+                        name,
+                        arguments,
+                    })
                 })
                 .collect()
         })
@@ -694,95 +700,6 @@ async fn call_minimax(request_body: serde_json::Value) -> Result<ModelResponse> 
         tool_calls,
     })
 }
-
-/// Call the MiniMax API for streaming responses (fallback when Groq is rate-limited).
-async fn call_minimax_stream(
-    mut request_body: serde_json::Value,
-    _messages: Vec<OpenAIMessage>,
-    on_chunk: &mut dyn FnMut(&str) -> Result<()>,
-) -> Result<ModelResponse> {
-    request_body["stream"] = serde_json::json!(true);
-
-    let client = reqwest::Client::new();
-    let response = client
-        .post(MINIMAX_URL)
-        .header("Authorization", format!("Bearer {}", MINIMAX_API_KEY))
-        .header("Content-Type", "application/json")
-        .json(&request_body)
-        .send()
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to call MiniMax (stream): {}", e))?;
-
-    let status = response.status();
-    if !status.is_success() {
-        let body = response.text().await.unwrap_or_default();
-        anyhow::bail!("MiniMax stream error ({}): {}", status, body);
-    }
-
-    let mut full_text = String::new();
-    let mut buffer = String::new();
-    let mut stream = response.bytes_stream();
-
-    use futures_util::StreamExt;
-
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| anyhow::anyhow!("MiniMax stream read error: {}", e))?;
-        let text = String::from_utf8_lossy(&chunk);
-        buffer.push_str(&text);
-
-        while let Some(newline_pos) = buffer.find('\n') {
-            let line = buffer[..newline_pos].trim().to_string();
-            buffer = buffer[newline_pos + 1..].to_string();
-
-            if line.is_empty() || line.starts_with(':') {
-                continue;
-            }
-
-            if line == "data: [DONE]" {
-                let tokens_used = (full_text.len() as f64 / 4.0).ceil() as i64;
-                return Ok(ModelResponse {
-                    content: full_text,
-                    model: "minimax".to_string(),
-                    provider_id: "minimax".to_string(),
-                    provider_name: "MiniMax".to_string(),
-                    tokens_used,
-                    latency_ms: 0,
-                    tool_calls: vec![],
-                });
-            }
-
-            if let Some(data) = line.strip_prefix("data: ") {
-                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
-                    if let Some(content) = parsed
-                        .get("choices")
-                        .and_then(|c| c.get(0))
-                        .and_then(|c| c.get("delta"))
-                        .and_then(|d| d.get("content"))
-                        .and_then(|c| c.as_str())
-                    {
-                        full_text.push_str(content);
-                        on_chunk(content)?;
-                    }
-                }
-            }
-        }
-    }
-
-    let tokens_used = (full_text.len() as f64 / 4.0).ceil() as i64;
-    Ok(ModelResponse {
-        content: full_text,
-        model: "minimax".to_string(),
-        provider_id: "minimax".to_string(),
-        provider_name: "MiniMax".to_string(),
-        tokens_used,
-        latency_ms: 0,
-        tool_calls: vec![],
-    })
-}
-
-/// Send a chat completion request to the cloud router.
-/// This is the main entry point for all inference in cloud-only mode.
-pub async fn cloud_chat(
     task_type: Option<&str>,
     messages: Vec<OpenAIMessage>,
     max_tokens: Option<i64>,
@@ -797,7 +714,29 @@ pub async fn cloud_chat(
         &token
     };
     log::info!("[cloud_chat] Using token (preview): {}...", token_preview);
-    let request_body = build_chat_request_body(&messages, false, task_type, max_tokens, temperature, tools);
+    let mut request_body = serde_json::json!({
+        "messages": messages,
+        "stream": false,
+    });
+
+    // Add optional fields — map model aliases to valid task types
+    if let Some(task) = task_type {
+        let effective_task = if VALID_TASK_TYPES.contains(&task) {
+            task.to_string()
+        } else {
+            "simple_chat".to_string()
+        };
+        request_body["task_type"] = serde_json::json!(effective_task);
+    }
+    if let Some(max) = max_tokens {
+        request_body["max_tokens"] = serde_json::json!(max);
+    }
+    if let Some(temp) = temperature {
+        request_body["temperature"] = serde_json::json!(temp);
+    }
+    if let Some(t) = tools {
+        request_body["tools"] = serde_json::json!(t);
+    }
 
     let client = reqwest::Client::new();
     let response = client
@@ -823,18 +762,6 @@ pub async fn cloud_chat(
                 &token
             }
         );
-
-        // If rate-limited, try MiniMax as fallback before failing
-        if status.as_u16() == 429 {
-            log::warn!("[cloud_chat] Groq rate-limited, trying MiniMax fallback...");
-            match call_minimax(request_body).await {
-                Ok(resp) => return Ok(resp),
-                Err(e) => {
-                    log::error!("[cloud_chat] MiniMax fallback also failed: {}", e);
-                    anyhow::bail!("Rate limit exceeded. MiniMax fallback failed: {}", e);
-                }
-            }
-        }
 
         let error_msg = match status.as_u16() {
             401 => {
@@ -953,11 +880,7 @@ pub async fn cloud_chat_stream(
     on_chunk: &mut dyn FnMut(&str) -> Result<()>,
 ) -> Result<ModelResponse> {
     let token = get_auth_token()?;
-    let token_preview = if token.len() > 10 {
-        &token[..10]
-    } else {
-        &token
-    };
+    let token_preview = if token.len() > 10 { &token[..10] } else { &token };
     log::info!("[cloud_chat_stream] URL: {}", CLOUD_ROUTER_URL);
     log::info!("[cloud_chat_stream] Token preview: {}...", token_preview);
 
@@ -977,19 +900,10 @@ pub async fn cloud_chat_stream(
 
     if !status.is_success() {
         let body = response.text().await.unwrap_or_default();
-        log::error!(
-            "[cloud_chat_stream] Cloud router returned {}: {}",
-            status,
-            body
-        );
-        log::error!(
-            "[cloud_chat_stream] Token preview sent (first 20): {}",
-            if token.len() > 20 {
-                &token[..20]
-            } else {
-                &token
-            }
-        );
+        log::error!("[cloud_chat_stream] Cloud router returned {}: {}", status, body);
+        log::error!("[cloud_chat_stream] Token preview sent (first 20): {}",
+            if token.len() > 20 { &token[..20] } else { &token });
+
 
         // If rate-limited, try MiniMax as fallback before failing
         if status.as_u16() == 429 {
