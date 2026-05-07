@@ -62,8 +62,9 @@ fn discover_model_path() -> Option<PathBuf> {
         if models_dir.is_dir() {
             // Look for known model filenames in priority order
             let known_names = [
-                "conflux-toolrouter-q4-v2.gguf",
-                "conflux-toolrouter-q4.gguf",  // legacy v1 fallback
+                "gemma-3n-e2b-q4km.gguf",  // Gemma 3n E2B — fast, clean base model (primary)
+                "conflux-toolrouter-q4-v2.gguf",  // Conflux tool router (fallback)
+                "conflux-toolrouter-q4.gguf",      // legacy v1 fallback
             ];
             for name in &known_names {
                 let p = models_dir.join(name);
