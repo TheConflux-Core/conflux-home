@@ -597,11 +597,16 @@ fn build_chat_request_body(
 /// Call the MiniMax API (non-streaming fallback for 429s).
 async fn call_minimax(request_body: serde_json::Value) -> Result<ModelResponse> {
     let client = reqwest::Client::new();
+
+    // MiniMax requires explicit model field in request body
+    let mut body = request_body;
+    body["model"] = serde_json::json!("MiniMax-M2.7");
+
     let response = client
         .post(MINIMAX_URL)
         .header("Authorization", format!("Bearer {}", MINIMAX_API_KEY))
         .header("Content-Type", "application/json")
-        .json(&request_body)
+        .json(&body)
         .send()
         .await
         .map_err(|e| anyhow::anyhow!("Failed to call MiniMax: {}", e))?;
@@ -702,6 +707,8 @@ async fn call_minimax_stream(
     on_chunk: &mut dyn FnMut(&str) -> Result<()>,
 ) -> Result<ModelResponse> {
     request_body["stream"] = serde_json::json!(true);
+    // MiniMax requires explicit model field in request body
+    request_body["model"] = serde_json::json!("MiniMax-M2.7");
 
     let client = reqwest::Client::new();
     let response = client
@@ -797,7 +804,37 @@ pub async fn cloud_chat(
         &token
     };
     log::info!("[cloud_chat] Using token (preview): {}...", token_preview);
-    let request_body = build_chat_request_body(&messages, false, task_type, max_tokens, temperature, tools);
+
+    // Try MiniMax directly first (Don's preferred primary provider — faster than Groq)
+    let request_body = build_chat_request_body(&messages, false, task_type, max_tokens, temperature, tools.clone());
+    log::info!("[cloud_chat] Trying MiniMax directly...");
+    match call_minimax(request_body.clone()).await {
+        Ok(resp) => {
+            log::info!("[cloud_chat] MiniMax succeeded directly");
+            return Ok(resp);
+        }
+        Err(e) => {
+            let err_str = e.to_string().to_lowercase();
+            let is_network = err_str.contains("network")
+                || err_str.contains("connection")
+                || err_str.contains("timeout")
+                || err_str.contains("dns")
+                || err_str.contains("resolve")
+                || err_str.contains("offline")
+                || err_str.contains("unreachable")
+                || err_str.contains("refused");
+
+            if !is_network {
+                log::warn!("[cloud_chat] MiniMax failed with non-network error: {}", e);
+            } else {
+                log::warn!("[cloud_chat] MiniMax network error, trying cloud router: {}", e);
+            }
+        }
+    }
+
+    // Cloud router fallback (manages Groq, auth, credits)
+    log::info!("[cloud_chat] Trying cloud router (Groq fallback)...");
+    let request_body = build_chat_request_body(&messages, false, task_type, max_tokens, temperature, tools.clone());
 
     let client = reqwest::Client::new();
     let response = client
@@ -961,6 +998,35 @@ pub async fn cloud_chat_stream(
     log::info!("[cloud_chat_stream] URL: {}", CLOUD_ROUTER_URL);
     log::info!("[cloud_chat_stream] Token preview: {}...", token_preview);
 
+    // Try MiniMax directly first (Don's preferred primary provider — faster than Groq)
+    let request_body = build_chat_request_body(&messages, true, task_type, max_tokens, None, None);
+    log::info!("[cloud_chat_stream] Trying MiniMax directly...");
+    match call_minimax_stream(request_body.clone(), messages.clone(), on_chunk).await {
+        Ok(resp) => {
+            log::info!("[cloud_chat_stream] MiniMax succeeded directly");
+            return Ok(resp);
+        }
+        Err(e) => {
+            let err_str = e.to_string().to_lowercase();
+            let is_network = err_str.contains("network")
+                || err_str.contains("connection")
+                || err_str.contains("timeout")
+                || err_str.contains("dns")
+                || err_str.contains("resolve")
+                || err_str.contains("offline")
+                || err_str.contains("unreachable")
+                || err_str.contains("refused");
+
+            if !is_network {
+                log::warn!("[cloud_chat_stream] MiniMax failed with non-network error: {}", e);
+            } else {
+                log::warn!("[cloud_chat_stream] MiniMax network error, trying cloud router: {}", e);
+            }
+        }
+    }
+
+    // Cloud router fallback (manages Groq, auth, credits)
+    log::info!("[cloud_chat_stream] Trying cloud router (Groq fallback)...");
     let request_body = build_chat_request_body(&messages, true, task_type, max_tokens, None, None);
 
     let client = reqwest::Client::new();
