@@ -634,13 +634,19 @@ export default function App() {
             } catch {
               // Not valid JSON — try to strip tool-call JSON fragments from plain text.
               // Match {...} blocks containing "name" and "arguments" (tool-call pattern).
-              cleaned = rawText.replace(
-                /\{\s*"name"\s*:\s*"[^"]+"\s*,\s*"arguments"\s*:\s*\{[^}]*\}\s*\}/g,
-                ''
-              ).replace(
-                /\{\s*"name"\s*:\s*"[^"]+"\s*,\s*"arguments"\s*:\s*\{[^}]*\}\s*,?\s*\}/g,
-                ''
-              ).replace(/\n{3,}/g, '\n\n').trim();
+              cleaned = rawText
+                .replace(/\x5Bthink\x5D[\s\S]*?\x5B\/think\x5D/gi, '')
+                .replace(/\x3Cthink\x3E[\s\S]*?<\/think>/gi, '')
+                .replace(
+                  /\{\s*"name"\s*:\s*"[^"]+"\s*,\s*"arguments"\s*:\s*\{[^}]*\}\s*\}/g,
+                  ''
+                )
+                .replace(
+                  /\{\s*"name"\s*:\s*"[^"]+"\s*,\s*"arguments"\s*:\s*\{[^}]*\}\s*,?\s*\}/g,
+                  ''
+                )
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
             }
             const textToSpeak = cleaned.length > 3 ? cleaned : rawText;
             await invoke('voice_synthesize', {
