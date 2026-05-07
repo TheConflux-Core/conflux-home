@@ -188,6 +188,9 @@ function RingGauge({ value, max, color, label, sublabel }: { value: number; max:
   );
 }
 
+// Default active agents (fallback if localStorage is empty)
+const DEFAULT_AGENT_IDS = ['conflux', 'helix', 'pulse', 'forge', 'quanta', 'prism', 'vector', 'spectra', 'luma', 'catalyst'];
+
 function IntelDashboard({ agents }: IntelDashboardProps) {
   const { balance, loading: creditsLoading } = useCredits();
   const { stats, loading: statsLoading } = useUsageStats(7);
@@ -200,10 +203,24 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
     return cached ? parseInt(cached, 10) : Date.now();
   });
 
+  // Load selected agent IDs from localStorage, fall back to all DB agents
+  const [selectedIds] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('conflux-selected-agents');
+      if (stored) { const parsed = JSON.parse(stored); if (Array.isArray(parsed) && parsed.length > 0) return parsed; }
+    } catch {}
+    return DEFAULT_AGENT_IDS;
+  });
+
+  // Filter agents by selected IDs (show all if nothing in localStorage)
+  const displayedAgents = selectedIds.length > 0
+    ? agents.filter(a => selectedIds.includes(a.id))
+    : agents;
+
   const allLoading = creditsLoading || statsLoading || historyLoading;
-  const activeAgents = agents.filter(a => a.status !== 'offline');
-  const workingCount = agents.filter(a => a.status === 'working' || a.status === 'thinking').length;
-  const onlinePct = agents.length > 0 ? Math.round((activeAgents.length / agents.length) * 100) : 0;
+  const activeAgents = displayedAgents.filter(a => a.status !== 'offline');
+  const workingCount = displayedAgents.filter(a => a.status === 'working' || a.status === 'thinking').length;
+  const onlinePct = displayedAgents.length > 0 ? Math.round((activeAgents.length / displayedAgents.length) * 100) : 0;
 
   // Load persisted interval from Rust backend
   useEffect(() => {
@@ -267,7 +284,7 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
           <div className="intel-section-title">SYSTEM OVERVIEW</div>
           <div className="intel-overview-row">
             <div className="intel-overview-gauge">
-              <RingGauge value={activeAgents.length} max={Math.max(agents.length, 1)} color="#6366f1" label={`${activeAgents.length}`} sublabel="online" />
+              <RingGauge value={activeAgents.length} max={Math.max(displayedAgents.length, 1)} color="#6366f1" label={`${activeAgents.length}`} sublabel="online" />
             </div>
             <div className="intel-overview-knob">
               <PulseKnob
@@ -286,7 +303,7 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
         <div className="intel-section">
           <div className="intel-section-title">AGENT STATUS</div>
           <div className="intel-section-content">
-            {agents.map((agent) => {
+            {displayedAgents.map((agent) => {
               const color = STATUS_COLORS[agent.status] || '#4b5563';
               const progress = getAgentProgress(agent);
               const isOffline = agent.status === 'offline';
@@ -311,7 +328,7 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
                 </div>
               );
             })}
-            {agents.length === 0 && (
+            {displayedAgents.length === 0 && (
               <div className="intel-activity-item">No agents connected</div>
             )}
           </div>
