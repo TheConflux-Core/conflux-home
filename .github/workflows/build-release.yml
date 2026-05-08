@@ -116,7 +116,6 @@ jobs:
           REPLICATE_API_KEY: ${{ secrets.REPLICATE_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -214,7 +213,6 @@ jobs:
           VITE_CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
           VITE_GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           VITE_MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           VITE_DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           VITE_CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
           VITE_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -227,7 +225,6 @@ jobs:
           REPLICATE_API_KEY: ${{ secrets.REPLICATE_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -345,7 +342,6 @@ jobs:
           VITE_CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
           VITE_GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           VITE_MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           VITE_DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           VITE_CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
           VITE_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -358,7 +354,6 @@ jobs:
           REPLICATE_API_KEY: ${{ secrets.REPLICATE_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -564,7 +559,6 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           VITE_MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           VITE_DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           VITE_CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
