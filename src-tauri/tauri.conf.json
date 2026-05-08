@@ -57,7 +57,6 @@
         "active": true,
         "createUpdaterArtifacts": false,
         "resources": [
-            "models",
             "binaries"
         ],
         "targets": [
