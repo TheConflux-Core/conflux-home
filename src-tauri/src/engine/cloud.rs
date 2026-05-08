@@ -519,9 +519,10 @@ const CLOUD_ROUTER_URL: &str =
 const MINIMAX_URL: &str = "https://api.minimax.io/v1/chat/completions";
 
 /// MiniMax API key — loaded from environment variable at runtime.
-/// Never hardcode. Set MINIMAX_API_KEY env var or pass via CI secrets.
-fn get_minimax_api_key() -> String {
-    std::env::var("MINIMAX_API_KEY").expect("MINIMAX_API_KEY not set")
+/// NEVER hardcode. Set MINIMAX_API_KEY env var or pass via CI secrets.
+/// Returns None if not configured (avoids panicking at runtime).
+fn get_minimax_api_key() -> Option<String> {
+    std::env::var("MINIMAX_API_KEY").ok()
 }
 
 
@@ -600,6 +601,11 @@ fn build_chat_request_body(
 
 /// Call the MiniMax API (non-streaming fallback for 429s).
 async fn call_minimax(request_body: serde_json::Value) -> Result<ModelResponse> {
+    let api_key = match get_minimax_api_key() {
+        Some(k) => k,
+        None => anyhow::bail!("MINIMAX_API_KEY not configured at runtime — use cloud router"),
+    };
+
     let client = reqwest::Client::new();
 
     // MiniMax requires explicit model field in request body
@@ -608,7 +614,7 @@ async fn call_minimax(request_body: serde_json::Value) -> Result<ModelResponse> 
 
     let response = client
         .post(MINIMAX_URL)
-        .header("Authorization", format!("Bearer {}", get_minimax_api_key()))
+        .header("Authorization", format!("Bearer {}", api_key))
         .header("Content-Type", "application/json")
         .json(&body)
         .send()
@@ -710,6 +716,11 @@ async fn call_minimax_stream(
     _messages: Vec<OpenAIMessage>,
     on_chunk: &mut dyn FnMut(&str) -> Result<()>,
 ) -> Result<ModelResponse> {
+    let api_key = match get_minimax_api_key() {
+        Some(k) => k,
+        None => anyhow::bail!("MINIMAX_API_KEY not configured at runtime — use cloud router"),
+    };
+
     request_body["stream"] = serde_json::json!(true);
     // MiniMax requires explicit model field in request body
     request_body["model"] = serde_json::json!("MiniMax-M2.7");
@@ -717,7 +728,7 @@ async fn call_minimax_stream(
     let client = reqwest::Client::new();
     let response = client
         .post(MINIMAX_URL)
-        .header("Authorization", format!("Bearer {}", get_minimax_api_key()))
+        .header("Authorization", format!("Bearer {}", api_key))
         .header("Content-Type", "application/json")
         .json(&request_body)
         .send()
