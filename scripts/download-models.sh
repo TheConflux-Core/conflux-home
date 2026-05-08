@@ -7,7 +7,8 @@
 #   MODEL_BASE_URL=https://your-cdn.com/models ./scripts/download-models.sh
 #
 # Expected files at MODEL_BASE_URL:
-#   - conflux-toolrouter-q4-v2.gguf  (Conflux fine-tuned tool router v2)
+#   - gemma-3n-e2b-q4km.gguf          (Gemma 3n E2B — primary chat model, 2.9 GB)
+#   - conflux-toolrouter-q4-v2.gguf    (Conflux fine-tuned tool router v2)
 
 set -euo pipefail
 
@@ -17,8 +18,9 @@ BASE_URL="${MODEL_BASE_URL:-}"
 if [ -z "$BASE_URL" ]; then
   echo "[download-models] MODEL_BASE_URL not set — skipping model download."
   echo "  Set it to a URL prefix where your .gguf files are hosted."
-  echo "  Model must exist on that host with this exact filename:"
-  echo "    conflux-toolrouter-q4-v2.gguf"
+  echo "  Models expected at that host:"
+  echo "    - gemma-3n-e2b-q4km.gguf (2.9 GB, primary chat model)"
+  echo "    - conflux-toolrouter-q4-v2.gguf (249 MB, tool router)"
   exit 0
 fi
 
@@ -40,7 +42,12 @@ download() {
   echo "[download-models] $file downloaded ($(du -h "$dest" | cut -f1))"
 }
 
-# Conflux fine-tuned tool router v2 (primary local model)
+# Gemma 3n E2B — primary local chat model (2.9 GB)
+echo "[download-models] === Fetching gemma-3n-e2b-q4km.gguf ==="
+download "gemma-3n-e2b-q4km.gguf" || echo "[download-models] WARNING: failed to download gemma-3n-e2b-q4km.gguf"
+
+# Conflux fine-tuned tool router v2 (249 MB, fallback for tool routing)
+echo "[download-models] === Fetching conflux-toolrouter-q4-v2.gguf ==="
 download "conflux-toolrouter-q4-v2.gguf" || echo "[download-models] WARNING: failed to download conflux-toolrouter-q4-v2.gguf"
 
 echo "[download-models] Done. Contents of $MODEL_DIR:"
