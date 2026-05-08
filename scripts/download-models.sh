@@ -42,13 +42,15 @@ download() {
   echo "[download-models] $file downloaded ($(du -h "$dest" | cut -f1))"
 }
 
-# Gemma 3n E2B — primary local chat model (2.9 GB)
-echo "[download-models] === Fetching gemma-3n-e2b-q4km.gguf ==="
-download "gemma-3n-e2b-q4km.gguf" || echo "[download-models] WARNING: failed to download gemma-3n-e2b-q4km.gguf"
+# Models are NOT bundled in the installer.
+# They are downloaded at runtime on first launch from R2:
+#   - gemma-3n-e2b-q4km.gguf (2.9 GB) — primary chat model
+#   - conflux-toolrouter-q4-v2.gguf (261 MB) — tool router fallback
+#
+# Runtime download is handled by local_ai.rs: try_download_primary_model()
+# which fetches from R2_MODEL_BASE_URL (hardcoded in local_ai.rs).
+#
+# This script is kept for backwards compatibility but downloads nothing
+# to keep the installer artifact small (< 2 GB GitHub limit).
 
-# Conflux fine-tuned tool router v2 (249 MB, fallback for tool routing)
-echo "[download-models] === Fetching conflux-toolrouter-q4-v2.gguf ==="
-download "conflux-toolrouter-q4-v2.gguf" || echo "[download-models] WARNING: failed to download conflux-toolrouter-q4-v2.gguf"
-
-echo "[download-models] Done. Contents of $MODEL_DIR:"
-ls -lh "$MODEL_DIR"
+exit 0
