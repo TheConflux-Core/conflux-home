@@ -516,9 +516,13 @@ pub async fn get_usage_history(user_id: &str, limit: i32) -> Result<Vec<UsageEnt
 /// Cloud router endpoint (conflux-cloud)
 const CLOUD_ROUTER_URL: &str =
     "https://zcvhozqrssotirabdlzr.functions.supabase.co/conflux-router/v1/chat/completions";
-/// MiniMax API endpoint (fallback when Groq is rate-limited)
 const MINIMAX_URL: &str = "https://api.minimax.io/v1/chat/completions";
-const MINIMAX_API_KEY: &str = "sk-cp-AxyJOwuIvJwh43_M1YmtZrotLA1AwQeNRTslJNZQhnbi3LEbI4PEeNHCzwnzN0CAZuMTxUvHfvlVnWosELY04lkb2DYMSStTs85v-rdOdhC0YeZHr04HekY";
+
+/// MiniMax API key — loaded from environment variable at runtime.
+/// Never hardcode. Set MINIMAX_API_KEY env var or pass via CI secrets.
+fn get_minimax_api_key() -> String {
+    std::env::var("MINIMAX_API_KEY").expect("MINIMAX_API_KEY not set")
+};
 
 
 
@@ -604,7 +608,7 @@ async fn call_minimax(request_body: serde_json::Value) -> Result<ModelResponse> 
 
     let response = client
         .post(MINIMAX_URL)
-        .header("Authorization", format!("Bearer {}", MINIMAX_API_KEY))
+        .header("Authorization", format!("Bearer {}", get_minimax_api_key()))
         .header("Content-Type", "application/json")
         .json(&body)
         .send()
@@ -713,7 +717,7 @@ async fn call_minimax_stream(
     let client = reqwest::Client::new();
     let response = client
         .post(MINIMAX_URL)
-        .header("Authorization", format!("Bearer {}", MINIMAX_API_KEY))
+        .header("Authorization", format!("Bearer {}", get_minimax_api_key()))
         .header("Content-Type", "application/json")
         .json(&request_body)
         .send()
