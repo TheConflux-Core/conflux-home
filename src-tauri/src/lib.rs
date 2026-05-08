@@ -307,9 +307,11 @@ pub fn run() {
                     let win_clone = window.clone();
                     window.on_window_event(move |event| {
                         if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                            log::info!("[Window] Close requested — hiding to tray");
-                            api.prevent_close();
-                            let _ = win_clone.hide();
+                            // On window close (X button), fully exit so installer can overwrite files.
+                            // llama-server child process must be killed first to release DLL locks.
+                            log::info!("[Window] Close requested — shutting down and exiting");
+                            engine::local_ai::shutdown_local_ai();
+                            std::process::exit(0);
                         }
                     });
                 }
