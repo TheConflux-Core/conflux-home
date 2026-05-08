@@ -16,6 +16,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
+use futures_util::stream::StreamExt;
 
 use super::router::{ModelResponse, ToolCallRequest};
 
@@ -36,7 +37,95 @@ fn get_resource_dir() -> Option<PathBuf> {
     RESOURCE_DIR.lock().unwrap().clone()
 }
 
-// ── App Data Directory (set at app startup) ──
+// ── Model Download URLs (R2 public bucket) ──
+
+/// Base URL for runtime model downloads. Models are fetched from R2 on first launch
+/// if not bundled in the installer.
+const R2_MODEL_BASE_URL: &str = "https://pub-23603fff461c41af90f9cdbbbac2b5de.r2.dev";
+
+/// Known model files to look for / download in priority order.
+const KNOWN_MODELS: &[&str] = &[
+    "gemma-3n-e2b-q4km.gguf",    // Gemma 3n E2B — fast, clean base model (primary)
+    "conflux-toolrouter-q4-v2.gguf", // Conflux tool router (fallback)
+    "conflux-toolrouter-q4.gguf",    // legacy v1 fallback
+];
+
+/// Download a model file from R2 to the destination path.
+/// Shows progress via log::info.
+async fn download_model_from_r2(model_name: &str, dest: &Path) -> Result<(), String> {
+    let url = format!("{}/{}", R2_MODEL_BASE_URL, model_name);
+    log::info!("[LocalAI] Downloading model from: {}", url);
+
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .build()
+        .map_err(|e| format!("HTTP client error: {}", e))?;
+
+    let response = client.get(&url).send().await
+        .map_err(|e| format!("Request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("HTTP {}: {}", response.status().as_u16(), url));
+    }
+
+    let total_size = response.content_length().unwrap_or(0);
+    log::info!("[LocalAI] Model size: {:.1} MB", total_size as f64 / 1_048_576.0);
+
+    // Stream to file with progress reporting
+    let mut file = tokio::fs::File::create(dest).await
+        .map_err(|e| format!("Failed to create file: {}", e))?;
+
+    let mut stream = response.bytes_stream();
+    let mut downloaded: u64 = 0;
+    let mut last_log: u64 = 0;
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("Download error: {}", e))?;
+        tokio::io::AsyncWriteExt::write_all(&mut file, &chunk).await
+            .map_err(|e| format!("Write error: {}", e))?;
+        downloaded += chunk.len() as u64;
+        // Log every 100 MB
+        if downloaded - last_log > 100 * 1024 * 1024 {
+            log::info!("[LocalAI] Download progress: {:.1}% ({:.0} MB)",
+                (downloaded as f64 / total_size as f64) * 100.0,
+                downloaded as f64 / 1_048_576.0);
+            last_log = downloaded;
+        }
+    }
+
+    log::info!("[LocalAI] Download complete: {} ({:.1} MB)",
+        dest.display(), downloaded as f64 / 1_048_576.0);
+    Ok(())
+}
+
+/// Try to download the primary model to the app data directory.
+/// Returns the path to the downloaded model, or None if download fails.
+async fn try_download_primary_model() -> Option<PathBuf> {
+    let app_dir = get_app_data_dir()?;
+    let model_name = KNOWN_MODELS[0]; // gemma-3n-e2b-q4km.gguf
+    let dest = app_dir.join("models").join(model_name);
+
+    // Don't re-download if already present
+    if dest.exists() {
+        log::info!("[LocalAI] Model already present: {}", dest.display());
+        return Some(dest);
+    }
+
+    // Create parent dir
+    if let Err(e) = std::fs::create_dir_all(dest.parent().unwrap()) {
+        log::warn!("[LocalAI] Failed to create model dir: {}", e);
+        return None;
+    }
+
+    match download_model_from_r2(model_name, &dest).await {
+        Ok(()) => Some(dest),
+        Err(e) => {
+            log::warn!("[LocalAI] Model download failed: {}", e);
+            None
+        }
+    }
+}
+
 
 static APP_DATA_DIR: std::sync::Mutex<Option<PathBuf>> = std::sync::Mutex::new(None);
 
@@ -113,7 +202,15 @@ static LOCAL_AI: std::sync::LazyLock<std::sync::Mutex<Option<LocalAiManager>>> =
 pub async fn get_or_init_local_ai() -> Option<LocalAiManager> {
     // Check if binary and model exist first (fast path)
     let server_bin = find_llama_server().ok()?;
-    let model_path = discover_model_path()?;
+
+    // Try bundled model first
+    let model_path = if let Some(p) = discover_model_path() {
+        Some(p)
+    } else {
+        // No bundled model — try downloading from R2
+        log::info!("[LocalAI] No bundled model found, attempting R2 download...");
+        try_download_primary_model().await
+    }?;
 
     let config = ServerConfig {
         model_path,
