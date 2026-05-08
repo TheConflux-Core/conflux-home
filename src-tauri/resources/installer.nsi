@@ -1,14 +1,19 @@
 ; ─────────────────────────────────────────────────────────────────────────────
 ; Conflux Home — Custom NSIS Installer Template
-; Downloads models from R2 during install so they're ready on first launch.
-; Too large to bundle (3GB+ total).
+; Uses NScurl (libcurl-based NSIS plugin) to download models from R2.
+; NScurl supports files >2GB. Falls back to curl.exe if NScurl fails.
 ; ─────────────────────────────────────────────────────────────────────────────
 
 !include "MUI2.nsh"
 !include "FileFunc.nsh"
 
-; ── Version from Tauri (injected at build time) ─────────────────────────────
 !define VERSION "0.1.103"
+!define MODEL_BASE "https://pub-23603fff461c41af90f9cdbbbac2b5de.r2.dev"
+
+; ── Model list ──────────────────────────────────────────────────────────────
+; Name, URL suffix, expected size description
+!define MODEL_1 "gemma-3n-e2b-q4km.gguf"
+!define MODEL_2 "conflux-toolrouter-q4-v2.gguf"
 
 ; ── Installer Settings ───────────────────────────────────────────────────────
 Name "Conflux Home"
@@ -16,7 +21,6 @@ OutFile "Conflux.Home_x64-setup.exe"
 InstallDir "$LOCALAPPDATA\Conflux Home"
 InstallDirRegKey HKCU "Software\ConfluxHome" "InstallDir"
 RequestExecutionLevel user
-BrandingText "Conflux Home Setup"
 
 ; ── Modern UI ────────────────────────────────────────────────────────────────
 !define MUI_ABORTWARNING
@@ -28,65 +32,91 @@ BrandingText "Conflux Home Setup"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "LICENSE.txt"
 !insertmacro MUI_PAGE_DIRECTORY
-
-; Custom download page using NSISdl (built-in)
 !insertmacro MUI_PAGE_INSTFILES
-
 !insertmacro MUI_PAGE_FINISH
 
-; Uninstaller pages
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 
 !insertmacro MUI_LANGUAGE "English"
 
-; ── Pre-download hook (runs before MUI_PAGE_INSTFILES) ────────────────────────
+; ── Pre-install confirmation ─────────────────────────────────────────────────
 Function .onInit
-    ; Show a message about model download
     MessageBox MB_YESNO|MB_ICONINFO \
-        "Conflux Home will download AI models (~3.2 GB total) during installation.\n\n\
-        This requires an internet connection and may take several minutes.\n\n\
-        Continue installation?" \
-        IDYES skip_cancel
+        "Conflux Home requires downloading AI models (~3.2 GB total).$\n$\n\
+        This needs an active internet connection.$\n\
+        Installation may take 10-20 minutes depending on speed.$\n$\n\
+        Continue?" \
+        IDYES skip_abort
     Abort
-    skip_cancel:
+    skip_abort:
+FunctionEnd
+
+; ── Download function using NScurl ──────────────────────────────────────────
+; Downloads a file using NScurl plugin (preferred).
+; Falls back to curl.exe if NScurl is unavailable.
+Function downloadWithNScurl
+    ; NScurl is pre-installed by CI step (negrutiu/nsis-install-plugin)
+    NScurl::http GET "${MODEL_BASE}/${MODEL_1}" "$INSTDIR\models\${MODEL_1}" /INSIST /END
+    Pop $0
+    ${If} $0 == "OK"
+        DetailPrint "Downloaded ${MODEL_1}"
+    ${Else}
+        DetailPrint "NScurl failed for ${MODEL_1} (code: $0), trying curl..."
+       /nscurl_failed:
+        NSISdl::download "${MODEL_BASE}/${MODEL_1}" "$INSTDIR\models\${MODEL_1}"
+        Pop $0
+        ${If} $0 != "success"
+            DetailPrint "curl download also failed for ${MODEL_1}"
+        ${EndIf}
+    ${EndIf}
 FunctionEnd
 
 ; ── Install Section ──────────────────────────────────────────────────────────
 Section "Install" SecMain
     SetOutPath "$INSTDIR"
 
-    ; ── Copy all bundled resources (llama-server, DLLs, etc.) ──────────────
-    ; The binaries/ directory is bundled by Tauri
+    ; Copy all bundled resources (binaries/, etc.)
     File /r "binaries\*.*"
 
     ; ── Create models directory ─────────────────────────────────────────────
     CreateDirectory "$INSTDIR\models"
 
-    ; ── Download gemma-3n-e2b-q4km.gguf (~2.9 GB) ────────────────────────────
+    ; ── Download Model 1: gemma-3n-e2b-q4km.gguf (~2.9 GB) ─────────────────
     DetailPrint "Downloading AI model (gemma-3n-e2b-q4km.gguf, ~2.9 GB)..."
-    NSISdl::download \
-        "https://pub-23603fff461c41af90f9cdbbbac2b5de.r2.dev/gemma-3n-e2b-q4km.gguf" \
-        "$INSTDIR\models\gemma-3n-e2b-q4km.gguf"
+    NScurl::http GET "${MODEL_BASE}/${MODEL_1}" "$INSTDIR\models\${MODEL_1}" /INSIST /RESUME /END
     Pop $0
-    ${If} $0 != "success"
-        DetailPrint "WARNING: Primary model download returned: $0"
-        DetailPrint "App will download model on first launch instead."
+
+    ${If} $0 != "OK"
+        ; NScurl failed — try curl.exe as fallback
+        DetailPrint "NScurl returned: $0 — falling back to curl.exe..."
+        NSISdl::download "${MODEL_BASE}/${MODEL_1}" "$INSTDIR\models\${MODEL_1}"
+        Pop $0
+        ${If} $0 != "success"
+            DetailPrint "WARNING: ${MODEL_1} download failed. App will download on first launch."
+        ${Else}
+            DetailPrint "${MODEL_1} downloaded via curl fallback."
+        ${EndIf}
     ${Else}
-        DetailPrint "Primary model downloaded successfully."
+        DetailPrint "${MODEL_1} downloaded successfully."
     ${EndIf}
 
-    ; ── Download conflux-toolrouter-q4-v2.gguf (249 MB) ──────────────────────
+    ; ── Download Model 2: conflux-toolrouter-q4-v2.gguf (249 MB) ────────────
     DetailPrint "Downloading tool router (conflux-toolrouter-q4-v2.gguf, ~249 MB)..."
-    NSISdl::download \
-        "https://pub-23603fff461c41af90f9cdbbbac2b5de.r2.dev/conflux-toolrouter-q4-v2.gguf" \
-        "$INSTDIR\models\conflux-toolrouter-q4-v2.gguf"
+    NScurl::http GET "${MODEL_BASE}/${MODEL_2}" "$INSTDIR\models\${MODEL_2}" /INSIST /RESUME /END
     Pop $0
-    ${If} $0 != "success"
-        DetailPrint "WARNING: Tool router download returned: $0"
-        DetailPrint "App will download tool router on first launch instead."
+
+    ${If} $0 != "OK"
+        DetailPrint "NScurl returned: $0 — falling back to curl.exe..."
+        NSISdl::download "${MODEL_BASE}/${MODEL_2}" "$INSTDIR\models\${MODEL_2}"
+        Pop $0
+        ${If} $0 != "success"
+            DetailPrint "WARNING: ${MODEL_2} download failed. App will download on first launch."
+        ${Else}
+            DetailPrint "${MODEL_2} downloaded via curl fallback."
+        ${EndIf}
     ${Else}
-        DetailPrint "Tool router downloaded successfully."
+        DetailPrint "${MODEL_2} downloaded successfully."
     ${EndIf}
 
     ; ── Write registry ───────────────────────────────────────────────────────
@@ -118,20 +148,13 @@ SectionEnd
 
 ; ── Uninstaller ──────────────────────────────────────────────────────────────
 Section "Uninstall"
-    ; Remove app dir (includes models)
     RMDir /r "$INSTDIR"
-
-    ; Remove registry entries
     DeleteRegKey HKCU "Software\ConfluxHome"
     DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ConfluxHome"
-
-    ; Remove Start Menu shortcuts
     Delete "$SMPROGRAMS\Conflux Home.lnk"
     Delete "$SMPROGRAMS\Uninstall Conflux Home.lnk"
 SectionEnd
 
-; ── Callbacks ────────────────────────────────────────────────────────────────
 Function .onInstFailed
-    ; If install fails, log — the app will handle model download on next launch
     DetailPrint "Installation ended before model download completed."
 FunctionEnd
