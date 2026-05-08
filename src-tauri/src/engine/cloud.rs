@@ -522,7 +522,7 @@ const MINIMAX_URL: &str = "https://api.minimax.io/v1/chat/completions";
 /// Never hardcode. Set MINIMAX_API_KEY env var or pass via CI secrets.
 fn get_minimax_api_key() -> String {
     std::env::var("MINIMAX_API_KEY").expect("MINIMAX_API_KEY not set")
-};
+}
 
 
 
