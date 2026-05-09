@@ -69,7 +69,7 @@ export default function AgentBootCards({ userId, members, onComplete }: AgentBoo
       <div className="agent-boot-cards-container">
         {simpleStatuses.length === 0 ? (
           <div className="agent-boot-card">
-            <div className="agent-boot-card-emoji">🤖</div>
+            <img src="/logo.png" alt="Conflux" style={{ width: 48, height: 48, objectFit: 'contain' }} />
             <div className="agent-boot-card-content">
               <div className="agent-boot-card-name">Conflux</div>
               <div className="agent-boot-card-status">Your team is starting up...</div>

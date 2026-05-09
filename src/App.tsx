@@ -1166,7 +1166,7 @@ const [activeSnake, setActiveSnake] = useState(false);
   if (authLoading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#0a0a1a' }}>
-        <div style={{ fontSize: 32 }}>🤖</div>
+        <img src="/logo.png" alt="Conflux" style={{ width: 32, height: 32, objectFit: 'contain' }} />
       </div>
     );
   }
@@ -1312,7 +1312,7 @@ const [activeSnake, setActiveSnake] = useState(false);
                 marginBottom: 24,
               }}>
                 {[
-                  { label: 'Active Agents', value: liveAgents, emoji: '🤖', sub: 'online now' },
+                  { label: 'Active Agents', value: liveAgents, sub: 'online now', icon: '/logo.png' },
                   { label: 'Products Built', value: '12', emoji: '📦', sub: 'across all niches' },
                   { label: 'Missions Done', value: '14', emoji: '🎯', sub: 'completed' },
                   { label: 'Engine Health', value: engineHealthy ? 'Healthy' : 'Check', emoji: engineHealthy ? '💚' : '⚠️', sub: 'all systems' },
@@ -1325,7 +1325,7 @@ const [activeSnake, setActiveSnake] = useState(false);
                     textAlign: 'center',
                     boxShadow: 'var(--shadow)',
                   }}>
-                    <div style={{ fontSize: 24, marginBottom: 8 }}>{stat.emoji}</div>
+                    <div style={{ fontSize: 24, marginBottom: 8 }}>{stat.icon ? <img src={stat.icon} alt="" style={{ width: 28, height: 28, objectFit: 'contain' }} /> : stat.emoji}</div>
                     <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--accent-primary)' }}>
                       {stat.value}
                     </div>
