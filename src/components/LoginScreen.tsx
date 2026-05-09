@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link'
 
+const LAST_EMAIL_KEY = 'conflux-last-email';
+
 interface LoginScreenProps {
   onAuthSuccess: () => void
 }
@@ -27,7 +29,7 @@ function parseAuthTokens(url: string): { access_token: string; refresh_token: st
 }
 
 export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => localStorage.getItem(LAST_EMAIL_KEY) ?? '')
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -106,6 +108,7 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
       if (authError) {
         setError(authError.message)
       } else {
+        localStorage.setItem(LAST_EMAIL_KEY, trimmed);
         setSent(true)
       }
     } catch (err: any) {
