@@ -42,6 +42,7 @@ jobs:
         run: |
           VER="${{ github.event.inputs.version || github.ref_name }}"
           VER="${VER#v}"
+          VER="${VER#v}"
           echo "Patching version to $VER"
           cat << 'PYEOF' > /tmp/patch_version.py
           import re, sys
@@ -159,6 +160,7 @@ jobs:
         shell: bash
         run: |
           VER="${{ github.event.inputs.version || github.ref_name }}"
+          VER="${VER#v}"
           VER="${VER#v}"
           echo "Patching version to $VER"
           cat << 'PYEOF' > /tmp/patch_version.py
@@ -296,6 +298,7 @@ jobs:
       - name: Patch version from tag
         run: |
           VER="${{ github.event.inputs.version || github.ref_name }}"
+          VER="${VER#v}"
           VER="${VER#v}"
           echo "Patching version to $VER"
           cat << 'PYEOF' > /tmp/patch_version.py
@@ -490,6 +493,7 @@ jobs:
       - name: Patch version from tag
         run: |
           VER="${{ github.event.inputs.version || github.ref_name }}"
+          VER="${VER#v}"
           VER="${VER#v}"
           echo "Patching version to $VER"
           cat << 'PYEOF' > /tmp/patch_version.py
