@@ -325,16 +325,27 @@ pub fn run() {
                     Err(e) => log::warn!("[Setup] Failed to create tray icon: {}", e),
                 }
 
-                // Handle window close button — hide to tray instead of exiting
+                // Handle window close button — hide to tray instead of exiting (macOS/Linux).
+                // On Windows, llama-server must be killed before exit to release DLL locks
+                // so the installer can overwrite files — handled via a pre-exit cleanup hook.
                 if let Some(window) = app.get_webview_window("main") {
-                    let win_clone = window.clone();
-                    window.on_window_event(move |event| {
+                    let app_handle = app.handle().clone();
+                    window.clone().on_window_event(move |event| {
                         if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                            // On window close (X button), fully exit so installer can overwrite files.
-                            // llama-server child process must be killed first to release DLL locks.
-                            log::info!("[Window] Close requested — shutting down and exiting");
-                            engine::local_ai::shutdown_local_ai();
-                            std::process::exit(0);
+                            #[cfg(target_os = "windows")]
+                            {
+                                log::info!("[Window] Close requested (Windows) — killing llama-server and exiting");
+                                engine::local_ai::shutdown_local_ai();
+                                std::process::exit(0);
+                            }
+                            #[cfg(not(target_os = "windows"))]
+                            {
+                                log::info!("[Window] Close requested — hiding to tray");
+                                api.prevent_close();
+                                if let Some(win) = app_handle.get_webview_window("main") {
+                                    let _ = win.hide();
+                                }
+                            }
                         }
                     });
                 }
