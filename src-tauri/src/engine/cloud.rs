@@ -30,6 +30,77 @@ use super::router::ModelResponse;
 use super::router::OpenAIMessage;
 use super::router::ToolCallRequest;
 
+// ── Response Cleaning ──
+
+/// Strip thinking/reasoning text from LLM responses.
+/// Handles: tagged blocks (<think>...), markdown code fences, and untagged
+/// thinking where the model outputs chain-of-thought as plain text before the actual response.
+pub fn strip_thinking_from_response(text: &str) -> String {
+    let mut s = text.to_string();
+
+    // 1. Strip <think>...` blocks
+    while let Some(start) = s.find("<think>") {
+        if let Some(end) = s[start..].find("</think>") {
+            s.replace_range(start..start + end + 9, "");
+        } else {
+            // Unclosed — everything from here is thinking
+            s.truncate(start);
+            break;
+        }
+    }
+
+    // 2. Strip markdown code fences (``` ... ```)
+    if s.trim_start().starts_with("```") {
+        if let Some(end) = s[3..].find("```") {
+            let inner = &s[3..3 + end];
+            // Skip optional language tag on first line
+            if let Some(first_nl) = inner.find('\n') {
+                s = inner[first_nl + 1..].to_string();
+            } else {
+                s = inner.to_string();
+            }
+        }
+    }
+
+    let trimmed = s.trim().to_string();
+
+    // 3. Detect untagged thinking — heuristic: if the response starts with
+    //    a short paragraph (< 200 chars) followed by a blank line, the first
+    //    paragraph is likely thinking/reasoning. We strip it if it looks like
+    //    instructions rather than conversational content.
+    if let Some(blank_pos) = trimmed.find("\n\n") {
+        let first_para = trimmed[..blank_pos].trim();
+        let rest = trimmed[blank_pos + 2..].trim();
+
+        // Only strip if: first paragraph is short AND rest exists AND
+        // first paragraph looks like instructions (starts with common thinking patterns)
+        let looks_like_thinking = first_para.len() < 250
+            && !rest.is_empty()
+            && (first_para.starts_with("The user")
+                || first_para.starts_with("User")
+                || first_para.starts_with("I should")
+                || first_para.starts_with("I will")
+                || first_para.starts_with("Let me")
+                || first_para.starts_with("Okay")
+                || first_para.starts_with("OK,")
+                || first_para.starts_with("Got it")
+                || first_para.starts_with("Just a")
+                || first_para.starts_with("Another")
+                || first_para.starts_with("The assistant")
+                || first_para.starts_with("This is")
+                || first_para.starts_with("Keep it")
+                || first_para.starts_with("Acknowledg")
+                || first_para.starts_with("Respond")
+                || first_para.starts_with("Reply"));
+
+        if looks_like_thinking {
+            return rest.to_string();
+        }
+    }
+
+    trimmed
+}
+
 // ── Types ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -693,7 +764,7 @@ async fn call_minimax(request_body: serde_json::Value) -> Result<ModelResponse> 
     let content = if extracted_tool_call.is_some() {
         String::new()
     } else {
-        raw_content
+        strip_thinking_from_response(&raw_content)
     };
 
     let tokens_used = parsed
@@ -765,7 +836,7 @@ async fn call_minimax_stream(
             if line == "data: [DONE]" {
                 let tokens_used = (full_text.len() as f64 / 4.0).ceil() as i64;
                 return Ok(ModelResponse {
-                    content: full_text,
+                    content: strip_thinking_from_response(&full_text),
                     model: "minimax".to_string(),
                     provider_id: "minimax".to_string(),
                     provider_name: "MiniMax".to_string(),
@@ -794,7 +865,7 @@ async fn call_minimax_stream(
 
     let tokens_used = (full_text.len() as f64 / 4.0).ceil() as i64;
     Ok(ModelResponse {
-        content: full_text,
+        content: strip_thinking_from_response(&full_text),
         model: "minimax".to_string(),
         provider_id: "minimax".to_string(),
         provider_name: "MiniMax".to_string(),
@@ -980,7 +1051,7 @@ pub async fn cloud_chat(
     let content = if extracted_tool_call.is_some() {
         String::new()
     } else {
-        raw_content
+        strip_thinking_from_response(&raw_content)
     };
 
     let tokens_used = parsed
@@ -1119,7 +1190,7 @@ pub async fn cloud_chat_stream(
             if line == "data: [DONE]" {
                 let tokens_used = (full_text.len() as f64 / 4.0).ceil() as i64;
                 return Ok(ModelResponse {
-                    content: full_text,
+                    content: strip_thinking_from_response(&full_text),
                     model: "cloud-router".to_string(),
                     provider_id: "cloud-router".to_string(),
                     provider_name: "Conflux Cloud Router".to_string(),
@@ -1148,7 +1219,7 @@ pub async fn cloud_chat_stream(
 
     let tokens_used = (full_text.len() as f64 / 4.0).ceil() as i64;
     Ok(ModelResponse {
-        content: full_text,
+        content: strip_thinking_from_response(&full_text),
         model: "cloud-router".to_string(),
         provider_id: "cloud-router".to_string(),
         provider_name: "Conflux Cloud Router".to_string(),
