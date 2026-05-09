@@ -7,7 +7,7 @@
 !include "MUI2.nsh"
 !include "FileFunc.nsh"
 
-!define VERSION "0.1.103"
+!define VERSION "0.1.105"
 !define MODEL_BASE "https://pub-23603fff461c41af90f9cdbbbac2b5de.r2.dev"
 
 ; ── Model list ──────────────────────────────────────────────────────────────
@@ -142,7 +142,12 @@ Section "Install" SecMain
         "NoRepair" 1
 
     ; ── Copy main executable ─────────────────────────────────────────────────
-    File "Conflux Home.exe"
+    ; Path resolved by Tauri bundler — ${STAGING_DIR} is set when NSIS runs
+    File /nonfatal "${STAGING_DIR}\Conflux Home.exe"
+    ${If} ${FileExists} "$INSTDIR\Conflux Home.exe"
+    ${Else}
+        DetailPrint "WARNING: Main executable not found — bundle may be incomplete."
+    ${EndIf}
 
 SectionEnd
 
