@@ -5,6 +5,7 @@ use anyhow::{Context, Result};
 use base64::Engine as _;
 use futures_util::{SinkExt, StreamExt};
 use hound::{WavWriter, WavSpec};
+use log;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
@@ -157,12 +158,9 @@ pub async fn start_stream(
     }
 
     // Step 1: Get a short-lived single-use token via REST (required auth for WSS)
-    println!("[ElevenLabs STT] Obtaining single-use token...");
+    log::info!("[ElevenLabs STT] Obtaining single-use token...");
     let session_token = get_single_use_token(api_key).await?;
-    println!(
-        "[ElevenLabs STT] Token received: {}...",
-        &session_token[..session_token.len().min(12)]
-    );
+    log::info!("[ElevenLabs STT] Token received: {}...", &session_token[..session_token.len().min(12)]);
 
     let mut model_id = config.model_id.unwrap_or_else(|| "scribe_v2_realtime".into());
     if model_id == "scribe_v1" || model_id == "scribe_v2" {
@@ -176,21 +174,18 @@ pub async fn start_stream(
         model_id, session_token
     );
 
-    println!("[ElevenLabs STT] Connecting to WSS...");
+    log::info!("[ElevenLabs STT] Connecting to WSS...");
 
     let request = url
         .into_client_request()
         .map_err(|e| anyhow::anyhow!("Failed to create client request: {}", e))?;
 
     let (socket, response) = connect_async(request).await.map_err(|e| {
-        println!("[ElevenLabs STT] Connection failed: {}", e);
+        log::warn!("[ElevenLabs STT] Connection failed: {}", e);
         anyhow::anyhow!("WebSocket connection failed: {}", e)
     })?;
 
-    println!(
-        "[ElevenLabs STT] Connected. Status: {}",
-        response.status()
-    );
+    log::info!("[ElevenLabs STT] Connected. Status: {}", response.status());
 
     let (mut ws_sender, mut ws_receiver) = socket.split();
 
