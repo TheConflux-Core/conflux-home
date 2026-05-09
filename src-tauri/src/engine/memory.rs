@@ -8,6 +8,43 @@ use serde::Deserialize;
 use super::db::EngineDb;
 use super::router;
 
+/// Extract JSON from LLM responses that may contain thinking text or tags.
+/// Handles: <think>...> blocks, plain chain-of-thought, markdown code fences, etc.
+fn extract_json(text: &str) -> Option<String> {
+    let mut s = text.to_string();
+
+    // 1. Strip complete <think>...` blocks
+    while let Some(start) = s.find("<think>") {
+        if let Some(end) = s[start..].find("") {
+            s.replace_range(start..start + end + 9, "");
+        } else {
+            // Unclosed — everything from here is thinking
+            s.truncate(start);
+            break;
+        }
+    }
+
+    // 2. Strip markdown code fences (```json ... ``` or ``` ... ```)
+    if let Some(start) = s.find("```") {
+        let after = &s[start + 3..];
+        // Skip optional language tag
+        let after = after.trim_start_matches("json").trim_start_matches("JSON");
+        if let Some(end) = after.find("```") {
+            s = after[..end].to_string();
+        }
+    }
+
+    // 3. Find the JSON object — first { to last }
+    let trimmed = s.trim();
+    let start = trimmed.find('{')?;
+    let end = trimmed.rfind('}')?;
+    if end <= start {
+        return None;
+    }
+    let candidate = &trimmed[start..=end];
+    Some(candidate.to_string())
+}
+
 #[derive(Debug, Deserialize)]
 struct ExtractedMemories {
     memories: Vec<ExtractedMemory>,
@@ -81,13 +118,16 @@ pub async fn extract_and_store(
     )
     .await?;
 
-    // Parse the response
-    let extracted: ExtractedMemories = match serde_json::from_str(&response.content) {
-        Ok(e) => e,
-        Err(e) => {
+    // Parse the response — extract JSON from thinking text, tags, code fences
+    let json_str = extract_json(&response.content);
+    let extracted: ExtractedMemories = match json_str
+        .as_ref()
+        .and_then(|j| serde_json::from_str(j).ok())
+    {
+        Some(e) => e,
+        None => {
             log::warn!(
-                "[Memory] Failed to parse extraction response: {} — raw: {}",
-                e,
+                "[Memory] Failed to extract JSON from response — raw: {}",
                 &response.content[..response.content.len().min(200)]
             );
             return Ok(()); // Don't fail the conversation for extraction errors
