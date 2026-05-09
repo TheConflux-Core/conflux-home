@@ -83,7 +83,6 @@
         },
         "windows": {
             "nsis": {
-                "template": "installer.nsi",
                 "installMode": "currentUser"
             }
         }
