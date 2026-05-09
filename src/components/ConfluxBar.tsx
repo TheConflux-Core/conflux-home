@@ -147,7 +147,7 @@ export default function ConfluxBar({ currentView, agents, pinnedApps, onNavigate
         <div className="conflux-menu" ref={menuRef}>
           {/* Agent status hero */}
           <div className="conflux-menu-hero">
-            <div className="conflux-menu-hero-icon">🤖</div>
+            <img src="/logo.png" alt="Conflux" style={{ width: 28, height: 28, objectFit: 'contain' }} />
             <div className="conflux-menu-hero-text">
               <div className="conflux-menu-hero-title">Your AI Family</div>
               <div className="conflux-menu-hero-subtitle">
