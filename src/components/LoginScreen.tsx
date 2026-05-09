@@ -179,7 +179,7 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
       <div style={styles.card}>
         {/* Logo / Title */}
         <div style={styles.logoArea}>
-          <div style={styles.logoEmoji}>🤖</div>
+          <img src="/logo.png" alt="Conflux" style={styles.logoEmoji} />
           <h1 style={styles.title}>Conflux Home</h1>
           <p style={styles.subtitle}>A home for your AI family</p>
         </div>
@@ -275,7 +275,9 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 40,
   },
   logoEmoji: {
-    fontSize: 52,
+    width: 52,
+    height: 52,
+    objectFit: 'contain',
     marginBottom: 16,
     display: 'block',
     filter: 'drop-shadow(0 4px 12px rgba(139, 92, 246, 0.3))',
