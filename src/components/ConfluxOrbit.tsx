@@ -419,9 +419,16 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
     }
     return null;
   });
+  // Mount guard: skip the clear-on-view-change effect on the very first render
+  // so a pre-loaded dragOverride from localStorage is not wiped before paint.
+  const isDragOverrideMountedRef = useRef(false);
   // One-shot flag: fires a spring to magnetic zone when setDragOverride(null) is called
   const [transitioningToZone, setTransitioningToZone] = useState(false);
   const transitioningRef = useRef(false);
+
+  useEffect(() => {
+    isDragOverrideMountedRef.current = true;
+  }, []);
 
   useEffect(() => {
     if (wizardMode) return; // Skip non-wizard bezier — wizard has its own
@@ -440,7 +447,10 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
   }, [immersiveView, wizardMode]);
 
   // On view change: clear dragOverride → triggers one-shot spring to magnetic zone
+  // Guard: skip on first render — dragOverride was already loaded from localStorage
+  // and must not be wiped before the fairy gets a chance to paint at the saved position.
   useEffect(() => {
+    if (!isDragOverrideMountedRef.current) return;
     if (dragOverride !== null) {
       transitioningRef.current = true;
       setTransitioningToZone(true);
