@@ -159,32 +159,43 @@ const DEFAULT_ACTIVE_AGENTS = ['conflux', 'helix', 'pulse', 'hearth', 'echo', 'a
 export default function IntelView() {
   const events = useBeatTimeline();
   const [started, setStarted] = useState(false);
-  const [activeAgents, setActiveAgents] = useState<AgentFromDB[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  // Load from localStorage after mount — runs once, always reliable
-  useEffect(() => {
-    const stored = localStorage.getItem('conflux-selected-agents');
-    let selectedIds: string[];
+  // Load from localStorage synchronously — same pattern as DesktopQuadrants.
+  // This prevents the "all agents offline" flash on first render by initialising
+  // state before paint, matching whatever is already in localStorage.
+  const [activeAgents, setActiveAgents] = useState<AgentFromDB[]>(() => {
     try {
-      selectedIds = stored ? JSON.parse(stored) : DEFAULT_ACTIVE_AGENTS;
+      const stored = localStorage.getItem('conflux-selected-agents');
+      const selectedIds: string[] = stored ? JSON.parse(stored) : DEFAULT_ACTIVE_AGENTS;
+      return AGENTS.filter(a => selectedIds.includes(a.id)).map(a => ({
+        id: a.id,
+        name: a.label,
+        emoji: a.emoji,
+        role: a.id,
+        soul: null,
+        instructions: null,
+        model_alias: 'conflux-core',
+        tier: 'free',
+        is_active: true,
+        created_at: '',
+        updated_at: '',
+      }));
     } catch {
-      selectedIds = DEFAULT_ACTIVE_AGENTS;
+      return AGENTS.filter(a => DEFAULT_ACTIVE_AGENTS.includes(a.id)).map(a => ({
+        id: a.id,
+        name: a.label,
+        emoji: a.emoji,
+        role: a.id,
+        soul: null,
+        instructions: null,
+        model_alias: 'conflux-core',
+        tier: 'free',
+        is_active: true,
+        created_at: '',
+        updated_at: '',
+      }));
     }
-    setActiveAgents(AGENTS.filter(a => selectedIds.includes(a.id)).map(a => ({
-      id: a.id,
-      name: a.label,
-      emoji: a.emoji,
-      role: a.id,
-      soul: null,
-      instructions: null,
-      model_alias: 'conflux-core',
-      tier: 'free',
-      is_active: true,
-      created_at: '',
-      updated_at: '',
-    })));
-  }, []);
+  });
+  const [loading, setLoading] = useState(false);
 
   // Sync with AgentsView toggle events
   useEffect(() => {
