@@ -142,8 +142,9 @@ Section "Install" SecMain
         "NoRepair" 1
 
     ; ── Copy main executable ─────────────────────────────────────────────────
-    ; Path resolved by Tauri bundler — ${STAGING_DIR} is set when NSIS runs
-    File /nonfatal "${STAGING_DIR}\Conflux Home.exe"
+    ; Tauri NSIS runs from target/release/bundle/nsis/ — exe is in target/release/
+    ; Use ..\..\ to go up two directories (same as backslash path)
+    File /nonfatal "..\..\conflux-home.exe"
     ${If} ${FileExists} "$INSTDIR\Conflux Home.exe"
     ${Else}
         DetailPrint "WARNING: Main executable not found — bundle may be incomplete."
