@@ -15,7 +15,7 @@ fn extract_json(text: &str) -> Option<String> {
 
     // 1. Strip complete <think>...` blocks
     while let Some(start) = s.find("<think>") {
-        if let Some(end) = s[start..].find("") {
+        if let Some(end) = s[start..].find("</think>") {
             s.replace_range(start..start + end + 9, "");
         } else {
             // Unclosed — everything from here is thinking

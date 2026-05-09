@@ -40,7 +40,7 @@ pub fn strip_thinking_from_response(text: &str) -> String {
 
     // 1. Strip <think>...` blocks
     while let Some(start) = s.find("<think>") {
-        if let Some(end) = s[start..].find("") {
+        if let Some(end) = s[start..].find("</think>") {
             s.replace_range(start..start + end + 9, "");
         } else {
             // Unclosed — everything from here is thinking

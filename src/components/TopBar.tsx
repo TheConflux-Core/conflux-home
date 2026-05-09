@@ -295,18 +295,18 @@ export default function TopBar({ selectedAgent, controlRoom, currentView, onNavi
                 {manualMode === 'cloud' && <span style={{ fontSize: 12, color: '#10b981' }}>✓</span>}
               </button>
               <button
-                onClick={() => setMode('local')}
+                // onClick removed — local mode toggle disabled pending stable launch
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10,
                   padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)',
                   background: manualMode === 'local' ? 'rgba(245,158,11,0.12)' : 'transparent',
-                  cursor: 'pointer', textAlign: 'left', width: '100%',
-                  transition: 'background 0.15s ease',
+                  cursor: 'not-allowed', textAlign: 'left', width: '100%',
+                  transition: 'background 0.15s ease', opacity: 0.6,
                 }}
               >
                 <span style={{ fontSize: 16 }}>🏠</span>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>Local</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>Local <span style={{ fontSize: 10, color: '#f59e0b' }}>— coming soon!</span></div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Slower • Offline • Private</div>
                 </div>
                 {manualMode === 'local' && <span style={{ fontSize: 12, color: '#f59e0b' }}>✓</span>}
