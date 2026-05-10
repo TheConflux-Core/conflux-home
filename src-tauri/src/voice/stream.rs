@@ -265,11 +265,12 @@ pub async fn start_stream(
 
     // ── Outgoing Messages (Audio) ────────────────────────────────────────
     let send_task = tokio::spawn(async move {
-        while let Some(msg) = audio_rx.recv().await {
-            match msg {
-                StreamMessage::Audio(samples) => {
-                    // TEMP DEBUG: log every chunk to confirm audio reaches WSS in release build
-                    log::info!("[ElevenLabs STT] [DEBUG] Chunk sent: {} samples ({} bytes)", samples.len(), samples.len() * 2);
+        loop {
+            // Use try_recv to avoid blocking forever if no audio comes in
+            match audio_rx.recv().await {
+                Some(StreamMessage::Audio(samples)) => {
+                    // DEBUG: log every chunk received from channel
+                    log::info!("[ElevenLabs STT] [SEND] Received {} samples from channel, sending to ElevenLabs...", samples.len());
                     let audio_b64 = encode_audio_raw(&samples);
                     let payload = serde_json::json!({
                         "message_type": "input_audio_chunk",
@@ -278,19 +279,21 @@ pub async fn start_stream(
                     if let Err(e) = ws_sender.send(Message::Text(payload.to_string())).await {
                         log::warn!("[ElevenLabs STT] Audio send failed: {}", e);
                     } else {
-                        log::debug!("[ElevenLabs STT] Audio sent & flushed OK");
                         if let Err(e) = ws_sender.flush().await {
                             log::warn!("[ElevenLabs STT] Audio flush failed: {}", e);
+                        } else {
+                            log::info!("[ElevenLabs STT] [SEND] Sent OK: {} bytes", samples.len() * 2);
                         }
                     }
                 }
-                StreamMessage::StreamStop => {
-                    log::info!("[ElevenLabs STT] Closing stream.");
-                    // With commit_strategy=vad, ElevenLabs auto-commits on VAD silence detection.
-                    // No explicit commit message needed — just close the WebSocket.
-                    // Give the server a moment to send any final partial transcript.
+                Some(StreamMessage::StreamStop) => {
+                    log::info!("[ElevenLabs STT] [SEND] Received StreamStop, closing.");
                     tokio::time::sleep(Duration::from_millis(500)).await;
                     let _ = ws_sender.close().await;
+                    break;
+                }
+                None => {
+                    log::warn!("[ElevenLabs STT] [SEND] Channel closed unexpectedly");
                     break;
                 }
             }
