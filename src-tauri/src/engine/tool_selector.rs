@@ -153,6 +153,23 @@ impl ToolSelector {
                 }
             }
 
+            // 3. Web search trigger words — broad match to ensure web_search/web_fetch are selected
+            // for any query that looks like it needs live information
+            if name == "web_search" || name == "web_fetch" {
+                let web_triggers = [
+                    "search", "find", "look up", "look for", "google", "browse", "web", "online",
+                    "weather", "temperature", "forecast", "current", "latest", "recent",
+                    "who is", "what is", "what are", "when did", "where is", "how do", "why do",
+                    "stock", "price", "score", "result", "news", "article", "definition", "meaning",
+                ];
+                for trigger in &web_triggers {
+                    if message_lower.contains(trigger) {
+                        score += 15.0;
+                        break;
+                    }
+                }
+            }
+
             // 3. Category affinity — if this category was used recently
             if used_categories.contains(&meta.category) {
                 score += 5.0;
@@ -262,8 +279,8 @@ fn extract_metadata(def: &Value, _index: usize) -> ToolMeta {
 fn get_tool_priority(name: &str, category: &str) -> u8 {
     match name {
         // Core tools — always include
-        "time" | "calc" | "web_search" | "file_read" | "file_write" | "notify" => 10,
-        "web_fetch" | "web_post" | "exec" | "memory_read" | "memory_write" => 9,
+        "time" | "calc" | "web_search" | "web_fetch" | "file_read" | "file_write" | "notify" => 10,
+        "web_post" | "exec" | "memory_read" | "memory_write" => 9,
         // UI action — universal remote, high priority + keyword-matched
         "ui_action" => 9,
         // High-use domain tools (the most common user actions)
