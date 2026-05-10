@@ -268,7 +268,9 @@ pub async fn start_stream(
         while let Some(msg) = audio_rx.recv().await {
             match msg {
                 StreamMessage::Audio(samples) => {
-                    // ElevenLabs expects a WAV RIFF container, not raw PCM
+                    // TEMP DEBUG: log every chunk size to diagnose release binary audio flow
+                    log::info("[ElevenLabs STT] [DEBUG] Sending chunk: {} samples ({} bytes), is_final={}",
+                        samples.len(), samples.len() * 2, "N/A");
                     let audio_b64 = encode_audio_raw(&samples);
                     // NOTE: previous_text is NOT part of the ElevenLabs input_audio_chunk spec.
                     // Do NOT add it back — unspecced fields cause silent rejection of audio chunks.
