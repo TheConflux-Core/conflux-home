@@ -246,15 +246,24 @@ pub fn start_recording(window: Window) -> Result<String, String> {
 
                 // Send audio data to ElevenLabs stream sender
                 // Convert f32 samples to 16-bit PCM and send as Vec<i16>
-                if let Some(tx) = ELEVENLABS_SENDER.lock().ok().and_then(|s| s.clone()) {
-                    let pcm_samples: Vec<i16> = resampled
-                        .iter()
-                        .map(|&s| {
-                            let clamped = s.max(-1.0).min(1.0);
-                            (clamped * i16::MAX as f32) as i16
-                        })
-                        .collect();
-                    let _ = tx.send(StreamMessage::Audio(pcm_samples));
+                let tx_match = ELEVENLABS_SENDER.lock();
+                if let Ok(tx_opt) = tx_match {
+                    if let Some(tx) = tx_opt.clone() {
+                        let pcm_samples: Vec<i16> = resampled
+                            .iter()
+                            .map(|&s| {
+                                let clamped = s.max(-1.0).min(1.0);
+                                (clamped * i16::MAX as f32) as i16
+                            })
+                            .collect();
+                        log::info!("[CAPTURE] [DEBUG] Sending {} samples to ElevenLabs sender", pcm_samples.len());
+                        let send_result = tx.send(StreamMessage::Audio(pcm_samples));
+                        log::info!("[CAPTURE] [DEBUG] Send result: {:?}", send_result);
+                    } else {
+                        log::warn!("[CAPTURE] [DEBUG] ELEVENLABS_SENDER is None (stream not ready)");
+                    }
+                } else {
+                    log::error!("[CAPTURE] [DEBUG] ELEVENLABS_SENDER lock failed");
                 }
             },
             |err| {
