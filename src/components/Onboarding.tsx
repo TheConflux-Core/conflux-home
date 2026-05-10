@@ -20,6 +20,7 @@ import { NeuralBrainScene } from './NeuralBrainScene';
 import { COMMANDS } from '../lib/neuralBrain';
 import { useAuth } from '../hooks/useAuth';
 import type { AgentProfile } from '../data/agent-descriptions';
+import AwakeningCanvas from './awakening/AwakeningCanvas';
 
 import '../styles/animations.css';
 
@@ -63,7 +64,7 @@ const KEY_PLAYERS: KeyPlayer[] = [
     color: '#00d4ff',
     tagline: 'Your co-founder who never sleeps.',
     voiceLine: 'Online. Ready to build.',
-    delay: 800,
+    delay: 1500,
     narrative: 'I\'m the one who brought us all together.',
   },
   {
@@ -73,7 +74,7 @@ const KEY_PLAYERS: KeyPlayer[] = [
     color: '#00cc88',
     tagline: 'Research at the speed of thought.',
     voiceLine: 'I find the signal in the noise.',
-    delay: 4500,
+    delay: 7000,
     narrative: 'Helix — my research powerhouse. Dives deeper than you thought possible.',
   },
   {
@@ -83,7 +84,7 @@ const KEY_PLAYERS: KeyPlayer[] = [
     color: '#10b981',
     tagline: 'Your financial heartbeat.',
     voiceLine: 'Let\'s make your money move smarter.',
-    delay: 6500,
+    delay: 9500,
     narrative: 'Pulse — your financial heartbeat. Knows your numbers better than you do.',
   },
   {
@@ -93,7 +94,7 @@ const KEY_PLAYERS: KeyPlayer[] = [
     color: '#f59e0b',
     tagline: 'Your personal nutritionist.',
     voiceLine: 'Good food. Good fuel. Let\'s cook.',
-    delay: 8500,
+    delay: 12000,
     narrative: 'Hearth — your personal nutritionist. Turns "what\'s for dinner" into a plan.',
   },
   {
@@ -103,7 +104,7 @@ const KEY_PLAYERS: KeyPlayer[] = [
     color: '#a78bfa',
     tagline: 'Your wellbeing coach.',
     voiceLine: 'I\'m here. However you\'re doing.',
-    delay: 11500,
+    delay: 14500,
     narrative: 'Echo — your wellbeing coach. Checks in on the human behind the screen.',
   },
 ];
@@ -117,7 +118,7 @@ const PROTECTORS: KeyPlayer[] = [
     color: '#6366f1',
     tagline: 'I watch the walls.',
     voiceLine: 'Your fortress is my responsibility.',
-    delay: 14500,
+    delay: 17000,
     narrative: 'And these two? They protect everything.',
   },
   {
@@ -127,7 +128,7 @@ const PROTECTORS: KeyPlayer[] = [
     color: '#22c55e',
     tagline: 'I find the cracks.',
     voiceLine: 'I break things so nothing breaks you.',
-    delay: 14500,
+    delay: 17000,
     narrative: 'Aegis watches the walls. Viper finds the cracks before anyone else does.',
   },
 ];
@@ -142,8 +143,7 @@ function getNarrationScript(name: string): string {
     `And Echo — your wellbeing coach. ` +
     `Oh, and these two? They protect everything. ` +
     `Aegis watches the walls. Viper finds the cracks before anyone else does. ` +
-    `Brother and sister. They've got your back. ` +
-    `So — what brought you here? What's the first thing you need help with?`;
+    `Brother and sister. They've got your back.`;
 }
 
 // ── Apps for auto-selection ──
@@ -233,7 +233,7 @@ function LogoReveal({ visible }: { visible: boolean }) {
       }}
     >
       <img
-        src="/logo.png"
+        src="/logo_icon_cropped.png"
         alt="Conflux Home"
         style={{
           width: 120,
@@ -338,6 +338,8 @@ function BootSequence({ onComplete }: { onComplete: () => void }) {
 // ── Progress Bar Component ──
 
 function ProgressBar({ step }: { step: number }) {
+  // Steps: 1=team, 2=ice-breaker, 3=build → map to 0,1,2 for dots
+  const dotStep = step - 1;
   return (
     <div style={{
       display: 'flex',
@@ -347,9 +349,9 @@ function ProgressBar({ step }: { step: number }) {
       padding: '20px 0 0',
       flexShrink: 0,
     }}>
-      {[0, 1, 2, 3].map(i => {
-        const isActive = i === step;
-        const isDone = i < step;
+      {[0, 1, 2].map(i => {
+        const isActive = i === dotStep;
+        const isDone = i < dotStep;
         return (
           <motion.div
             key={i}
@@ -512,9 +514,9 @@ function AgentIntroCard({
 
 export default function Onboarding({ onComplete }: OnboardingProps) {
   const { user } = useAuth();
-  const [step, setStep] = useState(-1); // -1 = boot sequence, 0+ = normal steps
+  const [step, setStep] = useState(-1); // -1 = awakening, 0+ = normal steps
   const [animating, setAnimating] = useState(false);
-  const [bootDone, setBootDone] = useState(false);
+  const [awakeningDone, setAwakeningDone] = useState(false);
 
   // Step 0: Name
   const [userName, setUserName] = useState('');
@@ -531,6 +533,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   // Step 2: Ice breaker
   const [iceBreakerInput, setIceBreakerInput] = useState('');
+  const [iceBreakerSpeaking, setIceBreakerSpeaking] = useState(false);
 
   // Step 3: Building world
   const [buildProgress, setBuildProgress] = useState(0);
@@ -560,11 +563,14 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     setPlayingVoiceId(null);
   }, []);
 
-  // ── Boot sequence complete ──
-  const handleBootComplete = useCallback(() => {
-    setBootDone(true);
-    setStep(0);
-    stopAudio(); // clean up any in-progress audio
+  // ── Awakening complete (name entered, ignition done) ──
+  const handleAwakeningComplete = useCallback((name: string) => {
+    const trimmed = name.trim() || 'Friend';
+    setUserName(trimmed);
+    localStorage.setItem('conflux-name', trimmed);
+    setAwakeningDone(true);
+    setStep(1);
+    stopAudio();
   }, [stopAudio]);
 
   // ── Play base64 MP3 audio via Web Audio API ──
@@ -630,6 +636,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     setIsSpeaking(true);
     setNarrationStarted(false); // ensure clean state
     try {
+      // Notify fairy: speaking mode
+      window.dispatchEvent(new CustomEvent('conflux:state', { detail: { state: 'Speaking' } }));
       const result = await invoke<{ audio_base64: string }>('tts_speak', {
         text,
         voice: AGENT_VOICE_IDS.conflux,
@@ -642,6 +650,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       setNarrationStarted(true); // still start agents on error
     } finally {
       setIsSpeaking(false);
+      // Notify fairy: back to listening
+      window.dispatchEvent(new CustomEvent('conflux:state', { detail: { state: 'Listening' } }));
     }
   }, [userName, playBase64Audio]);
 
@@ -649,6 +659,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const speakIceBreaker = useCallback(async () => {
     const text = `So — what brought you here? What's the first thing you need help with?`;
     try {
+      // Notify fairy: speaking mode
+      setIceBreakerSpeaking(true);
+      window.dispatchEvent(new CustomEvent('conflux:state', { detail: { state: 'Speaking' } }));
       const result = await invoke<{ audio_base64: string }>('tts_speak', {
         text,
         voice: AGENT_VOICE_IDS.conflux,
@@ -656,6 +669,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       await playBase64Audio(result.audio_base64);
     } catch (err) {
       console.warn('[Onboarding] Ice breaker TTS failed (non-fatal):', err);
+    } finally {
+      // Notify fairy: back to listening
+      setIceBreakerSpeaking(false);
+      window.dispatchEvent(new CustomEvent('conflux:state', { detail: { state: 'Listening' } }));
     }
   }, [playBase64Audio]);
 
@@ -697,7 +714,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     const protectorTimer = setTimeout(() => {
       setShowProtectors(true);
       playTeamAliveNew(); // celebratory chime when protectors arrive
-    }, 15500);
+    }, 17000);
     narrationTimerRef.current.push(protectorTimer);
 
     return () => {
@@ -811,9 +828,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   // ── Render Steps ──
 
-  // Step -1: Boot Sequence
-  if (step === -1 && !bootDone) {
-    return <BootSequence onComplete={handleBootComplete} />;
+  // Step -1: The Awakening
+  if (step === -1 && !awakeningDone) {
+    return <AwakeningCanvas onComplete={handleAwakeningComplete} />;
   }
 
   // Step 0: "Who Are You?" — Name input + heartbeat + neural brain
@@ -1020,9 +1037,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       transition={{ duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
       style={{ textAlign: 'center', maxWidth: 520, width: '100%', margin: '0 auto', position: 'relative', zIndex: 1 }}
     >
-      {/* Conflux brain in background */}
+      {/* Conflux brain in background — switches to speaking mode during TTS */}
       <div style={{ position: 'absolute', top: -120, left: '50%', transform: 'translateX(-50%)' }}>
-        <NeuralBrainScene command={COMMANDS[1]} pulseImpulse={6} transparent={true} />
+        <NeuralBrainScene command={iceBreakerSpeaking ? COMMANDS[3] : COMMANDS[1]} pulseImpulse={iceBreakerSpeaking ? 15 : 6} transparent={true} />
       </div>
 
       <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 60 }}>
@@ -1231,8 +1248,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       {/* Global particles background */}
       <Particles count={12} color="#6366f1" />
 
-      {/* Progress Bar — only show during name + team intro + ice breaker */}
-      {step >= 0 && step < 3 && <ProgressBar step={step} />}
+      {/* Progress Bar — show during team intro + ice breaker (steps 1-2) */}
+      {step >= 1 && step < 3 && <ProgressBar step={step} />}
 
       {/* Content Area */}
       <div style={{
@@ -1245,50 +1262,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         </AnimatePresence>
       </div>
 
-      {/* Bottom Navigation — only for steps 0 and 1 */}
-      {step >= 0 && step < 2 && (
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '12px 24px 28px', flexShrink: 0, position: 'relative', zIndex: 1,
-        }}>
-          <div>
-            {step > 0 && (
-              <motion.button
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.96 }}
-                transition={{ duration: 0.15 }}
-                onClick={prevStep} style={{
-                  background: 'none', border: '1px solid var(--border)', borderRadius: 10,
-                  padding: '10px 20px', color: 'var(--text-secondary)', fontSize: 14,
-                  fontWeight: 500, cursor: 'pointer',
-                }}
-              >
-                ← Back
-              </motion.button>
-            )}
-          </div>
-
-          {step === 0 && (
-            <motion.button
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.96, opacity: 0.8 }}
-              transition={{ duration: 0.15 }}
-              onClick={nextStep}
-              disabled={userName.trim().length === 0}
-              style={{
-                width: 'auto', padding: '10px 28px',
-                opacity: userName.trim().length === 0 ? 0.5 : 1,
-                cursor: userName.trim().length === 0 ? 'not-allowed' : 'pointer',
-                background: 'linear-gradient(135deg, #00d4ff, #6366f1)',
-                color: 'white', border: 'none', borderRadius: 10,
-                fontSize: 15, fontWeight: 600,
-              }}
-            >
-              Get Started
-            </motion.button>
-          )}
-        </div>
-      )}
+      {/* Bottom Navigation removed — team intro has inline "What do you need?" button */}
     </div>
   );
 }
