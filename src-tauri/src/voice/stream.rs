@@ -203,6 +203,7 @@ pub async fn start_stream(
         while let Some(msg) = ws_receiver.next().await {
             match msg {
                 Ok(Message::Text(text)) => {
+                    log::info!("[ElevenLabs STT]Received text message: {}", text);
                     // Parse JSON response from ElevenLabs
                     // Protocol: { "message_type": "partial_transcript" | "committed_transcript" | "session_started", "text": "..." }
                     if let Ok(transcript) = serde_json::from_str::<serde_json::Value>(&text) {
@@ -273,10 +274,20 @@ pub async fn start_stream(
                         }
                     }
                 }
+                Ok(Message::Binary(data)) => {
+                    log::info!("[ElevenLabs STT]Received binary message: {} bytes", data.len());
+                }
+                Ok(Message::Ping(data)) => {
+                    log::info!("[ElevenLabs STT]Received ping: {} bytes", data.len());
+                }
+                Ok(Message::Pong(_)) | Ok(Message::Ping(_)) => {}
                 Ok(Message::Close(_)) | Err(_) => {
+                    log::info!("[ElevenLabs STT]Stream closed / error");
                     break;
                 }
-                _ => {}
+                _ => {
+                    log::debug!("[ElevenLabs STT]Unhandled message type: {:?}", msg);
+                }
             }
         }
         log::info!("[ElevenLabs STT] Stream closed.");
@@ -298,10 +309,19 @@ pub async fn start_stream(
                     });
                     if let Err(e) = ws_sender.send(Message::Text(payload.to_string())).await {
                         log::warn!("[ElevenLabs STT] Audio send failed: {}", e);
+                    } else {
+                        // Flush to ensure audio actually reaches ElevenLabs before we close
+                        if let Err(e) = ws_sender.flush().await {
+                            log::warn!("[ElevenLabs STT] Audio flush failed: {}", e);
+                        }
                     }
                 }
                 StreamMessage::StreamStop => {
                     log::info!("[ElevenLabs STT] Committing and closing stream on request.");
+                    // Flush any pending audio before sending commit
+                    if let Err(e) = ws_sender.flush().await {
+                        log::warn!("[ElevenLabs STT] Final flush failed: {}", e);
+                    }
                     // Send an empty audio chunk with commit=true to trigger final transcript
                     let commit_payload = serde_json::json!({
                         "message_type": "input_audio_chunk",
@@ -310,8 +330,12 @@ pub async fn start_stream(
                         "sample_rate": 16000
                     });
                     let _ = ws_sender.send(Message::Text(commit_payload.to_string())).await;
+                    // Flush commit to ensure it reaches ElevenLabs
+                    if let Err(e) = ws_sender.flush().await {
+                        log::warn!("[ElevenLabs STT] Commit flush failed: {}", e);
+                    }
                     // Give the server a moment to respond with the final transcript
-                    tokio::time::sleep(Duration::from_millis(500)).await;
+                    tokio::time::sleep(Duration::from_millis(1000)).await;
                     let _ = ws_sender.close().await;
                     break;
                 }
