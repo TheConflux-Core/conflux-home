@@ -265,12 +265,9 @@ pub async fn start_stream(
 
     // ── Outgoing Messages (Audio) ────────────────────────────────────────
     let send_task = tokio::spawn(async move {
-        loop {
-            // Use try_recv to avoid blocking forever if no audio comes in
-            match audio_rx.recv().await {
-                Some(StreamMessage::Audio(samples)) => {
-                    // DEBUG: log every chunk received from channel
-                    log::info!("[ElevenLabs STT] [SEND] Received {} samples from channel, sending to ElevenLabs...", samples.len());
+        while let Some(msg) = audio_rx.recv().await {
+            match msg {
+                StreamMessage::Audio(samples) => {
                     let audio_b64 = encode_audio_raw(&samples);
                     let payload = serde_json::json!({
                         "message_type": "input_audio_chunk",
@@ -281,19 +278,14 @@ pub async fn start_stream(
                     } else {
                         if let Err(e) = ws_sender.flush().await {
                             log::warn!("[ElevenLabs STT] Audio flush failed: {}", e);
-                        } else {
-                            log::info!("[ElevenLabs STT] [SEND] Sent OK: {} bytes", samples.len() * 2);
                         }
                     }
                 }
-                Some(StreamMessage::StreamStop) => {
+                StreamMessage::StreamStop => {
                     log::info!("[ElevenLabs STT] [SEND] Received StreamStop, closing.");
+                    // Give ElevenLabs a moment to send any final transcript before closing
                     tokio::time::sleep(Duration::from_millis(500)).await;
                     let _ = ws_sender.close().await;
-                    break;
-                }
-                None => {
-                    log::warn!("[ElevenLabs STT] [SEND] Channel closed unexpectedly");
                     break;
                 }
             }
