@@ -246,9 +246,10 @@ pub fn start_recording(window: Window) -> Result<String, String> {
 
                 // Send audio data to ElevenLabs stream sender
                 // Convert f32 samples to 16-bit PCM and send as Vec<i16>
-                let tx_match = ELEVENLABS_SENDER.lock();
-                if let Ok(tx_opt) = tx_match {
-                    if let Some(tx) = tx_opt.clone() {
+                // Use try_send (non-blocking) so the cpal callback never blocks on a full/down channel.
+                // If the channel is closed (stop_recording took the sender), skip gracefully.
+                if let Ok(tx_guard) = ELEVENLABS_SENDER.lock() {
+                    if let Some(tx) = tx_guard.as_ref() {
                         let pcm_samples: Vec<i16> = resampled
                             .iter()
                             .map(|&s| {
@@ -256,14 +257,11 @@ pub fn start_recording(window: Window) -> Result<String, String> {
                                 (clamped * i16::MAX as f32) as i16
                             })
                             .collect();
-                        log::info!("[CAPTURE] [DEBUG] Sending {} samples to ElevenLabs sender", pcm_samples.len());
-                        let send_result = tx.send(StreamMessage::Audio(pcm_samples));
-                        log::info!("[CAPTURE] [DEBUG] Send result: {:?}", send_result);
-                    } else {
-                        log::warn!("[CAPTURE] [DEBUG] ELEVENLABS_SENDER is None (stream not ready)");
+                        // try_send: fails immediately if receiver is gone (channel closed)
+                        if tx.try_send(StreamMessage::Audio(pcm_samples)).is_err() {
+                            log::debug!("[CAPTURE] Channel closed, audio send skipped (stopping)");
+                        }
                     }
-                } else {
-                    log::error!("[CAPTURE] [DEBUG] ELEVENLABS_SENDER lock failed");
                 }
             },
             |err| {
