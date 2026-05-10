@@ -256,7 +256,7 @@ pub async fn start_stream(
                     break;
                 }
                 _ => {
-                    log::debug!("[ElevenLabs STT]Unhandled message type: {:?}", msg);
+                    log::debug!("[ElevenLabs STT] Unhandled message type: {:?}", msg);
                 }
             }
         }
@@ -268,12 +268,9 @@ pub async fn start_stream(
         while let Some(msg) = audio_rx.recv().await {
             match msg {
                 StreamMessage::Audio(samples) => {
-                    // TEMP DEBUG: log every chunk size to diagnose release binary audio flow
-                    log::info("[ElevenLabs STT] [DEBUG] Sending chunk: {} samples ({} bytes), is_final={}",
-                        samples.len(), samples.len() * 2, "N/A");
+                    // TEMP DEBUG: log every chunk to confirm audio reaches WSS in release build
+                    log::info!("[ElevenLabs STT] [DEBUG] Chunk sent: {} samples ({} bytes)", samples.len(), samples.len() * 2);
                     let audio_b64 = encode_audio_raw(&samples);
-                    // NOTE: previous_text is NOT part of the ElevenLabs input_audio_chunk spec.
-                    // Do NOT add it back — unspecced fields cause silent rejection of audio chunks.
                     let payload = serde_json::json!({
                         "message_type": "input_audio_chunk",
                         "audio_base_64": audio_b64
@@ -281,7 +278,7 @@ pub async fn start_stream(
                     if let Err(e) = ws_sender.send(Message::Text(payload.to_string())).await {
                         log::warn!("[ElevenLabs STT] Audio send failed: {}", e);
                     } else {
-                        // Flush to ensure audio actually reaches ElevenLabs before we close
+                        log::debug!("[ElevenLabs STT] Audio sent & flushed OK");
                         if let Err(e) = ws_sender.flush().await {
                             log::warn!("[ElevenLabs STT] Audio flush failed: {}", e);
                         }
