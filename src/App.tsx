@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { soundManager } from './lib/sound';
+import { playBuildComplete } from './lib/onboarding-sounds';
 import { initHeartbeatGlobal } from './lib/heartbeatGlobal';
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
 import { Agent, View } from './types';
@@ -226,7 +227,7 @@ export default function App() {
   // Preload sound system on mount
   useEffect(() => {
     soundManager.preload().then(() => {
-      soundManager.playBootUp();
+      playBuildComplete();
     });
   }, []);
 

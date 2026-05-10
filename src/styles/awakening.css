@@ -1,0 +1,188 @@
+/* ═══════════════════════════════════════════════════════════════
+   THE AWAKENING — Onboarding Canvas Styles
+   The first thing someone sees when they open Conflux Home.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Canvas Root ──────────────────────────────────────────────── */
+
+.awakening-root {
+  position: fixed;
+  inset: 0;
+  background: #000000;
+  z-index: 9999;
+  overflow: hidden;
+}
+
+.awakening-root.fading-out {
+  animation: awakening-fade-out 0.8s ease-out forwards;
+}
+
+@keyframes awakening-fade-out {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ── Canvas Layer ─────────────────────────────────────────────── */
+
+.awakening-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ── Logo (appears during ignition) ───────────────────────────── */
+
+.awakening-logo {
+  position: absolute;
+  top: 10%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 80px;
+  opacity: 0;
+  z-index: 2;
+  filter: drop-shadow(0 0 20px rgba(41, 193, 253, 0.5))
+          drop-shadow(0 0 40px rgba(99, 102, 241, 0.3));
+  animation: awakening-logo-appear 1.2s ease-out forwards;
+  animation-delay: 0.3s;
+}
+
+@keyframes awakening-logo-appear {
+  0%   { opacity: 0; transform: translateX(-50%) scale(0.5); filter: blur(10px); }
+  60%  { opacity: 1; transform: translateX(-50%) scale(1.05); filter: blur(0); }
+  100% { opacity: 1; transform: translateX(-50%) scale(1); filter: blur(0); }
+}
+
+/* ── Title (appears during ignition) ──────────────────────────── */
+
+.awakening-title {
+  position: absolute;
+  top: calc(10% + 100px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Inter', sans-serif;
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, #29c1fd, #6366f1);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  opacity: 0;
+  white-space: nowrap;
+  z-index: 2;
+  animation: awakening-title-appear 1s ease-out forwards;
+  animation-delay: 0.8s;
+}
+
+@keyframes awakening-title-appear {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ── Name Input Overlay ───────────────────────────────────────── */
+
+.awakening-name-overlay {
+  position: absolute;
+  bottom: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  z-index: 3;
+  width: 90%;
+  max-width: 400px;
+}
+
+.awakening-question-text {
+  font-family: 'Inter', sans-serif;
+  font-size: 2rem;
+  font-weight: 300;
+  color: #29c1fd;
+  letter-spacing: 2px;
+  opacity: 0;
+  animation: awakening-question-fade 1.2s ease-out forwards;
+  text-shadow: 0 0 30px rgba(41, 193, 253, 0.4);
+}
+
+@keyframes awakening-question-fade {
+  0%   { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Light-Beam Input ─────────────────────────────────────────── */
+
+.awakening-input-wrap {
+  position: relative;
+  width: 100%;
+  opacity: 0;
+  animation: awakening-question-fade 1s ease-out forwards;
+  animation-delay: 0.8s;
+}
+
+/* Glowing beam behind input */
+.awakening-input-beam {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #29c1fd, #6366f1, #29c1fd, transparent);
+  border-radius: 1px;
+  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 10px rgba(41, 193, 253, 0.5),
+              0 0 20px rgba(41, 193, 253, 0.3);
+}
+
+.awakening-input:focus ~ .awakening-input-beam {
+  width: 100%;
+}
+
+/* The actual input */
+.awakening-input {
+  width: 100%;
+  padding: 16px 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: #e2e8f0;
+  text-align: center;
+  letter-spacing: 1px;
+  caret-color: #29c1fd;
+}
+
+.awakening-input::placeholder {
+  color: rgba(226, 232, 240, 0.25);
+  font-style: italic;
+}
+
+/* Submit hint */
+.awakening-submit-hint {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  color: rgba(226, 232, 240, 0.3);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.awakening-submit-hint.visible {
+  opacity: 1;
+}
+
+.awakening-submit-hint kbd {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(41, 193, 253, 0.1);
+  border: 1px solid rgba(41, 193, 253, 0.2);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: #29c1fd;
+}
