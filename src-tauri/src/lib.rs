@@ -818,11 +818,15 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_app_handle, event| {
+        .run(|app_handle, event| {
             // Keep the event loop alive for tray icon events
             // Window close is handled via WindowEvent::CloseRequested in setup()
             if let tauri::RunEvent::Exit = event {
-                log::info!("[Run] Application exiting");
+                log::info!("[Run] Application exiting — stopping local AI server");
+                let handle = app_handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    engine::local_ai::local_ai_stop(&handle).await.ok();
+                });
             }
         });
 }
