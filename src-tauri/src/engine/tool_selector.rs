@@ -155,7 +155,7 @@ impl ToolSelector {
 
             // 3. Web search trigger words — broad match to ensure web_search/web_fetch are selected
             // for any query that looks like it needs live information
-            if name == "web_search" || name == "web_fetch" {
+            if name_lower == "web_search" || name_lower == "web_fetch" {
                 let web_triggers = [
                     "search", "find", "look up", "look for", "google", "browse", "web", "online",
                     "weather", "temperature", "forecast", "current", "latest", "recent",
@@ -165,6 +165,569 @@ impl ToolSelector {
                 for trigger in &web_triggers {
                     if message_lower.contains(trigger) {
                         score += 15.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Budget natural language parsing trigger words
+            if name_lower == "budget_parse_natural" {
+                let triggers = [
+                    "spent", "spent $", "paid", "earned", "bought", "income", "expense",
+                    "budget", "money", "dollars", "how much", "i owe", "i got paid",
+                    "i spent", "i bought", "i earned", "i saved", "log expense", "log income",
+                    "add expense", "add income", "record expense", "track spending",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Calculator trigger words
+            if name_lower == "calc" {
+                let triggers = [
+                    "calculate", "compute", "math", "equation", "what is", "solve",
+                    "plus", "minus", "times", "divided by", "percent", "%",
+                    "(", ")", "+", "-", "*", "/", "^", "sqrt",
+                    "how much is", "what does", "cost", "total",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Email send trigger words
+            if name_lower == "email_send" {
+                let triggers = [
+                    "email", "send email", "e-mail", "mail", "send mail", "compose",
+                    "reply to", "write to", "message to", "reach",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Email receive/check trigger words
+            if name_lower == "email_receive" {
+                let triggers = [
+                    "check email", "check mail", "read email", "inbox", "new emails",
+                    "any email", "unread", "my email", "my mail", "emails",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Webhook/API POST trigger words
+            if name_lower == "web_post" {
+                let triggers = [
+                    "webhook", "api", "post request", "http", "slack", "discord",
+                    "zapier", "notify", "trigger", "integration", "automate",
+                    "send to", "push to", "webhook", "incoming",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── UI action trigger words (theme, wallpaper, layout changes)
+            if name_lower == "ui_action" {
+                let triggers = [
+                    "theme", "dark mode", "light mode", "wallpaper", "background",
+                    "accent", "color", "layout", "sidebar", "appearance", "look",
+                    "style", "ui", "interface", "toggle", "view", "change to",
+                    "open kitchen", "open budget", "open dreams", "open home",
+                    "close sidebar", "open sidebar", "voice chat", "push to talk",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Echo/journal write entry trigger words
+            if name_lower == "echo_write_entry" {
+                let triggers = [
+                    "journal", "diary", "entry", "reflect", "thoughts", "feelings",
+                    "note to self", "write", "log", "today i", "how am i",
+                    "mood", "how i feel", "emotions", "write entry",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Echo counselor start session trigger words
+            if name_lower == "echo_counselor_start_session" {
+                let triggers = [
+                    "counselor", "therapy", "therapist", "talk", "vent", "help me",
+                    "i'm struggling", "i feel", "emotional", "stress", "anxiety",
+                    "sad", "overwhelmed", "depressed", "mental health", "support",
+                    "talk to someone", "need to talk", "coach", "guidance",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Life parse input trigger words (NLP task parsing)
+            if name_lower == "life_parse_input" {
+                let triggers = [
+                    "add a task", "remind me", "i need to", "i should", "don't forget",
+                    "create task", "new task", "add task", "schedule", "appointment",
+                    "i want to", "i'd like", "i plan to", "habit", "track",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Feed add item trigger words (bookmarks, articles)
+            if name_lower == "feed_add_item" {
+                let triggers = [
+                    "bookmark", "save", "save article", "save for later", "read later",
+                    "clip", "article", "note", "add note", "link", "save link",
+                    "bookmark this", "save this", "remember this",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+
+            // ── Fridge scan trigger words
+            if name_lower == "fridge_scan" {
+                let triggers = [
+                    "scan", "fridge", "pantry", "inventory", "i have", "in my fridge",
+                    "in my pantry", "what's in", "check my", "stock",
+                    "i see", "i noticed", "fridge has",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Fridge what can I make trigger words
+            if name_lower == "fridge_what_can_i_make" {
+                let triggers = [
+                    "what can i make", "what can i cook", "what should i eat",
+                    "what to cook", "what to make", "recipes", "cook",
+                    "meal ideas", "dinner ideas", "lunch ideas", "breakfast ideas",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Fridge expiring trigger words
+            if name_lower == "fridge_expiring" {
+                let triggers = [
+                    "expiring", "expired", "going bad", "bad soon", "expires",
+                    "freshness", "shelf life", "leftovers", "old", "spoiled",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Fridge shopping for meals trigger words
+            if name_lower == "fridge_shopping_for_meals" {
+                let triggers = [
+                    "shopping", "grocery", "missing ingredients", "what to buy",
+                    "need to buy", "grocery list", "shop", "market", "ingredients",
+                    "shopping list", "supermarket",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Vault trigger words
+            if name_lower == "vault_search_files" {
+                let triggers = [
+                    "find file", "search file", "look for file", "where is", "find document",
+                    "search documents", "find document",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Home bill tracking trigger words
+            if name_lower == "home_add_bill" {
+                let triggers = [
+                    "bill", "utility", "electric bill", "gas bill", "water bill",
+                    "internet bill", "rent", "mortgage", "invoice", "due",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Home maintenance trigger words
+            if name_lower == "home_add_maintenance" {
+                let triggers = [
+                    "maintenance", "fix", "repair", "broken", "hvac", "filter",
+                    "cleaning", "service", "inspect", "upkeep", "replace",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Dream add trigger words
+            if name_lower == "dream_add" {
+                let triggers = [
+                    "dream", "goal", "aspiration", "someday", "i want to", "i'd like to",
+                    "my goal", "my dream", "future", "achieve", "accomplish",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Life dashboard trigger words
+            if name_lower == "life_get_dashboard" {
+                let triggers = [
+                    "dashboard", "overview", "today", "today's", "summary",
+                    "at a glance", "home screen", "quick view",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+
+            // ── Budget afford check trigger words
+            if name_lower == "budget_can_afford" {
+                let triggers = [
+                    "can i afford", "afford", "should i buy", "can i buy",
+                    "can i purchase", "budget for", "left in budget", "remaining",
+                    "stretch", "splurge",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Budget detect patterns trigger words
+            if name_lower == "budget_detect_patterns" {
+                let triggers = [
+                    "pattern", "trend", "spending habit", "where does", "what categories",
+                    "breakdown", "analyze", "insights", "behavior",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Budget report trigger words
+            if name_lower == "budget_generate_report" {
+                let triggers = [
+                    "report", "monthly report", "budget report", "spending report",
+                    "expense report", "financial report",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Life morning brief trigger words
+            if name_lower == "life_morning_brief" {
+                let triggers = [
+                    "morning", "morning brief", "good morning", "today's plan",
+                    "start my day", "day start", "morning routine", "agenda",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Life decision helper trigger words
+            if name_lower == "life_decision_helper" {
+                let triggers = [
+                    "decision", "can't decide", "should i", "choice", "pros and cons",
+                    "decide", "options", "which one", "recommend", "alternatives",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Feed get ripples trigger words (radar signals)
+            if name_lower == "feed_get_ripples" {
+                let triggers = [
+                    "ripples", "signals", "trends", "radar", "weak signals",
+                    "emerging", "patterns", "discover", "interesting",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Feed get questions trigger words
+            if name_lower == "feed_get_questions" {
+                let triggers = [
+                    "questions", "asked", "past questions", "q&a", "previously asked",
+                    "FAQ", "answers",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Echo get patterns trigger words
+            if name_lower == "echo_get_patterns" {
+                let triggers = [
+                    "patterns", "emotions", "emotional pattern", "mood pattern",
+                    "trends", "insights", "habits",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Echo get stats trigger words
+            if name_lower == "echo_get_stats" {
+                let triggers = [
+                    "stats", "journal stats", "entry count", "writing stats",
+                    "reflections", "how often",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Conflux weekly summary trigger words
+            if name_lower == "conflux_weekly_summary" {
+                let triggers = [
+                    "week", "weekly", "summary", "recap", "week in review",
+                    "end of week", "this week",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Conflux day overview trigger words
+            if name_lower == "conflux_day_overview" {
+                let triggers = [
+                    "today", "overview", "day overview", "my day", "how's my",
+                    "day at a glance", "snapshot",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Dream velocity trigger words
+            if name_lower == "dream_get_velocity" {
+                let triggers = [
+                    "velocity", "momentum", "progress", "pace", "speed", "rate",
+                    "on track", "behind", "ahead",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Dream timeline trigger words
+            if name_lower == "dream_get_timeline" {
+                let triggers = [
+                    "timeline", "history", "milestones", "events", "progress log",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Kitchen pantry heatmap trigger words
+            if name_lower == "kitchen_pantry_heatmap" {
+                let triggers = [
+                    "pantry", "heatmap", "stock", "low stock", "running low",
+                    "needs", "replenish", "restock", "supply",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+
+            // ── Life heatmap trigger words
+            if name_lower == "life_get_heatmap" {
+                let triggers = [
+                    "heatmap", "calendar", "busy", "packed", "free time",
+                    "scheduled", "when am i free",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Life knowledge trigger words
+            if name_lower == "life_get_knowledge" {
+                let triggers = [
+                    "knowledge", "info", "facts", "about me", "preferences",
+                    "contacts", "medical", "remember",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Life documents trigger words
+            if name_lower == "life_get_documents" {
+                let triggers = [
+                    "documents", "insurance", "warranty", "medical records",
+                    "paperwork", "files", "important papers",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Vault scan directory trigger words
+            if name_lower == "vault_scan_directory" {
+                let triggers = [
+                    "scan", "directory", "folder", "index", "organize", "catalog",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Dream active overview trigger words
+            if name_lower == "dream_active_overview" {
+                let triggers = [
+                    "dreams", "goals", "aspirations", "active goals", "my dreams",
+                    "milestones",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
+            // ── Feed signal threads trigger words
+            if name_lower == "feed_signal_threads" {
+                let triggers = [
+                    "threads", "signal threads", "tracking", "watching",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
                         break;
                     }
                 }
