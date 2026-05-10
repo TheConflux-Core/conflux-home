@@ -257,8 +257,9 @@ pub fn start_recording(window: Window) -> Result<String, String> {
                                 (clamped * i16::MAX as f32) as i16
                             })
                             .collect();
-                        // try_send: fails immediately if receiver is gone (channel closed)
-                        if tx.try_send(StreamMessage::Audio(pcm_samples)).is_err() {
+                        // send() on an unbounded channel never blocks (no capacity limit).
+                        // It only fails (Err) if the receiver was dropped (channel closed).
+                        if tx.send(StreamMessage::Audio(pcm_samples)).is_err() {
                             log::debug!("[CAPTURE] Channel closed, audio send skipped (stopping)");
                         }
                     }
