@@ -170,6 +170,23 @@ impl ToolSelector {
                 }
             }
 
+            // ── Exec/shell command trigger words
+            if name_lower == "exec" {
+                let triggers = [
+                    "run", "execute", "command", "shell", "bash", "terminal", "console",
+                    "script", "process", "kill", "ps", "grep", "find", "ls", "cd",
+                    "build", "compile", "cargo", "npm", "git", "python", "node",
+                    "output", "stdout", "stderr", "exit code", "return code",
+                    "system", "admin", "sudo", "chmod", "chown", "install", "uninstall",
+                ];
+                for trigger in &triggers {
+                    if message_lower.contains(trigger) {
+                        score += 18.0;
+                        break;
+                    }
+                }
+            }
+
             // ── Budget natural language parsing trigger words
             if name_lower == "budget_parse_natural" {
                 let triggers = [
