@@ -93,7 +93,9 @@ pub enum StreamMessage {
 /// realtime WebSocket API (scribe_v2_realtime) expects raw PCM samples.
 fn encode_audio_raw(pcm_samples: &[i16]) -> String {
     use base64::engine::general_purpose::STANDARD as BASE64;
-    BASE64.encode(pcm_samples)
+    // Cast [i16] to [u8] for base64 encoding — safe since both are 2 bytes
+    let bytes = unsafe { std::slice::from_raw_parts(pcm_samples.as_ptr() as *const u8, pcm_samples.len() * 2) };
+    BASE64.encode(bytes)
 }
 
 /// Obtain a short-lived single-use token for WSS authentication.
