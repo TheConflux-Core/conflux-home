@@ -191,14 +191,8 @@ pub async fn start_stream(
 
     let (audio_tx, mut audio_rx) = mpsc::unbounded_channel::<StreamMessage>();
 
-    // Shared state: accumulated transcript text updated by recv_task, read by send_task
-    let accumulated_text = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
-    let accumulated_text_send = accumulated_text.clone();
-    let accumulated_text_recv = accumulated_text.clone();
-
     // ── Incoming Messages (Transcripts) ───────────────────────────────────
     let window_clone = window.clone();
-    let accumulated_text_clone = accumulated_text_recv;
     let recv_task = tokio::spawn(async move {
         while let Some(msg) = ws_receiver.next().await {
             match msg {
@@ -243,22 +237,10 @@ pub async fn start_stream(
                                         if !trimmed.is_empty() {
                                             let mut transcript_guard = STREAMING_TRANSCRIPT.lock().unwrap();
                                             *transcript_guard = Some(trimmed.clone());
-                                            // Update accumulated text so the next audio chunk knows context
-                                            if let Ok(mut acc) = accumulated_text_clone.lock() {
-                                                *acc = trimmed.clone();
-                                            }
                                             let _ = window_clone.emit(
                                                 "conflux:transcription",
                                                 serde_json::json!({ "text": trimmed, "is_final": true }),
                                             );
-                                        }
-                                    } else {
-                                        // Update accumulated text on partial too so we have latest context
-                                        let trimmed = chunk.text.trim().to_string();
-                                        if !trimmed.is_empty() {
-                                            if let Ok(mut acc) = accumulated_text_clone.lock() {
-                                                *acc = trimmed;
-                                            }
                                         }
                                     }
                                 }
@@ -300,12 +282,12 @@ pub async fn start_stream(
                 StreamMessage::Audio(samples) => {
                     // ElevenLabs expects a WAV RIFF container, not raw PCM
                     let audio_b64 = encode_audio_wav(&samples);
-                    let prev = accumulated_text_send.lock().unwrap().clone();
+                    // NOTE: previous_text is NOT part of the ElevenLabs input_audio_chunk spec.
+                    // Do NOT add it back — unspecced fields cause silent rejection of audio chunks.
                     let payload = serde_json::json!({
                         "message_type": "input_audio_chunk",
                         "audio_base_64": audio_b64,
-                        "sample_rate": 16000,
-                        "previous_text": prev
+                        "sample_rate": 16000
                     });
                     if let Err(e) = ws_sender.send(Message::Text(payload.to_string())).await {
                         log::warn!("[ElevenLabs STT] Audio send failed: {}", e);
