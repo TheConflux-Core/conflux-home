@@ -168,9 +168,10 @@ pub async fn start_stream(
     }
 
     // Step 2: Connect to WSS using the session token as URL param
-    // Use commit_strategy=manual so we control when to finalize (avoids VAD timing issues)
+    // Use commit_strategy=vad so ElevenLabs auto-commits when VAD detects silence —
+    // this is more reliable than manual commit with empty-audio-chunk trick.
     let url = format!(
-        "wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id={}&audio_format=pcm_16000&commit_strategy=manual&token={}",
+        "wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id={}&audio_format=pcm_16000&commit_strategy=vad&token={}",
         model_id, session_token
     );
 
@@ -299,25 +300,11 @@ pub async fn start_stream(
                     }
                 }
                 StreamMessage::StreamStop => {
-                    log::info!("[ElevenLabs STT] Committing and closing stream on request.");
-                    // Flush any pending audio before sending commit
-                    if let Err(e) = ws_sender.flush().await {
-                        log::warn!("[ElevenLabs STT] Final flush failed: {}", e);
-                    }
-                    // Send an empty audio chunk with commit=true to trigger final transcript
-                    let commit_payload = serde_json::json!({
-                        "message_type": "input_audio_chunk",
-                        "audio_base_64": "",
-                        "commit": true,
-                        "sample_rate": 16000
-                    });
-                    let _ = ws_sender.send(Message::Text(commit_payload.to_string())).await;
-                    // Flush commit to ensure it reaches ElevenLabs
-                    if let Err(e) = ws_sender.flush().await {
-                        log::warn!("[ElevenLabs STT] Commit flush failed: {}", e);
-                    }
-                    // Give the server a moment to respond with the final transcript
-                    tokio::time::sleep(Duration::from_millis(1000)).await;
+                    log::info!("[ElevenLabs STT] Closing stream.");
+                    // With commit_strategy=vad, ElevenLabs auto-commits on VAD silence detection.
+                    // No explicit commit message needed — just close the WebSocket.
+                    // Give the server a moment to send any final partial transcript.
+                    tokio::time::sleep(Duration::from_millis(500)).await;
                     let _ = ws_sender.close().await;
                     break;
                 }
