@@ -33,7 +33,18 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
         pointerEvents: fading ? 'none' : 'auto',
       }}
     >
-      <img src="/logo.png" alt="Conflux" style={{ width: 72, height: 72, objectFit: 'contain' }} />
+      <img
+        src="/logo_v1.png"
+        alt="Conflux Home"
+        className="splash-logo"
+        style={{
+          width: 80,
+          height: 80,
+          objectFit: 'contain',
+          filter: 'drop-shadow(0 0 24px rgba(0,212,255,0.5))',
+          marginBottom: 8,
+        }}
+      />
       <h1 className="splash-title">Conflux Home</h1>
       <p className="splash-tagline">A home for your AI family</p>
     </div>
