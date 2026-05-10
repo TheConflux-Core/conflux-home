@@ -4,11 +4,9 @@
 use anyhow::{Context, Result};
 use base64::Engine as _;
 use futures_util::{SinkExt, StreamExt};
-use hound::{WavWriter, WavSpec};
 use log;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::io::Cursor;
 use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{Emitter, Window};
@@ -89,26 +87,13 @@ pub enum StreamMessage {
     StreamStop,
 }
 
-/// Encode raw PCM 16-bit mono audio as a WAV RIFF container, then base64-encode it.
-/// ElevenLabs expects audio in WAV RIFF format, not raw PCM bytes.
-fn encode_audio_wav(pcm_samples: &[i16]) -> String {
-    let spec = WavSpec {
-        channels: 1,
-        sample_rate: 16000,
-        bits_per_sample: 16,
-        sample_format: hound::SampleFormat::Int,
-    };
-    let mut buffer = Vec::new();
-    {
-        let mut writer = WavWriter::new(Cursor::new(&mut buffer), spec)
-            .expect("failed to create WAV writer");
-        for &sample in pcm_samples {
-            writer.write_sample(sample).expect("failed to write sample");
-        }
-        writer.finalize().expect("failed to finalize WAV");
-    }
+/// Encode raw PCM 16-bit mono audio as base64.
+/// ElevenLabs with audio_format=pcm_16000 expects raw PCM sample bytes,
+/// NOT a WAV RIFF container. The batch API (scribe_v2) accepts WAV, but the
+/// realtime WebSocket API (scribe_v2_realtime) expects raw PCM samples.
+fn encode_audio_raw(pcm_samples: &[i16]) -> String {
     use base64::engine::general_purpose::STANDARD as BASE64;
-    BASE64.encode(&buffer)
+    BASE64.encode(pcm_samples)
 }
 
 /// Obtain a short-lived single-use token for WSS authentication.
@@ -282,13 +267,12 @@ pub async fn start_stream(
             match msg {
                 StreamMessage::Audio(samples) => {
                     // ElevenLabs expects a WAV RIFF container, not raw PCM
-                    let audio_b64 = encode_audio_wav(&samples);
+                    let audio_b64 = encode_audio_raw(&samples);
                     // NOTE: previous_text is NOT part of the ElevenLabs input_audio_chunk spec.
                     // Do NOT add it back — unspecced fields cause silent rejection of audio chunks.
                     let payload = serde_json::json!({
                         "message_type": "input_audio_chunk",
-                        "audio_base_64": audio_b64,
-                        "sample_rate": 16000
+                        "audio_base_64": audio_b64
                     });
                     if let Err(e) = ws_sender.send(Message::Text(payload.to_string())).await {
                         log::warn!("[ElevenLabs STT] Audio send failed: {}", e);
