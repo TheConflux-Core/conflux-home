@@ -823,9 +823,8 @@ pub fn run() {
             // Window close is handled via WindowEvent::CloseRequested in setup()
             if let tauri::RunEvent::Exit = event {
                 log::info!("[Run] Application exiting — stopping local AI server");
-                let handle = app_handle.clone();
                 tauri::async_runtime::spawn(async move {
-                    engine::local_ai::local_ai_stop(&handle).await.ok();
+                    engine::local_ai::local_ai_stop().await.ok();
                 });
             }
         });
