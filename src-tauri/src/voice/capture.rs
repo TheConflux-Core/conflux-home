@@ -92,46 +92,42 @@ pub fn start_recording(window: Window) -> Result<String, String> {
         return Err("Already recording".to_string());
     }
 
-    // Only start ElevenLabs streaming STT if an API key is configured
-    let config = StreamConfig::default();
-    log::info!("[STT] API key status: len={}", config.api_key.len());
-    if !config.api_key.is_empty() {
-        let window_clone = window.clone();
-        // Use a channel to collect the result from the async task
-        let (result_tx, result_rx) = std::sync::mpsc::channel();
-        std::thread::spawn(move || {
-            // Run the async stream setup on a dedicated tokio runtime to avoid
-            // deadlocking the Tauri thread pool (nested Runtime::new can deadlock
-            // on Windows with Tauri v2's single-threaded executor).
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            let result = rt.block_on(start_stream(config, window_clone));
-            let _ = result_tx.send(result);
-        });
-        // Poll the channel on the main thread (non-blocking check every ~50ms).
-        // If the async task hasn't finished yet, recording proceeds normally —
-        // the sender will be set once the stream is ready.
-        let poll_interval = std::time::Duration::from_millis(50);
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-        while std::time::Instant::now() < deadline {
-            if let Ok(result) = result_rx.try_recv() {
-                match result {
-                    Ok(sender) => {
-                        let mut tx = ELEVENLABS_SENDER.lock().unwrap();
-                        *tx = Some(sender);
-                        log::info!("[STT] ElevenLabs streaming started");
-                    }
-                    Err(e) => {
-                        log::error!("[STT] ElevenLabs stream failed: {}", e);
-                    }
-                }
-                break;
-            }
-            // Brief yield — don't spin the CPU
-            std::thread::sleep(poll_interval);
-        }
-    } else {
-        log::warn!("[STT] No ElevenLabs API key - skipping streaming STT");
-    }
+    // REALTIME STREAMING DISABLED (v0.1.124) — ElevenLabs scribe_v2_realtime WebSocket
+    // times out waiting for transcript. The VAD commit strategy needs tuning or the
+    // audio format may still be incorrect. Force batch API path for now so voice
+    // input actually works in production.
+    // TODO: re-enable once realtime STT is verified working in a test environment.
+    // let config = StreamConfig::default();
+    // log::info!("[STT] API key status: len={}", config.api_key.len());
+    // if !config.api_key.is_empty() {
+    //     let window_clone = window.clone();
+    //     let (result_tx, result_rx) = std::sync::mpsc::channel();
+    //     std::thread::spawn(move || {
+    //         let rt = tokio::runtime::Runtime::new().unwrap();
+    //         let result = rt.block_on(start_stream(config, window_clone));
+    //         let _ = result_tx.send(result);
+    //     });
+    //     let poll_interval = std::time::Duration::from_millis(50);
+    //     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    //     while std::time::Instant::now() < deadline {
+    //         if let Ok(result) = result_rx.try_recv() {
+    //             match result {
+    //                 Ok(sender) => {
+    //                     let mut tx = ELEVENLABS_SENDER.lock().unwrap();
+    //                     *tx = Some(sender);
+    //                     log::info!("[STT] ElevenLabs streaming started");
+    //                 }
+    //                 Err(e) => {
+    //                     log::error!("[STT] ElevenLabs stream failed: {}", e);
+    //                 }
+    //             }
+    //             break;
+    //         }
+    //         std::thread::sleep(poll_interval);
+    //     }
+    // } else {
+    //     log::warn!("[STT] No ElevenLabs API key - skipping streaming STT");
+    // }
 
     let host = cpal::default_host();
     let device = host.default_input_device().ok_or_else(|| {
@@ -322,16 +318,17 @@ pub fn stop_recording(window: Window) -> Result<u64, String> {
         *cell.borrow_mut() = None;
     });
 
-    // Wait briefly for the WebSocket task to write the final transcript
+    // REALTIME STREAMING DISABLED — skip transcript wait, always use batch STT.
+    // See comment in start_recording().
     // Poll STREAMING_TRANSCRIPT every 20ms, timeout after 3 seconds.
-    let wait_start = std::time::Instant::now();
-    while STREAMING_TRANSCRIPT.lock().unwrap().is_none() {
-        if wait_start.elapsed() > std::time::Duration::from_secs(3) {
-            log::warn!("[STT] Timed out waiting for realtime transcript");
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(20));
-    }
+    // let wait_start = std::time::Instant::now();
+    // while STREAMING_TRANSCRIPT.lock().unwrap().is_none() {
+    //     if wait_start.elapsed() > std::time::Duration::from_secs(3) {
+    //         log::warn!("[STT] Timed out waiting for realtime transcript");
+    //         break;
+    //     }
+    //     std::thread::sleep(std::time::Duration::from_millis(20));
+    // }
 
     let count = {
         let buf = AUDIO_BUFFER.lock().map_err(|e| e.to_string())?;
