@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { useCredits, useUsageStats, useUsageHistory } from '../hooks/useCredits';
+import { useCredits } from '../hooks/useCredits';
 import { useAuth } from '../hooks/useAuth';
 import PulseKnob from './PulseKnob';
 import IntelView from './IntelView';
@@ -193,8 +193,6 @@ const DEFAULT_AGENT_IDS = ['conflux', 'helix', 'pulse', 'forge', 'quanta', 'pris
 
 function IntelDashboard({ agents }: IntelDashboardProps) {
   const { balance, loading: creditsLoading } = useCredits();
-  const { stats, loading: statsLoading } = useUsageStats(7);
-  const { entries, loading: historyLoading } = useUsageHistory(10);
 
   // Heartbeat interval — default 30min (1_800_000 ms)
   const [heartbeatInterval, setHeartbeatInterval] = useState(1_800_000);
@@ -217,7 +215,7 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
     ? agents.filter(a => selectedIds.includes(a.id))
     : agents;
 
-  const allLoading = creditsLoading || statsLoading || historyLoading;
+  const allLoading = creditsLoading;
   const activeAgents = displayedAgents.filter(a => a.status !== 'offline');
   const workingCount = displayedAgents.filter(a => a.status === 'working' || a.status === 'thinking').length;
   const onlinePct = displayedAgents.length > 0 ? Math.round((activeAgents.length / displayedAgents.length) * 100) : 0;
@@ -334,9 +332,9 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
           </div>
         </div>
 
-        {/* CREDITS Section */}
+        {/* SYSTEM METRICS Section */}
         <div className="intel-section">
-          <div className="intel-section-title">CREDITS</div>
+          <div className="intel-section-title">SYSTEM METRICS</div>
           <div className="intel-metrics-grid">
             <div className="intel-metric-card">
               <span className="intel-metric-icon">⚡</span>
