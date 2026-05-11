@@ -210,7 +210,7 @@ export default function TopBar({ selectedAgent, controlRoom, currentView, onNavi
   return (
     <div className="topbar">
       <div className="topbar-left">
-        <span className="topbar-logo">⚡</span>
+        <img src="/logo.png" alt="Conflux" style={{ width: 24, height: 24, objectFit: 'contain' }} />
         <span className="topbar-title">
           Conflux Home{' '}
           <span

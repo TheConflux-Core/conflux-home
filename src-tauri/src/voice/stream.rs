@@ -4,10 +4,9 @@
 use anyhow::{Context, Result};
 use base64::Engine as _;
 use futures_util::{SinkExt, StreamExt};
-use hound::{WavWriter, WavSpec};
+use log;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::io::Cursor;
 use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{Emitter, Window};
@@ -88,26 +87,15 @@ pub enum StreamMessage {
     StreamStop,
 }
 
-/// Encode raw PCM 16-bit mono audio as a WAV RIFF container, then base64-encode it.
-/// ElevenLabs expects audio in WAV RIFF format, not raw PCM bytes.
-fn encode_audio_wav(pcm_samples: &[i16]) -> String {
-    let spec = WavSpec {
-        channels: 1,
-        sample_rate: 16000,
-        bits_per_sample: 16,
-        sample_format: hound::SampleFormat::Int,
-    };
-    let mut buffer = Vec::new();
-    {
-        let mut writer = WavWriter::new(Cursor::new(&mut buffer), spec)
-            .expect("failed to create WAV writer");
-        for &sample in pcm_samples {
-            writer.write_sample(sample).expect("failed to write sample");
-        }
-        writer.finalize().expect("failed to finalize WAV");
-    }
+/// Encode raw PCM 16-bit mono audio as base64.
+/// ElevenLabs with audio_format=pcm_16000 expects raw PCM sample bytes,
+/// NOT a WAV RIFF container. The batch API (scribe_v2) accepts WAV, but the
+/// realtime WebSocket API (scribe_v2_realtime) expects raw PCM samples.
+fn encode_audio_raw(pcm_samples: &[i16]) -> String {
     use base64::engine::general_purpose::STANDARD as BASE64;
-    BASE64.encode(&buffer)
+    // Cast [i16] to [u8] for base64 encoding — safe since both are 2 bytes
+    let bytes = unsafe { std::slice::from_raw_parts(pcm_samples.as_ptr() as *const u8, pcm_samples.len() * 2) };
+    BASE64.encode(bytes)
 }
 
 /// Obtain a short-lived single-use token for WSS authentication.
@@ -157,12 +145,9 @@ pub async fn start_stream(
     }
 
     // Step 1: Get a short-lived single-use token via REST (required auth for WSS)
-    println!("[ElevenLabs STT] Obtaining single-use token...");
+    log::info!("[ElevenLabs STT] Obtaining single-use token...");
     let session_token = get_single_use_token(api_key).await?;
-    println!(
-        "[ElevenLabs STT] Token received: {}...",
-        &session_token[..session_token.len().min(12)]
-    );
+    log::info!("[ElevenLabs STT] Token received: {}...", &session_token[..session_token.len().min(12)]);
 
     let mut model_id = config.model_id.unwrap_or_else(|| "scribe_v2_realtime".into());
     if model_id == "scribe_v1" || model_id == "scribe_v2" {
@@ -170,44 +155,37 @@ pub async fn start_stream(
     }
 
     // Step 2: Connect to WSS using the session token as URL param
-    // Use commit_strategy=manual so we control when to finalize (avoids VAD timing issues)
+    // Use commit_strategy=vad so ElevenLabs auto-commits when VAD detects silence —
+    // this is more reliable than manual commit with empty-audio-chunk trick.
     let url = format!(
-        "wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id={}&audio_format=pcm_16000&commit_strategy=manual&token={}",
+        "wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id={}&audio_format=pcm_16000&commit_strategy=vad&token={}",
         model_id, session_token
     );
 
-    println!("[ElevenLabs STT] Connecting to WSS...");
+    log::info!("[ElevenLabs STT] Connecting to WSS...");
 
     let request = url
         .into_client_request()
         .map_err(|e| anyhow::anyhow!("Failed to create client request: {}", e))?;
 
     let (socket, response) = connect_async(request).await.map_err(|e| {
-        println!("[ElevenLabs STT] Connection failed: {}", e);
+        log::warn!("[ElevenLabs STT] Connection failed: {}", e);
         anyhow::anyhow!("WebSocket connection failed: {}", e)
     })?;
 
-    println!(
-        "[ElevenLabs STT] Connected. Status: {}",
-        response.status()
-    );
+    log::info!("[ElevenLabs STT] Connected. Status: {}", response.status());
 
     let (mut ws_sender, mut ws_receiver) = socket.split();
 
     let (audio_tx, mut audio_rx) = mpsc::unbounded_channel::<StreamMessage>();
 
-    // Shared state: accumulated transcript text updated by recv_task, read by send_task
-    let accumulated_text = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
-    let accumulated_text_send = accumulated_text.clone();
-    let accumulated_text_recv = accumulated_text.clone();
-
     // ── Incoming Messages (Transcripts) ───────────────────────────────────
     let window_clone = window.clone();
-    let accumulated_text_clone = accumulated_text_recv;
     let recv_task = tokio::spawn(async move {
         while let Some(msg) = ws_receiver.next().await {
             match msg {
                 Ok(Message::Text(text)) => {
+                    log::info!("[ElevenLabs STT] Received text message: {}", text);
                     // Parse JSON response from ElevenLabs
                     // Protocol: { "message_type": "partial_transcript" | "committed_transcript" | "session_started", "text": "..." }
                     if let Ok(transcript) = serde_json::from_str::<serde_json::Value>(&text) {
@@ -247,22 +225,10 @@ pub async fn start_stream(
                                         if !trimmed.is_empty() {
                                             let mut transcript_guard = STREAMING_TRANSCRIPT.lock().unwrap();
                                             *transcript_guard = Some(trimmed.clone());
-                                            // Update accumulated text so the next audio chunk knows context
-                                            if let Ok(mut acc) = accumulated_text_clone.lock() {
-                                                *acc = trimmed.clone();
-                                            }
                                             let _ = window_clone.emit(
                                                 "conflux:transcription",
                                                 serde_json::json!({ "text": trimmed, "is_final": true }),
                                             );
-                                        }
-                                    } else {
-                                        // Update accumulated text on partial too so we have latest context
-                                        let trimmed = chunk.text.trim().to_string();
-                                        if !trimmed.is_empty() {
-                                            if let Ok(mut acc) = accumulated_text_clone.lock() {
-                                                *acc = trimmed;
-                                            }
                                         }
                                     }
                                 }
@@ -278,10 +244,20 @@ pub async fn start_stream(
                         }
                     }
                 }
+                Ok(Message::Binary(data)) => {
+                    log::info!("[ElevenLabs STT]Received binary message: {} bytes", data.len());
+                }
+                Ok(Message::Ping(data)) => {
+                    log::info!("[ElevenLabs STT]Received ping: {} bytes", data.len());
+                }
+                Ok(Message::Pong(_)) | Ok(Message::Ping(_)) => {}
                 Ok(Message::Close(_)) | Err(_) => {
+                    log::info!("[ElevenLabs STT]Stream closed / error");
                     break;
                 }
-                _ => {}
+                _ => {
+                    log::debug!("[ElevenLabs STT] Unhandled message type: {:?}", msg);
+                }
             }
         }
         log::info!("[ElevenLabs STT] Stream closed.");
@@ -292,30 +268,26 @@ pub async fn start_stream(
         while let Some(msg) = audio_rx.recv().await {
             match msg {
                 StreamMessage::Audio(samples) => {
-                    // ElevenLabs expects a WAV RIFF container, not raw PCM
-                    let audio_b64 = encode_audio_wav(&samples);
-                    let prev = accumulated_text_send.lock().unwrap().clone();
+                    let audio_b64 = encode_audio_raw(&samples);
                     let payload = serde_json::json!({
                         "message_type": "input_audio_chunk",
-                        "audio_base_64": audio_b64,
-                        "sample_rate": 16000,
-                        "previous_text": prev
+                        "audio_base_64": audio_b64
                     });
+                    log::debug!("[ElevenLabs STT] [SEND] Audio chunk: {} samples, b64 len={}", samples.len(), audio_b64.len());
                     if let Err(e) = ws_sender.send(Message::Text(payload.to_string())).await {
                         log::warn!("[ElevenLabs STT] Audio send failed: {}", e);
+                    } else {
+                        log::debug!("[ElevenLabs STT] [SEND] Sent OK, flushing...");
+                        if let Err(e) = ws_sender.flush().await {
+                            log::warn!("[ElevenLabs STT] Audio flush failed: {}", e);
+                        } else {
+                            log::debug!("[ElevenLabs STT] [SEND] Flush OK");
+                        }
                     }
                 }
                 StreamMessage::StreamStop => {
-                    log::info!("[ElevenLabs STT] Committing and closing stream on request.");
-                    // Send an empty audio chunk with commit=true to trigger final transcript
-                    let commit_payload = serde_json::json!({
-                        "message_type": "input_audio_chunk",
-                        "audio_base_64": "",
-                        "commit": true,
-                        "sample_rate": 16000
-                    });
-                    let _ = ws_sender.send(Message::Text(commit_payload.to_string())).await;
-                    // Give the server a moment to respond with the final transcript
+                    log::info!("[ElevenLabs STT] [SEND] Received StreamStop, closing.");
+                    // Give ElevenLabs a moment to send any final transcript before closing
                     tokio::time::sleep(Duration::from_millis(500)).await;
                     let _ = ws_sender.close().await;
                     break;

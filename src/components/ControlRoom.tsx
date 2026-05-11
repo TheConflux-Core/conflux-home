@@ -173,7 +173,7 @@ export default function ControlRoom({ agents, onNavigate, onOpenChat }: ControlR
                 boxShadow: `0 0 20px ${color}20, inset 0 0 15px ${color}10`,
               }}
             >
-              {agent.id === 'conflux' ? '⚡' : agent.emoji}
+              {agent.id === 'conflux' ? <img src="/logo.png" alt="Conflux" style={{ width: 32, height: 32, objectFit: 'contain' }} /> : agent.emoji}
             </div>
             <div className={`orb-status-dot status-${agent.status}`} />
             <div className="orb-label">{displayName}</div>
