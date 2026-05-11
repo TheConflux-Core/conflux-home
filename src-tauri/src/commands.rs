@@ -8669,19 +8669,24 @@ pub mod voice_cmds {
     pub fn voice_capture_stop(window: tauri::Window) -> Result<serde_json::Value, String> {
         println!("[STT] voice_capture_stop command triggered");
         let count = capture::stop_recording(window.clone())?;
+        log::info!("[STT] stop_recording returned {} samples", count);
 
         // Retrieve the final transcript from the realtime STT static (if any)
         let transcript = STREAMING_TRANSCRIPT.lock().unwrap().take();
         if transcript.is_some() {
-            // Mark that we got a realtime transcript — downstream can skip Whisper fallback
             ELEVENLABS_TRANSCRIPT_RECEIVED.store(true, Ordering::Relaxed);
+            log::info!("[STT] Realtime transcript: {:?}", transcript.as_ref().map(|t| &t[..t.len().min(50)]));
+        } else {
+            log::info!("[STT] No realtime transcript (expected — realtime disabled in v0.1.124)");
         }
 
-        Ok(serde_json::json!({
+        let result = serde_json::json!({
             "samples": count,
             "duration_seconds": count as f64 / 16000.0,
             "transcript": transcript,
-        }))
+        });
+        log::info!("[STT] voice_capture_stop result: samples={}, transcript={}", count, if result.get("transcript").is_some() { "Some" } else { "null" });
+        Ok(result)
     }
 
     /// Transcribe the current audio buffer using the ElevenLabs SDK (via Node.js script).
@@ -8689,7 +8694,10 @@ pub mod voice_cmds {
     /// this batch path is the fallback when realtime didn't capture a final result.
     #[tauri::command]
     pub async fn voice_transcribe() -> Result<String, String> {
-        println!("[STT] Transcribing via ElevenLabs SDK...");
+        log::info!("[STT] voice_transcribe called — audio buffer size: {}", {
+            let buf = AUDIO_BUFFER.lock().map_err(|e| e.to_string())?;
+            buf.len()
+        });
 
         let audio = {
             let buf = AUDIO_BUFFER.lock().map_err(|e| e.to_string())?;
@@ -8759,6 +8767,7 @@ pub mod voice_cmds {
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|_| get_workspace_scripts_path());
 
+        log::info!("[STT] Calling Node.js script: {:?} with wav={} key_len={}", script_path, temp_wav.display(), eleven_key.len());
         let result = tokio::process::Command::new("node")
             .arg(&script_path)
             .arg(temp_wav.as_os_str())
@@ -8766,11 +8775,13 @@ pub mod voice_cmds {
             .output()
             .await
             .map_err(|e| format!("Failed to run STT script: {}. Is Node.js installed?", e))?;
+        log::info!("[STT] Node.js exited: status={}", result.status);
 
         let _ = std::fs::remove_file(&temp_wav);
 
         let stdout = String::from_utf8_lossy(&result.stdout);
         let stderr = String::from_utf8_lossy(&result.stderr);
+        log::info!("[STT] stdout: {} stderr: {}", stdout.chars().take(200).collect::<String>(), stderr.chars().take(200).collect::<String>());
 
         if !result.status.success() {
             // Try to parse error JSON from stderr
