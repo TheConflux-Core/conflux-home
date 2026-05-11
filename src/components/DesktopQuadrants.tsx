@@ -300,36 +300,7 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
         {/* Agents Section — cockpit bars */}
         <div className="intel-section">
           <div className="intel-section-title">MODULE</div>
-          <div className="intel-section-content">
-            {displayedAgents.map((agent) => {
-              const color = STATUS_COLORS[agent.status] || '#4b5563';
-              const progress = getAgentProgress(agent);
-              const isOffline = agent.status === 'offline';
-              return (
-                <div
-                  key={agent.id}
-                  className="intel-agent-row"
-                  style={isOffline ? { opacity: 0.3 } : undefined}
-                >
-                  <span className="intel-agent-dot" style={{ background: color }} />
-                  <span className="intel-agent-name">{agent.emoji} {agent.name}</span>
-                  <span className="intel-agent-status-text">{agent.status}</span>
-                  <div className="intel-agent-bar">
-                    <div
-                      className="intel-agent-bar-fill"
-                      style={{
-                        width: `${progress}%`,
-                        ['--bar-color' as string]: color,
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-            {displayedAgents.length === 0 && (
-              <div className="intel-activity-item">No agents connected</div>
-            )}
-          </div>
+          <div className="intel-section-content" />
         </div>
 
         {/* SYSTEM METRICS Section */}
