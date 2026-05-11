@@ -8777,7 +8777,16 @@ pub mod voice_cmds {
             .unwrap_or_else(|_| get_workspace_scripts_path());
 
         log::info!("[STT] Calling Node.js script: {:?} with wav={} key_len={}", script_path, temp_wav.display(), eleven_key.len());
-        let result = tokio::process::Command::new("node")
+
+        let mut cmd = tokio::process::Command::new("node");
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            // DETACHED_PROCESS prevents a console window from appearing on Windows
+            cmd.creation_flags(0x08000000); // DETACHED_PROCESS
+        }
+
+        let result = cmd
             .arg(&script_path)
             .arg(temp_wav.as_os_str())
             .arg(&eleven_key)
