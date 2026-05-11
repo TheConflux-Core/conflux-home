@@ -35,17 +35,18 @@ if (audioBuffer.length === 0) {
   process.exit(1);
 }
 
-console.error(JSON.stringify({ info: `Sending ${audioBuffer.length} bytes to ElevenLabs API` }));
+console.error(JSON.stringify({ info: `Sending ${audioBuffer.length} bytes to ElevenLabs` }));
 
-// Build multipart/form-data for a file field
+// Build multipart/form-data — model_id is required by ElevenLabs API
 const boundary = '----ElevenLabsBoundary' + Date.now();
-const header = Buffer.from(
-  `--${boundary}\r\n` +
-  `Content-Disposition: form-data; name="file"; filename="audio.wav"\r\n` +
-  `Content-Type: audio/wav\r\n\r\n`
-);
-const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
-const body = Buffer.concat([header, audioBuffer, footer]);
+
+const parts = [];
+parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="audio.wav"\r\nContent-Type: audio/wav\r\n\r\n`));
+parts.push(audioBuffer);
+parts.push(Buffer.from(`\r\n--${boundary}\r\nContent-Disposition: form-data; name="model_id"\r\n\r\nscribe_v2`));
+parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
+
+const body = Buffer.concat(parts);
 
 const response = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
   method: 'POST',
@@ -60,7 +61,6 @@ const status = response.status;
 const responseText = await response.text();
 
 if (!response.ok) {
-  // Try to parse error from response body
   let errMsg = `HTTP ${status}`;
   try {
     const errJson = JSON.parse(responseText);
@@ -72,7 +72,6 @@ if (!response.ok) {
   process.exit(1);
 }
 
-// Parse success JSON
 try {
   const result = JSON.parse(responseText);
   let text = '';
@@ -84,6 +83,6 @@ try {
   process.stdout.write(JSON.stringify({ text }));
   process.exit(0);
 } catch (e) {
-  console.error(JSON.stringify({ error: `Failed to parse API response: ${e.message}`, body: responseText.slice(0, 200) }));
+  console.error(JSON.stringify({ error: `Failed to parse response: ${e.message}`, body: responseText.slice(0, 200) }));
   process.exit(1);
 }
