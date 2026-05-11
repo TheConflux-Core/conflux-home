@@ -259,8 +259,17 @@ pub fn start_recording(window: Window) -> Result<String, String> {
                             .collect();
                         // send() on an unbounded channel never blocks (no capacity limit).
                         // It only fails (Err) if the receiver was dropped (channel closed).
-                        if tx.send(StreamMessage::Audio(pcm_samples)).is_err() {
+                        let send_result = tx.send(StreamMessage::Audio(pcm_samples));
+                        if send_result.is_err() {
                             log::debug!("[CAPTURE] Channel closed, audio send skipped (stopping)");
+                        } else {
+                            // Log every Nth successful send for debugging
+                            use std::sync::atomic::{AtomicU64, Ordering};
+                            static SEND_COUNT: AtomicU64 = AtomicU64::new(0);
+                            let cnt = SEND_COUNT.fetch_add(1, Ordering::Relaxed);
+                            if cnt % 50 == 0 {
+                                log::info!("[CAPTURE] send #{} OK (channel alive, {} resampled samples)", cnt, resampled.len());
+                            }
                         }
                     }
                 }
