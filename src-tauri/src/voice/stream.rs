@@ -185,7 +185,7 @@ pub async fn start_stream(
         while let Some(msg) = ws_receiver.next().await {
             match msg {
                 Ok(Message::Text(text)) => {
-                    log::info!("[ElevenLabs STT]Received text message: {}", text);
+                    log::info!("[ElevenLabs STT] Received text message: {}", text);
                     // Parse JSON response from ElevenLabs
                     // Protocol: { "message_type": "partial_transcript" | "committed_transcript" | "session_started", "text": "..." }
                     if let Ok(transcript) = serde_json::from_str::<serde_json::Value>(&text) {
@@ -273,11 +273,15 @@ pub async fn start_stream(
                         "message_type": "input_audio_chunk",
                         "audio_base_64": audio_b64
                     });
+                    log::debug!("[ElevenLabs STT] [SEND] Audio chunk: {} samples, b64 len={}", samples.len(), audio_b64.len());
                     if let Err(e) = ws_sender.send(Message::Text(payload.to_string())).await {
                         log::warn!("[ElevenLabs STT] Audio send failed: {}", e);
                     } else {
+                        log::debug!("[ElevenLabs STT] [SEND] Sent OK, flushing...");
                         if let Err(e) = ws_sender.flush().await {
                             log::warn!("[ElevenLabs STT] Audio flush failed: {}", e);
+                        } else {
+                            log::debug!("[ElevenLabs STT] [SEND] Flush OK");
                         }
                     }
                 }
