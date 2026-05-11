@@ -8741,6 +8741,15 @@ pub mod voice_cmds {
         fn get_workspace_scripts_path() -> std::path::PathBuf {
             let mut path = std::path::PathBuf::from("scripts/elevenlabs-stt.js");
             if let Ok(exe) = std::env::current_exe() {
+                // Try resources/scripts first (installed app path)
+                if let Some(resources) = exe.parent() {
+                    let scripts = resources.join("scripts/elevenlabs-stt.js");
+                    if scripts.exists() {
+                        log::info!("[STT] Found scripts at resources path: {:?}", scripts);
+                        return scripts;
+                    }
+                }
+                // Dev path: walk from target/debug/ or target/release/
                 if let Some(target_dir) = exe.parent() {            // target/debug/ or target/release/
                     if let Some(profile_dir) = target_dir.parent() { // target/
                         if let Some(src_tauri) = profile_dir.parent() { // src-tauri/
