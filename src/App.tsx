@@ -354,7 +354,8 @@ export default function App() {
           break;
         case 'activeApp':
           // value: view name string (dashboard, kitchen, budget, life, etc.)
-          if (value) setView(value as View);
+          // Use setImmersiveView to show full-screen app views.
+          if (value) setImmersiveView(value as View);
           break;
         case 'chat':
           // action: 'open' | 'close' | 'toggle', value: optionally agent id

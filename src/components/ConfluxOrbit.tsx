@@ -125,6 +125,7 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
     ctx.decodeAudioData(bytes.buffer).then((audioBuffer) => {
       const source = ctx.createBufferSource();
       source.buffer = audioBuffer;
+      source.playbackRate.value = 1.2; // 1.2x speed for ElevenLabs audio
       source.connect(ctx.destination);
       source.start(0);
       
@@ -262,12 +263,11 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
 
   // Determine position based on app state
   // Using window.innerWidth/Height to handle responsiveness
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  // Compute dimensions from window directly for first-render correctness.
+  // State is still used for resize reactivity.
+  const [dimensions, setDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
 
   useEffect(() => {
-    // Set initial dimensions immediately
-    setDimensions({ width: window.innerWidth, height: window.innerHeight });
-    
     const handleResize = () => setDimensions({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
