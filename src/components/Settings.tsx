@@ -265,7 +265,7 @@ function AboutSection() {
       <div className="settings-section-title">ℹ️ About</div>
 
       <div className="settings-about">
-        <img src="/logo.png" alt="Conflux" className="settings-about-logo" />
+        <img src="/logo_v1.png" alt="Conflux" className="settings-about-logo" />
         <h2 className="settings-about-name">Conflux Home</h2>
         <p className="settings-about-version">v{systemInfo?.app_version ?? '0.1.0'}-alpha</p>
         <p className="settings-about-built">Built with: Tauri + React + Embedded Engine</p>
