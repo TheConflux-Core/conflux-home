@@ -35,7 +35,9 @@ if (audioBuffer.length === 0) {
   process.exit(1);
 }
 
-// Build multipart/form-data manually
+console.error(JSON.stringify({ info: `Sending ${audioBuffer.length} bytes to ElevenLabs API` }));
+
+// Build multipart/form-data for a file field
 const boundary = '----ElevenLabsBoundary' + Date.now();
 const header = Buffer.from(
   `--${boundary}\r\n` +
@@ -45,31 +47,43 @@ const header = Buffer.from(
 const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
 const body = Buffer.concat([header, audioBuffer, footer]);
 
-fetch('https://api.elevenlabs.io/v1/speech-to-text', {
+const response = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
   method: 'POST',
   headers: {
     'xi-api-key': apiKey,
     'Content-Type': `multipart/form-data; boundary=${boundary}`,
   },
   body,
-}).then(async (response) => {
-  if (!response.ok) {
-    const status = response.status;
-    let message = '';
-    try {
-      const errJson = await response.json();
-      message = errJson.detail || JSON.stringify(errJson);
-    } catch {
-      message = await response.text() || `HTTP ${status}`;
-    }
-    console.error(JSON.stringify({ error: message, status }));
-    process.exit(1);
+});
+
+const status = response.status;
+const responseText = await response.text();
+
+if (!response.ok) {
+  // Try to parse error from response body
+  let errMsg = `HTTP ${status}`;
+  try {
+    const errJson = JSON.parse(responseText);
+    errMsg = errJson.detail || errJson.message || JSON.stringify(errJson);
+  } catch {
+    errMsg = responseText || `HTTP ${status}`;
   }
-  const result = await response.json();
-  const text = result.text || '';
+  console.error(JSON.stringify({ error: errMsg, status }));
+  process.exit(1);
+}
+
+// Parse success JSON
+try {
+  const result = JSON.parse(responseText);
+  let text = '';
+  if (result.text) {
+    text = result.text;
+  } else if (result.transcripts && Array.isArray(result.transcripts)) {
+    text = result.transcripts.map(t => t.text || '').filter(Boolean).join(' ');
+  }
   process.stdout.write(JSON.stringify({ text }));
   process.exit(0);
-}).catch((err) => {
-  console.error(JSON.stringify({ error: err.message || String(err) }));
+} catch (e) {
+  console.error(JSON.stringify({ error: `Failed to parse API response: ${e.message}`, body: responseText.slice(0, 200) }));
   process.exit(1);
-});
+}
