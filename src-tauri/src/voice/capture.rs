@@ -94,25 +94,43 @@ pub fn start_recording(window: Window) -> Result<String, String> {
 
     // Only start ElevenLabs streaming STT if an API key is configured
     let config = StreamConfig::default();
+    log::info!("[STT] API key status: len={}", config.api_key.len());
     if !config.api_key.is_empty() {
         let window_clone = window.clone();
+        // Use a channel to collect the result from the async task
+        let (result_tx, result_rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
+            // Run the async stream setup on a dedicated tokio runtime to avoid
+            // deadlocking the Tauri thread pool (nested Runtime::new can deadlock
+            // on Windows with Tauri v2's single-threaded executor).
             let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
-                match start_stream(config, window_clone).await {
+            let result = rt.block_on(start_stream(config, window_clone));
+            let _ = result_tx.send(result);
+        });
+        // Poll the channel on the main thread (non-blocking check every ~50ms).
+        // If the async task hasn't finished yet, recording proceeds normally —
+        // the sender will be set once the stream is ready.
+        let poll_interval = std::time::Duration::from_millis(50);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while std::time::Instant::now() < deadline {
+            if let Ok(result) = result_rx.try_recv() {
+                match result {
                     Ok(sender) => {
                         let mut tx = ELEVENLABS_SENDER.lock().unwrap();
                         *tx = Some(sender);
                         log::info!("[STT] ElevenLabs streaming started");
                     }
                     Err(e) => {
-                        log::warn!("[STT] ElevenLabs stream skipped: {}", e);
+                        log::error!("[STT] ElevenLabs stream failed: {}", e);
                     }
                 }
-            });
-        });
+                break;
+            }
+            // Brief yield — don't spin the CPU
+            std::thread::sleep(poll_interval);
+        }
     } else {
-        log::info!("[STT] No ElevenLabs API key - skipping streaming STT");
+        log::warn!("[STT] No ElevenLabs API key - skipping streaming STT");
     }
 
     let host = cpal::default_host();
@@ -228,15 +246,32 @@ pub fn start_recording(window: Window) -> Result<String, String> {
 
                 // Send audio data to ElevenLabs stream sender
                 // Convert f32 samples to 16-bit PCM and send as Vec<i16>
-                if let Some(tx) = ELEVENLABS_SENDER.lock().ok().and_then(|s| s.clone()) {
-                    let pcm_samples: Vec<i16> = resampled
-                        .iter()
-                        .map(|&s| {
-                            let clamped = s.max(-1.0).min(1.0);
-                            (clamped * i16::MAX as f32) as i16
-                        })
-                        .collect();
-                    let _ = tx.send(StreamMessage::Audio(pcm_samples));
+                // Use try_send (non-blocking) so the cpal callback never blocks on a full/down channel.
+                // If the channel is closed (stop_recording took the sender), skip gracefully.
+                if let Ok(tx_guard) = ELEVENLABS_SENDER.lock() {
+                    if let Some(tx) = tx_guard.as_ref() {
+                        let pcm_samples: Vec<i16> = resampled
+                            .iter()
+                            .map(|&s| {
+                                let clamped = s.max(-1.0).min(1.0);
+                                (clamped * i16::MAX as f32) as i16
+                            })
+                            .collect();
+                        // send() on an unbounded channel never blocks (no capacity limit).
+                        // It only fails (Err) if the receiver was dropped (channel closed).
+                        let send_result = tx.send(StreamMessage::Audio(pcm_samples));
+                        if send_result.is_err() {
+                            log::debug!("[CAPTURE] Channel closed, audio send skipped (stopping)");
+                        } else {
+                            // Log every Nth successful send for debugging
+                            use std::sync::atomic::{AtomicU64, Ordering};
+                            static SEND_COUNT: AtomicU64 = AtomicU64::new(0);
+                            let cnt = SEND_COUNT.fetch_add(1, Ordering::Relaxed);
+                            if cnt % 50 == 0 {
+                                log::info!("[CAPTURE] send #{} OK (channel alive, {} resampled samples)", cnt, resampled.len());
+                            }
+                        }
+                    }
                 }
             },
             |err| {

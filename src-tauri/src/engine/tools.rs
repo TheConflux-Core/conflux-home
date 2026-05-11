@@ -877,6 +877,20 @@ pub fn get_integration_tool_definitions() -> Vec<Value> {
                 }
             }
         }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "exec",
+                "description": "Execute a shell command on the user's machine. Use to run scripts, manage files, compile code, or perform system operations. Downloading and executing untrusted scripts is blocked by security controls. Ask the user before running destructive commands.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "command": { "type": "string", "description": "The shell command to execute (e.g., 'ls -la', 'cargo build', 'git status')" }
+                    },
+                    "required": ["command"]
+                }
+            }
+        }),
     ]
 }
 
@@ -2692,6 +2706,9 @@ async fn fetch_weather(query: &str) -> Result<String> {
         .replace("weather in", "")
         .replace("weather", "")
         .replace("current", "")
+        .replace("forecast", "")
+        .replace("tomorrow", "")
+        .replace("today", "")
         .replace("in", "")
         .replace("the", "")
         .replace("  ", " ")

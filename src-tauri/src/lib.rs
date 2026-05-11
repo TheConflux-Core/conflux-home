@@ -325,16 +325,18 @@ pub fn run() {
                     Err(e) => log::warn!("[Setup] Failed to create tray icon: {}", e),
                 }
 
-                // Handle window close button — hide to tray instead of exiting
+                // Handle window close button — hide to tray instead of exiting.
+                // llama-server keeps running so the app can be restored from the tray.
+                // Use the tray Quit menu (or Task Manager) to fully exit before installing updates.
                 if let Some(window) = app.get_webview_window("main") {
-                    let win_clone = window.clone();
-                    window.on_window_event(move |event| {
+                    let app_handle = app.handle().clone();
+                    window.clone().on_window_event(move |event| {
                         if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                            // On window close (X button), fully exit so installer can overwrite files.
-                            // llama-server child process must be killed first to release DLL locks.
-                            log::info!("[Window] Close requested — shutting down and exiting");
-                            engine::local_ai::shutdown_local_ai();
-                            std::process::exit(0);
+                            log::info!("[Window] Close requested — hiding to tray");
+                            api.prevent_close();
+                            if let Some(win) = app_handle.get_webview_window("main") {
+                                let _ = win.hide();
+                            }
                         }
                     });
                 }
@@ -816,11 +818,14 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_app_handle, event| {
+        .run(|app_handle, event| {
             // Keep the event loop alive for tray icon events
             // Window close is handled via WindowEvent::CloseRequested in setup()
             if let tauri::RunEvent::Exit = event {
-                log::info!("[Run] Application exiting");
+                log::info!("[Run] Application exiting — stopping local AI server");
+                tauri::async_runtime::spawn(async move {
+                    engine::local_ai::local_ai_stop().await.ok();
+                });
             }
         });
 }
