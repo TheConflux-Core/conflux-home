@@ -2657,12 +2657,14 @@ async fn execute_web_search(args: &Value) -> Result<ToolResult> {
         }
     }
 
-    // Source 2: DuckDuckGo HTML lite (no API key, no JS)
+    // Source 2: DuckDuckGo API (JSON, no API key, works reliably)
     match search_duckduckgo(&client, query).await {
         Ok(ddg_results) if !ddg_results.is_empty() => {
             results.push(format!("=== Web Results ===\n{}", ddg_results));
         }
-        _ => {}
+        _ => {
+            log::warn!("[tools] DuckDuckGo returned empty, trying Wikipedia");
+        }
     }
 
     // Source 3: Wikipedia (free knowledge API)
@@ -2745,64 +2747,42 @@ async fn fetch_weather(query: &str) -> Result<String> {
     }
 }
 
-/// Search DuckDuckGo via their lite HTML page (no API key needed).
+/// Search DuckDuckGo via their JSON API (no API key needed).
 async fn search_duckduckgo(client: &reqwest::Client, query: &str) -> Result<String> {
     let url = format!(
-        "https://lite.duckduckgo.com/lite/?q={}",
+        "https://api.duckduckgo.com/?q={}&format=json&no_html=1&skip_disambig=1",
         urlencoding::encode(query)
     );
-
     let response = client.get(&url).send().await?;
-    let html = response.text().await?;
+    let json: Value = response.json().await?;
 
-    // Parse results from the lite page
-    // DuckDuckGo lite uses <a> tags with class="result-link" for results
-    // and <td class="result-snippet"> for descriptions
     let mut results = Vec::new();
-    let mut lines = html.lines().peekable();
 
-    while let Some(line) = lines.next() {
-        let trimmed = line.trim();
-
-        // Look for result links: <a rel="nofollow" href="..." class="result-link">Title</a>
-        if trimmed.contains("class=\"result-link\"") {
-            // Extract URL from href
-            let url = extract_between(trimmed, "href=\"", "\"").unwrap_or_default();
-            // Extract title text
-            let title = extract_between(trimmed, ">", "</a>").unwrap_or_default();
-            let title = strip_html_tags(&title);
-
-            // Next few lines should have the snippet
-            let mut snippet = String::new();
-            for _ in 0..5 {
-                if let Some(next) = lines.next() {
-                    let next_trimmed = next.trim();
-                    if next_trimmed.contains("class=\"result-snippet\"") {
-                        snippet = strip_html_tags(
-                            extract_between(next_trimmed, ">", "</td>").unwrap_or(next_trimmed),
-                        );
-                        break;
-                    }
-                    // Also try <td> with the snippet
-                    if !next_trimmed.is_empty() && !next_trimmed.starts_with('<') {
-                        snippet = strip_html_tags(next_trimmed);
-                        break;
-                    }
-                }
-            }
-
-            if !title.is_empty() {
-                let entry = if snippet.is_empty() {
-                    format!("• {} — {}", title, url)
-                } else {
-                    format!("• {}\n  {}\n  {}", title, snippet, url)
-                };
-                results.push(entry);
+    // Add AbstractText if available (direct answer when available)
+    if let Some(abstract_text) = json.get("AbstractText").and_then(|v| v.as_str()) {
+        if !abstract_text.is_empty() {
+            let heading = json.get("Heading").and_then(|v| v.as_str()).unwrap_or("");
+            let abstract_url = json.get("AbstractURL").and_then(|v| v.as_str()).unwrap_or("");
+            if !heading.is_empty() {
+                results.push(format!("• {} — {}\n  {}\n  {}", heading, abstract_text, abstract_url, abstract_url));
+            } else {
+                results.push(format!("• {}\n  {}\n  {}", abstract_text, abstract_url, abstract_url));
             }
         }
+    }
 
-        if results.len() >= 5 {
-            break;
+    // Add RelatedTopics entries (main search results)
+    if let Some(topics) = json.get("RelatedTopics").and_then(|v| v.as_array()) {
+        for topic in topics.iter().take(8) {
+            let text = topic.get("Text").and_then(|v| v.as_str()).unwrap_or("");
+            let result_url = topic.get("FirstURL").and_then(|v| v.as_str()).unwrap_or("");
+            if !text.is_empty() && !result_url.is_empty() {
+                // Skip category-label topics (short text before colon)
+                if text.contains(':') && text.split(':').next().map(|s| s.len()).unwrap_or(0) < 20 {
+                    continue;
+                }
+                results.push(format!("• {} — {}", text, result_url));
+            }
         }
     }
 

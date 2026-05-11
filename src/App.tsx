@@ -1168,7 +1168,7 @@ const [activeSnake, setActiveSnake] = useState(false);
   if (authLoading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#0a0a1a' }}>
-        <img src="/logo.png" alt="Conflux" style={{ width: 32, height: 32, objectFit: 'contain' }} />
+        <img src="/logo_v1.png" alt="Conflux" style={{ width: 32, height: 32, objectFit: 'contain' }} />
       </div>
     );
   }
@@ -1314,7 +1314,7 @@ const [activeSnake, setActiveSnake] = useState(false);
                 marginBottom: 24,
               }}>
                 {[
-                  { label: 'Active Agents', value: liveAgents, sub: 'online now', icon: '/logo.png' },
+                  { label: 'Active Agents', value: liveAgents, sub: 'online now', icon: '/logo_v1.png' },
                   { label: 'Products Built', value: '12', emoji: '📦', sub: 'across all niches' },
                   { label: 'Missions Done', value: '14', emoji: '🎯', sub: 'completed' },
                   { label: 'Engine Health', value: engineHealthy ? 'Healthy' : 'Check', emoji: engineHealthy ? '💚' : '⚠️', sub: 'all systems' },

@@ -809,6 +809,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       }
     }
 
+    // Save default fairy position for first-visit landing
+    // Default: center of dashboard area (35% from left, 40% from top)
+    localStorage.setItem('conflux-fairy-pos', JSON.stringify({ rx: 0.35, ry: 0.40 }));
     // Persist ice breaker answer
     if (user && iceBreakerInput.trim()) {
       try {

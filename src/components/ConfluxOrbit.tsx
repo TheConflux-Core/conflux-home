@@ -446,15 +446,36 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
     prevImmersiveViewRef.current = immersiveView;
   }, [immersiveView, wizardMode]);
 
-  // On view change: clear dragOverride → triggers one-shot spring to magnetic zone
+  // On view change: clear dragOverride → triggers one-shot spring to magnetic zone.
   // Guard: skip on first render — dragOverride was already loaded from localStorage
-  // and must not be wiped before the fairy gets a chance to paint at the saved position.
+  // AND skip if user just completed onboarding (conflux-onboarded is fresh — they need fairy at first position).
+  // Only clear drag override after the desktop has been stable for ≥1 second.
+  const onboardingTimestamp = useRef<number | null>(null);
+  useEffect(() => {
+    if (!isDragOverrideMountedRef.current) return;
+    // Detect fresh onboarding: set timestamp when conflux-onboarded is written
+    const storedOnboarded = localStorage.getItem('conflux-onboarded');
+    if (storedOnboarded === 'true') {
+      const ts = localStorage.getItem('conflux-onboarded-ts');
+      if (!ts) {
+        localStorage.setItem('conflux-onboarded-ts', Date.now().toString());
+        onboardingTimestamp.current = Date.now();
+      } else {
+        onboardingTimestamp.current = parseInt(ts, 10);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (!isDragOverrideMountedRef.current) return;
     if (dragOverride !== null) {
-      transitioningRef.current = true;
-      setTransitioningToZone(true);
-      setDragOverride(null);
+      // Allow spring-to-zone only if user has been on desktop for ≥2s (not a fresh onboarding)
+      const onboardingAge = onboardingTimestamp.current ? Date.now() - onboardingTimestamp.current : Infinity;
+      if (onboardingAge > 2000) {
+        transitioningRef.current = true;
+        setTransitioningToZone(true);
+        setDragOverride(null);
+      }
     }
   }, [view, immersiveView]);
 
