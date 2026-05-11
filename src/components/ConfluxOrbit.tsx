@@ -125,7 +125,7 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
     ctx.decodeAudioData(bytes.buffer).then((audioBuffer) => {
       const source = ctx.createBufferSource();
       source.buffer = audioBuffer;
-      source.playbackRate.value = 1.2; // 1.2x speed for ElevenLabs audio
+      source.playbackRate.value = 1.0;
       source.connect(ctx.destination);
       source.start(0);
       
