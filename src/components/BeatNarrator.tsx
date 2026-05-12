@@ -1,27 +1,27 @@
 // BeatNarrator — heartbeat event detail modal
 // Shows the firing agent's summary with auto-TTS and recent beat history.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import { type BeatEvent, AGENTS } from '../lib/beatBus';
 import { useBeatTimeline } from '../lib/beatBus';
 import './BeatNarrator.css';
 
-// Agent voice IDs (ElevenLabs) — consolidated from Onboarding.tsx
-// Onboarding is the canonical source for agent voice assignments.
+// Agent voice IDs (ElevenLabs) — matches commands.rs tts_speak and AdjustmentPanel
+// These are the canonical IDs used throughout the app
 const AGENT_VOICE_IDS: Record<string, string> = {
-  conflux: 'TvxTBL9RtGW6tVhl4NoI',
-  helix:   'NQMJRVvPew6HsaebYnZj',
-  pulse:   'iLVmqjzCGGvqtMCk6vVQ',
+  conflux: 'TvxTBL9RtGW6tVhl4NoI', // Rachel (default)
+  helix:   'USEXQnsXRJlw2k9LUzG4',
+  pulse:   'auq43ws1oslv0tO4BDa7',
   hearth:  'W7iR5kTNHozpIl2Jqq15',
   echo:    'EST9Ui6982FZPSi7gCHi',
   aegis:   'WtA85syCrJwasGeHGH2p',
   viper:   'Mtmp3KhFIjYpWYRycDe3',
-  forge:   'NQMJRVvPew6HsaebYnZj',   // no dedicated voice — borrow helix's
-  orbit:   'NQMJRVvPew6HsaebYnZj',   // no dedicated voice — borrow helix's
-  horizon: 'NQMJRVvPew6HsaebYnZj',   // no dedicated voice — borrow helix's
-  quanta:  'TvxTBL9RtGW6tVhl4NoI',   // no dedicated voice — borrow conflux's
+  forge:   'USEXQnsXRJlw2k9LUzG4',   // borrow helix's (no dedicated)
+  orbit:   'USEXQnsXRJlw2k9LUzG4',
+  horizon: 'USEXQnsXRJlw2k9LUzG4',
+  quanta:  'TvxTBL9RtGW6tVhl4NoI',
   prism:   'TvxTBL9RtGW6tVhl4NoI',
   vector:  'TvxTBL9RtGW6tVhl4NoI',
   spectra: 'TvxTBL9RtGW6tVhl4NoI',
@@ -43,6 +43,66 @@ function timeAgoMs(ts: number): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+// ── Web Audio playback ─────────────────────────────────────────────────────
+function useAudioPlayer() {
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
+
+  const getCtx = useCallback(() => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    const ctx = audioContextRef.current;
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }, []);
+
+  const stop = useCallback(() => {
+    try { activeSourceRef.current?.stop(); } catch (_) { /* already stopped */ }
+    activeSourceRef.current = null;
+  }, []);
+
+  const playBase64 = useCallback((base64: string): Promise<void> => {
+    stop();
+    return new Promise((resolve, reject) => {
+      const ctx = getCtx();
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+      ctx.decodeAudioData(bytes.buffer).then((buffer) => {
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        activeSourceRef.current = source;
+        source.onended = () => { activeSourceRef.current = null; resolve(); };
+        source.start(0);
+      }).catch(reject);
+    });
+  }, [getCtx, stop]);
+
+  return { playBase64, stop };
+}
+
+// ── TTS via ElevenLabs (tts_speak command) ───────────────────────────────
+async function speakText(text: string, voiceId: string): Promise<void> {
+  const result = await invoke<{ audio_base64: string }>('tts_speak', {
+    text,
+    voice: voiceId,
+  });
+  // Play via Web Audio API
+  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+  if (audioContext.state === 'suspended') await audioContext.resume();
+  const binaryString = atob(result.audio_base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+  const buffer = await audioContext.decodeAudioData(bytes.buffer);
+  const source = audioContext.createBufferSource();
+  source.buffer = buffer;
+  source.connect(audioContext.destination);
+  source.start(0);
+  await new Promise(resolve => { source.onended = resolve; });
+}
+
 export default function BeatNarrator({ event, onClose }: BeatNarratorProps) {
   const [speaking, setSpeaking] = useState(false);
   const [briefing, setBriefing] = useState(false);
@@ -53,7 +113,7 @@ export default function BeatNarrator({ event, onClose }: BeatNarratorProps) {
   const agentColor = agent?.color ?? '#8b5cf6';
   const voiceId = AGENT_VOICE_IDS[event.agentId] ?? AGENT_VOICE_IDS.conflux;
 
-  // Build the spoken summary — strip the agent label prefix so the voice owns the narration
+  // Build the spoken summary — first person, the agent's own voice
   const summaryText = event.detail
     ? `${event.action} — ${event.detail}`
     : event.action;
@@ -63,24 +123,18 @@ export default function BeatNarrator({ event, onClose }: BeatNarratorProps) {
     let cancelled = false;
     setSpeaking(true);
 
-    invoke('voice_synthesize', { text: summaryText, voice: voiceId })
-      .catch(err => {
-        console.warn('[BeatNarrator] TTS failed:', err);
-      })
-      .finally(() => {
-        if (!cancelled) setSpeaking(false);
-      });
+    speakText(summaryText, voiceId)
+      .catch(err => { console.warn('[BeatNarrator] TTS failed:', err); })
+      .finally(() => { if (!cancelled) setSpeaking(false); });
 
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // Escape key + stop any in-progress TTS
+  // Escape key
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
@@ -90,7 +144,6 @@ export default function BeatNarrator({ event, onClose }: BeatNarratorProps) {
     setBriefing(true);
     setSpeaking(true);
 
-    // Build a flowing narrative from recent beats
     const recent = allEvents.slice(0, 5);
     const narrative = recent
       .map(e => {
@@ -100,10 +153,7 @@ export default function BeatNarrator({ event, onClose }: BeatNarratorProps) {
       .join(' Next. ');
 
     try {
-      await invoke('voice_synthesize', {
-        text: narrative || 'No recent activity to report.',
-        voice: voiceId,
-      });
+      await speakText(narrative || 'No recent activity to report.', voiceId);
     } catch (err) {
       console.warn('[BeatNarrator] Briefing TTS failed:', err);
     } finally {
@@ -112,7 +162,7 @@ export default function BeatNarrator({ event, onClose }: BeatNarratorProps) {
     }
   };
 
-  const agentBgColor = `${agentColor}18`; // 8% opacity version
+  const agentBgColor = `${agentColor}18`;
 
   return (
     <div className="beat-narrator-backdrop" onClick={onClose}>
@@ -141,7 +191,9 @@ export default function BeatNarrator({ event, onClose }: BeatNarratorProps) {
               <div className="beat-narrator-agent-name" style={{ color: agentColor }}>
                 {event.agentLabel}
               </div>
-              <div className="beat-narrator-agent-role">{event.type === 'success' ? '✓ Completed' : event.type === 'warn' ? '⚠ Attention' : 'Live Update'}</div>
+              <div className="beat-narrator-agent-role">
+                {event.type === 'success' ? '✓ Completed' : event.type === 'warn' ? '⚠ Attention' : 'Live Update'}
+              </div>
             </div>
           </div>
           <div className="beat-narrator-header-right">
