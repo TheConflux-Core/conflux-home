@@ -8,7 +8,8 @@ import { type BeatEvent, AGENTS } from '../lib/beatBus';
 import { useBeatTimeline } from '../lib/beatBus';
 import './BeatNarrator.css';
 
-// Agent voice IDs (ElevenLabs) — matches Onboarding.tsx
+// Agent voice IDs (ElevenLabs) — consolidated from Onboarding.tsx
+// Onboarding is the canonical source for agent voice assignments.
 const AGENT_VOICE_IDS: Record<string, string> = {
   conflux: 'TvxTBL9RtGW6tVhl4NoI',
   helix:   'NQMJRVvPew6HsaebYnZj',
@@ -17,9 +18,15 @@ const AGENT_VOICE_IDS: Record<string, string> = {
   echo:    'EST9Ui6982FZPSi7gCHi',
   aegis:   'WtA85syCrJwasGeHGH2p',
   viper:   'Mtmp3KhFIjYpWYRycDe3',
-  forge:   'NQMJRVvPew6HsaebYnZj',   // fallback to helix
-  orbit:   'NQMJRVvPew6HsaebYnZj',
-  horizon: 'NQMJRVvPew6HsaebYnZj',
+  forge:   'NQMJRVvPew6HsaebYnZj',   // no dedicated voice — borrow helix's
+  orbit:   'NQMJRVvPew6HsaebYnZj',   // no dedicated voice — borrow helix's
+  horizon: 'NQMJRVvPew6HsaebYnZj',   // no dedicated voice — borrow helix's
+  quanta:  'TvxTBL9RtGW6tVhl4NoI',   // no dedicated voice — borrow conflux's
+  prism:   'TvxTBL9RtGW6tVhl4NoI',
+  vector:  'TvxTBL9RtGW6tVhl4NoI',
+  spectra: 'TvxTBL9RtGW6tVhl4NoI',
+  luma:    'TvxTBL9RtGW6tVhl4NoI',
+  catalyst:'TvxTBL9RtGW6tVhl4NoI',
 };
 
 interface BeatNarratorProps {
