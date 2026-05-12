@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { AnimatePresence } from 'framer-motion';
 import { useCredits } from '../hooks/useCredits';
 import { useAuth } from '../hooks/useAuth';
 import PulseKnob from './PulseKnob';
 import IntelView from './IntelView';
-import { useBeatTimeline, AGENTS } from '../lib/beatBus';
+import BeatNarrator from './BeatNarrator';
+import { useBeatTimeline, AGENTS, type BeatEvent } from '../lib/beatBus';
 
 import { View, Agent } from '../types';
 
@@ -204,6 +206,7 @@ const DEFAULT_AGENT_IDS = ['conflux', 'helix', 'pulse', 'forge', 'quanta', 'pris
 function IntelDashboard({ agents }: IntelDashboardProps) {
   const { balance, loading: creditsLoading } = useCredits();
   const events = useBeatTimeline();
+  const [selectedBeat, setSelectedBeat] = useState<BeatEvent | null>(null);
 
   // Heartbeat interval — default 30min (1_800_000 ms)
   const [heartbeatInterval, setHeartbeatInterval] = useState(1_800_000);
@@ -322,7 +325,11 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
                 const agent = AGENTS.find(a => a.id === event.agentId);
                 const ago = timeAgoMs(event.timestamp);
                 return (
-                  <div key={event.id} className={`intel-beat-row intel-beat-row-${event.type}`}>
+                  <div
+                    key={event.id}
+                    className={`intel-beat-row intel-beat-row-${event.type}`}
+                    onClick={() => setSelectedBeat(event)}
+                  >
                     <span className="intel-beat-row-icon" style={{ color: agent?.color }}>
                       {agent?.emoji ?? '⚡'}
                     </span>
@@ -366,6 +373,15 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {selectedBeat && (
+          <BeatNarrator
+            event={selectedBeat}
+            onClose={() => setSelectedBeat(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
