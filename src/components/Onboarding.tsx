@@ -35,7 +35,7 @@ interface OnboardingProps {
 // Conflux voice = ELEVENLABS_VOICE_ID from .env (TvxTBL9RtGW6tVhl4NoI)
 const AGENT_VOICE_IDS: Record<string, string> = {
   conflux: 'TvxTBL9RtGW6tVhl4NoI', // From .env ELEVENLABS_VOICE_ID
-  helix:   'USEXQnsXRJlw2k9LUzG4', // Updated (was broken NQMJRVvPew6HsaebYnZj)
+  helix:   'NQMJRVvPew6HsaebYnZj',
   pulse:   'auq43ws1oslv0tO4BDa7', // Updated (was iLVmqjzCGGvqtMCk6vVQ)
   hearth:  'W7iR5kTNHozpIl2Jqq15',
   echo:    'EST9Ui6982FZPSi7gCHi',
