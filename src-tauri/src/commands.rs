@@ -8153,7 +8153,7 @@ pub async fn tts_speak(text: String, voice: Option<String>) -> Result<serde_json
     let voice_id = match voice.as_deref() {
         Some("Conflux") | Some("conflux") => "TvxTBL9RtGW6tVhl4NoI", // From .env ELEVENLABS_VOICE_ID
         Some("Helix") | Some("helix") => "NQMJRVvPew6HsaebYnZj",
-        Some("Pulse") | Some("pulse") => "auq43ws1oslv0tO4BDa7",
+        Some("Pulse") | Some("pulse") => "iLVmqjzCGGvqtMCk6vVQ",
         Some("Hearth") | Some("hearth") => "W7iR5kTNHozpIl2Jqq15",
         Some("Echo") | Some("echo") => "EST9Ui6982FZPSi7gCHi",
         Some("Aegis") | Some("aegis") => "WtA85syCrJwasGeHGH2p",
