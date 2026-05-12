@@ -13,7 +13,7 @@ import './BeatNarrator.css';
 const AGENT_VOICE_IDS: Record<string, string> = {
   conflux: 'TvxTBL9RtGW6tVhl4NoI', // Rachel (default)
   helix:   'NQMJRVvPew6HsaebYnZj',
-  pulse:   'auq43ws1oslv0tO4BDa7',
+  pulse:   'iLVmqjzCGGvqtMCk6vVQ',
   hearth:  'W7iR5kTNHozpIl2Jqq15',
   echo:    'EST9Ui6982FZPSi7gCHi',
   aegis:   'WtA85syCrJwasGeHGH2p',
