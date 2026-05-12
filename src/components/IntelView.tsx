@@ -6,7 +6,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { ConfluxPresence } from './conflux';
 import { triggerFairyNudge } from '../lib/triggerFairyNudge';
-import { AGENTS, useBeatTimeline, useAgentActivity, emitBeat, type BeatEvent } from '../lib/beatBus';
+import { AGENTS, useBeatTimeline, useAgentActivity, emitBeat, startDemoBeats, type BeatEvent } from '../lib/beatBus';
 import './IntelView.css';
 
 interface AgentFromDB {
@@ -364,8 +364,12 @@ export default function IntelView() {
     return () => window.removeEventListener('conflux:agents-selected', handler);
   }, []);
 
-  // Real heartbeats flow in via the beatBus (heartbeatGlobal.ts emits on each tick).
-  // No demo beats needed — the feed shows actual agent activity.
+  // Demo beats — fire realistic agent activity into the timeline so Intel is never empty
+  useEffect(() => {
+    startDemoBeats();
+  }, []);
+
+  // Real heartbeats from Rust also flow in via the beatBus (heartbeatGlobal.ts emits on each tick).
 
   // Pulse counter for NeuralBrain
   const beatCountRef = useRef(0);

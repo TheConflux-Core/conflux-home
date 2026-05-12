@@ -5,6 +5,7 @@ import { useCredits } from '../hooks/useCredits';
 import { useAuth } from '../hooks/useAuth';
 import PulseKnob from './PulseKnob';
 import IntelView from './IntelView';
+import { useBeatTimeline, AGENTS } from '../lib/beatBus';
 
 import { View, Agent } from '../types';
 
@@ -95,6 +96,15 @@ function timeAgo(dateString: string): string {
         return Math.floor(interval) + "m ago";
     }
     return Math.floor(seconds) + "s ago";
+}
+
+function timeAgoMs(ts: number): string {
+    const diff = Math.floor((Date.now() - ts) / 1000);
+    if (diff < 5) return 'just now';
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
 }
 
 // ── Status helpers ──
@@ -193,6 +203,7 @@ const DEFAULT_AGENT_IDS = ['conflux', 'helix', 'pulse', 'forge', 'quanta', 'pris
 
 function IntelDashboard({ agents }: IntelDashboardProps) {
   const { balance, loading: creditsLoading } = useCredits();
+  const events = useBeatTimeline();
 
   // Heartbeat interval — default 30min (1_800_000 ms)
   const [heartbeatInterval, setHeartbeatInterval] = useState(1_800_000);
@@ -297,10 +308,33 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
           </div>
         </div>
 
-        {/* MODULE — empty canvas area + metrics at bottom */}
+        {/* HEARTBEAT — live beat feed + system metrics */}
         <div className="intel-section">
-          <div className="intel-section-title">MODULE</div>
-          <div className="intel-section-content" />
+          <div className="intel-section-title">HEARTBEAT</div>
+          <div className="intel-beat-feed">
+            {events.length === 0 ? (
+              <div className="intel-beat-empty">
+                <span className="intel-beat-spinner" />
+                <span>Waiting for agent activity...</span>
+              </div>
+            ) : (
+              events.slice(0, 6).map((event) => {
+                const agent = AGENTS.find(a => a.id === event.agentId);
+                const ago = timeAgoMs(event.timestamp);
+                return (
+                  <div key={event.id} className={`intel-beat-row intel-beat-row-${event.type}`}>
+                    <span className="intel-beat-row-icon" style={{ color: agent?.color }}>
+                      {agent?.emoji ?? '⚡'}
+                    </span>
+                    <span className="intel-beat-row-action">
+                      <strong>{event.agentLabel}</strong> {event.action}
+                    </span>
+                    <span className="intel-beat-row-time">{ago}</span>
+                  </div>
+                );
+              })
+            )}
+          </div>
           <div className="intel-section-title" style={{ marginTop: 12 }}>SYSTEM METRICS</div>
           <div className="intel-metrics-grid">
             <div className="intel-metric-card">
