@@ -1031,20 +1031,20 @@ fn build_system_prompt(
     // Check bundled resource dir first (production), then project root (dev)
     {
         use std::io::Read;
-        let possible_paths = vec![
+
+        // Try each path until one works
+        let candidates = [
+            // Dev: project root relative to src-tauri/
             std::path::PathBuf::from(".").join("conflux_knowledge.md"),
-            super::local_ai::get_resource_dir()
-                .map(|p| p.join("conflux_knowledge.md")),
+            // Production: bundled resource dir (set at startup via set_resource_dir)
+            std::path::PathBuf::from("resources").join("conflux_knowledge.md"),
+            // Fallback: workspace path
             std::path::PathBuf::from("/home/calo/.openclaw/workspace/conflux-home").join("conflux_knowledge.md"),
         ];
-        for knowledge_path in &possible_paths {
-            let path = match knowledge_path {
-                Some(p) => p,
-                None => continue,
-            };
+        for path in &candidates {
             if let Ok(mut file) = std::fs::File::open(path) {
                 let mut contents = String::new();
-                if file.read_to_string(&mut contents).is_ok() {
+                if file.read_to_string(&mut contents).is_ok() && !contents.is_empty() {
                     prompt.push_str("\n\n════════════════════════════════════════\nCONFLUX KNOWLEDGE BASE — YOUR APP BLUEPRINT\n════════════════════════════════════════\n");
                     prompt.push_str(&contents);
                     prompt.push_str("\n════════════════════════════════════════\n\n");
