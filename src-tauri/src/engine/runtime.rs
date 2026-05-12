@@ -1027,6 +1027,33 @@ fn build_system_prompt(
         prompt.push_str(skill_context);
     }
 
+    // Conflux Knowledge Base — the full app landscape (injected from file so it doesn't bloat the binary)
+    // Check bundled resource dir first (production), then project root (dev)
+    {
+        use std::io::Read;
+        let possible_paths = vec![
+            std::path::PathBuf::from(".").join("conflux_knowledge.md"),
+            super::local_ai::get_resource_dir()
+                .map(|p| p.join("conflux_knowledge.md")),
+            std::path::PathBuf::from("/home/calo/.openclaw/workspace/conflux-home").join("conflux_knowledge.md"),
+        ];
+        for knowledge_path in &possible_paths {
+            let path = match knowledge_path {
+                Some(p) => p,
+                None => continue,
+            };
+            if let Ok(mut file) = std::fs::File::open(path) {
+                let mut contents = String::new();
+                if file.read_to_string(&mut contents).is_ok() {
+                    prompt.push_str("\n\n════════════════════════════════════════\nCONFLUX KNOWLEDGE BASE — YOUR APP BLUEPRINT\n════════════════════════════════════════\n");
+                    prompt.push_str(&contents);
+                    prompt.push_str("\n════════════════════════════════════════\n\n");
+                    break;
+                }
+            }
+        }
+    }
+
     // Tool usage instructions
     prompt.push_str(
         "\nTOOL USAGE — YOUR TOOLS ARE PART OF YOU, NOT SEPARATE HELPERS.\n",
