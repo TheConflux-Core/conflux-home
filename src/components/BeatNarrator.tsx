@@ -12,7 +12,7 @@ import './BeatNarrator.css';
 // These are the canonical IDs used throughout the app
 const AGENT_VOICE_IDS: Record<string, string> = {
   conflux: 'TvxTBL9RtGW6tVhl4NoI', // Rachel (default)
-  helix:   'USEXQnsXRJlw2k9LUzG4',
+  helix:   'NQMJRVvPew6HsaebYnZj',
   pulse:   'auq43ws1oslv0tO4BDa7',
   hearth:  'W7iR5kTNHozpIl2Jqq15',
   echo:    'EST9Ui6982FZPSi7gCHi',
