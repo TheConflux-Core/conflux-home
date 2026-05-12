@@ -297,15 +297,11 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
           </div>
         </div>
 
-        {/* Agents Section — cockpit bars */}
+        {/* MODULE — empty canvas area + metrics at bottom */}
         <div className="intel-section">
           <div className="intel-section-title">MODULE</div>
           <div className="intel-section-content" />
-        </div>
-
-        {/* SYSTEM METRICS Section */}
-        <div className="intel-section">
-          <div className="intel-section-title">SYSTEM METRICS</div>
+          <div className="intel-section-title" style={{ marginTop: 12 }}>SYSTEM METRICS</div>
           <div className="intel-metrics-grid">
             <div className="intel-metric-card">
               <span className="intel-metric-icon">⚡</span>
