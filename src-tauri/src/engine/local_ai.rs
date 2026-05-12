@@ -33,7 +33,7 @@ pub fn set_resource_dir(path: PathBuf) {
 }
 
 /// Get the resource directory if set.
-fn get_resource_dir() -> Option<PathBuf> {
+pub fn get_resource_dir() -> Option<PathBuf> {
     RESOURCE_DIR.lock().unwrap().clone()
 }
 

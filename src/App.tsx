@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import { soundManager } from './lib/sound';
 import { playBuildComplete } from './lib/onboarding-sounds';
 import { initHeartbeatGlobal } from './lib/heartbeatGlobal';
+import { startDemoBeats } from './lib/beatBus';
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
 import { Agent, View } from './types';
 import TopBar from './components/TopBar';
@@ -231,9 +232,10 @@ export default function App() {
     });
   }, []);
 
-  // Initialize global heartbeat singleton (runs once, persists across all views)
+  // Initialize global heartbeat singleton + demo beat feed (runs once, persists across all views)
   useEffect(() => {
     initHeartbeatGlobal();
+    startDemoBeats();
   }, []);
 
   // Expose bar v2 toggle for console testing
