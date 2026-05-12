@@ -132,6 +132,12 @@
   border-top: 1px solid rgba(255, 255, 255, 0.04);
 }
 
+/* Fixed-height section — doesn't stretch to fill extra space */
+.intel-section-fixed {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
 .intel-section-title {
   font-size: 11px;
   text-transform: uppercase;
