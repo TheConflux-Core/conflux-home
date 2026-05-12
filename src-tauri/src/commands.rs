@@ -2205,6 +2205,7 @@ Be accurate with costs. Use 2026 US grocery prices. List every ingredient.";
 fn meal_image_client() -> reqwest::Client {
     reqwest::Client::builder()
         .user_agent("ConfluxHome/1.0 (https://theconflux.ai; support@theconflux.ai)")
+        .timeout(std::time::Duration::from_secs(5))
         .build()
         .unwrap_or_else(|_| reqwest::Client::new())
 }
@@ -2374,17 +2375,27 @@ async fn try_wikipedia_summary(client: &reqwest::Client, title: &str) -> Option<
 }
 
 /// Unified meal image fetcher: TheMealDB → Wikipedia → None
+/// Total timeout: 8s across all retries. Meal creation never blocks on image fetch.
 pub async fn fetch_meal_image(meal_name: &str) -> Option<String> {
-    if let Some(url) = fetch_mealdb_image(meal_name).await {
-        log::info!("[MealImage] TheMealDB found image for '{}'", meal_name);
-        return Some(url);
+    let result = tokio::time::timeout(std::time::Duration::from_secs(8), async {
+        if let Some(url) = fetch_mealdb_image(meal_name).await {
+            log::info!("[MealImage] TheMealDB found image for '{}'", meal_name);
+            return Some(url);
+        }
+        if let Some(url) = fetch_wikipedia_image(meal_name).await {
+            log::info!("[MealImage] Wikipedia found image for '{}'", meal_name);
+            return Some(url);
+        }
+        log::warn!("[MealImage] No image found for '{}'", meal_name);
+        None
+    }).await;
+    match result {
+        Ok(url) => url,
+        Err(_) => {
+            log::warn!("[MealImage] Image fetch timed out for '{}' — proceeding without photo", meal_name);
+            None
+        }
     }
-    if let Some(url) = fetch_wikipedia_image(meal_name).await {
-        log::info!("[MealImage] Wikipedia found image for '{}'", meal_name);
-        return Some(url);
-    }
-    log::warn!("[MealImage] No image found for '{}'", meal_name);
-    None
 }
 
 #[tauri::command]
