@@ -308,8 +308,8 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
           </div>
         </div>
 
-        {/* HEARTBEAT — live beat feed + system metrics */}
-        <div className="intel-section">
+        {/* HEARTBEAT — live beat feed (takes remaining space) */}
+        <div className="intel-section intel-section-grow">
           <div className="intel-section-title">HEARTBEAT</div>
           <div className="intel-beat-feed">
             {events.length === 0 ? (
@@ -335,7 +335,11 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
               })
             )}
           </div>
-          <div className="intel-section-title" style={{ marginTop: 12 }}>SYSTEM METRICS</div>
+        </div>
+
+        {/* SYSTEM METRICS — fixed at bottom */}
+        <div className="intel-section intel-section-fixed">
+          <div className="intel-section-title">SYSTEM METRICS</div>
           <div className="intel-metrics-grid">
             <div className="intel-metric-card">
               <span className="intel-metric-icon">⚡</span>
