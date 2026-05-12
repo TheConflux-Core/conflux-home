@@ -2,6 +2,7 @@
 // Zero-based budgeting with a "Spreadsheet-on-Steroids" UI.
 
 import { useState, useMemo, useEffect } from 'react';
+import { listen } from '@tauri-apps/api/event';
 import { useBudget } from '../hooks/useBudget';
 import { useBudgetEngine } from '../hooks/useBudgetEngine';
 import { useAuth } from '../hooks/useAuth';
@@ -78,6 +79,18 @@ export default function BudgetView() {
       refreshData();
     }
   }, [onboardingComplete, refreshData]);
+
+  // Listen for budget data changes (e.g. Conflux added an entry via LLM)
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<{ action: string }>('conflux:budget-changed', (event) => {
+      console.log('[BudgetView] Budget changed event:', event.payload, '- refreshing data');
+      refreshData();
+    }).then(fn => { unlisten = fn; }).catch(err => {
+      console.warn('[BudgetView] Failed to listen for budget-changed:', err);
+    });
+    return () => { if (unlisten) unlisten(); };
+  }, [refreshData]);
 
   // Debug: Force reload on mount to ensure we see manual DB entries
   useEffect(() => {

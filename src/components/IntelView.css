@@ -243,6 +243,57 @@
   color: rgba(140, 120, 180, 0.45);
 }
 
+/* ── Shift log — per-agent creative status ── */
+.intel-shift-log {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.intel-agent-log-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: opacity 0.35s ease, transform 0.35s ease, background 0.2s;
+  overflow: hidden;
+}
+
+.intel-agent-log-row.visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.intel-agent-log-row.hidden {
+  opacity: 0;
+  transform: translateX(-8px);
+}
+
+.intel-agent-log-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.intel-log-emoji {
+  font-size: 13px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 3px var(--agent-color, #888));
+}
+
+.intel-log-text {
+  font-size: 11.5px;
+  color: rgba(200, 190, 230, 0.7);
+  font-family: 'Inter', -apple-system, sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.01em;
+}
+
 /* ── Beat feed ── */
 .intel-feed {
   flex: 1;
@@ -372,4 +423,39 @@
   font-family: 'Inter', -apple-system, sans-serif;
   flex-shrink: 0;
   margin-top: 2px;
+}
+
+/* ── Beat action buttons (play TTS) ── */
+.intel-beat-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.intel-beat-play {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  opacity: 0.4;
+  transition: opacity 0.15s, transform 0.15s;
+  line-height: 1;
+}
+
+.intel-beat-play:hover {
+  opacity: 0.85;
+  transform: scale(1.15);
+}
+
+.intel-beat-play.playing {
+  opacity: 0.9;
+  animation: pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 0.5; }
 }

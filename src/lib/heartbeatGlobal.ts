@@ -3,6 +3,7 @@
 // Any component subscribes via subscribe(); all share the same ticking clock.
 
 import { invoke } from '@tauri-apps/api/core';
+import { emitBeat } from './beatBus';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -41,6 +42,17 @@ function fireBeat(): void {
   beatCount++;
   config.lastBeatMs = Date.now();
   const ts = config.lastBeatMs;
+
+  // Emit to beatBus so IntelView's activity feed shows real heartbeats
+  const intervalMin = Math.round(config.intervalMs / 60000);
+  emitBeat({
+    agentId: 'conflux',
+    agentLabel: 'Conflux',
+    action: `Heartbeat ${beatCount} complete`,
+    detail: `System scan · ${intervalMin}-min interval`,
+    type: 'info',
+  });
+
   listeners.forEach(l => {
     try { l.onBeat(ts); } catch (e) { console.warn('[HeartbeatGlobal]', e); }
   });

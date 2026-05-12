@@ -3159,6 +3159,17 @@ pub async fn budget_add_entry(
         rusqlite::params![id, req.member_id, req.entry_type, req.category, req.amount, req.description,
                           if req.recurring { 1i64 } else { 0 }, req.frequency, req.date, now],
     ).map_err(|e| e.to_string())?;
+
+    // Emit UI refresh event so BudgetView reacts immediately
+    let entry_payload = serde_json::json!({
+        "action": "entry_added",
+        "entry_type": req.entry_type,
+        "category": req.category,
+        "amount": req.amount,
+        "description": req.description,
+    });
+    engine.emit_tauri_event("conflux:budget-changed", entry_payload);
+
     Ok(engine::types::BudgetEntry {
         id,
         member_id: req.member_id,
