@@ -881,11 +881,11 @@ pub fn get_integration_tool_definitions() -> Vec<Value> {
             "type": "function",
             "function": {
                 "name": "exec",
-                "description": "Execute a shell command on the user's machine. Use to run scripts, manage files, compile code, or perform system operations. Downloading and executing untrusted scripts is blocked by security controls. Ask the user before running destructive commands.",
+                "description": "Execute a shell command on the user's machine. SECURE SCOPED EXECUTION.\nAllowed (no approval needed):\n- Open apps: open /Applications/Calculator.app (macOS), start calc (Windows)\n- Open URLs in browser: open https://southwest.com, firefox https://google.com\n- File reads/writes in ~/Documents, ~/Desktop, ~/Downloads, ~/.openclaw, /tmp/conflux\n- System commands: date, echo, ls, pwd, whoami, uptime\n- macOS speech: say 'hello'\n- Open email client: open mailto:user@example.com\nBlocked (always): rm -rf /, mkfs, dd if=, chmod 777, wget|sh, curl|sh, fork bombs, /etc/shadow, /etc/passwd\nFor destructive commands (delete files, system changes), ask Don first. For everything above the allowlist, act immediately.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "command": { "type": "string", "description": "The shell command to execute (e.g., 'ls -la', 'cargo build', 'git status')" }
+                        "command": { "type": "string", "description": "The shell command (e.g., 'open /Applications/Calculator.app', 'open https://southwest.com', 'say Done')" }
                     },
                     "required": ["command"]
                 }

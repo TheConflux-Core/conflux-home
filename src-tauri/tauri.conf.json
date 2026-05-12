@@ -62,7 +62,8 @@
     "createUpdaterArtifacts": false,
     "resources": [
       "binaries",
-      "scripts"
+      "scripts",
+      "conflux_knowledge.md"
     ],
     "targets": [
       "deb",
