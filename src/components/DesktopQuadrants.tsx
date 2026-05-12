@@ -289,7 +289,7 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
 
       <div className="intel-body">
         {/* System Overview — PulseKnob hero + flanking ring gauges */}
-        <div className="intel-section">
+        <div className="intel-section intel-section-fixed">
           <div className="intel-section-title">SYSTEM OVERVIEW</div>
           <div className="intel-overview-row">
             <div className="intel-overview-gauge">
