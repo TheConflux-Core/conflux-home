@@ -321,7 +321,7 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
                 <span>Waiting for agent activity...</span>
               </div>
             ) : (
-              events.slice(0, 6).map((event) => {
+              events.map((event) => {
                 const agent = AGENTS.find(a => a.id === event.agentId);
                 const ago = timeAgoMs(event.timestamp);
                 return (

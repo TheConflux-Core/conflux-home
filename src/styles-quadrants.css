@@ -147,6 +147,11 @@
   flex-direction: column;
 }
 
+/* HEARTBEAT section specifically — scrolls vertically */
+.intel-section-grow {
+  overflow-y: auto;
+}
+
 .intel-section-title {
   font-size: 11px;
   text-transform: uppercase;
@@ -168,8 +173,9 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-height: 180px;
   overflow-y: auto;
+  flex: 1;
+  min-height: 0;
   scrollbar-width: thin;
   scrollbar-color: rgba(139, 92, 246, 0.3) transparent;
 }

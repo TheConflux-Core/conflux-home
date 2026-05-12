@@ -43,6 +43,12 @@ function timeAgoMs(ts: number): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+// ── Per-voice volume adjustments (multiplier applied to Web Audio gain) ──
+// These are tuned to normalize loudness differences between ElevenLabs voices.
+const VOICE_GAIN: Record<string, number> = {
+  pulse: 0.5,   // ~-6dB — much quieter than other voices
+};
+
 // ── Web Audio playback (module-level so refs persist across calls) ──
 let _audioCtx: AudioContext | null = null;
 let _activeSource: AudioBufferSourceNode | null = null;
@@ -75,7 +81,11 @@ async function speakText(text: string, voiceId: string): Promise<void> {
   const buffer = await ctx.decodeAudioData(bytes.buffer);
   const source = ctx.createBufferSource();
   source.buffer = buffer;
-  source.connect(ctx.destination);
+  const gain = VOICE_GAIN[voiceId] ?? 1.0;
+  const gainNode = ctx.createGain();
+  gainNode.gain.value = gain;
+  source.connect(gainNode);
+  gainNode.connect(ctx.destination);
   _activeSource = source;
   source.onended = () => { _activeSource = null; };
   source.start(0);
