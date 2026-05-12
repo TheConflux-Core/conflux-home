@@ -46,10 +46,10 @@ export default function BeatNarrator({ event, onClose }: BeatNarratorProps) {
   const agentColor = agent?.color ?? '#8b5cf6';
   const voiceId = AGENT_VOICE_IDS[event.agentId] ?? AGENT_VOICE_IDS.conflux;
 
-  // Build the spoken summary
-  const summaryText = agent
-    ? `${agent.label}: ${event.action}. ${event.detail ?? ''}`
-    : `${event.action}. ${event.detail ?? ''}`;
+  // Build the spoken summary — strip the agent label prefix so the voice owns the narration
+  const summaryText = event.detail
+    ? `${event.action} — ${event.detail}`
+    : event.action;
 
   // Auto-TTS on mount
   useEffect(() => {
