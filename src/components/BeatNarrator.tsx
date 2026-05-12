@@ -43,62 +43,41 @@ function timeAgoMs(ts: number): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-// ── Web Audio playback ─────────────────────────────────────────────────────
-function useAudioPlayer() {
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
+// ── Web Audio playback (module-level so refs persist across calls) ──
+let _audioCtx: AudioContext | null = null;
+let _activeSource: AudioBufferSourceNode | null = null;
 
-  const getCtx = useCallback(() => {
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-    }
-    const ctx = audioContextRef.current;
-    if (ctx.state === 'suspended') ctx.resume();
-    return ctx;
-  }, []);
-
-  const stop = useCallback(() => {
-    try { activeSourceRef.current?.stop(); } catch (_) { /* already stopped */ }
-    activeSourceRef.current = null;
-  }, []);
-
-  const playBase64 = useCallback((base64: string): Promise<void> => {
-    stop();
-    return new Promise((resolve, reject) => {
-      const ctx = getCtx();
-      const binaryString = atob(base64);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
-      ctx.decodeAudioData(bytes.buffer).then((buffer) => {
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        source.connect(ctx.destination);
-        activeSourceRef.current = source;
-        source.onended = () => { activeSourceRef.current = null; resolve(); };
-        source.start(0);
-      }).catch(reject);
-    });
-  }, [getCtx, stop]);
-
-  return { playBase64, stop };
+function getAudioCtx(): AudioContext {
+  if (!_audioCtx) {
+    _audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  }
+  const ctx = _audioCtx;
+  if (ctx.state === 'suspended') ctx.resume();
+  return ctx;
 }
 
-// ── TTS via ElevenLabs (tts_speak command) ───────────────────────────────
+function stopAudio() {
+  try { _activeSource?.stop(); } catch (_) { /* already stopped */ }
+  _activeSource = null;
+}
+
+// ── TTS via ElevenLabs (tts_speak command) ─────────────────────────────────────
 async function speakText(text: string, voiceId: string): Promise<void> {
+  stopAudio();
   const result = await invoke<{ audio_base64: string }>('tts_speak', {
     text,
     voice: voiceId,
   });
-  // Play via Web Audio API
-  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-  if (audioContext.state === 'suspended') await audioContext.resume();
+  const ctx = getAudioCtx();
   const binaryString = atob(result.audio_base64);
   const bytes = new Uint8Array(binaryString.length);
   for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
-  const buffer = await audioContext.decodeAudioData(bytes.buffer);
-  const source = audioContext.createBufferSource();
+  const buffer = await ctx.decodeAudioData(bytes.buffer);
+  const source = ctx.createBufferSource();
   source.buffer = buffer;
-  source.connect(audioContext.destination);
+  source.connect(ctx.destination);
+  _activeSource = source;
+  source.onended = () => { _activeSource = null; };
   source.start(0);
   await new Promise(resolve => { source.onended = resolve; });
 }
