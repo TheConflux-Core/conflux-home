@@ -18,9 +18,9 @@ const AGENT_VOICE_IDS: Record<string, string> = {
   echo:    'EST9Ui6982FZPSi7gCHi',
   aegis:   'WtA85syCrJwasGeHGH2p',
   viper:   'Mtmp3KhFIjYpWYRycDe3',
-  forge:   'USEXQnsXRJlw2k9LUzG4',   // borrow helix's (no dedicated)
-  orbit:   'USEXQnsXRJlw2k9LUzG4',
-  horizon: 'USEXQnsXRJlw2k9LUzG4',
+  forge:   'WLKp2jV6nrS8aMkPPDRO',
+  orbit:   'QzTKubutNn9TjrB7Xb2Q',
+  horizon: 'USEXQnsXRJlw2k9LUzG4',   // no dedicated voice — borrow helix's
   quanta:  'TvxTBL9RtGW6tVhl4NoI',
   prism:   'TvxTBL9RtGW6tVhl4NoI',
   vector:  'TvxTBL9RtGW6tVhl4NoI',
