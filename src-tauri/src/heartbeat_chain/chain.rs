@@ -104,10 +104,9 @@ fn build_action_detail(action: &str) -> String {
     }
 }
 
-/// Emit a beat event via Tauri IPC → App.tsx forwarder → beatBus.
-/// app_handle.emit() fires a Tauri IPC event; App.tsx listen('conflux:beat-event')
-/// re-dispatches as window.dispatchEvent(new CustomEvent('conflux:beat-event'))
-/// which beatBus.ts picks up via window.addEventListener.
+/// Emit a beat event via Tauri IPC.
+/// heartbeatGlobal.ts listens directly to Tauri for 'conflux:beat-event',
+/// normalizes snake_case → camelCase, then emits to beatBus.
 fn emit_beat(app_handle: &tauri::AppHandle, beat: &BeatEventJson) {
     if let Err(e) = app_handle.emit("conflux:beat-event", beat) {
         log::warn!("[HeartbeatChain] Failed to emit beat: {}", e);
