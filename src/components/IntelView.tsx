@@ -365,10 +365,7 @@ export default function IntelView() {
     return () => window.removeEventListener('conflux:agents-selected', handler);
   }, []);
 
-  // Demo beats — fire realistic agent activity into the timeline so Intel is never empty
-  useEffect(() => {
-    startDemoBeats();
-  }, []);
+  // Demo beats disabled — real chain events flow through beatBus from heartbeatGlobal.ts
 
   // Real heartbeats from Rust also flow in via the beatBus (heartbeatGlobal.ts emits on each tick).
 
