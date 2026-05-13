@@ -382,31 +382,14 @@ jobs:
             mv "$BUNDLE_DIR/Conflux Home.app.tar.gz.sig" "$BUNDLE_DIR/Conflux.Home_x64.app.tar.gz.sig"
           fi
 
-      - name: Rename DMG (remove version from filename)
-        run: |
-          shopt -s nullglob
-          DMG_DIR="src-tauri/target/x86_64-apple-darwin/release/bundle/dmg"
-          for f in "$DMG_DIR"/*.dmg; do
-            mv "$f" "$DMG_DIR/Conflux.Home_x64.dmg"
-          done
-
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           overwrite_files: true
           files: |
-            src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
             src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app.tar.gz
             src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
-
-      - name: Upload to R2
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-        run: |
-          DMG_DIR="src-tauri/target/x86_64-apple-darwin/release/bundle/dmg"
-          aws s3 cp "$DMG_DIR/Conflux.Home_x64.dmg" s3://${{ secrets.R2_BUCKET }}/Conflux.Home_x64.dmg --endpoint-url ${{ secrets.R2_ENDPOINT }}
 
   build-macos-arm64:
     runs-on: macos-latest
@@ -500,31 +483,14 @@ jobs:
             mv "$BUNDLE_DIR/Conflux Home.app.tar.gz.sig" "$BUNDLE_DIR/Conflux.Home_aarch64.app.tar.gz.sig"
           fi
 
-      - name: Rename DMG (remove version from filename)
-        run: |
-          shopt -s nullglob
-          DMG_DIR="src-tauri/target/aarch64-apple-darwin/release/bundle/dmg"
-          for f in "$DMG_DIR"/*.dmg; do
-            mv "$f" "$DMG_DIR/Conflux.Home_aarch64.dmg"
-          done
-
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           overwrite_files: true
           files: |
-            src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
             src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz
             src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
-
-      - name: Upload to R2
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-        run: |
-          DMG_DIR="src-tauri/target/aarch64-apple-darwin/release/bundle/dmg"
-          aws s3 cp "$DMG_DIR/Conflux.Home_aarch64.dmg" s3://${{ secrets.R2_BUCKET }}/Conflux.Home_aarch64.dmg --endpoint-url ${{ secrets.R2_ENDPOINT }}
 
 
   # ── Generate updates.json (all platforms) ──
