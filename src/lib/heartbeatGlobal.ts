@@ -41,6 +41,7 @@ async function registerTauriListener() {
   // Normalize snake_case (Rust) → camelCase (beatBus) and route to beatBus.
   listen<any>('conflux:beat-event', (event) => {
     const raw = event.payload;
+    console.log('[HeartbeatGlobal] conflux:beat-event:', JSON.stringify(raw));
     const agentId = raw.agent_id ?? raw.agentId ?? 'conflux';
     const meta = CHAIN_AGENTS[agentId] ?? { label: agentId, emoji: '⚡' };
     emitBeat({
