@@ -3,7 +3,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import { playToggleOn, playToggleOff } from '../../lib/sound';
 import { AGENTS } from '../../lib/beatBus';
 
@@ -57,26 +56,21 @@ export default function HeartbeatChainSettings() {
   const [testing, setTesting] = useState(false);
   const [testFeedback, setTestFeedback] = useState<string>('');
 
-  // Load chain state
+  // Poll chain state from Rust (broken listen pattern removed)
   useEffect(() => {
     const load = async () => {
       try {
         const state = await invoke<ChainState>('heartbeat_chain_get_state');
         setChainState(state);
-        // Load enabled agents from config (stored in the state)
-        if (state.agents) {
+        // Load agent list from Rust state
+        if (state.agents && Array.isArray(state.agents)) {
           setActiveAgents(state.agents);
         }
       } catch (_e) {}
     };
     load();
-
-    // Listen for chain state changes
-    const unlisten = listen<ChainState>('conflux:chain-state-updated', (event) => {
-      setChainState(event.payload);
-    });
-
-    return () => { unlisten.then(fn => fn()); };
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   // Toggle agent in chain
