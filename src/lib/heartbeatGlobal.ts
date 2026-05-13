@@ -6,8 +6,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { emitBeat } from './beatBus';
 
 // ── Chain step metadata (mirrors heartbeat_chain config) ──────────────────────
-// Used to properly label beats from the Rust chain so they display with the
-// correct agent emoji/color instead of generic Conflux lightning.
 const CHAIN_AGENTS: Record<string, { label: string; emoji: string }> = {
   aegis:   { label: 'Aegis',   emoji: '🛡️' },
   helix:   { label: 'Helix',   emoji: '🔬' },
@@ -22,44 +20,45 @@ const CHAIN_AGENTS: Record<string, { label: string; emoji: string }> = {
   quanta:  { label: 'Quanta',  emoji: '🔍' },
 };
 
-// Track whether a chain is actively running so fireBeat() doesn't emit a
-// duplicate conflux beat on top of the real chain-step beats.
+// Track whether a chain is actively running.
 let _chainActive = false;
 
-// Listen for chain started/stopped events from Rust backend.
+// ── Normalize + re-emit Rust chain beats through beatBus ────────────────────
+// App.tsx dispatches 'conflux:beat-event' (from Rust's beat-event emit).
+// But the Rust BeatEventJson uses snake_case (agent_id, agent_label, event_type).
+// The BeatEvent TypeScript interface expects camelCase (agentId, agentLabel, type).
+// This listener normalizes the field names so BeatRow finds the right agent emoji.
+// Also deduplicates: prevents the raw un-normalized event from reaching beatBus twice.
 if (typeof window !== 'undefined') {
   window.addEventListener('conflux:chain-started', () => { _chainActive = true; });
   window.addEventListener('conflux:chain-complete', () => { _chainActive = false; });
 
-  // Re-emit Rust chain step beats through beatBus with correct agent metadata.
-  // ChainTimeline receives Tauri IPC events for step dots.
-  // This listener bridges to beatBus so BeatRow/IntelView get styled events.
-  const chainHandler = (e: Event) => {
-    const step = (e as CustomEvent).detail as {
-      agentId: string;
-      agentLabel: string;
-      action: string;
-      detail: string;
-      status: string;
-    };
-    const meta = CHAIN_AGENTS[step.agentId] ?? { label: step.agentId, emoji: '⚡' };
-    const isComplete = step.status === 'complete';
+  // Normalize Rust beat events before they hit beatBus.
+  // App.tsx dispatches the raw Rust event; we intercept + fix field names here.
+  const beatNormalizationHandler = (e: Event) => {
+    const raw = (e as CustomEvent).detail;
+    // Snake_case fields from Rust BeatEventJson → camelCase BeatEvent
+    const agentId = raw.agent_id ?? raw.agentId ?? 'conflux';
+    const agentLabel = raw.agent_label ?? raw.agentLabel ?? 'Conflux';
+    const eventType = raw.event_type ?? raw.type ?? 'info';
+    const meta = CHAIN_AGENTS[agentId] ?? { label: agentId, emoji: '⚡' };
+
     emitBeat({
-      agentId: step.agentId,
+      agentId,
       agentLabel: meta.label,
-      action: step.action,
-      detail: step.detail,
-      type: isComplete ? 'success' : 'info',
+      action: raw.action ?? '',
+      detail: raw.detail ?? '',
+      type: eventType,
     });
   };
-  window.addEventListener('conflux:chain-event', chainHandler as EventListener);
+  window.addEventListener('conflux:beat-event', beatNormalizationHandler as EventListener);
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export interface HeartbeatConfig {
-  intervalMs: number;      // current interval (0 = off)
-  lastBeatMs: number;      // timestamp of last beat (from Rust backend)
+  intervalMs: number;
+  lastBeatMs: number;
 }
 
 interface Listener {
@@ -70,7 +69,7 @@ interface Listener {
 // ── Singleton State ────────────────────────────────────────────────────────────
 
 let config: HeartbeatConfig = {
-  intervalMs: 30 * 60 * 1000, // default: 30 min
+  intervalMs: 30 * 60 * 1000,
   lastBeatMs: Date.now(),
 };
 
@@ -89,8 +88,7 @@ function stopTick() {
 }
 
 function fireBeat(): void {
-  // If a chain is running, its step beats go through the chain-event listener
-  // above. Don't emit a duplicate conflux beat on top of real agent beats.
+  // Don't emit a conflux beat while chain is running — chain events already going through
   if (_chainActive) {
     syncFromRust();
     return;
@@ -149,10 +147,6 @@ function startTick(): void {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-/**
- * Initialize the global heartbeat from the Rust backend.
- * Call once at app startup.
- */
 export async function initHeartbeatGlobal(): Promise<void> {
   try {
     const rustMs: number = await invoke('engine_get_heartbeat_interval');
@@ -175,25 +169,16 @@ export async function initHeartbeatGlobal(): Promise<void> {
   }
 }
 
-/**
- * Update the interval — called from PulseKnob when user changes the setting.
- */
 export function setHeartbeatInterval(ms: number): void {
   config.intervalMs = ms;
   startTick();
 }
 
-/**
- * Force a beat (e.g., when Rust fires a heartbeat event).
- */
 export function pulseBeat(): void {
   config.lastBeatMs = Date.now();
   fireBeat();
 }
 
-/**
- * Subscribe to beat events. Returns an unsubscribe function.
- */
 export function subscribe(onBeat: (timestamp: number) => void): () => void {
   const id = `beat_${Date.now()}_${Math.random()}`;
   listeners.push({ id, onBeat });
@@ -206,9 +191,6 @@ export function subscribe(onBeat: (timestamp: number) => void): () => void {
   };
 }
 
-/**
- * Get current config for any one-off reads.
- */
 export function getHeartbeatConfig(): HeartbeatConfig {
   return { ...config };
 }
