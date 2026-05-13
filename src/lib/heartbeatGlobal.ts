@@ -4,6 +4,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { emitBeat } from './beatBus';
+import { listen } from '@tauri-apps/api/event';
 
 // ── Chain step metadata (mirrors heartbeat_chain config) ──────────────────────
 const CHAIN_AGENTS: Record<string, { label: string; emoji: string }> = {
@@ -20,38 +21,40 @@ const CHAIN_AGENTS: Record<string, { label: string; emoji: string }> = {
   quanta:  { label: 'Quanta',  emoji: '🔍' },
 };
 
-// Track whether a chain is actively running.
+// Track whether a chain is actively running so fireBeat() doesn't duplicate.
 let _chainActive = false;
 
-// ── Normalize + re-emit Rust chain beats through beatBus ────────────────────
-// App.tsx dispatches 'conflux:beat-event' (from Rust's beat-event emit).
-// But the Rust BeatEventJson uses snake_case (agent_id, agent_label, event_type).
-// The BeatEvent TypeScript interface expects camelCase (agentId, agentLabel, type).
-// This listener normalizes the field names so BeatRow finds the right agent emoji.
-// Also deduplicates: prevents the raw un-normalized event from reaching beatBus twice.
-if (typeof window !== 'undefined') {
-  window.addEventListener('conflux:chain-started', () => { _chainActive = true; });
-  window.addEventListener('conflux:chain-complete', () => { _chainActive = false; });
+// ── Normalize + route Rust beat events through beatBus ───────────────────────
+// heartbeatGlobal registers its Tauri listener at MODULE LOAD time (before
+// any React component mounts). This ensures the normalization handler is
+// always ready before the first event can fire.
+//
+// App.tsx must NOT dispatch conflux:beat-event to beatBus — heartbeatGlobal
+// handles the full flow: Tauri event → normalize → emitBeat → beatBus.
+let _tauriListenerRegistered = false;
 
-  // Normalize Rust beat events before they hit beatBus.
-  // App.tsx dispatches the raw Rust event; we intercept + fix field names here.
-  const beatNormalizationHandler = (e: Event) => {
-    const raw = (e as CustomEvent).detail;
-    // Snake_case fields from Rust BeatEventJson → camelCase BeatEvent
+async function registerTauriListener() {
+  if (_tauriListenerRegistered) return;
+  _tauriListenerRegistered = true;
+
+  // Listen for real chain step beats from Rust.
+  // Normalize snake_case (Rust) → camelCase (beatBus) and route to beatBus.
+  listen<any>('conflux:beat-event', (event) => {
+    const raw = event.payload;
     const agentId = raw.agent_id ?? raw.agentId ?? 'conflux';
-    const agentLabel = raw.agent_label ?? raw.agentLabel ?? 'Conflux';
-    const eventType = raw.event_type ?? raw.type ?? 'info';
     const meta = CHAIN_AGENTS[agentId] ?? { label: agentId, emoji: '⚡' };
-
     emitBeat({
       agentId,
       agentLabel: meta.label,
       action: raw.action ?? '',
       detail: raw.detail ?? '',
-      type: eventType,
+      type: (raw.event_type ?? raw.type ?? 'info') as 'info' | 'success' | 'warn',
     });
-  };
-  window.addEventListener('conflux:beat-event', beatNormalizationHandler as EventListener);
+  }).catch(e => console.warn('[HeartbeatGlobal] Tauri listener error:', e));
+
+  // Track chain active state for fireBeat() deduplication
+  listen('conflux:chain-started', () => { _chainActive = true; }).catch(() => {});
+  listen('conflux:chain-complete', () => { _chainActive = false; }).catch(() => {});
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -88,7 +91,7 @@ function stopTick() {
 }
 
 function fireBeat(): void {
-  // Don't emit a conflux beat while chain is running — chain events already going through
+  // Don't emit conflux heartbeat beat while chain is running — chain steps go through beatBus
   if (_chainActive) {
     syncFromRust();
     return;
@@ -148,6 +151,10 @@ function startTick(): void {
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export async function initHeartbeatGlobal(): Promise<void> {
+  // Register Tauri listener at module load — before any component mounts.
+  // This ensures the beat-normalization handler is ready before first event.
+  await registerTauriListener();
+
   try {
     const rustMs: number = await invoke('engine_get_heartbeat_interval');
     rustIntervalMs = rustMs;
