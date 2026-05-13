@@ -16,8 +16,9 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  # Explicitly set Rust toolchain so the pinned toolchain (not system Rust 1.97) is used
-  RUSTUP_TOOLCHAIN: 1.85.0
+  # Use Rust 1.88.0 — required by darling@0.23, serde_with@3.18, time@0.3.47
+  # and cargo-ndk 4.x. This is the minimum version that satisfies all deps.
+  RUSTUP_TOOLCHAIN: 1.88.0
   RUSTUP_HOME: ~/.cargo/rustup
   CARGO_HOME: ~/.cargo
   # Always use the version tag (v0.1.93) for release uploads/downloads — NOT github.ref_name
@@ -71,7 +72,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.85.0
+          toolchain: 1.88.0
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -192,13 +193,8 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.85.0
+          toolchain: 1.88.0
           targets: x86_64-pc-windows-msvc
-
-      - name: Verify cargo is the correct version
-        run: |
-          rustup default 1.85.0
-          cargo --version
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -336,14 +332,8 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.85.0
+          toolchain: 1.88.0
           targets: ${{ matrix.target }}
-
-      - name: Verify cargo is the correct version
-        run: |
-          rustup default 1.85.0
-          cargo --version
-          cargo metadata --help | head -3
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -538,7 +528,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.85.0
+          toolchain: 1.88.0
           targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
 
       - name: Rust cache
