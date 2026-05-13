@@ -54,20 +54,32 @@ pub fn heartbeat_chain_trigger_test() {
 
 #[tauri::command]
 pub fn heartbeat_chain_update_config(config_json: String) -> Result<(), String> {
-    let config: HeartbeatChainConfig = serde_json::from_str(&config_json)
+    #[derive(serde::Deserialize)]
+    struct FrontendConfig {
+        enabled: Option<bool>,
+        agents: Option<Vec<String>>,
+    }
+    let frontend: FrontendConfig = serde_json::from_str(&config_json)
         .map_err(|e| format!("Invalid config JSON: {}", e))?;
+    let mut config = config::load_config();
+    if let Some(enabled) = frontend.enabled {
+        config.config.enabled = enabled;
+    }
+    if let Some(agents) = frontend.agents {
+        // Filter chain to only the agents the user enabled; preserve original delays/voice_ids
+        config.chain = config
+            .chain
+            .into_iter()
+            .filter(|step| agents.contains(&step.agent))
+            .collect();
+    }
     save_config(&config)?;
-    log::info!("[HeartbeatChain] Config updated");
+    log::info!(
+        "[HeartbeatChain] Config updated (enabled={}, agents={:?})",
+        config.config.enabled,
+        config.chain.iter().map(|s| &s.agent).collect::<Vec<_>>()
+    );
     Ok(())
 }
 
-// Extension trait to expose app_handle from ConfluxEngine
-pub trait EngineAppHandle {
-    fn app_handle(&self) -> Option<tauri::AppHandle>;
-}
 
-impl EngineAppHandle for crate::engine::ConfluxEngine {
-    fn app_handle(&self) -> Option<tauri::AppHandle> {
-        crate::engine::ConfluxEngine::app_handle(self)
-    }
-}

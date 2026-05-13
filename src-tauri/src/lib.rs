@@ -4,6 +4,7 @@
 pub mod budget;
 mod commands;
 pub mod engine;
+pub mod heartbeat_chain;
 // pub mod kroger; // TEMPORARILY DISABLED — module source missing (kroger.rs not yet created)
 mod stripe;
 #[cfg(not(target_os = "android"))]
@@ -194,6 +195,8 @@ pub fn run() {
                                         let now_ms = chrono::Utc::now().timestamp_millis();
                                         let _ = engine_ref.db().set_config("heartbeat_last_beat_ms", &now_ms.to_string());
                                         let _ = app_handle.emit("conflux:heartbeat-beat", now_ms);
+                                        // Trigger the heartbeat cascade chain
+                                        heartbeat_chain::trigger_chain(app_handle.clone());
                                     }
                                     None => {
                                         log::warn!("[CronScheduler] Engine unavailable, skipping tick");
@@ -414,6 +417,11 @@ pub fn run() {
             commands::engine_set_heartbeat_interval,
             commands::engine_get_heartbeat_last_beat,
             commands::engine_set_heartbeat_last_beat,
+            heartbeat_chain::heartbeat_chain_start,
+            heartbeat_chain::heartbeat_chain_stop,
+            heartbeat_chain::heartbeat_chain_get_state,
+            heartbeat_chain::heartbeat_chain_trigger_test,
+            heartbeat_chain::heartbeat_chain_update_config,
             // Webhooks
             commands::engine_create_webhook,
             commands::engine_get_webhooks,
