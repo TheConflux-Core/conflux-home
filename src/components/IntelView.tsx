@@ -7,6 +7,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { ConfluxPresence } from './conflux';
 import { triggerFairyNudge } from '../lib/triggerFairyNudge';
 import { AGENTS, useBeatTimeline, useAgentActivity, emitBeat, startDemoBeats, type BeatEvent } from '../lib/beatBus';
+import ChainTimeline from './ChainTimeline';
 import './IntelView.css';
 
 interface AgentFromDB {
@@ -407,11 +408,14 @@ export default function IntelView() {
         </div>
       </div>
 
-      {/* NeuralBrain + Stats */}
+      {/* NeuralBrain + Stats + ChainTimeline */}
       <div className="intel-brain-section">
         <BrainPulseRing beatCount={beatPulse} />
         <StatsBar events={events} />
       </div>
+
+      {/* Chain Timeline */}
+      <ChainTimeline />
 
       {/* Agent status grid — THE FAMILY */}
       <div className="intel-section-label">THE FAMILY</div>

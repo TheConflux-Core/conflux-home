@@ -444,6 +444,11 @@ export default function App() {
         console.log('[App] skill-prompt event:', event.payload);
         setSkillPromptDraft(event.payload);
       }).catch(e => console.warn('[App] listen conflux:skill-prompt error:', e));
+
+      // Forward Rust heartbeat chain beats to the beatBus window event
+      listen<any>('conflux:beat-event', (event) => {
+        window.dispatchEvent(new CustomEvent('conflux:beat-event', { detail: event.payload }));
+      }).catch(e => console.warn('[App] listen conflux:beat-event error:', e));
     });
     return () => {
       window.removeEventListener('conflux:theme-change', onThemeChange);
