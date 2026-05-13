@@ -232,11 +232,7 @@ export default function App() {
     });
   }, []);
 
-  // Initialize global heartbeat singleton + demo beat feed (runs once, persists across all views)
-  useEffect(() => {
-    initHeartbeatGlobal();
-    startDemoBeats();
-  }, []);
+  // Initialize global heartbeat singleton (demo beats disabled — real chain events flow via heartbeatGlobal.ts)
 
   // Expose bar v2 toggle for console testing
   useEffect(() => {
