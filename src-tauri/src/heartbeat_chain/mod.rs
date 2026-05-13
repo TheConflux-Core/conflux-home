@@ -43,13 +43,23 @@ pub fn heartbeat_chain_get_state() -> CurrentChainState {
 #[tauri::command]
 pub fn heartbeat_chain_trigger_test() {
     // Fire the full chain immediately (for testing)
-    if let Some(engine_ref) = crate::engine::try_get_engine() {
-        if let Some(handle) = engine_ref.app_handle() {
-            let test_ms = chrono::Utc::now().timestamp_millis();
-            chain::start_chain_for_beat(handle, test_ms);
+    let engine_ref = match crate::engine::try_get_engine() {
+        Some(e) => e,
+        None => {
+            log::error!("[HeartbeatChain] Engine not initialized — cannot trigger test");
+            return;
         }
-    }
-    log::info!("[HeartbeatChain] Test chain triggered");
+    };
+    let handle = match engine_ref.app_handle() {
+        Some(h) => h,
+        None => {
+            log::error!("[HeartbeatChain] app_handle not set — engine init may have failed");
+            return;
+        }
+    };
+    let test_ms = chrono::Utc::now().timestamp_millis();
+    log::info!("[HeartbeatChain] Test chain firing at {}", test_ms);
+    chain::start_chain_for_beat(handle, test_ms);
 }
 
 #[tauri::command]
