@@ -83,6 +83,7 @@ export default function ChainTimeline() {
       const unlistenEvent = await listen<ChainEvent>('conflux:chain-event', (event) => {
         if (!active) return;
         const data = event.payload;
+        console.log('[ChainTimeline] conflux:chain-event received:', JSON.stringify(data));
         setLastEvent(data);
         // step from Rust is 0-indexed; convert to 1-indexed for display
         setChainState(prev => ({
