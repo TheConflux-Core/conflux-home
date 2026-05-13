@@ -16,6 +16,10 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # Explicitly set Rust toolchain so the pinned toolchain (not system Rust 1.97) is used
+  RUSTUP_TOOLCHAIN: 1.85.0
+  RUSTUP_HOME: ~/.cargo/rustup
+  CARGO_HOME: ~/.cargo
   # Always use the version tag (v0.1.93) for release uploads/downloads — NOT github.ref_name
   # github.ref_name is 'main' (branch) when triggered via workflow_dispatch, not the tag
   RELEASE_TAG: "v${{ github.event.inputs.version || github.ref_name }}"
@@ -191,6 +195,11 @@ jobs:
           toolchain: 1.85.0
           targets: x86_64-pc-windows-msvc
 
+      - name: Verify cargo is the correct version
+        run: |
+          rustup default 1.85.0
+          cargo --version
+
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
@@ -330,6 +339,12 @@ jobs:
           toolchain: 1.85.0
           targets: ${{ matrix.target }}
 
+      - name: Verify cargo is the correct version
+        run: |
+          rustup default 1.85.0
+          cargo --version
+          cargo metadata --help | head -3
+
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
@@ -375,7 +390,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: npx tauri build --target ${{ matrix.target }}
+        run: npx @tauri-apps/cli build --target ${{ matrix.target }}
 
       - name: Rename updater artifacts by arch
         run: |
