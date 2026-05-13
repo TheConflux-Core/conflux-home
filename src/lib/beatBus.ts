@@ -33,6 +33,15 @@ export type AgentId = typeof AGENTS[number]['id'];
 const BEAT_BUS = 'conflux:beat-event';
 let _beatCounter = 0;
 
+// Module-level event store — persists across component unmounts/remounts
+// so navigating between apps doesn't wipe the timeline.
+let _beatStore: BeatEvent[] = [];
+const _beatListeners = new Set<(beat: BeatEvent) => void>();
+
+function _notifyListeners(beat: BeatEvent) {
+  _beatListeners.forEach(fn => fn(beat));
+}
+
 export function emitBeat(event: Omit<BeatEvent, 'id' | 'timestamp'>) {
   const full: BeatEvent = {
     ...event,
@@ -40,6 +49,11 @@ export function emitBeat(event: Omit<BeatEvent, 'id' | 'timestamp'>) {
     timestamp: Date.now(),
   };
   console.log('[beatBus] emitBeat:', JSON.stringify(full));
+  // Add to persistent store
+  _beatStore = [full, ..._beatStore].slice(0, MAX_EVENTS);
+  // Notify all listeners (useBeatTimeline hooks)
+  _notifyListeners(full);
+  // Also dispatch the window event for components that use it directly
   window.dispatchEvent(new CustomEvent(BEAT_BUS, { detail: full }));
 }
 
@@ -47,16 +61,24 @@ export function emitBeat(event: Omit<BeatEvent, 'id' | 'timestamp'>) {
 const MAX_EVENTS = 20;
 
 export function useBeatTimeline() {
-  const [events, setEvents] = useState<BeatEvent[]>([]);
+  const [events, setEvents] = useState<BeatEvent[]>(_beatStore);
   const prevIdRef = useRef<string | null>(null);
 
   useEffect(() => {
+    // Sync with current store state on mount
+    if (_beatStore.length > 0 && prevIdRef.current === null) {
+      setEvents(_beatStore);
+    }
+
     const handler = (e: Event) => {
       const beat = (e as CustomEvent<BeatEvent>).detail;
       console.log('[beatBus] useBeatTimeline received:', JSON.stringify(beat));
       if (beat.id === prevIdRef.current) return;
       prevIdRef.current = beat.id;
-      setEvents(prev => [beat, ...prev].slice(0, MAX_EVENTS));
+      setEvents(prev => {
+        const next = [beat, ...prev].slice(0, MAX_EVENTS);
+        return next;
+      });
     };
     window.addEventListener(BEAT_BUS, handler as EventListener);
     return () => window.removeEventListener(BEAT_BUS, handler as EventListener);
