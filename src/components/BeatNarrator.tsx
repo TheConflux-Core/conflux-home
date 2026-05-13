@@ -102,10 +102,44 @@ export default function BeatNarrator({ event, onClose }: BeatNarratorProps) {
   const agentColor = agent?.color ?? '#8b5cf6';
   const voiceId = AGENT_VOICE_IDS[event.agentId] ?? AGENT_VOICE_IDS.conflux;
 
+  // Detect chain summary mode
+  const isChainSummary = event.agentId === 'conflux' && (
+    event.action === 'chain_summary' ||
+    event.action === 'check-in complete' ||
+    (event.action ?? '').toLowerCase().includes('chain')
+  );
+
   // Build the spoken summary — first person, the agent's own voice
   const summaryText = event.detail
     ? `${event.action} — ${event.detail}`
     : event.action;
+
+  // Chain steps for the chain summary variant
+  const CHAIN_STEPS_DISPLAY = [
+    { agent: 'Conflux', emoji: '🤖', label: 'State reconciliation' },
+    { agent: 'Aegis',   emoji: '🛡️', label: 'Security scan' },
+    { agent: 'Helix',   emoji: '🔬', label: 'Market intel' },
+    { agent: 'Pulse',   emoji: '💚', label: 'Financial pulse' },
+    { agent: 'Viper',   emoji: '🐍', label: 'Vulnerability scan' },
+    { agent: 'Horizon', emoji: '🎯', label: 'Dream progress' },
+    { agent: 'Orbit',   emoji: '🧠', label: 'Task review' },
+    { agent: 'Hearth',  emoji: '🔥', label: 'Kitchen check' },
+    { agent: 'Echo',    emoji: '🫂', label: 'Wellness check' },
+    { agent: 'Conflux', emoji: '🤖', label: 'Chain summary' },
+  ];
+
+  // Map recent events to chain steps for display
+  const getChainStepResult = (stepIndex: number) => {
+    const step = CHAIN_STEPS_DISPLAY[stepIndex];
+    const matchingEvent = allEvents.find(e => {
+      const agentName = e.agentLabel.toLowerCase();
+      return agentName === step.agent.toLowerCase() || e.agentId === step.agent.toLowerCase();
+    });
+    if (matchingEvent) {
+      return { status: 'complete', detail: matchingEvent.detail ?? matchingEvent.action };
+    }
+    return { status: stepIndex < 9 ? 'pending' : 'complete', detail: null };
+  };
 
   // Auto-TTS on mount
   useEffect(() => {
@@ -198,36 +232,83 @@ export default function BeatNarrator({ event, onClose }: BeatNarratorProps) {
           </div>
         </div>
 
-        {/* Hero: main action */}
-        <div className="beat-narrator-hero">
-          <div className="beat-narrator-action">{event.action}</div>
-          {event.detail && (
-            <div className="beat-narrator-detail">{event.detail}</div>
-          )}
-          <div className="beat-narrator-time">{timeAgoMs(event.timestamp)}</div>
-        </div>
+        {/* Chain summary mode — show all 10 agent results */}
+        {isChainSummary ? (
+          <div className="beat-narrator-chain-summary">
+            <div className="beat-narrator-chain-title">Morning Check-in Complete</div>
+            <div className="beat-narrator-chain-steps">
+              {CHAIN_STEPS_DISPLAY.map((step, i) => {
+                const result = getChainStepResult(i);
+                return (
+                  <div key={i} className={`chain-step-row chain-step-${result.status}`}>
+                    <span className="chain-step-emoji">{step.emoji}</span>
+                    <span className="chain-step-name">{step.agent}</span>
+                    <span className="chain-step-action">{step.label}</span>
+                    {result.status === 'complete' && result.detail && (
+                      <span className="chain-step-detail">· {result.detail}</span>
+                    )}
+                    {result.status === 'complete' && (
+                      <span className="chain-step-check">✓</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          /* Hero: main action */
+          <div className="beat-narrator-hero">
+            <div className="beat-narrator-action">{event.action}</div>
+            {event.detail && (
+              <div className="beat-narrator-detail">{event.detail}</div>
+            )}
+            <div className="beat-narrator-time">{timeAgoMs(event.timestamp)}</div>
+          </div>
+        )}
 
         {/* TTS button */}
         <div className="beat-narrator-controls">
-          <button
-            className={`beat-narrator-btn beat-narrator-btn-primary ${speaking ? 'speaking' : ''}`}
-            onClick={handleFullBriefing}
-            disabled={speaking}
-            style={{ '--agent-color': agentColor } as React.CSSProperties}
-          >
-            {speaking ? (
-              <>
-                <span className="beat-speaking-dots">
-                  <span style={{ background: agentColor }} />
-                  <span style={{ background: agentColor }} />
-                  <span style={{ background: agentColor }} />
-                </span>
-                Narrating...
-              </>
-            ) : (
-              <>🔊 Hear full briefing</>
-            )}
-          </button>
+          {isChainSummary ? (
+            <button
+              className={`beat-narrator-btn beat-narrator-btn-primary ${speaking ? 'speaking' : ''}`}
+              onClick={handleFullBriefing}
+              disabled={speaking}
+              style={{ '--agent-color': agentColor } as React.CSSProperties}
+            >
+              {speaking ? (
+                <>
+                  <span className="beat-speaking-dots">
+                    <span style={{ background: agentColor }} />
+                    <span style={{ background: agentColor }} />
+                    <span style={{ background: agentColor }} />
+                  </span>
+                  Narrating full briefing...
+                </>
+              ) : (
+                <>🔊 Hear all summaries</>
+              )}
+            </button>
+          ) : (
+            <button
+              className={`beat-narrator-btn beat-narrator-btn-primary ${speaking ? 'speaking' : ''}`}
+              onClick={handleFullBriefing}
+              disabled={speaking}
+              style={{ '--agent-color': agentColor } as React.CSSProperties}
+            >
+              {speaking ? (
+                <>
+                  <span className="beat-speaking-dots">
+                    <span style={{ background: agentColor }} />
+                    <span style={{ background: agentColor }} />
+                    <span style={{ background: agentColor }} />
+                  </span>
+                  Narrating...
+                </>
+              ) : (
+                <>🔊 Hear full briefing</>
+              )}
+            </button>
+          )}
         </div>
 
         {/* Recent beats history */}

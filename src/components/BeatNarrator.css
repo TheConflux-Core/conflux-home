@@ -294,3 +294,92 @@
   font-family: 'Inter', -apple-system, sans-serif;
   flex-shrink: 0;
 }
+
+/* ── Chain summary mode ── */
+.beat-narrator-chain-summary {
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.beat-narrator-chain-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: rgba(139, 92, 246, 0.95);
+  font-family: 'Inter', -apple-system, sans-serif;
+  text-align: center;
+  margin-bottom: 14px;
+  letter-spacing: 0.01em;
+}
+
+.beat-narrator-chain-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 280px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 92, 246, 0.3) transparent;
+}
+
+.chain-step-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.2s;
+}
+
+.chain-step-complete {
+  background: rgba(52, 211, 153, 0.06);
+  border-color: rgba(52, 211, 153, 0.15);
+}
+
+.chain-step-pending {
+  opacity: 0.45;
+}
+
+.chain-step-emoji {
+  font-size: 14px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+.chain-step-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(220, 210, 255, 0.8);
+  font-family: 'Inter', -apple-system, sans-serif;
+  flex-shrink: 0;
+  min-width: 50px;
+}
+
+.chain-step-action {
+  font-size: 11px;
+  color: rgba(180, 160, 220, 0.6);
+  font-family: 'Inter', -apple-system, sans-serif;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chain-step-detail {
+  font-size: 10px;
+  color: rgba(52, 211, 153, 0.8);
+  font-family: 'Inter', -apple-system, sans-serif;
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+.chain-step-check {
+  font-size: 11px;
+  color: rgba(52, 211, 153, 0.9);
+  flex-shrink: 0;
+}

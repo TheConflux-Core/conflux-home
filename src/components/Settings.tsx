@@ -16,6 +16,7 @@ import BillingSection from './settings/BillingSection';
 import UsageSection from './settings/UsageSection';
 import SoundSection from './settings/SoundSection';
 import SecuritySettings from './settings/SecuritySettings';
+import HeartbeatChainSettings from './settings/HeartbeatChainSettings';
 import { useAuth } from '../hooks/useAuth';
 import { playToggleOn, playToggleOff } from '../lib/sound';
 import { useTourState } from '../hooks/useTourState';
@@ -427,6 +428,7 @@ export default function Settings() {
         </button>
       </div>
       <SecuritySettings />
+      <HeartbeatChainSettings />
       <div className="settings-section">
         <div className="settings-section-title">🔧 Engine</div>
       </div>
