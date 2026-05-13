@@ -5,6 +5,56 @@
 import { invoke } from '@tauri-apps/api/core';
 import { emitBeat } from './beatBus';
 
+// ── Chain step metadata (mirrors heartbeat_chain config) ──────────────────────
+// Used to properly label beats from the Rust chain so they display with the
+// correct agent emoji/color instead of generic Conflux lightning.
+const CHAIN_AGENTS: Record<string, { label: string; emoji: string }> = {
+  aegis:   { label: 'Aegis',   emoji: '🛡️' },
+  helix:   { label: 'Helix',   emoji: '🔬' },
+  pulse:   { label: 'Pulse',   emoji: '💚' },
+  viper:   { label: 'Viper',   emoji: '🐍' },
+  horizon: { label: 'Horizon', emoji: '🎯' },
+  orbit:   { label: 'Orbit',   emoji: '🧠' },
+  hearth:  { label: 'Hearth',  emoji: '🔥' },
+  echo:    { label: 'Echo',    emoji: '🫂' },
+  conflux: { label: 'Conflux', emoji: '🤖' },
+  forge:   { label: 'Forge',   emoji: '🔨' },
+  quanta:  { label: 'Quanta',  emoji: '🔍' },
+};
+
+// Track whether a chain is actively running so fireBeat() doesn't emit a
+// duplicate conflux beat on top of the real chain-step beats.
+let _chainActive = false;
+
+// Listen for chain started/stopped events from Rust backend.
+if (typeof window !== 'undefined') {
+  window.addEventListener('conflux:chain-started', () => { _chainActive = true; });
+  window.addEventListener('conflux:chain-complete', () => { _chainActive = false; });
+
+  // Re-emit Rust chain step beats through beatBus with correct agent metadata.
+  // ChainTimeline receives Tauri IPC events for step dots.
+  // This listener bridges to beatBus so BeatRow/IntelView get styled events.
+  const chainHandler = (e: Event) => {
+    const step = (e as CustomEvent).detail as {
+      agentId: string;
+      agentLabel: string;
+      action: string;
+      detail: string;
+      status: string;
+    };
+    const meta = CHAIN_AGENTS[step.agentId] ?? { label: step.agentId, emoji: '⚡' };
+    const isComplete = step.status === 'complete';
+    emitBeat({
+      agentId: step.agentId,
+      agentLabel: meta.label,
+      action: step.action,
+      detail: step.detail,
+      type: isComplete ? 'success' : 'info',
+    });
+  };
+  window.addEventListener('conflux:chain-event', chainHandler as EventListener);
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export interface HeartbeatConfig {
@@ -29,7 +79,7 @@ let tickInterval: ReturnType<typeof setInterval> | null = null;
 let rustIntervalMs: number | null = null;
 let beatCount = 0;
 
-// ── Helpers (declared before startTick so hoisting is unambiguous) ─────────────
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
 function stopTick() {
   if (tickInterval !== null) {
@@ -39,11 +89,16 @@ function stopTick() {
 }
 
 function fireBeat(): void {
+  // If a chain is running, its step beats go through the chain-event listener
+  // above. Don't emit a duplicate conflux beat on top of real agent beats.
+  if (_chainActive) {
+    syncFromRust();
+    return;
+  }
+
   beatCount++;
   config.lastBeatMs = Date.now();
   const ts = config.lastBeatMs;
-
-  // Emit to beatBus so IntelView's activity feed shows real heartbeats
   const intervalMin = Math.round(config.intervalMs / 60000);
   emitBeat({
     agentId: 'conflux',
@@ -82,7 +137,6 @@ function startTick(): void {
   stopTick();
   if (config.intervalMs === 0) return;
 
-  // Catch up: if overdue since last beat, fire immediately
   const elapsed = Date.now() - config.lastBeatMs;
   const remaining = config.intervalMs - elapsed;
 
@@ -90,7 +144,6 @@ function startTick(): void {
     fireBeat();
   }
 
-  // Schedule recurring tick from NOW (not from lastBeat)
   tickInterval = setInterval(fireBeat, config.intervalMs);
 }
 
@@ -144,7 +197,6 @@ export function pulseBeat(): void {
 export function subscribe(onBeat: (timestamp: number) => void): () => void {
   const id = `beat_${Date.now()}_${Math.random()}`;
   listeners.push({ id, onBeat });
-  // Immediately call with current lastBeat so the component isn't behind
   onBeat(config.lastBeatMs);
   return () => {
     listeners = listeners.filter(l => l.id !== id);
