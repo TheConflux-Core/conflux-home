@@ -61,6 +61,15 @@ const DEFAULT_CHAIN_STATE: ChainState = {
   agents: ['conflux', 'aegis', 'helix', 'pulse', 'viper', 'horizon', 'orbit', 'hearth', 'echo'],
 };
 
+function nextBeatLabel(ts: number): string {
+  const diff = ts - Date.now();
+  if (diff <= 0) return 'now';
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
 export default function ChainTimeline() {
   const [chainState, setChainState] = useState<ChainState>(DEFAULT_CHAIN_STATE);
   const [lastEvent, setLastEvent] = useState<ChainEvent | null>(null);
@@ -147,16 +156,19 @@ export default function ChainTimeline() {
 
   const isComplete = !chainState.running && chainState.currentStep === 10;
 
-  // Always render when there's activity — never silently hide
-  const hasActivity = chainState.running || lastEvent !== null || chainState.currentStep > 0;
-  if (!hasActivity) return null;
-
+  // Always render — shows idle state when nothing active
+  // Never return null (heartbeat section needs visible UI)
   return (
     <div className={`chain-timeline ${chainState.running ? 'chain-active' : ''} ${isComplete ? 'chain-complete' : ''}`}>
       {chainState.running && (
         <div className="chain-active-indicator">
           <div className="chain-active-ring" />
           <span className="chain-active-text">Cascade running</span>
+        </div>
+      )}
+      {!chainState.running && !isComplete && (
+        <div className="chain-idle-indicator">
+          <span className="chain-idle-text">Cascade idle · next heartbeat {chainState.nextBeatAt ? `in ${nextBeatLabel(chainState.nextBeatAt)}` : '—'}</span>
         </div>
       )}
 
