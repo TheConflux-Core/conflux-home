@@ -193,6 +193,21 @@
   to { opacity: 1; transform: scale(1); }
 }
 
+/* Idle indicator */
+.chain-idle-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chain-idle-text {
+  font-size: 11px;
+  color: rgba(140, 120, 180, 0.45);
+  font-family: 'Inter', -apple-system, sans-serif;
+  letter-spacing: 0.05em;
+  font-style: italic;
+}
+
 /* Status line */
 .chain-status {
   text-align: center;
