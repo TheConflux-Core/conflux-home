@@ -22,6 +22,21 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 2000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('@supabase')) return 'supabase';
+            if (id.includes('@tauri-apps')) return 'tauri';
+            if (id.includes('framer-motion')) return 'framer-motion';
+            if (id.includes('react') || id.includes('scheduler')) return 'react-vendor';
+            if (id.includes('@react-three') || id.includes('three')) return 'three-vendor';
+            return 'vendor';
+          }
+        },
+      },
+    },
   },
   define: {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
