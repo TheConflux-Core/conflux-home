@@ -31,25 +31,39 @@ pub struct CurrentChainState {
     pub next_beat_at: Option<i64>,
     #[serde(rename = "chainActive")]
     pub chain_active: bool,
+    #[serde(rename = "running")]
+    pub running: bool,
     #[serde(rename = "currentStep")]
     pub current_step: Option<u32>,
     #[serde(rename = "totalSteps")]
     pub total_steps: u32,
     #[serde(rename = "enabled")]
     pub enabled: bool,
+    #[serde(rename = "agents")]
+    pub agents: Vec<String>,
 }
 
 impl From<ChainState> for CurrentChainState {
     fn from(state: ChainState) -> Self {
         let config = crate::heartbeat_chain::config::load_config();
+        let agents: Vec<String> = config.chain.iter().map(|s| s.agent.clone()).collect();
+        // next_beat_at = lastBeatAt + interval (use 30 min default if unavailable)
+        let interval_ms = chrono::Utc::now().timestamp_millis()
+            - state.last_beat_at.unwrap_or(chrono::Utc::now().timestamp_millis());
+        let next_beat_at = state.last_beat_at.map(|t| {
+            let interval = if interval_ms > 0 { interval_ms } else { 1_800_000 };
+            t + interval
+        });
         Self {
             last_beat_at: state.last_beat_at,
             chain_fired_at: state.chain_fired_at,
-            next_beat_at: state.next_beat_at,
+            next_beat_at,
             chain_active: state.chain_active,
+            running: state.chain_active,
             current_step: None,
             total_steps: config.chain.len() as u32,
             enabled: config.config.enabled,
+            agents,
         }
     }
 }

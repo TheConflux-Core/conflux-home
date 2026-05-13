@@ -141,6 +141,12 @@ impl ConfluxEngine {
         log::info!("[Engine] AppHandle registered for real-time events");
     }
 
+    /// Get a clone of the stored AppHandle, if registered.
+    pub fn app_handle(&self) -> Option<tauri::AppHandle> {
+        let guard = self.app_handle.lock().unwrap();
+        guard.clone()
+    }
+
     /// Emit a Tauri event to all listeners.
     pub fn emit_tauri_event(&self, event: &str, payload: impl serde::Serialize + Clone) {
         use tauri::Emitter;
