@@ -233,6 +233,9 @@ export default function App() {
   }, []);
 
   // Initialize global heartbeat singleton (demo beats disabled — real chain events flow via heartbeatGlobal.ts)
+  useEffect(() => {
+    initHeartbeatGlobal();
+  }, []);
 
   // Expose bar v2 toggle for console testing
   useEffect(() => {
