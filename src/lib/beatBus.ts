@@ -39,6 +39,7 @@ export function emitBeat(event: Omit<BeatEvent, 'id' | 'timestamp'>) {
     id: `beat-${Date.now()}-${++_beatCounter}`,
     timestamp: Date.now(),
   };
+  console.log('[beatBus] emitBeat:', JSON.stringify(full));
   window.dispatchEvent(new CustomEvent(BEAT_BUS, { detail: full }));
 }
 
@@ -52,6 +53,7 @@ export function useBeatTimeline() {
   useEffect(() => {
     const handler = (e: Event) => {
       const beat = (e as CustomEvent<BeatEvent>).detail;
+      console.log('[beatBus] useBeatTimeline received:', JSON.stringify(beat));
       if (beat.id === prevIdRef.current) return;
       prevIdRef.current = beat.id;
       setEvents(prev => [beat, ...prev].slice(0, MAX_EVENTS));
