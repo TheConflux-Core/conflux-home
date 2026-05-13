@@ -20,10 +20,11 @@ export interface PulseKnobProps {
 const PRESETS = [
   { label: 'OFF',   ms: 0,           position: 0 },
   { label: '15m',   ms: 900_000,     position: 1 },
-  { label: '1hr',   ms: 3_600_000,   position: 2 },
-  { label: '4hr',   ms: 14_400_000, position: 3 },
-  { label: '8hr',   ms: 28_800_000, position: 4 },
-  { label: '12hr',  ms: 43_200_000, position: 5 },
+  { label: '30m',   ms: 1_800_000,   position: 2 },
+  { label: '1hr',   ms: 3_600_000,   position: 3 },
+  { label: '4hr',   ms: 14_400_000, position: 4 },
+  { label: '8hr',   ms: 28_800_000, position: 5 },
+  { label: '12hr',  ms: 43_200_000, position: 6 },
 ] as const;
 
 const RING_RADIUS = 44;
