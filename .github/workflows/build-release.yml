@@ -290,16 +290,8 @@ jobs:
           aws s3 cp src-tauri/target/release/bundle/msi/Conflux.Home_x64.msi s3://${{ secrets.R2_BUCKET }}/Conflux.Home_x64.msi --endpoint-url ${{ secrets.R2_ENDPOINT }}
 
   # ── macOS (.dmg — x64 + aarch64) ──
-  build-macos:
-    runs-on: macos-latest
-    strategy:
-      matrix:
-        include:
-          - target: x86_64-apple-darwin
-            arch: x64
-          - target: aarch64-apple-darwin
-            arch: aarch64
-      fail-fast: false
+  build-macos-x64:
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v4
 
@@ -333,7 +325,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.88.0
-          targets: x86_64-apple-darwin,aarch64-apple-darwin
+          targets: x86_64-apple-darwin
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -353,7 +345,7 @@ jobs:
         shell: bash
         env:
           LLAMA_SERVER_VERSION: ${{ secrets.LLAMA_SERVER_VERSION }}
-          LLAMA_SERVER_PLATFORM: ${{ matrix.arch == 'x64' && 'macos-x64' || 'macos-arm64' }}
+          LLAMA_SERVER_PLATFORM: macos-x64
         run: ./scripts/download-llama-server.sh
 
       - name: Build Tauri app (signed)
@@ -380,22 +372,22 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: npx @tauri-apps/cli build --target ${{ matrix.target }}
+        run: npx @tauri-apps/cli build --target x86_64-apple-darwin
 
-      - name: Rename updater artifacts by arch
+      - name: Rename updater artifacts
         run: |
-          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle/macos"
+          BUNDLE_DIR="src-tauri/target/x86_64-apple-darwin/release/bundle/macos"
           if [ -f "$BUNDLE_DIR/Conflux Home.app.tar.gz" ]; then
-            mv "$BUNDLE_DIR/Conflux Home.app.tar.gz" "$BUNDLE_DIR/Conflux.Home_${{ matrix.arch }}.app.tar.gz"
-            mv "$BUNDLE_DIR/Conflux Home.app.tar.gz.sig" "$BUNDLE_DIR/Conflux.Home_${{ matrix.arch }}.app.tar.gz.sig"
+            mv "$BUNDLE_DIR/Conflux Home.app.tar.gz" "$BUNDLE_DIR/Conflux.Home_x64.app.tar.gz"
+            mv "$BUNDLE_DIR/Conflux Home.app.tar.gz.sig" "$BUNDLE_DIR/Conflux.Home_x64.app.tar.gz.sig"
           fi
 
       - name: Rename DMG (remove version from filename)
         run: |
           shopt -s nullglob
-          DMG_DIR="src-tauri/target/${{ matrix.target }}/release/bundle/dmg"
+          DMG_DIR="src-tauri/target/x86_64-apple-darwin/release/bundle/dmg"
           for f in "$DMG_DIR"/*.dmg; do
-            mv "$f" "$DMG_DIR/Conflux.Home_${{ matrix.arch }}.dmg"
+            mv "$f" "$DMG_DIR/Conflux.Home_x64.dmg"
           done
 
       - name: Upload to release
@@ -404,21 +396,140 @@ jobs:
           tag_name: ${{ env.RELEASE_TAG }}
           overwrite_files: true
           files: |
-            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
-            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
-            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz.sig
+            src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
 
       - name: Upload to R2
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
-          DMG_DIR="src-tauri/target/${{ matrix.target }}/release/bundle/dmg"
-          aws s3 cp "$DMG_DIR/Conflux.Home_${{ matrix.arch }}.dmg" s3://${{ secrets.R2_BUCKET }}/Conflux.Home_${{ matrix.arch }}.dmg --endpoint-url ${{ secrets.R2_ENDPOINT }}
+          DMG_DIR="src-tauri/target/x86_64-apple-darwin/release/bundle/dmg"
+          aws s3 cp "$DMG_DIR/Conflux.Home_x64.dmg" s3://${{ secrets.R2_BUCKET }}/Conflux.Home_x64.dmg --endpoint-url ${{ secrets.R2_ENDPOINT }}
+
+  build-macos-arm64:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch version from tag
+        run: |
+          VER="${{ github.event.inputs.version || github.ref_name }}"
+          VER="${VER#v}"
+          VER="${VER#v}"
+          echo "Patching version to $VER"
+          cat << 'PYEOF' > /tmp/patch_version.py
+          import re, sys
+          ver = sys.argv[1]
+          for f in ['src-tauri/Cargo.toml', 'src-tauri/tauri.conf.json', 'package.json']:
+              with open(f, 'r') as fh:
+                  txt = fh.read()
+              if f == 'src-tauri/Cargo.toml':
+                  txt = re.sub(r'^version = .+$', f'version = "{ver}"', txt, flags=re.MULTILINE)
+              else:
+                  txt = re.sub(r'"version":\s*"[^"]*"', f'"version": "{ver}"', txt)
+              with open(f, 'w') as fh:
+                  fh.write(txt)
+          PYEOF
+          python3 /tmp/patch_version.py "$VER"
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.88.0
+          targets: aarch64-apple-darwin
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Download bundled models
+        shell: bash
+        env:
+          MODEL_BASE_URL: ${{ secrets.MODEL_BASE_URL }}
+        run: ./scripts/download-models.sh
+
+      - name: Download llama-server binary
+        shell: bash
+        env:
+          LLAMA_SERVER_VERSION: ${{ secrets.LLAMA_SERVER_VERSION }}
+          LLAMA_SERVER_PLATFORM: macos-arm64
+        run: ./scripts/download-llama-server.sh
+
+      - name: Build Tauri app (signed)
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          VITE_CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          VITE_GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          VITE_MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          VITE_DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          VITE_CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          VITE_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          VITE_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          VITE_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          REPLICATE_API_KEY: ${{ secrets.REPLICATE_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: npx @tauri-apps/cli build --target aarch64-apple-darwin
+
+      - name: Rename updater artifacts
+        run: |
+          BUNDLE_DIR="src-tauri/target/aarch64-apple-darwin/release/bundle/macos"
+          if [ -f "$BUNDLE_DIR/Conflux Home.app.tar.gz" ]; then
+            mv "$BUNDLE_DIR/Conflux Home.app.tar.gz" "$BUNDLE_DIR/Conflux.Home_aarch64.app.tar.gz"
+            mv "$BUNDLE_DIR/Conflux Home.app.tar.gz.sig" "$BUNDLE_DIR/Conflux.Home_aarch64.app.tar.gz.sig"
+          fi
+
+      - name: Rename DMG (remove version from filename)
+        run: |
+          shopt -s nullglob
+          DMG_DIR="src-tauri/target/aarch64-apple-darwin/release/bundle/dmg"
+          for f in "$DMG_DIR"/*.dmg; do
+            mv "$f" "$DMG_DIR/Conflux.Home_aarch64.dmg"
+          done
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          overwrite_files: true
+          files: |
+            src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
+
+      - name: Upload to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          DMG_DIR="src-tauri/target/aarch64-apple-darwin/release/bundle/dmg"
+          aws s3 cp "$DMG_DIR/Conflux.Home_aarch64.dmg" s3://${{ secrets.R2_BUCKET }}/Conflux.Home_aarch64.dmg --endpoint-url ${{ secrets.R2_ENDPOINT }}
+
 
   # ── Generate updates.json (all platforms) ──
   generate-updates-json:
-    needs: [build-linux, build-windows, build-macos]
+    needs: [build-linux, build-windows, build-macos-x64, build-macos-arm64]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
