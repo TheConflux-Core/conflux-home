@@ -1,0 +1,51 @@
+#[cfg(not(target_os = "android"))]
+use crate::voice::{capture, openai, stream, synth};
+use tauri::{AppHandle, Emitter, Manager, Window};
+#[cfg(not(target_os = "android"))]
+use tokio::fs::File;
+#[cfg(not(target_os = "android"))]
+use tokio::io::AsyncWriteExt;
+
+#[tauri::command]
+#[cfg(not(target_os = "android"))]
+pub async fn voice_start_stream(window: Window) -> Result<String, String> {
+    let config = stream::StreamConfig::default();
+    let _tx = stream::start_stream(config, window)
+        .await
+        .map_err(|e| format!("Failed to start ElevenLabs stream: {}", e))?;
+    Ok("Stream started".to_string())
+}
+
+#[tauri::command]
+#[cfg(not(target_os = "android"))]
+pub async fn voice_synthesize(app: AppHandle, text: String) -> Result<String, String> {
+    println!("[TTS] voice_synthesize called with text: {}", text);
+
+    // Try ElevenLabs first (George / Conflux voice — the male voice from onboarding)
+    let config = synth::TTSConfig::default();
+    match synth::stream_tts(&text, config, app.clone()).await {
+        Ok(_) => return Ok("Speech synthesized via ElevenLabs".to_string()),
+        Err(e) => println!("[TTS] ElevenLabs failed: {}. Falling back to OpenAI...", e),
+    }
+
+    // Fallback to OpenAI TTS
+    let openai_config = openai::OpenAIConfig::default();
+    if !openai_config.api_key.is_empty() {
+        match openai::stream_tts(&text, openai_config, app.clone()).await {
+            Ok(_) => return Ok("Speech synthesized via OpenAI".to_string()),
+            Err(e) => {
+                let _ = app.emit(
+                    "conflux:state",
+                    serde_json::json!({
+                        "state": "Idle",
+                        "source": "backend",
+                        "message": "TTS unavailable"
+                    }),
+                );
+                return Err(format!("All TTS providers failed: {}", e));
+            }
+        }
+    }
+
+    Err("No TTS provider available".to_string())
+}
