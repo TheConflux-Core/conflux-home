@@ -60,12 +60,6 @@
   "bundle": {
     "active": true,
     "createUpdaterArtifacts": true,
-    "resources": [
-      "../dist",
-      "binaries",
-      "scripts",
-      "conflux_knowledge.md"
-    ],
     "targets": [
       "deb",
       "msi",
@@ -79,6 +73,12 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": {
+      "dist": "dist",
+      "binaries": "binaries",
+      "scripts": "scripts",
+      "conflux_knowledge.md": "conflux_knowledge.md"
+    },
     "linux": {
       "deb": {
         "depends": []
