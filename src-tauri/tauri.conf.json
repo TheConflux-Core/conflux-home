@@ -74,7 +74,7 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "dist": "dist",
+      "../dist": "dist",
       "binaries": "binaries",
       "scripts": "scripts",
       "conflux_knowledge.md": "conflux_knowledge.md"
