@@ -3169,11 +3169,17 @@ fn execute_command(args: &Value) -> Result<ToolResult> {
         });
     }
 
-    match std::process::Command::new("sh")
-        .arg("-c")
-        .arg(command)
-        .output()
-    {
+    #[cfg(target_os = "windows")]
+    let shell_result = std::process::Command::new("cmd")
+        .args(["/C", &command])
+        .output();
+
+    #[cfg(not(target_os = "windows"))]
+    let shell_result = std::process::Command::new("sh")
+        .args(["-c", &command])
+        .output();
+
+    match shell_result {
         Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
