@@ -1,0 +1,141 @@
+// Conflux Home — Gateway API Client SDK
+// Main entry point. Clean import: import { GatewayClient } from './gateway-client'
+
+import { invokeTool } from './tools';
+import { sendMessage, streamMessage, ChatSession } from './chat';
+import { checkHealth } from './health';
+import { AgentReader } from './agents';
+
+export type {
+  GatewayConfig,
+  GatewayAgent,
+  GatewaySessionStatus,
+  ChatMessage,
+  ChatCompletionsResponse,
+  ChatStreamChunk,
+  HealthResponse,
+  ToolInvokeResponse,
+  ChatSessionState,
+  StreamCallbacks,
+} from './types';
+
+export type { AgentInfo, AgentIdentity, AgentStatus } from './agents';
+
+export { GatewayError, GatewayTimeoutError } from './types';
+export { AgentReader } from './agents';
+export { ChatSession } from './chat';
+
+import type {
+  GatewayConfig,
+  ChatMessage,
+  ToolInvokeResponse,
+  GatewayAgent,
+  GatewaySessionStatus,
+} from './types';
+
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+
+export class GatewayClient {
+  private readonly config: GatewayConfig;
+  private readonly timeoutMs: number;
+
+  constructor(config: GatewayConfig, timeoutMs?: number) {
+    this.config = config;
+    this.timeoutMs = timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+  }
+
+  // ── Helpers ──
+
+  private withTimeout(): AbortController {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    controller.signal.addEventListener('abort', () => clearTimeout(timer));
+    return controller;
+  }
+
+  // ── Tools ──
+
+  /** Invoke any OpenClaw tool via the gateway */
+  async invokeTool(
+    tool: string,
+    args?: Record<string, unknown>,
+  ): Promise<ToolInvokeResponse> {
+    const { signal } = this.withTimeout();
+    return invokeTool(this.config, tool, args, signal);
+  }
+
+  /** List registered agents (via tools invoke) */
+  async listAgents(): Promise<GatewayAgent[]> {
+    try {
+      const res = await this.invokeTool('agents_list', {});
+      if (res.ok && res.result?.details) {
+        const details = res.result.details as Record<string, unknown>;
+        // Gateway returns { agents: [...] } shape
+        if (Array.isArray(details['agents'])) {
+          return (details['agents'] as GatewayAgent[]) ?? [];
+        }
+        // Fallback: details is directly an array
+        if (Array.isArray(details)) {
+          return (details as unknown as GatewayAgent[]) ?? [];
+        }
+      }
+    } catch {
+      // Tool invocation failed — return empty
+    }
+    return [];
+  }
+
+  /** Get current session status (via tools invoke) */
+  async getSessionStatus(): Promise<GatewaySessionStatus> {
+    const res = await this.invokeTool('session_status', {});
+    if (res.ok && res.result?.details) {
+      return (res.result.details as GatewaySessionStatus) ?? {};
+    }
+    return {};
+  }
+
+  // ── Chat ──
+
+  /** Send a message and return the full response */
+  async sendMessage(
+    agentId: string,
+    messages: ChatMessage[],
+  ): Promise<string> {
+    const { signal } = this.withTimeout();
+    return sendMessage(this.config, agentId, messages, signal);
+  }
+
+  /** Stream a message with real-time chunk callback. Returns full text. */
+  async streamMessage(
+    agentId: string,
+    messages: ChatMessage[],
+    onChunk: (text: string) => void,
+  ): Promise<string> {
+    const { signal } = this.withTimeout();
+    return streamMessage(this.config, agentId, messages, onChunk, signal);
+  }
+
+  // ── Health ──
+
+  /** Check if the gateway is alive. Returns true if healthy. */
+  async checkHealth(): Promise<boolean> {
+    const { signal } = this.withTimeout();
+    const res = await checkHealth(this.config, signal);
+    return res.ok && res.status === 'live';
+  }
+
+  // ── Agent Data (convenience methods via AgentReader) ──
+
+  /** Get an AgentReader bound to this client */
+  getAgentReader(cacheTtlMs?: number): AgentReader {
+    return new AgentReader(this, cacheTtlMs);
+  }
+
+  /** Create a ChatSession for a given agent */
+  createChatSession(
+    agentId: string,
+    options?: { persist?: boolean },
+  ): ChatSession {
+    return new ChatSession(this.config, agentId, options);
+  }
+}
