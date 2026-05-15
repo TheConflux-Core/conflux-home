@@ -9518,7 +9518,7 @@ pub async fn echo_counselor_send_message(
     });
 
     // Phase 3: Call LLM (async network call)
-    let response = engine::router::chat("mirror", openai_messages, None, None, None)
+    let response = engine::router::chat("echo", openai_messages, None, None, None)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -9648,12 +9648,12 @@ pub fn echo_counselor_set_evening_reminder(
     let minute = minute.unwrap_or(0);
     let schedule = format!("{} {} * * *", minute, hour); // e.g. "0 20 * * *" = 8 PM daily
 
-    let task_message = "Evening ritual check-in for Mirror counseling sessions. If there is an active or recent session, do nothing and respond briefly. If no session has occurred today, send a gentle reminder to the user via the desktop notification system to check in with Mirror tonight.".to_string();
+    let task_message = "Evening ritual check-in for Echo counseling sessions. If there is an active or recent session, do nothing and respond briefly. If no session has occurred today, send a gentle reminder to the user via the desktop notification system to check in with Echo tonight.".to_string();
 
     engine
         .create_cron_job(
             "mirror-evening-ritual",
-            "conflux", // mirror agent not in DB, use conflux
+            "conflux", // echo agent not in DB, use conflux
             &schedule,
             "America/Denver",
             &task_message,
