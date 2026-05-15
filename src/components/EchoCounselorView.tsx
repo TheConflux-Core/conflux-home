@@ -105,7 +105,10 @@ export default function EchoCounselorView() {
 
   const handleCloseSession = async () => {
     if (!state?.current_session?.id) return;
-    await endSession(state.current_session.id);
+    const sessionId = state.current_session.id;
+    await endSession(sessionId);
+    // Reload state from backend — this clears current_session and refreshes messages
+    await refresh();
   };
 
   const handleViewChange = async (mode: ViewMode) => {
