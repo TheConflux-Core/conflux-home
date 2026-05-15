@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEchoCounselor } from '../hooks/useEchoCounselor';
 import { useVoiceInput } from '../hooks/useVoiceInput';
+import { useTTS } from '../hooks/useTTS';
 import type { EchoCounselorMessage, EchoCrisisFlag, EchoCounselorSession, EchoWeeklyLetter } from '../types';
 import { ECHO_CRISIS_RESOURCES } from '../types';
 import '../styles-echo-counselor.css';
@@ -62,6 +63,9 @@ export default function EchoCounselorView() {
   const voice = useVoiceInput({
     onTranscription: (text) => setVoiceText(text),
   });
+
+  // TTS — lets user hear Echo's responses
+  const tts = useTTS();
 
   // Merge voice transcript into input when it arrives
   useEffect(() => {
@@ -292,6 +296,15 @@ export default function EchoCounselorView() {
                         <span key={i}>{line}{i < msg.content.split('\n').length - 1 && <br />}</span>
                       ))}
                     </div>
+                    {msg.role === 'counselor' && (
+                      <button
+                        className={`echo-msg-speak-btn ${tts.speaking ? 'speaking' : ''}`}
+                        onClick={() => tts.speaking ? tts.stop() : tts.speak(msg.content)}
+                        title={tts.speaking ? 'Stop' : 'Hear Echo'}
+                      >
+                        {tts.speaking ? '⏹' : '▶'}
+                      </button>
+                    )}
                     <div className="echo-counselor-msg-meta">
                       {msg.role === 'user' ? 'You' : 'Echo'} · {formatTime(msg.timestamp)}
                     </div>
