@@ -3,11 +3,12 @@
 // NOT a therapist. A warm, present, insightful conversation partner.
 
 import { playSuccess } from '../lib/sound';
+import { invoke } from '@tauri-apps/api/core';
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEchoCounselor } from '../hooks/useEchoCounselor';
 import { useVoiceInput } from '../hooks/useVoiceInput';
-import { useTTS } from '../hooks/useTTS';
+import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import type { EchoCounselorMessage, EchoCrisisFlag, EchoCounselorSession, EchoWeeklyLetter } from '../types';
 import { ECHO_CRISIS_RESOURCES } from '../types';
 import '../styles-echo-counselor.css';
@@ -64,8 +65,8 @@ export default function EchoCounselorView() {
     onTranscription: (text) => setVoiceText(text),
   });
 
-  // TTS — lets user hear Echo's responses
-  const tts = useTTS();
+  // ElevenLabs TTS — lets user hear Echo's responses
+  const audio = useAudioPlayer();
 
   // Merge voice transcript into input when it arrives
   useEffect(() => {
@@ -303,11 +304,11 @@ export default function EchoCounselorView() {
                     </div>
                     {msg.role === 'counselor' && (
                       <button
-                        className={`echo-msg-speak-btn ${tts.speaking ? 'speaking' : ''}`}
-                        onClick={() => tts.speaking ? tts.stop() : tts.speak(msg.content)}
-                        title={tts.speaking ? 'Stop' : 'Hear Echo'}
+                        className={`echo-msg-speak-btn ${audio.speaking ? 'speaking' : ''}`}
+                        onClick={() => audio.speaking ? audio.stop() : audio.speak(msg.content)}
+                        title={audio.speaking ? 'Stop' : 'Hear Echo'}
                       >
-                        {tts.speaking ? '⏹' : '▶'}
+                        {audio.speaking ? '⏹' : '▶'}
                       </button>
                     )}
                   </motion.div>
