@@ -119,10 +119,10 @@ export default function EchoCounselorView() {
     if (!state?.current_session?.id) return;
     const sessionId = state.current_session.id;
     await endSession(sessionId);
-    // Clear messages so the next session starts fresh
-    clearMessages();
-    // Reload state from backend — this clears current_session and refreshes messages
-    await refresh();
+    // Switch to Sessions tab so the user sees the session they just ended
+    if (state?.recent_sessions) {
+      setSessionsList(state.recent_sessions);
+    }
   };
 
   const handleViewChange = async (mode: ViewMode) => {
