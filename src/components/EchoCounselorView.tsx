@@ -29,6 +29,8 @@ export default function EchoCounselorView() {
     startSession,
     sendMessage,
     endSession,
+    clearMessages,
+    loadMessages,
     getCounselorJournal,
     dismissCrisis,
     getOpening,
@@ -48,6 +50,10 @@ export default function EchoCounselorView() {
   const [input, setInput] = useState('');
   const [journal, setJournal] = useState<EchoCounselorSession[]>([]);
   const [showCrisisResources, setShowCrisisResources] = useState(false);
+  // Past session expansion (journal view)
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
+  const [expandedSessionMessages, setExpandedSessionMessages] = useState<EchoCounselorMessage[]>([]);
+  const [loadingExpanded, setLoadingExpanded] = useState(false);
 
   // Boot → Onboarding → Tour → Main
   const [bootDone, setBootDone] = useState(() => localStorage.getItem('echo-boot-done') === 'true');
@@ -81,9 +87,9 @@ export default function EchoCounselorView() {
     getCounselorJournal().then(j => setJournal(j));
   }, [getCounselorJournal]);
 
-  // Auto-start a session if none exists and we have data (only after onboarding complete)
+  // Auto-start a session if none exists (only after onboarding complete)
   useEffect(() => {
-    if (!bootDone || showOnboarding || !loading || !state || state.current_session || state.recent_sessions.length > 0) return;
+    if (!bootDone || showOnboarding || loading || !state || state.current_session) return;
     startSession();
   }, [bootDone, showOnboarding, loading, state, startSession]);
 
@@ -112,6 +118,8 @@ export default function EchoCounselorView() {
     if (!state?.current_session?.id) return;
     const sessionId = state.current_session.id;
     await endSession(sessionId);
+    // Clear messages so the next session starts fresh
+    clearMessages();
     // Reload state from backend — this clears current_session and refreshes messages
     await refresh();
   };
@@ -384,6 +392,7 @@ export default function EchoCounselorView() {
             <div className="echo-counselor-journal-entries">
               {journal.map(session => {
                 if (!session.counselor_reflection) return null;
+                const isExpanded = expandedSessionId === session.id;
                 return (
                   <motion.div
                     key={session.id}
@@ -391,7 +400,22 @@ export default function EchoCounselorView() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                   >
-                    <div className="echo-counselor-journal-header">
+                    <div
+                      className="echo-counselor-journal-header echo-counselor-journal-header-clickable"
+                      onClick={() => {
+                        if (isExpanded) {
+                          setExpandedSessionId(null);
+                          setExpandedSessionMessages([]);
+                        } else {
+                          setExpandedSessionId(session.id);
+                          setLoadingExpanded(true);
+                          loadMessages(session.id).then(msgs => {
+                            setExpandedSessionMessages(msgs);
+                            setLoadingExpanded(false);
+                          });
+                        }
+                      }}
+                    >
                       <div className="echo-counselor-journal-date">
                         {new Date(session.created_at).toLocaleDateString('en-US', {
                           weekday: 'long',
@@ -400,12 +424,35 @@ export default function EchoCounselorView() {
                         })}
                       </div>
                       <div className="echo-counselor-journal-session-id">
-                        Session {session.id.slice(0, 8)}
+                        {session.message_count} msg{session.message_count !== 1 ? 's' : ''} · {isExpanded ? '▲' : '▼'}
                       </div>
                     </div>
                     <div className="echo-counselor-journal-content">
                       {session.counselor_reflection}
                     </div>
+                    {isExpanded && (
+                      <motion.div
+                        className="echo-counselor-journal-messages"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                      >
+                        {loadingExpanded ? (
+                          <div className="echo-counselor-journal-loading">Loading conversation...</div>
+                        ) : expandedSessionMessages.length === 0 ? (
+                          <div className="echo-counselor-journal-empty-msgs">No messages in this session.</div>
+                        ) : (
+                          expandedSessionMessages.map(msg => (
+                            <div key={msg.id} className={`echo-counselor-journal-msg ${msg.role === 'user' ? 'user' : 'counselor'}`}>
+                              <div className="echo-counselor-journal-msg-role">
+                                {msg.role === 'user' ? 'You' : 'Echo'} · {formatTime(msg.timestamp)}
+                              </div>
+                              <div className="echo-counselor-journal-msg-content">{msg.content}</div>
+                            </div>
+                          ))
+                        )}
+                      </motion.div>
+                    )}
                   </motion.div>
                 );
               })}
