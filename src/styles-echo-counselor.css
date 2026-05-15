@@ -116,6 +116,7 @@
   max-width: 900px;
   margin: 0 auto;
   width: 100%;
+  min-height: 0; /* allow flex children to shrink below content size */
 }
 
 /* ════ NO SESSION STATE ════ */
@@ -188,7 +189,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  min-height: 400px;
+  min-height: 0; /* allow shrinking */
   position: relative;
 }
 

@@ -131,8 +131,11 @@ export default function EchoCounselorView() {
       const j = await getCounselorJournal();
       setJournal(j);
     } else if (mode === 'sessions') {
-      const sessions = await getCounselorJournal();
-      setSessionsList(sessions);
+      // Sessions tab: show ALL sessions from recent_sessions (including those without reflections yet)
+      // Journal tab: shows only sessions with counselor reflections
+      if (state?.recent_sessions) {
+        setSessionsList(state.recent_sessions);
+      }
     }
   };
 
@@ -322,11 +325,11 @@ export default function EchoCounselorView() {
                     </div>
                     {msg.role === 'counselor' && (
                       <button
-                        className={`echo-msg-speak-btn ${audio.speaking ? 'speaking' : ''}`}
-                        onClick={() => audio.speaking ? audio.stop() : audio.speak(msg.content)}
-                        title={audio.speaking ? 'Stop' : 'Hear Echo'}
+                        className={`echo-msg-speak-btn ${audio.playingId === msg.id ? 'playing' : ''}`}
+                        onClick={() => audio.playingId === msg.id ? audio.stop() : audio.speak(msg.content, msg.id)}
+                        title={audio.playingId === msg.id ? 'Stop' : 'Hear Echo'}
                       >
-                        {audio.speaking ? '⏹' : '▶'}
+                        {audio.playingId === msg.id ? '⏹' : '▶'}
                       </button>
                     )}
                   </motion.div>
@@ -614,7 +617,7 @@ function GratitudeWidget({
   getGratitudeEntries,
 }: {
   writeGratitude: (items: string[], context?: string) => Promise<void>;
-  getGratitudeEntries: (limit?: number) => Promise<{ id: string; items: string[]; context: string | null; created_at: string }[]>;
+  getGratitudeEntries: (limit?: number) => Promise<{ id: string; items: string; context: string | null; created_at: string }[]>;
 }) {
   const [item1, setItem1] = useState('');
   const [item2, setItem2] = useState('');
@@ -622,7 +625,7 @@ function GratitudeWidget({
   const [context, setContext] = useState('');
   const [saved, setSaved] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [history, setHistory] = useState<{ id: string; items: string[]; context: string | null; created_at: string }[]>([]);
+  const [history, setHistory] = useState<{ id: string; items: string; context: string | null; created_at: string }[]>([]);
 
   const saveGratitude = async () => {
     const items = [item1, item2, item3].filter(Boolean);
@@ -702,7 +705,7 @@ function GratitudeWidget({
                     {new Date(entry.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </div>
                   <ul className="echo-gratitude-history-items">
-                    {entry.items.map((item: string, i: number) => <li key={i}>{item}</li>)}
+                    {(JSON.parse(entry.items) as string[]).map((item: string, i: number) => <li key={i}>{item}</li>)}
                   </ul>
                   {entry.context && <p className="echo-gratitude-history-context">{entry.context}</p>}
                 </div>

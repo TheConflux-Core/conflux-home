@@ -23,16 +23,15 @@ function stopAudio() {
 }
 
 export function useAudioPlayer() {
-  const [speaking, setSpeaking] = useState(false);
-  const speakingRef = useRef(false);
-  const currentTextRef = useRef<string>('');
+  // playingId = which message id is currently being spoken (for per-button highlight)
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const playingIdRef = useRef<string | null>(null);
 
-  const speak = useCallback(async (text: string, voiceId = ECHO_VOICE_ID) => {
+  const speak = useCallback(async (text: string, msgId: string, voiceId = ECHO_VOICE_ID) => {
     // Stop any current speech first
     stopAudio();
-    setSpeaking(true);
-    speakingRef.current = true;
-    currentTextRef.current = text;
+    setPlayingId(msgId);
+    playingIdRef.current = msgId;
 
     try {
       const result = await invoke<{ audio_base64: string }>('tts_speak', {
@@ -41,7 +40,7 @@ export function useAudioPlayer() {
       });
 
       // Check we're still supposed to be speaking (user might have hit stop)
-      if (!speakingRef.current) return;
+      if (playingIdRef.current !== msgId) return;
 
       const ctx = getAudioCtx();
       const binaryString = atob(result.audio_base64);
@@ -56,24 +55,29 @@ export function useAudioPlayer() {
 
       source.onended = () => {
         _activeSource = null;
-        if (speakingRef.current) {
-          setSpeaking(false);
-          speakingRef.current = false;
+        if (playingIdRef.current === msgId) {
+          setPlayingId(null);
+          playingIdRef.current = null;
         }
       };
       source.start(0);
     } catch (err) {
       console.error('TTS playback error:', err);
-      setSpeaking(false);
-      speakingRef.current = false;
+      if (playingIdRef.current === msgId) {
+        setPlayingId(null);
+        playingIdRef.current = null;
+      }
     }
   }, []);
 
   const stop = useCallback(() => {
     stopAudio();
-    setSpeaking(false);
-    speakingRef.current = false;
+    setPlayingId(null);
+    playingIdRef.current = null;
   }, []);
 
-  return { speak, stop, speaking };
+  // isPlaying = true if anything is currently playing (for stop-all button)
+  const isPlaying = playingId !== null;
+
+  return { speak, stop, playingId, isPlaying };
 }
