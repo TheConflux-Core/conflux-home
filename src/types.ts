@@ -561,7 +561,7 @@ export interface EchoCrisisFlag {
 
 export interface EchoGratitudeEntry {
   id: string;
-  items: string[];            // 3 things
+  items: string;             // JSON array of 3 things — parse with JSON.parse()
   context: string | null;     // optional free-text
   session_id: string | null;  // if prescribed by counselor
   created_at: string;
