@@ -291,10 +291,15 @@ export default function EchoCounselorView() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                   >
-                    <div className="echo-counselor-msg-content">
-                      {msg.content.split('\n').map((line, i) => (
-                        <span key={i}>{line}{i < msg.content.split('\n').length - 1 && <br />}</span>
-                      ))}
+                    <div className="echo-counselor-msg-bubble">
+                      <div className="echo-counselor-msg-content">
+                        {msg.content.split('\n').map((line, i) => (
+                          <span key={i}>{line}{i < msg.content.split('\n').length - 1 && <br />}</span>
+                        ))}
+                      </div>
+                      <div className="echo-counselor-msg-meta">
+                        {msg.role === 'user' ? 'You' : 'Echo'} · {formatTime(msg.timestamp)}
+                      </div>
                     </div>
                     {msg.role === 'counselor' && (
                       <button
@@ -305,9 +310,6 @@ export default function EchoCounselorView() {
                         {tts.speaking ? '⏹' : '▶'}
                       </button>
                     )}
-                    <div className="echo-counselor-msg-meta">
-                      {msg.role === 'user' ? 'You' : 'Echo'} · {formatTime(msg.timestamp)}
-                    </div>
                   </motion.div>
                 ))}
               </div>
