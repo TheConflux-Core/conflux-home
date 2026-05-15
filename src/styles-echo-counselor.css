@@ -184,7 +184,7 @@
 .echo-counselor-chat {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 0;
+  padding: 20px 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
