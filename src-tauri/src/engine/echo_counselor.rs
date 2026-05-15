@@ -73,7 +73,7 @@ Write a warm, narrative letter (200-300 words) that:
 
 This is a letter, not a report. Write it like you're writing to someone you care about.
 
-End the letter with a warm signature on its own line: — Echo 💜
+End the letter with a warm signature on its own line using the name "Echo" — never "Mirror" and never any other name. Example: "— Echo 💜"
 "#;
 
 // ═════════════════════════════════════════════════════════════════

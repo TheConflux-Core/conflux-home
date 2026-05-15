@@ -17,7 +17,7 @@ import EchoBoot from './EchoBoot';
 import EchoOnboarding, { hasCompletedEchoOnboarding } from './EchoOnboarding';
 import EchoTour, { hasCompletedEchoTour } from './EchoTour';
 
-type ViewMode = 'session' | 'journal' | 'tools' | 'letter';
+type ViewMode = 'session' | 'sessions' | 'journal' | 'tools' | 'letter';
 
 export default function EchoCounselorView() {
   const {
@@ -49,8 +49,9 @@ export default function EchoCounselorView() {
   const [view, setView] = useState<ViewMode>('session');
   const [input, setInput] = useState('');
   const [journal, setJournal] = useState<EchoCounselorSession[]>([]);
+  const [sessionsList, setSessionsList] = useState<EchoCounselorSession[]>([]);
   const [showCrisisResources, setShowCrisisResources] = useState(false);
-  // Past session expansion (journal view)
+  // Past session expansion (journal/sessions view)
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
   const [expandedSessionMessages, setExpandedSessionMessages] = useState<EchoCounselorMessage[]>([]);
   const [loadingExpanded, setLoadingExpanded] = useState(false);
@@ -129,6 +130,9 @@ export default function EchoCounselorView() {
     if (mode === 'journal') {
       const j = await getCounselorJournal();
       setJournal(j);
+    } else if (mode === 'sessions') {
+      const sessions = await getCounselorJournal();
+      setSessionsList(sessions);
     }
   };
 
@@ -245,10 +249,16 @@ export default function EchoCounselorView() {
             💬 Session
           </button>
           <button
+            className={`echo-counselor-tab ${view === 'sessions' ? 'active' : ''}`}
+            onClick={() => handleViewChange('sessions')}
+          >
+            📚 Sessions
+          </button>
+          <button
             className={`echo-counselor-tab ${view === 'journal' ? 'active' : ''}`}
             onClick={() => handleViewChange('journal')}
           >
-            📓 Counselor's Journal
+            📓 Journal
           </button>
           <button
             className={`echo-counselor-tab ${view === 'tools' ? 'active' : ''}`}
@@ -368,6 +378,99 @@ export default function EchoCounselorView() {
                 </div>
               </div>
             </>
+          )}
+        </div>
+      )}
+
+      {/* ═══ SESSIONS VIEW ═══ */}
+      {view === 'sessions' && (
+        <div className="echo-counselor-main">
+          <div className="echo-counselor-sessions-intro">
+            <h3>Your Sessions</h3>
+            <p>
+              Every conversation you've had with Echo — tap any session to read through it.
+            </p>
+          </div>
+          {sessionsList.length === 0 ? (
+            <div className="echo-counselor-sessions-empty">
+              <p>No sessions yet. Start talking to Echo and your sessions will appear here.</p>
+            </div>
+          ) : (
+            <div className="echo-counselor-sessions-list">
+              {sessionsList.map(session => {
+                const isExpanded = expandedSessionId === session.id;
+                return (
+                  <motion.div
+                    key={session.id}
+                    className={`echo-counselor-session-card ${isExpanded ? 'is-active' : ''}`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                  >
+                    <div
+                      className="echo-counselor-session-card-header"
+                      onClick={() => {
+                        if (isExpanded) {
+                          setExpandedSessionId(null);
+                          setExpandedSessionMessages([]);
+                        } else {
+                          setExpandedSessionId(session.id);
+                          setLoadingExpanded(true);
+                          loadMessages(session.id).then(msgs => {
+                            setExpandedSessionMessages(msgs);
+                            setLoadingExpanded(false);
+                          });
+                        }
+                      }}
+                    >
+                      <div className="echo-counselor-session-card-date">
+                        {new Date(session.created_at).toLocaleDateString('en-US', {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                        {session.ended_at && (
+                          <span className="echo-counselor-session-duration">
+                            {' '}· {Math.round((new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) / 60000)} min
+                          </span>
+                        )}
+                      </div>
+                      <div className="echo-counselor-session-card-meta">
+                        {session.message_count} messages · {session.status} {isExpanded ? '▲' : '▼'}
+                      </div>
+                      {session.counselor_reflection && (
+                        <div className="echo-counselor-session-card-reflection">
+                          {session.counselor_reflection.slice(0, 80)}...
+                        </div>
+                      )}
+                    </div>
+                    {isExpanded && (
+                      <motion.div
+                        className="echo-counselor-session-card-messages"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                      >
+                        {loadingExpanded ? (
+                          <div className="echo-counselor-journal-loading">Loading conversation...</div>
+                        ) : expandedSessionMessages.length === 0 ? (
+                          <div className="echo-counselor-journal-empty-msgs">No messages in this session.</div>
+                        ) : (
+                          expandedSessionMessages.map(msg => (
+                            <div key={msg.id} className={`echo-counselor-journal-msg ${msg.role === 'user' ? 'user' : 'counselor'}`}>
+                              <div className="echo-counselor-journal-msg-role">
+                                {msg.role === 'user' ? 'You' : 'Echo'} · {formatTime(msg.timestamp)}
+                              </div>
+                              <div className="echo-counselor-journal-msg-content">{msg.content}</div>
+                            </div>
+                          ))
+                        )}
+                      </motion.div>
+                    )}
+                  </motion.div>
+                );
+              })}
+            </div>
           )}
         </div>
       )}
