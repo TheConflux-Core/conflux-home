@@ -659,6 +659,76 @@
   white-space: pre-wrap;
 }
 
+
+/* Journal — clickable header */
+.echo-counselor-journal-header-clickable {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+.echo-counselor-journal-header-clickable:hover {
+  background: rgba(147, 112, 219, 0.08);
+  border-radius: 6px;
+  margin: -4px -6px 8px;
+  padding: 4px 6px 10px;
+}
+
+/* Journal — expanded messages */
+.echo-counselor-journal-messages {
+  margin-top: 14px;
+  border-top: 1px solid rgba(147, 112, 219, 0.15);
+  padding-top: 14px;
+  overflow: hidden;
+}
+
+.echo-counselor-journal-loading,
+.echo-counselor-journal-empty-msgs {
+  color: #606070;
+  font-size: 0.8rem;
+  font-style: italic;
+  text-align: center;
+  padding: 12px 0;
+}
+
+.echo-counselor-journal-msg {
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  animation: journalMsgIn 0.2s ease-out;
+}
+.echo-counselor-journal-msg.counselor {
+  background: rgba(147, 112, 219, 0.12);
+  border-left: 3px solid rgba(147, 112, 219, 0.4);
+}
+.echo-counselor-journal-msg.user {
+  background: rgba(20, 184, 166, 0.1);
+  border-left: 3px solid rgba(20, 184, 166, 0.35);
+}
+.echo-counselor-journal-msg-role {
+  font-size: 0.72rem;
+  color: #707080;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.echo-counselor-journal-msg-content {
+  font-size: 0.875rem;
+  color: #c0c0d0;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+@keyframes journalMsgIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Journal — session ID dot (when active) */
+.echo-counselor-journal-entry.is-active {
+  border-color: rgba(20, 184, 166, 0.4);
+  box-shadow: 0 0 20px rgba(20, 184, 166, 0.08);
+}
+
+
 /* ════ TOOLS VIEW ════ */
 
 .echo-counselor-tools-section {
