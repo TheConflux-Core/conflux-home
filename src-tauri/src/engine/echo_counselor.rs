@@ -71,7 +71,10 @@ Write a warm, narrative letter (200-300 words) that:
 4. Gently raises one thing to think about for next week
 5. Closes with warmth, not advice
 
-This is a letter, not a report. Write it like you're writing to someone you care about."#;
+This is a letter, not a report. Write it like you're writing to someone you care about.
+
+End the letter with a warm signature on its own line: — Echo 💜
+"#;
 
 // ═════════════════════════════════════════════════════════════════
 // TYPES
