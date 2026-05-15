@@ -237,7 +237,18 @@
   flex-direction: column;
   max-width: 80%;
   animation: slide-up 0.3s ease-out;
-  position: relative;
+}
+
+.echo-msg-counselor {
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.echo-counselor-msg-bubble {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .echo-counselor-msg-content {
@@ -247,6 +258,8 @@
   white-space: pre-wrap;
   word-wrap: break-word;
   transition: box-shadow 0.4s ease;
+  /* inner padding for text breathing room */
+  padding: 16px 20px;
 }
 
 .echo-msg-counselor .echo-counselor-msg-content {
@@ -265,22 +278,21 @@
 }
 
 .echo-msg-speak-btn {
-  position: absolute;
-  top: 10px;
-  right: 10px;
+  flex-shrink: 0;
   background: rgba(147, 112, 219, 0.2);
   border: 1px solid rgba(147, 112, 219, 0.4);
   border-radius: 50%;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   color: #c8b4f0;
   cursor: pointer;
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
   opacity: 0;
+  margin-bottom: 4px;
 }
 
 .echo-msg-counselor:hover .echo-msg-speak-btn {
