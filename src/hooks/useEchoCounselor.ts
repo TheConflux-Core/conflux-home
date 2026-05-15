@@ -41,11 +41,12 @@ export function useEchoCounselor() {
   useEffect(() => { loadState(); }, [loadState]);
 
   // -- Load Session Messages --------------------------------
-  const loadMessages = useCallback(async (sessionId: string) => {
+  const loadMessages = useCallback(async (sessionId: string): Promise<EchoCounselorMessage[]> => {
     try {
       const msgs = await invoke<EchoCounselorMessage[]>('echo_counselor_get_messages', { sessionId });
       setMessages(msgs);
-    } catch (e) { console.error('Failed:', e); }
+      return msgs;
+    } catch (e) { console.error('Failed:', e); return []; }
   }, []);
 
   const setCurrentSessionData = useCallback((session: EchoCounselorSession) => {
@@ -270,6 +271,11 @@ export function useEchoCounselor() {
     }
   }, []);
 
+  // -- Clear Messages (UI only) ---------------------------------
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+  }, []);
+
   return {
     state,
     messages,
@@ -280,6 +286,7 @@ export function useEchoCounselor() {
     loadMessages,
     sendMessage,
     endSession,
+    clearMessages,
     writeGratitude,
     getGratitudeEntries,
     getExercises,
