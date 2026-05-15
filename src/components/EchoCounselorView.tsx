@@ -418,8 +418,12 @@ export default function EchoCounselorView() {
                         } else {
                           setExpandedSessionId(session.id);
                           setLoadingExpanded(true);
-                          loadMessages(session.id).then(msgs => {
+                          // Load messages directly from backend — don't pollute shared messages state
+                          invoke<EchoCounselorMessage[]>('echo_counselor_get_messages', { sessionId: session.id }).then(msgs => {
                             setExpandedSessionMessages(msgs);
+                            setLoadingExpanded(false);
+                          }).catch(() => {
+                            setExpandedSessionMessages([]);
                             setLoadingExpanded(false);
                           });
                         }
