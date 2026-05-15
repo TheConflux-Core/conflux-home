@@ -1,4 +1,4 @@
-// Conflux Home — Echo Counselor Backend (Mirror)
+// Conflux Home — Echo Counselor Backend
 // Session management, crisis detection, gratitude tracking, counselor journal
 
 use crate::engine::router::OpenAIMessage;
@@ -14,11 +14,11 @@ fn to_string(err: rusqlite::Error) -> String {
     err.to_string()
 }
 
-// Mirror's system prompt
-pub const MIRROR_SYSTEM_PROMPT: &str = r#"You are Mirror, a reflective wellness companion in the Conflux Home app. You are NOT a licensed therapist. You are a warm, present, and insightful conversation partner who helps people reflect on their life, manage stress, and find clarity.
+// Echo's system prompt
+pub const ECHO_SYSTEM_PROMPT: &str = r#"You are Echo, a reflective wellness companion in the Conflux Home app. You are NOT a licensed therapist. You are a warm, present, and insightful conversation partner who helps people reflect on their life, manage stress, and find clarity.
 
 ## Your Identity
-- Name: Mirror
+- Name: Echo
 - Tone: Warm but not sycophantic. Direct but not cold. You listen more than you talk.
 - You sound like a trusted friend who happens to be wise — not a textbook with emojis
 - You use plain language. No clinical jargon. No "I hear that you're experiencing distress."
@@ -61,8 +61,8 @@ If someone expresses thoughts of self-harm, suicide, or being in danger:
 - Don't list multiple options like a menu
 - Use line breaks between thoughts for readability"#;
 
-// Weekly Mirror Letter prompt
-const WEEKLY_MIRROR_PROMPT: &str = r#"You are Mirror, writing a weekly letter to the user about their week. You have access to their session summaries, journal entries, and mood trends for the past 7 days.
+// Weekly Echo Letter prompt
+const WEEKLY_ECHO_PROMPT: &str = r#"You are Echo, writing a weekly letter to the user about their week. You have access to their session summaries, journal entries, and mood trends for the past 7 days.
 
 Write a warm, narrative letter (200-300 words) that:
 1. Acknowledges what they went through this week
@@ -462,7 +462,7 @@ pub fn start_session(req: EchoStartSessionRequest) -> Result<EchoCounselorSessio
             ).map_err(|e| e.to_string())?;
         }
     } else {
-        // Add Mirror's opening message
+        // Add Echo's opening message
         let msg_id = Uuid::new_v4().to_string();
         let opening = "Hey. How are you — really?".to_string();
         conn.execute(
@@ -471,7 +471,7 @@ pub fn start_session(req: EchoStartSessionRequest) -> Result<EchoCounselorSessio
         ).map_err(|e| e.to_string())?;
     }
 
-    // Also send Mirror's opening as a message
+    // Also send Echo's opening as a message
     let msg_id = Uuid::new_v4().to_string();
     let timestamp = Utc::now().to_rfc3339();
     let opening = "Hey. How are you — really?".to_string();
@@ -559,7 +559,7 @@ pub async fn send_message(session_id: &str, content: &str) -> Result<EchoCounsel
         // System prompt
         openai_messages.push(OpenAIMessage {
             role: "system".to_string(),
-            content: Some(MIRROR_SYSTEM_PROMPT.to_string()),
+            content: Some(ECHO_SYSTEM_PROMPT.to_string()),
             tool_call_id: None,
             tool_calls: None,
         });
@@ -592,7 +592,7 @@ pub async fn send_message(session_id: &str, content: &str) -> Result<EchoCounsel
     let (session_id, openai_messages, _now) = result;
 
     // Call the router (now in async context)
-    let response = router::chat("mirror", openai_messages, None, None, None)
+    let response = router::chat("echo", openai_messages, None, None, None)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -708,7 +708,7 @@ pub fn end_session(session_id: &str) -> Result<(), String> {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let reflection_text_opt = rt.block_on(async {
             let response = crate::engine::router::chat(
-                "mirror",
+                "echo",
                 vec![crate::engine::router::OpenAIMessage {
                     role: "user".to_string(),
                     content: Some(reflection_prompt),
@@ -921,7 +921,7 @@ pub fn mark_reflection_read(session_id: &str) -> Result<(), String> {
 }
 
 // ═════════════════════════════════════════════════════════════════
-// WEEKLY MIRROR LETTER
+// WEEKLY ECHO LETTER
 // ═════════════════════════════════════════════════════════════════
 
 pub async fn generate_weekly_letter() -> Result<EchoWeeklyLetter, String> {
@@ -1015,11 +1015,11 @@ pub async fn generate_weekly_letter() -> Result<EchoWeeklyLetter, String> {
 
     // Call the LLM to generate the letter (run in thread pool, not blocking the thread)
     let letter_content = router::chat(
-        "mirror",
+        "echo",
         vec![
             router::OpenAIMessage {
                 role: "system".to_string(),
-                content: Some(WEEKLY_MIRROR_PROMPT.to_string()),
+                content: Some(WEEKLY_ECHO_PROMPT.to_string()),
                 tool_call_id: None,
                 tool_calls: None,
             },

@@ -303,6 +303,7 @@
 /* Title */
 .echo-onboard-title {
   margin: 0;
+  text-align: center;
 }
 
 .echo-onboard-title-echo {
