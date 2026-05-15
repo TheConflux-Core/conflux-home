@@ -630,6 +630,11 @@ function GratitudeWidget({
 
     await writeGratitude(items, context || undefined);
     setSaved(true);
+    // Reload history if it's currently open so the new entry appears
+    if (showHistory) {
+      const entries = await getGratitudeEntries(10);
+      setHistory(entries);
+    }
     setTimeout(() => {
       setItem1('');
       setItem2('');
