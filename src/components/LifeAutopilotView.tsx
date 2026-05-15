@@ -209,7 +209,7 @@ export default function LifeAutopilotView() {
   // Ensure trend is never undefined
   const safeTrendPct = trendPct ?? 0;
 
-  if (loading && !dashboard) return <div className="mission-control-view"><div className="mc-loading">Loading your orbit...</div></div>;
+  if (loading && !dashboard) return <div className="mission-control-view" style={{ paddingTop: '20px', paddingBottom: '20px', paddingLeft: '24px', paddingRight: '24px' }}><div className="mc-loading">Loading your orbit...</div></div>;
 
   return (
     <>
@@ -230,7 +230,7 @@ export default function LifeAutopilotView() {
         />
       )}
 
-      <div className="mission-control-view">
+      <div className="mission-control-view" style={{ paddingTop: '20px', paddingBottom: '20px', paddingLeft: '24px', paddingRight: '24px' }}>
       {/* Header with Momentum Gauge */}
       <MissionControlHeader
         completedToday={completedToday}

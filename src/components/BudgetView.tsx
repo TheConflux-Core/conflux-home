@@ -215,7 +215,7 @@ export default function BudgetView() {
 
   // Save config from onboarding setup flow
   return (
-    <div className="budget-matrix-v2">
+    <div className="budget-matrix-v2" style={{ paddingTop: '20px', paddingBottom: '20px', paddingLeft: '24px', paddingRight: '24px' }}>
       <div className="matrix-bg-effects" />
       <PulseParticles />
 

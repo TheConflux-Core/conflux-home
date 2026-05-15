@@ -132,7 +132,7 @@ export default function EchoCounselorView() {
 
   if (loading) {
     return (
-      <div className="echo-counselor-view">
+      <div className="echo-counselor-view" style={{ paddingTop: '20px', paddingBottom: '20px', paddingLeft: '24px', paddingRight: '24px' }}>
         <div className="echo-loading">Loading Echo...</div>
       </div>
     );
@@ -154,7 +154,7 @@ export default function EchoCounselorView() {
   }
 
   return (
-    <div className="echo-counselor-view">
+    <div className="echo-counselor-view" style={{ paddingTop: '20px', paddingBottom: '20px', paddingLeft: '24px', paddingRight: '24px' }}>
       {/* Crisis Alert Banner */}
       <AnimatePresence>
         {crisisAlert && (

@@ -98,7 +98,7 @@ export default function Marketplace() {
   const showCategories = categories.length > 2;
 
   return (
-    <div className="marketplace-hub">
+    <div className="marketplace-hub" style={{ paddingTop: '20px', paddingBottom: '20px', paddingLeft: '24px', paddingRight: '24px' }}>
       {/* Hero */}
       <div className="marketplace-hero">
         <div className="marketplace-hero-glow" />

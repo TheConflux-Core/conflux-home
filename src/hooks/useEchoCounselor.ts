@@ -125,6 +125,8 @@ export function useEchoCounselor() {
     try {
       await invoke('echo_counselor_end_session', { sessionId });
       await loadState();
+      // Clear messages so the next session starts fresh
+      setMessages([]);
     } catch (e) {
       console.error('Failed to end session:', e);
     }
