@@ -119,10 +119,9 @@ export default function EchoCounselorView() {
     if (!state?.current_session?.id) return;
     const sessionId = state.current_session.id;
     await endSession(sessionId);
-    // Switch to Sessions tab so the user sees the session they just ended
-    if (state?.recent_sessions) {
-      setSessionsList(state.recent_sessions);
-    }
+    // Reload state so recent_sessions is fresh, then switch to Sessions tab
+    await refresh();
+    setView('sessions');
   };
 
   const handleViewChange = async (mode: ViewMode) => {
