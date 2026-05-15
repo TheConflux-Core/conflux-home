@@ -189,7 +189,7 @@ export default function KitchenView() {
   const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   return (
-    <div className="kitchen-matrix" style={{ paddingTop: '100px', paddingBottom: '100px', paddingLeft: '121px', paddingRight: '121px' }}>
+    <div className="kitchen-matrix" style={{ paddingTop: '50px', paddingBottom: '150px', paddingLeft: '121px', paddingRight: '121px' }}>
       {/* Background effects */}
       <div className="matrix-bg-effects" />
 

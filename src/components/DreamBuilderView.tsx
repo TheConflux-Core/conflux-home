@@ -212,7 +212,7 @@ export default function DreamBuilderView() {
   }
 
   if (loading) return (
-    <div className="stellar-view" style={{ paddingTop: '100px', paddingBottom: '100px', paddingLeft: '121px', paddingRight: '121px' }}>
+    <div className="stellar-view" style={{ paddingTop: '50px', paddingBottom: '150px', paddingLeft: '121px', paddingRight: '121px' }}>
       <StarFieldBackground />
       <div className="stellar-loading">
         <div className="stellar-loading-icon">🌌</div>
@@ -222,7 +222,7 @@ export default function DreamBuilderView() {
   );
 
   return (
-    <div className="stellar-view" style={{ paddingTop: '100px', paddingBottom: '100px', paddingLeft: '121px', paddingRight: '121px' }}>
+    <div className="stellar-view" style={{ paddingTop: '50px', paddingBottom: '150px', paddingLeft: '121px', paddingRight: '121px' }}>
       <StarFieldBackground />
 
       {selectedDream ? (
