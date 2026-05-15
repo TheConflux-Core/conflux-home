@@ -474,15 +474,6 @@ pub fn start_session(req: EchoStartSessionRequest) -> Result<EchoCounselorSessio
         ).map_err(|e| e.to_string())?;
     }
 
-    // Insert Echo's opening message (only if no user opening was provided)
-    let msg_id = Uuid::new_v4().to_string();
-    let timestamp = Utc::now().to_rfc3339();
-    let opening = "Hey. How are you — really?".to_string();
-    conn.execute(
-        "INSERT INTO echo_counselor_messages (id, session_id, role, content, timestamp) VALUES (?, ?, 'counselor', ?, ?)",
-        [&msg_id, &id, &opening, &timestamp]
-    ).map_err(|e| e.to_string())?;
-
     // Count messages (user may have provided opening, or just Echo's message)
     let message_count: i64 = conn
         .query_row(
