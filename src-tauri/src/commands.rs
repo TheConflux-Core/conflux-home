@@ -9493,7 +9493,7 @@ pub async fn echo_counselor_send_message(
     let mut openai_messages: Vec<engine::router::OpenAIMessage> = vec![
         engine::router::OpenAIMessage {
             role: "system".to_string(),
-            content: Some(echo_counselor::MIRROR_SYSTEM_PROMPT.to_string()),
+            content: Some(echo_counselor::ECHO_SYSTEM_PROMPT.to_string()),
             tool_call_id: None,
             tool_calls: None,
         },
