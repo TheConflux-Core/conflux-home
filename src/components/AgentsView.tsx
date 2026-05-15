@@ -270,7 +270,7 @@ export default function AgentsView() {
     ? Math.round(agents.reduce((s, a) => s + (a.soul?.length || 0), 0) / agents.length) : 0;
 
   return (
-    <div className="agents-hub" style={{ paddingTop: '100px', paddingBottom: '100px', paddingLeft: '121px', paddingRight: '121px' }}>
+    <div className="agents-hub" style={{ paddingTop: '50px', paddingBottom: '150px', paddingLeft: '121px', paddingRight: '121px' }}>
       <div className="agents-header">
         <h1>🧩 Agents</h1>
         <div className="agents-subtitle">Your AI family</div>
