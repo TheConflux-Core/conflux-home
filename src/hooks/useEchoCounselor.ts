@@ -43,7 +43,7 @@ export function useEchoCounselor() {
   // -- Load Session Messages --------------------------------
   const loadMessages = useCallback(async (sessionId: string): Promise<EchoCounselorMessage[]> => {
     try {
-      const msgs = await invoke<EchoCounselorMessage[]>('echo_counselor_get_messages', { sessionId });
+      const msgs = await invoke<EchoCounselorMessage[]>('echo_counselor_get_messages', { session_id: sessionId });
       setMessages(msgs);
       return msgs;
     } catch (e) { console.error('Failed:', e); return []; }
@@ -81,7 +81,7 @@ export function useEchoCounselor() {
           session_id: sessionId,
           content,
           severity: crisis.level,
-          detectedText: crisis.matchedText ?? '',
+          detected_text: crisis.matchedText ?? '',
         });
         if (crisis.level === 'critical') {
           setCrisisAlert(flag);
@@ -124,7 +124,7 @@ export function useEchoCounselor() {
   // -- End Session ------------------------------------------
   const endSession = useCallback(async (sessionId: string) => {
     try {
-      await invoke('echo_counselor_end_session', { sessionId });
+      await invoke('echo_counselor_end_session', { session_id: sessionId });
       await loadState();
       // Clear messages so the next session starts fresh
       setMessages([]);
@@ -164,7 +164,7 @@ export function useEchoCounselor() {
 
   const completeExercise = useCallback(async (exerciseId: string) => {
     try {
-      await invoke('echo_counselor_complete_exercise', { exerciseId });
+      await invoke('echo_counselor_complete_exercise', { exercise_id: exerciseId });
       await loadState();
     } catch (e) {
       console.error('Failed to complete exercise:', e);
@@ -183,7 +183,7 @@ export function useEchoCounselor() {
 
   const markReflectionRead = useCallback(async (sessionId: string) => {
     try {
-      await invoke('echo_counselor_mark_reflection_read', { sessionId });
+      await invoke('echo_counselor_mark_reflection_read', { session_id: sessionId });
       await loadState();
     } catch (e) {
       console.error('Failed to mark reflection read:', e);
