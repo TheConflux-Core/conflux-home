@@ -4,6 +4,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useDreams } from '../hooks/useDreams';
 import {
+  HorizonHero,
   StellarHeader,
   StellarMap,
   OrbitalVelocity,
@@ -11,6 +12,7 @@ import {
   StarMilestone,
   StarFieldBackground,
 } from './horizon';
+import MiniConstellationProgress from './horizon/MiniConstellationProgress';
 import HorizonBoot from './HorizonBoot';
 import HorizonOnboarding, { hasCompletedHorizonOnboarding } from './HorizonOnboarding';
 import HorizonTour, { hasCompletedHorizonTour } from './HorizonTour';
@@ -66,6 +68,7 @@ export default function DreamBuilderView() {
   const [progressNote, setProgressNote] = useState('');
   const [progressPct, setProgressPct] = useState('5');
   const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
+  const [isGeneratingConstellation, setIsGeneratingConstellation] = useState(false);
 
   // Boot → Onboarding → Tour → Main view
   // Persisted so boot doesn't replay on every navigation back to Dreams
@@ -105,10 +108,18 @@ export default function DreamBuilderView() {
 
   const handleCreate = useCallback(async () => {
     if (!newTitle.trim()) return;
-    await addDream(crypto.randomUUID(), newTitle, newDesc || null, newCategory, newTarget || null);
+    const id = crypto.randomUUID();
+    const target = newTarget || null;
+    setIsGeneratingConstellation(true);
+    await addDream(id, newTitle, newDesc || null, newCategory, target);
     setNewTitle(''); setNewDesc(''); setNewTarget('');
     setShowNewForm(false);
-  }, [newTitle, newCategory, newDesc, newTarget, addDream]);
+    // Auto-generate milestones + tasks for this dream
+    aiPlan(id, newTitle, newDesc || null, newCategory, target)
+      .then(() => load())
+      .catch(e => console.error('Auto-plan failed:', e))
+      .finally(() => setIsGeneratingConstellation(false));
+  }, [newTitle, newCategory, newDesc, newTarget, addDream, aiPlan, load]);
 
   const handleEditDream = useCallback(() => {
     if (!selectedDream) return;
@@ -137,6 +148,7 @@ export default function DreamBuilderView() {
   const handleAiPlan = useCallback(async () => {
     if (!selectedDream || !aiInput.trim()) return;
     setAiPlanning(true);
+    setIsGeneratingConstellation(true);
     try {
       await aiPlan(selectedDream.id, aiInput, null, selectedDream.category, selectedDream.target_date);
       const ms = await getMilestones(selectedDream.id);
@@ -146,6 +158,7 @@ export default function DreamBuilderView() {
       console.error('AI plan failed:', e);
     } finally {
       setAiPlanning(false);
+      setIsGeneratingConstellation(false);
     }
   }, [selectedDream, aiInput, aiPlan, getMilestones]);
 
@@ -195,10 +208,17 @@ export default function DreamBuilderView() {
       prependDream(createdDream);
       setNewlyLitDreams(new Set([createdDream.id]));
       setTimeout(() => setNewlyLitDreams(new Set()), 8000);
+      // Show generating state while AI builds the constellation
+      setIsGeneratingConstellation(true);
+      // Auto-generate milestones + tasks for the newly created dream
+      aiPlan(createdDream.id, createdDream.title, createdDream.description, createdDream.category, createdDream.target_date)
+        .then(() => load())
+        .catch(e => console.error('Auto-plan failed:', e))
+        .finally(() => setIsGeneratingConstellation(false));
     }
     setShowOnboarding(false);
     if (!hasTakenTour) setShowTour(true);
-  }, [prependDream, hasTakenTour]);
+  }, [prependDream, hasTakenTour, aiPlan, load]);
   if (!bootDone) {
     return <HorizonBoot onComplete={() => { localStorage.setItem('horizon-boot-done', 'true'); setBootDone(true); }} />;
   }
@@ -232,44 +252,52 @@ export default function DreamBuilderView() {
             ← Back to Constellations
           </button>
 
-          {/* Stellar Header */}
-          <StellarHeader
-            dreamCount={1}
-            activeCount={1}
-            velocity={selectedVelocity?.progress_pct ?? 0}
+          {/* Cinematic Hero — the Horizon experience */}
+          <HorizonHero
+            title={selectedDream.title}
+            velocity={selectedVelocity}
           />
 
-          {/* AI Planning — "Break it down" */}
-          <div className="stellar-ai-section" style={{ padding: '0 2rem 1.5rem', maxWidth: 1400, margin: '0 auto', position: 'relative', zIndex: 10 }}>
-            <div className="stellar-ai-card">
-              <div className="stellar-ai-card-header">
-                <span className="stellar-ai-icon">✨</span>
-                <h3 className="stellar-ai-title">Break It Down</h3>
+          {/* AI Planning — "Break It Down" refiner */}
+          <div className="stellar-ai-section">
+            <div className="stellar-ai-header">
+              <span className="stellar-ai-icon">✨</span>
+              <div className="stellar-ai-title-row">
+                <span className="stellar-ai-title">Break It Down</span>
+                <span className="stellar-ai-subtitle">AI decomposes goals into milestones + tasks</span>
               </div>
-              <p className="stellar-ai-desc">Describe what you want to achieve and AI will generate milestones and tasks.</p>
-              <div className="input-with-mic">
-                <input
-                  type="text"
-                  className="stellar-input stellar-input-ai"
-                  value={aiInput}
-                  onChange={e => setAiInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && aiInput.trim()) handleAiPlan(); }}
-                  placeholder="e.g. I want to run a marathon in 6 months"
-                />
-                <MicButton
-                  onTranscription={(text) => setAiInput(text)}
-                  variant="inline"
-                  size="sm"
-                  className="mic-button-inline"
-                />
-              </div>
+            </div>
+            <div className="stellar-ai-input-row">
+              <input
+                className="stellar-ai-input"
+                value={aiInput}
+                onChange={e => setAiInput(e.target.value)}
+                placeholder={selectedDream.description
+                  ? `e.g. "${selectedDream.description.slice(0, 60)}..."`
+                  : 'Describe your dream in more detail — AI will update your constellation...'}
+                onKeyDown={e => e.key === 'Enter' && !aiPlanning && handleAiPlan()}
+                disabled={aiPlanning}
+              />
               <button
-                className="stellar-btn stellar-btn-ai"
+                className="stellar-ai-btn"
                 onClick={handleAiPlan}
                 disabled={aiPlanning || !aiInput.trim()}
               >
-                {aiPlanning ? '✨ Charting course...' : '🚀 Break it down'}
+                {aiPlanning ? (
+                  <span className="stellar-ai-btn-loading">
+                    <span className="stellar-ai-spinner" />
+                    Charting...
+                  </span>
+                ) : (
+                  <>Chart Stars</>
+                )}
               </button>
+              <MicButton
+                onTranscription={(text) => setAiInput(prev => prev ? prev + ' ' + text : text)}
+                variant="inline"
+                size="sm"
+                className="mic-button-inline"
+              />
             </div>
           </div>
 
@@ -280,12 +308,38 @@ export default function DreamBuilderView() {
               milestones={selectedMilestones}
               selectedMilestoneId={selectedMilestoneId}
               onSelectMilestone={handleSelectMilestone}
+              isGenerating={isGeneratingConstellation}
             />
+
+            {/* Milestone legend */}
+            <div className="stellar-legend">
+              <div className="stellar-legend-item"><span className="stellar-legend-dot pending"/>Milestone — a major checkpoint</div>
+              <div className="stellar-legend-item"><span className="stellar-legend-dot completed"/>Achieved</div>
+              <div className="stellar-legend-item"><span className="stellar-legend-line"/>Progress path</div>
+            </div>
 
             {/* Right panel: Orbital Velocity */}
             {selectedVelocity && (
               <OrbitalVelocity velocity={selectedVelocity} />
             )}
+          </div>
+
+          {/* Task vs Milestone clarity */}
+          <div className="stellar-context-help">
+            <div className="stellar-context-card">
+              <span className="stellar-context-icon">🏔️</span>
+              <div>
+                <strong>Milestone</strong>
+                <p>A major checkpoint on your journey. Complete milestones to illuminate your constellation.</p>
+              </div>
+            </div>
+            <div className="stellar-context-card">
+              <span className="stellar-context-icon">📋</span>
+              <div>
+                <strong>Task</strong>
+                <p>A step that moves you toward a milestone. Tasks are the rocket fuel for milestones.</p>
+              </div>
+            </div>
           </div>
 
           {/* Mission Control Panel */}
@@ -446,7 +500,7 @@ export default function DreamBuilderView() {
           />
 
           {/* Hero Banner */}
-          <div className="horizon-hero-banner" style={{ padding: '1.5rem 2rem', maxWidth: 1400, margin: '0 auto', position: 'relative', zIndex: 10 }}>
+          <div className="horizon-hero-banner">
             <div className="horizon-hero-left">
               <div className="horizon-hero-velocity-ring">
                 <svg viewBox="0 0 80 80" className="velocity-ring-svg">
@@ -540,36 +594,38 @@ export default function DreamBuilderView() {
           </div>
 
           {/* Section Label */}
-          <div className="horizon-section-label" style={{ padding: '0 2rem', maxWidth: 1400, margin: '0 auto', position: 'relative', zIndex: 10 }}>
+          <div className="horizon-section-label">
             <span className="horizon-section-label-line"/>
             <span className="horizon-section-label-text">Your Constellations</span>
             <span className="horizon-section-label-line"/>
           </div>
 
           {/* Dream Grid */}
-          <div className="stellar-dream-grid" style={{ padding: '1rem 2rem 3rem', maxWidth: 1400, margin: '0 auto', position: 'relative', zIndex: 10 }}>
+          <div className="stellar-dream-grid">
             {activeDreams.length === 0 ? (
               <div className="stellar-empty">
                 <div className="stellar-empty-icon">🌌</div>
                 <p className="stellar-empty-text">No constellations yet. What star will you illuminate first?</p>
               </div>
             ) : (
-              <div className="stellar-dream-grid-inner">
-                {activeDreams.map((dream, i) => {
-                  const isNewlyLit = newlyLitDreams.has(dream.id);
-                  const cat = CATEGORY_CONFIG[dream.category];
-                  return (
-                    <div
-                      key={dream.id}
-                      className={`stellar-dream-card ${isNewlyLit ? 'newly-lit' : ''}`}
-                      onClick={() => setSelectedDream(dream)}
-                      style={{ animationDelay: `${i * 80}ms` }}
-                    >
-                      {isNewlyLit && <div className="stellar-dream-card-star-glow" />}
-                      <div className="stellar-dream-card-top">
-                        <div className="stellar-dream-card-emoji">{cat?.emoji || '✨'}</div>
-                        <div className="stellar-dream-card-category" style={{ color: cat?.color }}>{cat?.label}</div>
+              activeDreams.map((dream, i) => {
+                const isNewlyLit = newlyLitDreams.has(dream.id);
+                const cat = CATEGORY_CONFIG[dream.category];
+                return (
+                  <div
+                    key={dream.id}
+                    className={`stellar-dream-card ${isNewlyLit ? 'newly-lit' : ''}`}
+                    data-category={dream.category}
+                    onClick={() => setSelectedDream(dream)}
+                    style={{ animationDelay: `${i * 80}ms` }}
+                  >
+                    {isNewlyLit && <div className="stellar-dream-card-newly-lit" />}
+                    <div className="stellar-dream-card-inner">
+                      {/* Mini constellation cluster */}
+                      <div className="stellar-dream-card-cluster">
+                        <MiniConstellationProgress progress={dream.progress} category={dream.category} />
                       </div>
+                      <div className="stellar-dream-card-category">{cat?.label}</div>
                       <h3 className="stellar-dream-card-title">{dream.title}</h3>
                       {dream.description && (
                         <p className="stellar-dream-card-desc">{dream.description}</p>
@@ -577,15 +633,15 @@ export default function DreamBuilderView() {
                       <div className="stellar-dream-card-footer">
                         <div className="stellar-dream-card-progress">
                           <div className="stellar-dream-card-progress-fill"
-                            style={{ width: `${dream.progress}%`, background: cat?.color || '#06b6d4' }}
+                            style={{ width: `${dream.progress}%` }}
                           />
                         </div>
-                        <span className="stellar-dream-card-pct" style={{ color: cat?.color }}>{dream.progress.toFixed(0)}%</span>
+                        <span className="stellar-dream-card-pct">{dream.progress.toFixed(0)}%</span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
