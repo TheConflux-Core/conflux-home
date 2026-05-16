@@ -9451,6 +9451,7 @@ pub fn echo_counselor_start_session(
 pub fn echo_counselor_get_messages(
     session_id: String,
 ) -> Result<Vec<EchoCounselorMessage>, String> {
+    println!("[DEBUG][Tauri] echo_counselor_get_messages called with session_id: {}", session_id);
     echo_counselor::get_messages(&session_id).map_err(|e| e.to_string())
 }
 

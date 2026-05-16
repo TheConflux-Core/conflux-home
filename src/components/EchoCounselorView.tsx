@@ -94,6 +94,13 @@ export default function EchoCounselorView() {
     startSession();
   }, [bootDone, showOnboarding, loading, state, startSession]);
 
+  // Keep sessionsList in sync whenever state.recent_sessions changes
+  useEffect(() => {
+    if (view === 'sessions' && state?.recent_sessions) {
+      setSessionsList(state.recent_sessions);
+    }
+  }, [view, state?.recent_sessions]);
+
   const handleSubmit = async () => {
     if (!input.trim() || !state?.current_session?.id) return;
 
@@ -121,7 +128,8 @@ export default function EchoCounselorView() {
     await endSession(sessionId);
     // Reload state so recent_sessions is fresh, then switch to Sessions tab
     await refresh();
-    setView('sessions');
+    // handleViewChange populates sessionsList from updated state.recent_sessions
+    await handleViewChange('sessions');
   };
 
   const handleViewChange = async (mode: ViewMode) => {
@@ -132,6 +140,7 @@ export default function EchoCounselorView() {
     } else if (mode === 'sessions') {
       // Sessions tab: show ALL sessions from recent_sessions (including those without reflections yet)
       // Journal tab: shows only sessions with counselor reflections
+      // Always populate from state after refresh completes to ensure fresh data
       if (state?.recent_sessions) {
         setSessionsList(state.recent_sessions);
       }
@@ -418,13 +427,19 @@ export default function EchoCounselorView() {
                           setExpandedSessionId(session.id);
                           setLoadingExpanded(true);
                           // Load messages directly from backend — don't pollute shared messages state
-                          invoke<EchoCounselorMessage[]>('echo_counselor_get_messages', { sessionId: session.id }).then(msgs => {
-                            setExpandedSessionMessages(msgs);
-                            setLoadingExpanded(false);
-                          }).catch(() => {
-                            setExpandedSessionMessages([]);
-                            setLoadingExpanded(false);
-                          });
+                          console.log('[DEBUG][Frontend] Calling echo_counselor_get_messages for session:', session.id);
+                          invoke<EchoCounselorMessage[]>('echo_counselor_get_messages', { session_id: session.id })
+                            .then(msgs => {
+                              console.log('[DEBUG][Frontend] Received', msgs.length, 'messages for session', session.id);
+                              console.log('[DEBUG][Frontend] Messages:', JSON.stringify(msgs.slice(0, 2)));
+                              setExpandedSessionMessages(msgs);
+                              setLoadingExpanded(false);
+                            })
+                            .catch(err => {
+                              console.error('[DEBUG][Frontend] Error loading messages:', err);
+                              setExpandedSessionMessages([]);
+                              setLoadingExpanded(false);
+                            });
                         }
                       }}
                     >
