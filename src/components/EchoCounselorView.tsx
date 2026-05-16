@@ -1001,6 +1001,7 @@ function WeeklyLetterView({
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<'current' | 'past'>('current');
+  const [expandedLetterId, setExpandedLetterId] = useState<string | null>(null);
 
   useEffect(() => {
     loadLetters();
@@ -1083,11 +1084,22 @@ function WeeklyLetterView({
             <p className="echo-letter-empty">No past letters yet.</p>
           ) : (
             letterHistory.map(letter => (
-              <div key={letter.id} className="echo-letter-past-item">
-                <div className="echo-letter-past-week">{formatWeek(letter.week_start, letter.week_end)}</div>
-                <div className="echo-letter-past-preview">
-                  {letter.letter_content.slice(0, 120)}...
+              <div key={letter.id} className={`echo-letter-past-item ${expandedLetterId === letter.id ? 'expanded' : ''}`} onClick={() => setExpandedLetterId(expandedLetterId === letter.id ? null : letter.id)}>
+                <div className="echo-letter-past-header">
+                  <div className="echo-letter-past-week">{formatWeek(letter.week_start, letter.week_end)}</div>
+                  <div className="echo-letter-past-toggle">{expandedLetterId === letter.id ? '▲' : '▼'}</div>
                 </div>
+                {expandedLetterId === letter.id ? (
+                  <div className="echo-letter-past-body">
+                    {letter.letter_content.split('\n').map((line, i) => (
+                      <p key={i}>{line}</p>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="echo-letter-past-preview">
+                    {letter.letter_content.slice(0, 120)}...
+                  </div>
+                )}
               </div>
             ))
           )}
