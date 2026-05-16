@@ -499,24 +499,29 @@ pub fn get_messages(session_id: &str) -> Result<Vec<EchoCounselorMessage>, Strin
     let engine = get_engine();
     let conn = engine.db.conn();
 
-    let messages = conn
+    println!("[DEBUG] get_messages called with session_id: {}", session_id);
+
+    let messages: Vec<EchoCounselorMessage> = conn
         .prepare(
-            "SELECT * FROM echo_counselor_messages WHERE session_id = ? ORDER BY timestamp ASC",
+            "SELECT id, session_id, role, content, timestamp FROM echo_counselor_messages WHERE session_id = ? ORDER BY timestamp ASC",
         )
         .map_err(to_string)?
         .query_map([session_id], |row| {
-            Ok(EchoCounselorMessage {
+            let msg = EchoCounselorMessage {
                 id: row.get(0)?,
                 session_id: row.get(1)?,
                 role: row.get(2)?,
                 content: row.get(3)?,
                 timestamp: row.get(4)?,
-            })
+            };
+            println!("[DEBUG] Found message: id={}, role={}, content_len={}", msg.id, msg.role, msg.content.len());
+            Ok(msg)
         })
         .map_err(to_string)?
         .filter_map(|r| r.ok())
         .collect();
 
+    println!("[DEBUG] get_messages returning {} messages", messages.len());
     Ok(messages)
 }
 
