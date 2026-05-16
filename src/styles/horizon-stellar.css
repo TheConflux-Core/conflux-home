@@ -14,6 +14,22 @@
   padding: 40px 48px;
 }
 
+/* 50% black overlay between wallpaper and all UI components */
+.stellar-view::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Ensure all content sits above the overlay */
+.stellar-view > * {
+  position: relative;
+  z-index: 2;
+}
+
 /* --- Starfield Background --- */
 .starfield-background {
   position: fixed;
@@ -247,20 +263,34 @@
 }
 
 .stellar-star circle {
-  transition: all 0.3s ease;
+  transition: opacity 0.25s ease, filter 0.25s ease;
 }
 
-.stellar-star:hover circle {
-  transform: scale(1.1);
-  filter: drop-shadow(0 0 12px #06b6d4);
+/* Hover — brighten the glow layer, no scale (SVG transform-origin issues) */
+.stellar-star:hover .stellar-star-glow {
+  opacity: 0.4;
+  filter: blur(5px);
 }
 
-.stellar-star.selected circle {
+.stellar-star:hover .stellar-star-main {
+  filter: drop-shadow(0 0 10px #06b6d4);
+}
+
+.stellar-star.selected .stellar-star-main {
   filter: drop-shadow(0 0 16px #06b6d4);
 }
 
-.stellar-star.completed circle {
+.stellar-star.completed .stellar-star-main {
   filter: drop-shadow(0 0 12px #fbbf24);
+}
+
+/* Explicit class refs for SVG elements */
+.stellar-star-glow {
+  /* handled via opacity transition */
+}
+
+.stellar-star-main {
+  /* filter applied directly in JSX style */
 }
 
 .stellar-map-controls {
@@ -822,101 +852,264 @@
 
 /* --- Dream Grid (List View) --- */
 .stellar-dream-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 1.5rem;
+  margin: 0 auto 3rem;
+  max-width: 1400px;
+  position: relative;
+  z-index: 10;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 0 2rem;
 }
 
 .stellar-dream-card {
   position: relative;
-  background: rgba(15, 23, 42, 0.5);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(6, 182, 212, 0.2);
-  border-radius: 16px;
-  padding: 1.5rem;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(6, 182, 212, 0.25);
+  border-radius: 80px; /* stadium / pill shape */
+  padding: 2rem 1.75rem 1.75rem;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Category glow — defaults to cyan, overridden per-card via CSS var */
+  box-shadow:
+    0 0 0 0 transparent,
+    0 8px 32px rgba(0, 0, 0, 0.4);
+  width: 220px;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0;
+  overflow: hidden;
+  /* Soft ambient glow behind card */
+  background-image: radial-gradient(ellipse at 50% 0%, rgba(6, 182, 212, 0.08) 0%, transparent 70%);
+  background-attachment: fixed;
+}
+
+.stellar-dream-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 80px;
+  background: transparent;
+  transition: box-shadow 0.4s ease;
+  pointer-events: none;
 }
 
 .stellar-dream-card:hover {
   border-color: rgba(6, 182, 212, 0.5);
-  transform: translateY(-4px);
-  box-shadow: 0 0 30px rgba(6, 182, 212, 0.15);
+  transform: translateY(-6px) scale(1.03);
+  box-shadow:
+    0 0 40px rgba(6, 182, 212, 0.2),
+    0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+/* Category color variants — applied via data-category attr in JSX */
+.stellar-dream-card[data-category="health"] {
+  border-color: rgba(16, 185, 129, 0.25);
+  background-image: radial-gradient(ellipse at 50% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 70%);
+}
+.stellar-dream-card[data-category="health"]:hover {
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 0 40px rgba(16, 185, 129, 0.2), 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.stellar-dream-card[data-category="career"] {
+  border-color: rgba(245, 158, 11, 0.25);
+  background-image: radial-gradient(ellipse at 50% 0%, rgba(245, 158, 11, 0.08) 0%, transparent 70%);
+}
+.stellar-dream-card[data-category="career"]:hover {
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: 0 0 40px rgba(245, 158, 11, 0.2), 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.stellar-dream-card[data-category="education"] {
+  border-color: rgba(139, 92, 246, 0.25);
+  background-image: radial-gradient(ellipse at 50% 0%, rgba(139, 92, 246, 0.1) 0%, transparent 70%);
+}
+.stellar-dream-card[data-category="education"]:hover {
+  border-color: rgba(139, 92, 246, 0.5);
+  box-shadow: 0 0 40px rgba(139, 92, 246, 0.2), 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.stellar-dream-card[data-category="financial"] {
+  border-color: rgba(20, 184, 166, 0.25);
+  background-image: radial-gradient(ellipse at 50% 0%, rgba(20, 184, 166, 0.08) 0%, transparent 70%);
+}
+.stellar-dream-card[data-category="financial"]:hover {
+  border-color: rgba(20, 184, 166, 0.5);
+  box-shadow: 0 0 40px rgba(20, 184, 166, 0.2), 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.stellar-dream-card[data-category="creative"] {
+  border-color: rgba(168, 85, 247, 0.25);
+  background-image: radial-gradient(ellipse at 50% 0%, rgba(168, 85, 247, 0.1) 0%, transparent 70%);
+}
+.stellar-dream-card[data-category="creative"]:hover {
+  border-color: rgba(168, 85, 247, 0.5);
+  box-shadow: 0 0 40px rgba(168, 85, 247, 0.2), 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.stellar-dream-card[data-category="travel"] {
+  border-color: rgba(6, 182, 212, 0.25);
+  background-image: radial-gradient(ellipse at 50% 0%, rgba(6, 182, 212, 0.08) 0%, transparent 70%);
+}
+.stellar-dream-card[data-category="travel"]:hover {
+  border-color: rgba(6, 182, 212, 0.5);
+  box-shadow: 0 0 40px rgba(6, 182, 212, 0.2), 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.stellar-dream-card[data-category="housing"] {
+  border-color: rgba(59, 130, 246, 0.25);
+  background-image: radial-gradient(ellipse at 50% 0%, rgba(59, 130, 246, 0.08) 0%, transparent 70%);
+}
+.stellar-dream-card[data-category="housing"]:hover {
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 40px rgba(59, 130, 246, 0.2), 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.stellar-dream-card[data-category="family"] {
+  border-color: rgba(236, 72, 153, 0.25);
+  background-image: radial-gradient(ellipse at 50% 0%, rgba(236, 72, 153, 0.08) 0%, transparent 70%);
+}
+.stellar-dream-card[data-category="family"]:hover {
+  border-color: rgba(236, 72, 153, 0.5);
+  box-shadow: 0 0 40px rgba(236, 72, 153, 0.2), 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.stellar-dream-card[data-category="personal"] {
+  border-color: rgba(249, 115, 22, 0.25);
+  background-image: radial-gradient(ellipse at 50% 0%, rgba(249, 115, 22, 0.08) 0%, transparent 70%);
+}
+.stellar-dream-card[data-category="personal"]:hover {
+  border-color: rgba(249, 115, 22, 0.5);
+  box-shadow: 0 0 40px rgba(249, 115, 22, 0.2), 0 16px 48px rgba(0, 0, 0, 0.5);
 }
 
 /* Newly lit dream — star glow animation */
 .stellar-dream-card.newly-lit {
   animation: newly-lit-pulse 1.5s ease-in-out infinite;
-}
-
-.stellar-dream-card-star-glow {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 80px;
-  height: 80px;
-  background: radial-gradient(circle, rgba(251, 191, 36, 0.4) 0%, rgba(251, 191, 36, 0.1) 40%, transparent 70%);
-  border-radius: 50%;
-  animation: star-glow-pulse 1.5s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 0;
+  border-color: rgba(251, 191, 36, 0.4);
 }
 
 @keyframes newly-lit-pulse {
-  0%, 100% {
-    border-color: rgba(251, 191, 36, 0.3);
-    box-shadow: 0 0 20px rgba(251, 191, 36, 0.15);
-  }
-  50% {
-    border-color: rgba(251, 191, 36, 0.6);
-    box-shadow: 0 0 40px rgba(251, 191, 36, 0.25);
-  }
+  0%, 100% { box-shadow: 0 0 20px rgba(251, 191, 36, 0.2); }
+  50% { box-shadow: 0 0 50px rgba(251, 191, 36, 0.35); }
 }
 
-@keyframes star-glow-pulse {
-  0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
-  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
-}
-
-.stellar-dream-card-content {
+/* Inner layout — centered column */
+.stellar-dream-card-inner {
   position: relative;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  gap: 0.875rem;
+}
+
+/* Mini constellation cluster — top of card */
+.stellar-dream-card-cluster {
+  width: 80px;
+  height: 80px;
+  position: relative;
+  flex-shrink: 0;
+  margin-top: 0.25rem;
+}
+
+.stellar-dream-card-cluster svg {
+  width: 100%;
+  height: 100%;
 }
 
 .stellar-dream-card-emoji {
   font-size: 2rem;
-  margin-bottom: 0.75rem;
+  display: none; /* replaced by constellation cluster */
 }
+
+.stellar-dream-card-category {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  opacity: 0.7;
+  color: #06b6d4;
+}
+
+.stellar-dream-card[data-category="health"] .stellar-dream-card-category { color: #10b981; }
+.stellar-dream-card[data-category="career"] .stellar-dream-card-category { color: #f59e0b; }
+.stellar-dream-card[data-category="education"] .stellar-dream-card-category { color: #8b5cf6; }
+.stellar-dream-card[data-category="financial"] .stellar-dream-card-category { color: #14b8a6; }
+.stellar-dream-card[data-category="creative"] .stellar-dream-card-category { color: #a855f7; }
+.stellar-dream-card[data-category="travel"] .stellar-dream-card-category { color: #06b6d4; }
+.stellar-dream-card[data-category="housing"] .stellar-dream-card-category { color: #3b82f6; }
+.stellar-dream-card[data-category="family"] .stellar-dream-card-category { color: #ec4899; }
+.stellar-dream-card[data-category="personal"] .stellar-dream-card-category { color: #f97316; }
 
 .stellar-dream-card-title {
   font-family: 'Orbitron', monospace;
-  font-size: 1rem;
+  font-size: 0.875rem;
   color: #e2e8f0;
-  margin: 0 0 0.5rem 0;
+  margin: 0;
+  line-height: 1.3;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+}
+
+.stellar-dream-card-desc {
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.4);
+  margin: 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.stellar-dream-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: auto;
+  padding-top: 0.5rem;
 }
 
 .stellar-dream-card-progress {
-  width: 100%;
-  height: 6px;
-  background: #1e293b;
-  border-radius: 3px;
+  flex: 1;
+  height: 4px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
   overflow: hidden;
-  margin-bottom: 0.5rem;
 }
 
 .stellar-dream-card-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #06b6d4, #8b5cf6);
-  border-radius: 3px;
+  border-radius: 2px;
   transition: width 0.5s ease;
+  background: linear-gradient(90deg, #06b6d4, #8b5cf6);
 }
+
+.stellar-dream-card[data-category="health"] .stellar-dream-card-progress-fill { background: linear-gradient(90deg, #10b981, #34d399); }
+.stellar-dream-card[data-category="career"] .stellar-dream-card-progress-fill { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.stellar-dream-card[data-category="education"] .stellar-dream-card-progress-fill { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+.stellar-dream-card[data-category="financial"] .stellar-dream-card-progress-fill { background: linear-gradient(90deg, #14b8a6, #2dd4bf); }
+.stellar-dream-card[data-category="creative"] .stellar-dream-card-progress-fill { background: linear-gradient(90deg, #a855f7, #c084fc); }
 
 .stellar-dream-card-pct {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 700;
   color: #fbbf24;
+  flex-shrink: 0;
 }
+
+/* --- Empty State --- */
+
 
 /* --- Empty State --- */
 .stellar-empty {
@@ -1335,8 +1528,11 @@
   background: linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
   border: 1px solid rgba(6, 182, 212, 0.2);
   border-radius: 20px;
-  margin-top: 1rem;
+  margin: 2rem auto 0;
   padding: 1.5rem 2rem;
+  max-width: 1400px;
+  position: relative;
+  z-index: 10;
 }
 
 .horizon-hero-left {
@@ -1494,7 +1690,10 @@
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin: 0.5rem 0;
+  margin: 2.5rem auto 1rem;
+  max-width: 1400px;
+  position: relative;
+  z-index: 10;
 }
 
 .horizon-section-label-line {
@@ -1592,4 +1791,468 @@
   .horizon-hero-stats {
     gap: 1.25rem;
   }
+}
+
+/* ── Milestone Legend ── */
+.stellar-legend {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(6, 182, 212, 0.15);
+  border-radius: 10px;
+  margin-top: 1rem;
+}
+
+.stellar-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.stellar-legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.stellar-legend-dot.pending {
+  background: #64748b;
+  box-shadow: 0 0 6px rgba(100, 116, 139, 0.6);
+}
+
+.stellar-legend-dot.completed {
+  background: #fbbf24;
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.7);
+}
+
+.stellar-legend-line {
+  width: 20px;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(6, 182, 212, 0.4), rgba(6, 182, 212, 0.9));
+  border-radius: 1px;
+  display: inline-block;
+}
+
+/* ── Task vs Milestone Clarity Cards ── */
+.stellar-context-help {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 0 0 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 10;
+}
+
+.stellar-context-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px solid rgba(6, 182, 212, 0.15);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+}
+
+.stellar-context-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.stellar-context-card strong {
+  display: block;
+  font-size: 0.875rem;
+  color: #67e8f9;
+  margin-bottom: 0.25rem;
+}
+
+.stellar-context-card p {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin: 0;
+  line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  .stellar-context-help {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Stellar Map Empty State ── */
+.stellar-map-empty {
+  background: rgba(15, 23, 42, 0.3);
+  border: 1px dashed rgba(99, 102, 241, 0.25);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+}
+
+.stellar-map-empty-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  pointer-events: none;
+}
+
+.stellar-map-empty-svg {
+  width: 100%;
+  max-width: 500px;
+  opacity: 0.7;
+}
+
+.stellar-map-empty-text {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.875rem;
+  color: rgba(148, 163, 184, 0.6);
+  font-style: italic;
+  text-align: center;
+  margin: 0;
+}
+
+/* ── Stellar Map Controls ── */
+.stellar-map-btn {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  border-radius: 8px;
+  color: #67e8f9;
+  font-size: 1.1rem;
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(8px);
+}
+
+.stellar-map-btn:hover {
+  background: rgba(6, 182, 212, 0.2);
+  border-color: #06b6d4;
+  box-shadow: 0 0 12px rgba(6, 182, 212, 0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HORIZON — AI Planning Section (Break It Down)
+   ═══════════════════════════════════════════════════════════ */
+
+.stellar-ai-section {
+  max-width: 1400px;
+  margin: 0 auto 1.5rem;
+  padding: 0 2rem;
+  position: relative;
+  z-index: 10;
+}
+
+.stellar-ai-header {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  margin-bottom: 0.875rem;
+}
+
+.stellar-ai-icon {
+  font-size: 1.5rem;
+  filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.6));
+  animation: star-pulse-glow 3s ease-in-out infinite;
+}
+
+@keyframes star-pulse-glow {
+  0%, 100% { filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.5)); }
+  50% { filter: drop-shadow(0 0 16px rgba(251, 191, 36, 0.9)); }
+}
+
+.stellar-ai-title-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.stellar-ai-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fbbf24;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.stellar-ai-subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.stellar-ai-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.stellar-ai-input {
+  flex: 1;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  border-radius: 12px;
+  padding: 0.875rem 1.25rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9375rem;
+  color: #e2e8f0;
+  outline: none;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.stellar-ai-input::placeholder {
+  color: #64748b;
+  font-style: italic;
+}
+
+.stellar-ai-input:focus {
+  border-color: rgba(251, 191, 36, 0.5);
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.1), 0 0 40px rgba(251, 191, 36, 0.05);
+  background: rgba(15, 23, 42, 0.85);
+}
+
+.stellar-ai-input:disabled {
+  opacity: 0.5;
+}
+
+.stellar-ai-btn {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  border: none;
+  border-radius: 10px;
+  padding: 0.875rem 1.5rem;
+  font-family: 'Orbitron', monospace;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #0f172a;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.2);
+}
+
+.stellar-ai-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  box-shadow: 0 0 30px rgba(251, 191, 36, 0.4);
+  transform: translateY(-1px);
+}
+
+.stellar-ai-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.stellar-ai-btn-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stellar-ai-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(15, 23, 42, 0.3);
+  border-top-color: #0f172a;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ENHANCED — Constellation Generating State
+   Shown when auto-planning is running after dream creation
+   ═══════════════════════════════════════════════════════════ */
+
+.stellar-map-generating {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  gap: 1.5rem;
+  background: rgba(15, 23, 42, 0.4);
+  border: 1px dashed rgba(251, 191, 36, 0.3);
+  border-radius: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.stellar-generating-orbs {
+  position: relative;
+  width: 120px;
+  height: 120px;
+}
+
+.stellar-generating-orb {
+  position: absolute;
+  border-radius: 50%;
+  animation: orb-fly 2s ease-in-out infinite;
+}
+
+.stellar-generating-orb:nth-child(1) {
+  width: 24px;
+  height: 24px;
+  background: radial-gradient(circle, #fbbf24, transparent);
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  animation-delay: 0s;
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.6);
+}
+
+.stellar-generating-orb:nth-child(2) {
+  width: 18px;
+  height: 18px;
+  background: radial-gradient(circle, #06b6d4, transparent);
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  animation-delay: 0.3s;
+  box-shadow: 0 0 16px rgba(6, 182, 212, 0.5);
+}
+
+.stellar-generating-orb:nth-child(3) {
+  width: 20px;
+  height: 20px;
+  background: radial-gradient(circle, #8b5cf6, transparent);
+  bottom: 10%;
+  left: 10%;
+  animation-delay: 0.6s;
+  box-shadow: 0 0 18px rgba(139, 92, 246, 0.5);
+}
+
+.stellar-generating-orb:nth-child(4) {
+  width: 16px;
+  height: 16px;
+  background: radial-gradient(circle, #67e8f9, transparent);
+  bottom: 20%;
+  right: 15%;
+  animation-delay: 0.9s;
+  box-shadow: 0 0 14px rgba(103, 232, 249, 0.5);
+}
+
+@keyframes orb-fly {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(-20px) scale(1.2);
+    opacity: 1;
+  }
+}
+
+.stellar-generating-text {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.9375rem;
+  color: #fbbf24;
+  text-align: center;
+  letter-spacing: 0.08em;
+  animation: text-glow-pulse 2s ease-in-out infinite;
+}
+
+.stellar-generating-subtext {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8125rem;
+  color: #94a3b8;
+  text-align: center;
+  font-style: italic;
+  margin-top: -0.75rem;
+}
+
+@keyframes text-glow-pulse {
+  0%, 100% { text-shadow: 0 0 8px rgba(251, 191, 36, 0.4); }
+  50% { text-shadow: 0 0 20px rgba(251, 191, 36, 0.8); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ENHANCED — Empty Constellation State
+   Feels like anticipation, not emptiness
+   ═══════════════════════════════════════════════════════════ */
+
+.stellar-map-empty {
+  background: rgba(15, 23, 42, 0.3);
+  border: 1px dashed rgba(99, 102, 241, 0.25);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+}
+
+.stellar-map-empty-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  pointer-events: none;
+}
+
+.stellar-map-empty-icon {
+  font-size: 3rem;
+  animation: constellation-waiting 3s ease-in-out infinite;
+}
+
+@keyframes constellation-waiting {
+  0%, 100% { transform: scale(1) rotate(0deg); filter: drop-shadow(0 0 12px rgba(99, 102, 241, 0.4)); }
+  50% { transform: scale(1.08) rotate(3deg); filter: drop-shadow(0 0 24px rgba(99, 102, 241, 0.7)); }
+}
+
+.stellar-map-empty-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: #67e8f9;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+.stellar-map-empty-text {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9375rem;
+  color: rgba(148, 163, 184, 0.7);
+  font-style: normal;
+  text-align: center;
+  max-width: 380px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.stellar-map-empty-hint {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8125rem;
+  color: rgba(251, 191, 36, 0.6);
+  text-align: center;
+  margin-top: -0.5rem;
+}
+
+.stellar-map-empty-svg {
+  width: 100%;
+  max-width: 500px;
+  opacity: 0.5;
 }
