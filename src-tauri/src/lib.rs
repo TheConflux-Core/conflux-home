@@ -113,6 +113,12 @@ pub fn run() {
                     } else {
                         log::info!("[Setup] Echo Counselor tables initialized");
                     }
+                    // Initialize Hearth Nutritionist tables
+                    if let Err(e) = engine::hearth_nutritionist::init() {
+                        log::error!("[Setup] Failed to initialize Hearth Nutritionist: {}", e);
+                    } else {
+                        log::info!("[Setup] Hearth Nutritionist tables initialized");
+                    }
                 }
                 Err(e) => log::error!("[Setup] Failed to initialize engine: {} — app will run without engine", e),
             }
@@ -661,6 +667,11 @@ pub fn run() {
             commands::echo_counselor_get_weekly_letter_history,
             commands::echo_counselor_set_evening_reminder,
             commands::echo_counselor_get_evening_reminder,
+            // Hearth Nutritionist
+            commands::hearth_nutritionist_start_session,
+            commands::hearth_nutritionist_get_messages,
+            commands::hearth_nutritionist_send_message,
+            commands::hearth_nutritionist_end_session,
             // Current — Intelligence Briefing
             commands::current_daily_briefing,
             commands::current_detect_ripples,

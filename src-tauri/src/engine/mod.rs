@@ -6,6 +6,7 @@ pub mod cron;
 pub mod db;
 pub mod deterministic;
 pub mod echo_counselor;
+pub mod hearth_nutritionist;
 pub mod google;
 pub mod local_ai;
 pub mod memory;

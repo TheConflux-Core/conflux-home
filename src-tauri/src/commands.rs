@@ -9707,6 +9707,47 @@ pub struct EchoEveningReminderStatus {
 }
 
 // ============================================================
+// HEARTH NUTRITIONIST COMMANDS
+// ============================================================
+
+use crate::engine::hearth_nutritionist::{
+    HearthNutritionistMessage, HearthNutritionistSession, HearthStartSessionRequest,
+};
+
+/// Start a Hearth Nutritionist session
+#[tauri::command(rename_all = "snake_case")]
+pub fn hearth_nutritionist_start_session(
+    req: HearthStartSessionRequest,
+) -> Result<HearthNutritionistSession, String> {
+    super::engine::hearth_nutritionist::start_session(req).map_err(|e| e.to_string())
+}
+
+/// Get messages for a Hearth Nutritionist session
+#[tauri::command(rename_all = "snake_case")]
+pub fn hearth_nutritionist_get_messages(
+    session_id: String,
+) -> Result<Vec<HearthNutritionistMessage>, String> {
+    super::engine::hearth_nutritionist::get_messages(&session_id).map_err(|e| e.to_string())
+}
+
+/// Send a message in a Hearth Nutritionist session
+#[tauri::command(rename_all = "snake_case")]
+pub async fn hearth_nutritionist_send_message(
+    session_id: String,
+    content: String,
+) -> Result<HearthNutritionistMessage, String> {
+    super::engine::hearth_nutritionist::send_message(&session_id, &content)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// End a Hearth Nutritionist session
+#[tauri::command(rename_all = "snake_case")]
+pub fn hearth_nutritionist_end_session(session_id: String) -> Result<(), String> {
+    super::engine::hearth_nutritionist::end_session(&session_id).map_err(|e| e.to_string())
+}
+
+// ============================================================
 // SECURITY — Mission 1224: Agent Security & SIEM
 // ============================================================
 

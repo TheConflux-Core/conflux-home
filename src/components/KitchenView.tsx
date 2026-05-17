@@ -14,6 +14,8 @@ import { MEAL_CATEGORIES, MEAL_CUISINES, MEAL_CATEGORY_EMOJI } from '../types';
 import KitchenNudges from './KitchenNudges';
 import KitchenDigestCard from './KitchenDigest';
 import SmartGrocery from './SmartGrocery';
+import InventoryHeatmap from './InventoryHeatmap';
+import HearthNutritionistView from './HearthNutritionistView';
 import PantryHeatmap from './PantryHeatmap';
 import CookingMode from './CookingMode';
 import CookingModeEnhanced from './CookingModeEnhanced';
@@ -24,10 +26,14 @@ import KitchenBoot from './KitchenBoot';
 import HearthOnboarding, { hasCompletedHearthOnboarding } from './HearthOnboarding';
 import HearthTour, { hasCompletedHearthTour } from './HearthTour';
 import KitchenEmptyState from './KitchenEmptyState';
-// Kroger integration — TEMPORARILY DISABLED (2026-04-22):
-// restore by uncommenting + creating src-tauri/src/kroger.rs
-// import KrogerConnect from './KrogerConnect';
-// import KrogerCartExporter from './KrogerCartExporter';
+const NUTRITION_TIPS = [
+  { emoji: '🔥', title: 'Protein First', body: 'Each meal should have a palm-sized portion of protein. It keeps you fuller longer and preserves muscle as you age.' },
+  { emoji: '🥬', title: 'Eat the Rainbow', body: 'Colors in vegetables signal different nutrients. Aim for 3 different colors per day — especially leafy greens and orange/root veg.' },
+  { emoji: '💧', title: 'Hydration Before Meals', body: 'Drink a full glass of water 15 minutes before eating. Improves digestion, reduces overeating, and supports every metabolic process.' },
+  { emoji: '⏰', title: 'Meal Timing Matters', body: 'Eating within 2 hours of waking kickstarts your metabolism. Try to keep dinner light and finish at least 3 hours before sleep.' },
+  { emoji: '🧂', title: 'Salt in the Kitchen', body: 'Lightly salt as you cook — it enhances flavor without the sodium hit of adding salt at the table. Your heart will thank you.' },
+  { emoji: '🥜', title: 'Smart Snacking', body: 'Keep nuts and seeds handy. A small handful provides healthy fats, protein, and fiber that keep energy stable between meals.' },
+];
 
 function getWeekStart(): string {
   const now = new Date();
@@ -46,7 +52,7 @@ const SLOTS = ['breakfast', 'lunch', 'dinner'] as const;
 
 export default function KitchenView() {
   const { user } = useAuth();
-  const [tab, setTab] = useState<'home' | 'library' | 'plan' | 'grocery' | 'pantry'>('home');
+  const [tab, setTab] = useState<'home' | 'library' | 'plan' | 'grocery' | 'inventory' | 'nutritionist'>('home');
   const [filterCat, setFilterCat] = useState<string>('all');
   const [filterCuisine, setFilterCuisine] = useState<string>('all');
   const [showFavorites, setShowFavorites] = useState(false);
@@ -182,7 +188,7 @@ export default function KitchenView() {
 
   const handleNudgeAction = useCallback((nudge: { nudge_type: string }) => {
     if (nudge.nudge_type === 'cook') setTab('library');
-    else if (nudge.nudge_type === 'pantry') setTab('pantry');
+    else if (nudge.nudge_type === 'pantry') setTab('inventory');
     else if (nudge.nudge_type === 'grocery') setTab('grocery');
   }, []);
 
@@ -251,8 +257,11 @@ export default function KitchenView() {
           <button data-tab="grocery" className={`kitchen-tab ${tab === 'grocery' ? 'active' : ''}`} onClick={() => setTab('grocery')}>
             🛒 Grocery
           </button>
-          <button data-tab="pantry" className={`kitchen-tab ${tab === 'pantry' ? 'active' : ''}`} onClick={() => setTab('pantry')}>
-            🌡️ Pantry
+          <button data-tab="inventory" className={`kitchen-tab ${tab === 'inventory' ? 'active' : ''}`} onClick={() => setTab('inventory')}>
+            📦 Inventory
+          </button>
+          <button data-tab="nutritionist" className={`kitchen-tab ${tab === 'nutritionist' ? 'active' : ''}`} onClick={() => setTab('nutritionist')}>
+            🥗 Nutritionist
           </button>
         </div>
       </div>
@@ -370,115 +379,103 @@ export default function KitchenView() {
             pantryItems={[]}
           />
 
-          {/* Meal Detail Sidebar (kept from old impl) */}
-          {selectedMeal && (
-            <div className="meal-detail">
-              <div className="meal-detail-header">
-                <h3>{selectedMeal.name}</h3>
-                <button className="modal-close" onClick={() => setSelectedMeal(null)}>✕</button>
-              </div>
-              {/* Meal Photo */}
-              <div className="meal-detail-photo">
-                {selectedMeal.photo_url ? (
-                  <img
-                    src={(() => {
-                      const url: string = selectedMeal.photo_url!;
-                      return convertFileSrc(url);
-                    })()}
-                    alt={selectedMeal.name ?? ''}
-                    className="meal-detail-img"
-                    onError={(e) => {
-                      const target = e.currentTarget;
-                      console.error('[KitchenView] Photo failed to load:', convertFileSrc(selectedMeal.photo_url!));
-                      target.style.display = 'none';
-                      const parent = target.parentElement;
-                      if (parent) {
-                        const emoji = parent.querySelector('.meal-detail-photo-emoji') as HTMLElement;
-                        if (emoji) emoji.style.display = 'flex';
-                      }
-                    }}
-                  />
-                ) : null}
-                <span
-                  className="meal-detail-photo-emoji"
-                  style={{ display: selectedMeal.photo_url ? 'none' : 'flex' }}
-                >
-                  {MEAL_CATEGORY_EMOJI[selectedMeal.category ?? 'dinner'] ?? '🍽️'}
-                </span>
-              </div>
-              <div className="meal-detail-photo-actions">
+      {/* ── MEAL DETAIL MODAL ── */}
+      {selectedMeal && (
+        <div className="meal-modal-backdrop" onClick={() => setSelectedMeal(null)}>
+          <div className="meal-modal" onClick={e => e.stopPropagation()}>
+            <div className="meal-detail-header">
+              <h3>{selectedMeal.name}</h3>
+              <button className="modal-close" onClick={() => setSelectedMeal(null)}>✕</button>
+            </div>
+            {/* Meal Photo */}
+            <div className="meal-detail-photo">
+              {selectedMeal.photo_url ? (
+                <img
+                  src={selectedMeal.photo_url.startsWith('/') || /^[a-z]:/i.test(selectedMeal.photo_url)
+                    ? convertFileSrc(selectedMeal.photo_url)
+                    : selectedMeal.photo_url}
+                  alt={selectedMeal.name ?? ''}
+                  className="meal-detail-img"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    console.warn('[MealModal] Photo failed to load, showing emoji fallback');
+                    target.style.display = 'none';
+                    const parent = target.parentElement;
+                    if (parent) {
+                      const emoji = parent.querySelector('.meal-detail-photo-emoji') as HTMLElement;
+                      if (emoji) emoji.style.display = 'flex';
+                    }
+                  }}
+                />
+              ) : null}
+              <span className="meal-detail-photo-emoji" style={{ display: selectedMeal.photo_url ? 'none' : 'flex' }}>
+                {MEAL_CATEGORY_EMOJI[selectedMeal.category ?? 'dinner'] ?? '🍽️'}
+              </span>
+            </div>
+            <div className="meal-detail-photo-actions">
+              <button
+                className="replace-photo-btn"
+                onClick={async () => {
+                  try {
+                    const selected = await open({
+                      multiple: false,
+                      filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif'] }],
+                    });
+                    if (selected && typeof selected === 'string') {
+                      await invoke('kitchen_update_meal_photo', {
+                        mealId: selectedMeal.id, photoUrl: selected,
+                      });
+                      await reloadMeals();
+                      setSelectedMeal((prev: Meal | null) => prev ? { ...prev, photo_url: selected } : prev);
+                    }
+                  } catch (err) {
+                    console.error('[KitchenView] Failed to upload photo:', err);
+                  }
+                }}
+              >
+                📷 Replace Photo
+              </button>
+              {selectedMeal.photo_url && (
                 <button
-                  className="replace-photo-btn"
+                  className="remove-photo-btn"
                   onClick={async () => {
                     try {
-                      console.log('[KitchenView] Replace photo clicked, opening dialog...');
-                      const selected = await open({
-                        multiple: false,
-                        filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif'] }],
-                      });
-                      console.log('[KitchenView] Dialog returned:', selected, typeof selected);
-                      if (selected && typeof selected === 'string') {
-                        // Upload the file — in this app we store the file path as photo_url
-                        // For cross-platform compatibility, we copy to app data directory
-                        console.log('[KitchenView] Calling kitchen_update_meal_photo for meal:', selectedMeal.id, '→', selected);
-                        await invoke('kitchen_update_meal_photo', {
-                          mealId: selectedMeal.id, photoUrl: selected,
-                        });
-                        console.log('[KitchenView] kitchen_update_meal_photo succeeded');
-                        // Reload meals to get updated photo_url
-                        await reloadMeals();
-                        // Update the selected meal in state
-                        setSelectedMeal((prev: Meal | null) => prev ? { ...prev, photo_url: selected } : prev);
-                      }
+                      await invoke('kitchen_update_meal_photo', { mealId: selectedMeal.id, photoUrl: '' });
+                      await reloadMeals();
+                      setSelectedMeal((prev: Meal | null) => prev ? { ...prev, photo_url: null } : prev);
                     } catch (err) {
-                      console.error('[KitchenView] Failed to upload photo:', err);
+                      console.error('[KitchenView] Failed to remove photo:', err);
                     }
                   }}
                 >
-                  📷 Replace Photo
+                  ✕ Clear
                 </button>
-                {(selectedMeal.photo_url) && (
-                  <button
-                    className="remove-photo-btn"
-                    onClick={async () => {
-                      try {
-                        await invoke('kitchen_update_meal_photo', {
-                          mealId: selectedMeal.id, photoUrl: '',
-                        });
-                        await reloadMeals();
-                        setSelectedMeal((prev: Meal | null) => prev ? { ...prev, photo_url: null } : prev);
-                      } catch (err) {
-                        console.error('[KitchenView] Failed to remove photo:', err);
-                      }
-                    }}
-                  >
-                    ✕ Clear
-                  </button>
-                )}
-              </div>
-              {selectedMeal.description && <p className="meal-detail-desc">{selectedMeal.description}</p>}
-              <div className="meal-detail-stats">
-                {selectedMeal.prep_time_min && <div className="stat"><span className="stat-label">Prep</span><span>{selectedMeal.prep_time_min} min</span></div>}
-                {selectedMeal.cook_time_min && <div className="stat"><span className="stat-label">Cook</span><span>{selectedMeal.cook_time_min} min</span></div>}
-                <div className="stat"><span className="stat-label">Servings</span><span>{selectedMeal.servings}</span></div>
-                {selectedMeal.estimated_cost != null && <div className="stat"><span className="stat-label">Total Cost</span><span>{formatCost(selectedMeal.estimated_cost)}</span></div>}
-                {selectedMeal.cost_per_serving != null && <div className="stat"><span className="stat-label">Per Serving</span><span>{formatCost(selectedMeal.cost_per_serving)}</span></div>}
-              </div>
-              {selectedMeal.instructions && (
-                <div className="meal-detail-section">
-                  <h4>Instructions</h4>
-                  <p className="meal-instructions">{selectedMeal.instructions}</p>
-                </div>
-              )}
-              {selectedMeal.tags && (
-                <div className="meal-detail-tags">
-                  {(() => { try { return JSON.parse(selectedMeal.tags); } catch { return []; } })().map((t: string, i: number) => (
-                    <span key={i} className="topic-tag">{t}</span>
-                  ))}
-                </div>
               )}
             </div>
-          )}
+            {selectedMeal.description && <p className="meal-detail-desc">{selectedMeal.description}</p>}
+            <div className="meal-detail-stats">
+              {selectedMeal.prep_time_min && <div className="stat"><span className="stat-label">Prep</span><span>{selectedMeal.prep_time_min} min</span></div>}
+              {selectedMeal.cook_time_min && <div className="stat"><span className="stat-label">Cook</span><span>{selectedMeal.cook_time_min} min</span></div>}
+              <div className="stat"><span className="stat-label">Servings</span><span>{selectedMeal.servings}</span></div>
+              {selectedMeal.estimated_cost != null && <div className="stat"><span className="stat-label">Total Cost</span><span>{formatCost(selectedMeal.estimated_cost)}</span></div>}
+              {selectedMeal.cost_per_serving != null && <div className="stat"><span className="stat-label">Per Serving</span><span>{formatCost(selectedMeal.cost_per_serving)}</span></div>}
+            </div>
+            {selectedMeal.instructions && (
+              <div className="meal-detail-section">
+                <h4>Instructions</h4>
+                <p className="meal-instructions">{selectedMeal.instructions}</p>
+              </div>
+            )}
+            {selectedMeal.tags && (
+              <div className="meal-detail-tags">
+                {(() => { try { return JSON.parse(selectedMeal.tags); } catch { return []; } })().map((t: string, i: number) => (
+                  <span key={i} className="topic-tag">{t}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
         </div>
       )}
 
@@ -602,30 +599,29 @@ export default function KitchenView() {
         </div>
       )}
 
-      {/* ── PANTRY TAB ── */}
-      {tab === 'pantry' && (
+      {/* ── INVENTORY TAB ── */}
+      {tab === 'inventory' && (
         <div className="kitchen-pantry">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h3>🌡️ Pantry</h3>
-            <button className="btn-primary" onClick={() => setShowAddPantryItem(true)}>
-              + Add Item
-            </button>
-          </div>
-          {pantryItems.length > 0 ? (
-            <PantryHeatmap items={pantryItems} />
-          ) : (
-            <div className="kitchen-empty">
-              <p>🌡️ Your pantry is empty. Add items to track freshness and get nudges when things are about to expire.</p>
-            </div>
-          )}
+          <InventoryHeatmap
+            items={pantryItems}
+            onAddItem={() => setShowAddPantryItem(true)}
+          />
         </div>
       )}
 
-      {/* ── ADD PANTRY ITEM MODAL ── */}
+      {/* ── NUTRITIONIST TAB ── */}
+      {tab === 'nutritionist' && (
+        <HearthNutritionistView />
+      )}
+
+      {/* ── ADD ITEM MODAL ── */}
       {showAddPantryItem && (
-        <div className="hearth-modal-backdrop" style={{ alignItems: 'center' }} onClick={() => setShowAddPantryItem(false)}>
-          <div className="hearth-modal" onClick={e => e.stopPropagation()} style={{ background: '#1a1a2e', padding: '1.5rem', borderRadius: '12px', minWidth: '340px', maxWidth: '420px', color: '#e0e0e0' }}>
-            <h3 style={{ marginBottom: '1rem' }}>Add Pantry Item</h3>
+        <div className="hearth-modal-backdrop" onClick={() => setShowAddPantryItem(false)}>
+          <div className="hearth-modal add-inventory-modal" onClick={e => e.stopPropagation()}>
+            <div className="hearth-modal-header">
+              <h3 className="hearth-modal-title">📦 Add to Inventory</h3>
+              <button className="hearth-modal-close" onClick={() => setShowAddPantryItem(false)}>✕</button>
+            </div>
             <form onSubmit={async (e) => {
               e.preventDefault();
               const form = e.currentTarget;
@@ -662,24 +658,24 @@ export default function KitchenView() {
                 console.error('[KitchenView] Failed to add pantry item:', err);
               }
             }}>
-              <div style={{ marginBottom: '0.75rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Name *</label>
-                <input name="name" type="text" required placeholder="e.g. Chicken breast" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #333', background: '#0e0e1a', color: '#e0e0e0' }} />
+              <div className="form-group">
+                <label>Name *</label>
+                <input name="name" type="text" required placeholder="e.g. Chicken breast" className="form-input" />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Quantity</label>
-                  <input name="quantity" type="number" step="any" placeholder="2" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #333', background: '#0e0e1a', color: '#e0e0e0' }} />
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Quantity</label>
+                  <input name="quantity" type="number" step="any" placeholder="2" className="form-input" />
                 </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Unit</label>
-                  <input name="unit" type="text" placeholder="pieces" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #333', background: '#0e0e1a', color: '#e0e0e0' }} />
+                <div className="form-group">
+                  <label>Unit</label>
+                  <input name="unit" type="text" placeholder="pieces" className="form-input" />
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Category</label>
-                  <select name="category" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #333', background: '#0e0e1a', color: '#e0e0e0' }}>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Category</label>
+                  <select name="category" className="form-select">
                     <option value="">Select...</option>
                     <option value="produce">🍎 Produce</option>
                     <option value="dairy">🥛 Dairy</option>
@@ -689,9 +685,9 @@ export default function KitchenView() {
                     <option value="spice">🌿 Spice</option>
                   </select>
                 </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Location</label>
-                  <select name="location" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #333', background: '#0e0e1a', color: '#e0e0e0' }}>
+                <div className="form-group">
+                  <label>Location</label>
+                  <select name="location" className="form-select">
                     <option value="">Select...</option>
                     <option value="fridge">🧊 Fridge</option>
                     <option value="freezer">❄️ Freezer</option>
@@ -699,12 +695,12 @@ export default function KitchenView() {
                   </select>
                 </div>
               </div>
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Expiry Date</label>
-                <input name="expiry_date" type="date" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #333', background: '#0e0e1a', color: '#e0e0e0' }} />
+              <div className="form-group">
+                <label>Expiry Date</label>
+                <input name="expiry_date" type="date" className="form-input" />
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                <button type="button" onClick={() => setShowAddPantryItem(false)} style={{ padding: '0.5rem 1rem', borderRadius: '6px', border: '1px solid #333', background: 'transparent', color: '#888', cursor: 'pointer' }}>Cancel</button>
+              <div className="form-actions">
+                <button type="button" className="btn-ghost" onClick={() => setShowAddPantryItem(false)}>Cancel</button>
                 <button type="submit" className="btn-primary">Add Item</button>
               </div>
             </form>
