@@ -53,9 +53,7 @@ export default function RestaurantMenu({ chefsSpecials, yourRegulars, onSelect, 
                     </div>
                   )}
                 </div>
-                <div className="menu-item-action">
-                  <button className="menu-select-btn">Select</button>
-                </div>
+                {/* No select button — entire row is clickable */}
               </div>
             ))}
           </div>

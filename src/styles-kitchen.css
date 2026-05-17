@@ -1269,3 +1269,1012 @@
     font-size: 56px;
   }
 }
+
+.meal-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  animation: modal-fade-in 0.25s ease both;
+}
+
+.meal-modal {
+  width: 100%;
+  max-width: 580px;
+  max-height: calc(100vh - 64px);
+  background: rgba(28, 25, 23, 0.98);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(245, 158, 11, 0.15);
+  border-radius: 20px;
+  padding: 24px 28px 28px;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(245, 158, 11, 0.06);
+  animation: modal-slide-up 0.3s ease both;
+  /* Custom scrollbar matching hearth theme */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245, 158, 11, 0.3) transparent;
+}
+
+.meal-modal::-webkit-scrollbar {
+  width: 4px;
+}
+
+.meal-modal::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.meal-modal::-webkit-scrollbar-thumb {
+  background: rgba(245, 158, 11, 0.3);
+  border-radius: 4px;
+}
+
+@media (min-width: 768px) {
+  .meal-modal {
+    max-width: 620px;
+    padding: 28px 32px 32px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .meal-modal {
+    max-width: 680px;
+  }
+}
+
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-slide-up {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── PHOTO REPLACE BUTTONS ── */
+.replace-photo-btn,
+.remove-photo-btn {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: rgba(245, 158, 11, 0.1);
+  color: #fbbf24;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.replace-photo-btn:hover,
+.remove-photo-btn:hover {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.15);
+}
+
+.remove-photo-btn {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.remove-photo-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+/* ── AI ADD IN LIBRARY — padding fix ── */
+.kitchen-ai-add {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── INVENTORY HEATMAP (3-column layout) ── */
+.inventory-heatmap {
+  position: relative;
+  z-index: 1;
+  margin-top: 24px;
+}
+
+/* ── INVENTORY — Stats + Add Button ── */
+.inventory-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.inv-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 10px;
+  background: rgba(28, 25, 23, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(245, 158, 11, 0.1);
+  border-radius: 14px;
+  text-align: center;
+}
+
+.inv-stat-value {
+  font-size: 26px;
+  font-weight: 800;
+  color: #fef3c7;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.inv-stat-fresh .inv-stat-value { color: #22c55e; }
+.inv-stat-warning .inv-stat-value { color: #fbbf24; }
+.inv-stat-danger .inv-stat-value { color: #ef4444; }
+
+.inv-stat-label {
+  font-size: 10px;
+  color: #a8a29e;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.inv-add-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px dashed rgba(245, 158, 11, 0.3);
+  background: rgba(245, 158, 11, 0.05);
+  color: #fbbf24;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.inv-add-btn:hover {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.1);
+}
+
+.inventory-columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 20px;
+}
+
+/* Each column */
+.inventory-column {
+  display: flex;
+  flex-direction: column;
+  background: rgba(28, 25, 23, 0.5);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(245, 158, 11, 0.1);
+  border-radius: 16px;
+  overflow: hidden;
+  min-height: 300px;
+}
+
+/* Column header */
+.inv-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-top: 3px solid;
+  background: rgba(28, 25, 23, 0.6);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.08);
+}
+
+.inv-col-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.inv-col-emoji {
+  font-size: 22px;
+}
+
+.inv-col-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.inv-col-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fef3c7;
+}
+
+.inv-col-count {
+  font-size: 11px;
+  color: #a8a29e;
+}
+
+.inv-col-alert {
+  min-width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 0 6px;
+}
+
+/* Items list */
+.inv-col-items {
+  flex: 1;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inv-col-item {
+  padding: 10px 12px;
+  background: rgba(12, 10, 9, 0.5);
+  border: 1px solid rgba(245, 158, 11, 0.08);
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.inv-col-item:hover {
+  background: rgba(245, 158, 11, 0.06);
+  border-color: rgba(245, 158, 11, 0.18);
+}
+
+.inv-item-urgent {
+  animation: urgency-pulse 2s ease-in-out infinite;
+}
+
+@keyframes urgency-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.inv-col-item-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 0 3px 3px 0;
+  transition: width 0.4s ease;
+}
+
+.inv-col-item-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.inv-col-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #fef3c7;
+  flex: 1;
+}
+
+.inv-col-item-fresh {
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Empty state inside column */
+.inv-col-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  color: #78716c;
+}
+
+.inv-col-empty-emoji {
+  font-size: 32px;
+  opacity: 0.4;
+}
+
+.inv-col-empty-text {
+  font-size: 12px;
+  opacity: 0.5;
+}
+
+/* Responsive — stack on small screens */
+@media (max-width: 768px) {
+  .inventory-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .inventory-column {
+    min-height: 200px;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .inventory-columns {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ── NEW TAB: NUTRITIONIST ── */
+.kitchen-nutritionist {
+  position: relative;
+  z-index: 1;
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.nutritionist-hero {
+  padding: 32px;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.12), rgba(16, 185, 129, 0.08));
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 20px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.nutritionist-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(34, 197, 94, 0.15) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.nutritionist-emoji {
+  font-size: 56px;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.nutritionist-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #fef3c7;
+  margin: 0 0 8px;
+}
+
+.nutritionist-subtitle {
+  font-size: 14px;
+  color: #a8a29e;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.nutritionist-tips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.nutritionist-tip-card {
+  padding: 20px;
+  background: rgba(28, 25, 23, 0.5);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(245, 158, 11, 0.1);
+  border-radius: 16px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.nutritionist-tip-card:hover {
+  border-color: rgba(34, 197, 94, 0.3);
+  box-shadow: 0 4px 20px rgba(34, 197, 94, 0.1);
+  transform: translateY(-2px);
+}
+
+.nutritionist-tip-emoji {
+  font-size: 28px;
+  display: block;
+  margin-bottom: 10px;
+}
+
+.nutritionist-tip-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fef3c7;
+  margin: 0 0 6px;
+}
+
+.nutritionist-tip-body {
+  font-size: 13px;
+  color: #a8a29e;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.nutritionist-advice-cta {
+  padding: 20px;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(16, 185, 129, 0.1));
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nutritionist-advice-cta h4 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #22c55e;
+  margin: 0;
+}
+
+.nutritionist-advice-cta p {
+  font-size: 13px;
+  color: #a8a29e;
+  margin: 0;
+}
+
+.nutritionist-advice-input {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: rgba(12, 10, 9, 0.6);
+  color: #fef3c7;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.nutritionist-advice-input:focus {
+  border-color: rgba(34, 197, 94, 0.6);
+}
+
+.nutritionist-advice-input::placeholder {
+  color: #78716c;
+}
+
+/* ═══════════════════════════════════════════════════════
+   HEARTH NUTRITIONIST VIEW
+   Chat-centric layout with tips sidebar
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Main layout ── */
+.hearth-nutritionist-view {
+  position: relative;
+  z-index: 1;
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Header */
+.hearth-nutritionist-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.hearth-nutritionist-title-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hearth-nutritionist-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #fef3c7;
+  margin: 0;
+}
+
+.hearth-nutritionist-subtitle {
+  font-size: 13px;
+  color: #a8a29e;
+  margin: 0;
+}
+
+/* Tabs */
+.hearth-nutritionist-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.hearth-nutritionist-tab {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  background: rgba(28, 25, 23, 0.6);
+  color: #a8a29e;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hearth-nutritionist-tab:hover {
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #fef3c7;
+}
+
+.hearth-nutritionist-tab.active {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.5);
+  color: #fbbf24;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.1);
+}
+
+/* ── Chat Layout (sidebar + chat) ── */
+.hearth-nutritionist-chat-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+/* Tips Sidebar */
+.hearth-nutritionist-tips-col {
+  background: rgba(28, 25, 23, 0.6);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(34, 197, 94, 0.12);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hearth-nutritionist-tips-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: #22c55e;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(34, 197, 94, 0.1);
+}
+
+.hearth-nutritionist-tip-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(12, 10, 9, 0.5);
+  border: 1px solid rgba(34, 197, 94, 0.08);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+  cursor: default;
+}
+
+.hearth-nutritionist-tip-card:hover {
+  background: rgba(34, 197, 94, 0.06);
+  border-color: rgba(34, 197, 94, 0.2);
+}
+
+.hearth-nutritionist-tip-emoji {
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.hearth-nutritionist-tip-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hearth-nutritionist-tip-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fef3c7;
+}
+
+.hearth-nutritionist-tip-text {
+  font-size: 11px;
+  color: #a8a29e;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Chat Column */
+.hearth-nutritionist-chat-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: rgba(28, 25, 23, 0.6);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(245, 158, 11, 0.12);
+  border-radius: 16px;
+  overflow: hidden;
+  min-height: 480px;
+}
+
+/* Chat Messages */
+.hearth-nutritionist-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 520px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245, 158, 11, 0.2) transparent;
+}
+
+.hearth-nutritionist-chat-messages::-webkit-scrollbar { width: 4px; }
+.hearth-nutritionist-chat-messages::-webkit-scrollbar-thumb { background: rgba(245, 158, 11, 0.2); border-radius: 4px; }
+
+.hearth-nutritionist-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
+  color: #a8a29e;
+  font-size: 14px;
+}
+
+.hearth-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgba(245, 158, 11, 0.2);
+  border-top-color: #fbbf24;
+  border-radius: 50%;
+  animation: hearth-spin 0.8s linear infinite;
+}
+
+@keyframes hearth-spin {
+  to { transform: rotate(360deg); }
+}
+
+.hearth-nutritionist-empty-chat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
+  color: #78716c;
+}
+
+.hearth-empty-emoji {
+  font-size: 40px;
+  opacity: 0.5;
+}
+
+/* Message Bubbles */
+.hearth-nutritionist-msg {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.hearth-nutritionist-msg.user {
+  flex-direction: row-reverse;
+}
+
+.hearth-msg-bubble {
+  max-width: 75%;
+  padding: 12px 16px;
+  border-radius: 16px;
+  position: relative;
+}
+
+.hearth-nutritionist-msg.user .hearth-msg-bubble {
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-bottom-right-radius: 4px;
+}
+
+.hearth-nutritionist-msg.counselor .hearth-msg-bubble {
+  background: rgba(28, 25, 23, 0.8);
+  border: 1px solid rgba(34, 197, 94, 0.12);
+  border-bottom-left-radius: 4px;
+}
+
+.hearth-msg-content {
+  font-size: 14px;
+  color: #fef3c7;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.hearth-msg-meta {
+  font-size: 10px;
+  color: #78716c;
+  margin-top: 6px;
+  text-align: right;
+}
+
+/* Speak button */
+.hearth-msg-speak-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: rgba(245, 158, 11, 0.1);
+  color: #fbbf24;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hearth-msg-speak-btn:hover {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+}
+
+.hearth-msg-speak-btn.playing {
+  background: rgba(245, 158, 11, 0.25);
+  border-color: #fbbf24;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
+}
+
+/* Input Area */
+.hearth-nutritionist-input-area {
+  border-top: 1px solid rgba(245, 158, 11, 0.1);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hearth-nutritionist-textarea {
+  width: 100%;
+  min-height: 48px;
+  max-height: 120px;
+  padding: 10px 14px;
+  background: rgba(12, 10, 9, 0.8);
+  border: 1.5px solid rgba(245, 158, 11, 0.2);
+  border-radius: 12px;
+  color: #fef3c7;
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 14px;
+  resize: none;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
+  line-height: 1.5;
+}
+
+.hearth-nutritionist-textarea:focus {
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.08);
+}
+
+.hearth-nutritionist-textarea::placeholder { color: #78716c; }
+.hearth-nutritionist-textarea:disabled { opacity: 0.6; }
+
+.hearth-nutritionist-input-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hearth-mic-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  background: rgba(28, 25, 23, 0.6);
+  color: #a8a29e;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.hearth-mic-btn:hover:not(:disabled) {
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+}
+
+.hearth-mic-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.hearth-end-session-btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.08);
+  color: #ef4444;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.hearth-end-session-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.hearth-send-btn {
+  margin-left: auto;
+  padding: 8px 18px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #0c0a09;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.25);
+  flex-shrink: 0;
+}
+
+.hearth-send-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  box-shadow: 0 4px 18px rgba(245, 158, 11, 0.4);
+  transform: translateY(-1px);
+}
+
+.hearth-send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+/* ── Sessions View ── */
+.hearth-nutritionist-sessions-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hearth-sessions-intro h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fef3c7;
+  margin: 0 0 6px;
+}
+
+.hearth-sessions-intro p {
+  font-size: 13px;
+  color: #a8a29e;
+  margin: 0;
+}
+
+.hearth-sessions-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 20px;
+  text-align: center;
+  color: #78716c;
+}
+
+.hearth-session-card {
+  background: rgba(28, 25, 23, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(245, 158, 11, 0.1);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.hearth-session-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.hearth-session-card-header:hover {
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.hearth-session-date {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fef3c7;
+}
+
+.hearth-session-duration {
+  font-size: 12px;
+  color: #78716c;
+}
+
+.hearth-session-meta {
+  font-size: 12px;
+  color: #a8a29e;
+}
+
+.hearth-session-messages {
+  border-top: 1px solid rgba(245, 158, 11, 0.08);
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.hearth-session-loading,
+.hearth-session-empty {
+  text-align: center;
+  color: #78716c;
+  font-size: 13px;
+  padding: 12px 0;
+}
+
+.hearth-session-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hearth-session-msg.user { align-items: flex-end; }
+.hearth-session-msg.counselor { align-items: flex-start; }
+
+.hearth-session-msg-role {
+  font-size: 11px;
+  color: #78716c;
+}
+
+.hearth-session-msg-content {
+  font-size: 13px;
+  color: #fef3c7;
+  line-height: 1.5;
+  max-width: 80%;
+  white-space: pre-wrap;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .hearth-nutritionist-chat-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .hearth-nutritionist-tips-col {
+    display: none; /* hide sidebar on smaller screens */
+  }
+}
+
+@media (max-width: 600px) {
+  .hearth-nutritionist-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .hearth-nutritionist-chat-messages {
+    max-height: 380px;
+  }
+
+  .hearth-msg-bubble {
+    max-width: 88%;
+  }
+}
