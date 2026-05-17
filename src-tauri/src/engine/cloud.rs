@@ -25,7 +25,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
-use super::get_engine;
+use super::{get_engine, try_get_engine};
 use super::router::ModelResponse;
 use super::router::OpenAIMessage;
 use super::router::ToolCallRequest;
@@ -594,7 +594,7 @@ const MINIMAX_URL: &str = "https://api.minimax.io/v1/chat/completions";
 /// Returns None if not configured (avoids panicking at runtime).
 /// Re-loads dotenvy each call so .env changes are picked up without restart.
 fn get_minimax_api_key() -> Option<String> {
-    let engine = match get_engine() {
+    let engine = match try_get_engine() {
         Some(e) => e,
         None => {
             log::warn!("[get_minimax_api_key] Engine not initialized yet — cannot read from DB");
