@@ -2454,6 +2454,11 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
         .map_err(|e| format!("AI failed: {}", e))?;
 
     let content = response.content.trim();
+    log::debug!("[kitchen_ai_add_meal] AI response content length: {}", content.len());
+    if content.is_empty() {
+        log::error!("[kitchen_ai_add_meal] AI returned empty content — MiniMax/cloud router both failed");
+        return Err("AI returned empty response. Check API key and credits.".to_string());
+    }
     let json_str = content
         .strip_prefix("```json")
         .unwrap_or(content)
@@ -2467,6 +2472,7 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
         .replace("1/4", "0.25")
         .replace("3/4", "0.75");
 
+    log::debug!("[kitchen_ai_add_meal] Parsing JSON ({} chars)", json_str.len());
     let doc = serde_json::from_str::<serde_json::Value>(&json_str)
         .map_err(|e| format!("Invalid JSON: {}. Raw: {}", e, &json_str))?;
 
@@ -3328,7 +3334,7 @@ pub async fn budget_parse_natural(input: String) -> Result<serde_json::Value, St
     // Parse natural language like "spent $45 on groceries" or "got paid $2000"
     let lower = input.to_lowercase();
     let mut entry_type = "expense";
-    let mut amount = 0.0;
+    let mut amount: f64 = 0.0;
     let mut category = "other";
     let description = input.clone();
 
@@ -3377,12 +3383,14 @@ pub async fn budget_parse_natural(input: String) -> Result<serde_json::Value, St
         }
     }
 
-    Ok(serde_json::json!({
+    let result_json = serde_json::json!({
         "entry_type": entry_type,
+        "amount": amount.ceil(),
         "category": category,
-        "amount": amount,
         "description": description,
-    }))
+    });
+
+    Ok(result_json)
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -5978,7 +5986,7 @@ pub async fn dream_ai_plan(
         tool_call_id: None,
         tool_calls: None,
     }];
-    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(2000), None, None)
+    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(3500), None, None)
         .await
         .map_err(|e| format!("AI failed: {}", e))?;
     let content = response.content.trim();
@@ -5990,8 +5998,17 @@ pub async fn dream_ai_plan(
         .strip_suffix("```")
         .unwrap_or(content)
         .trim();
-    let plan: serde_json::Value =
-        serde_json::from_str(json_str).map_err(|e| format!("Parse error: {}", e))?;
+    // Graceful JSON parsing with recovery for truncated responses
+    let plan: serde_json::Value = match serde_json::from_str(json_str) {
+        Ok(v) => v,
+        Err(_) => {
+            let truncated = json_str.rfind('}').map(|i| &json_str[..=i]).unwrap_or(json_str);
+            serde_json::from_str(truncated.trim()).unwrap_or_else(|_| {
+                // Last resort: return a minimal valid plan so we don't crash
+                serde_json::json!({"analysis":"Plan truncated", "milestones":[], "immediate_tasks":[]})
+            })
+        }
+    };
     engine
         .db()
         .update_dream_ai_plan(&dream_id, json_str, "AI-generated plan")

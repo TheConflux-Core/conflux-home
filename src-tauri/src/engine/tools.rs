@@ -2,6 +2,7 @@
 // Registry, dispatch, and execution of agent tools with sandboxing.
 
 use anyhow::Result;
+use rusqlite::params;
 use serde_json::Value;
 use tokio::runtime::Handle;
 
@@ -547,13 +548,13 @@ pub async fn execute_tool_for_user(
         "kitchen_get_cooking_steps" => execute_kitchen_get_cooking_steps(args),
         "kitchen_get_meal_photos" => execute_kitchen_get_meal_photos(args),
         // Budget tools
-        "budget_add_entry" => execute_budget_add_entry(args),
-        "budget_get_entries" => execute_budget_get_entries(args),
-        "budget_get_summary" => execute_budget_get_summary(args),
+        "budget_add_entry" => execute_budget_add_entry(args, _user_id),
+        "budget_get_entries" => execute_budget_get_entries(args, _user_id),
+        "budget_get_summary" => execute_budget_get_summary(args, _user_id),
         "budget_create_goal" => execute_budget_create_goal(args),
         "budget_get_goals" => execute_budget_get_goals(args),
         "budget_delete_entry" => execute_budget_delete_entry(args),
-        "budget_parse_natural" => execute_budget_parse_natural(args),
+        "budget_parse_natural" => execute_budget_parse_natural(args, _user_id),
         "budget_detect_patterns" => execute_budget_detect_patterns(args),
         "budget_update_goal" => execute_budget_update_goal(args),
         "budget_delete_goal" => execute_budget_delete_goal(args),
@@ -6186,17 +6187,27 @@ fn execute_kitchen_get_meal_photos(args: &Value) -> Result<ToolResult> {
 
 // ── Budget Tool Implementations ──
 
-fn execute_budget_add_entry(args: &Value) -> Result<ToolResult> {
-    let amount = match args.get("amount").and_then(|v| v.as_f64()) {
-        Some(a) if a > 0.0 => a,
-        _ => {
-            return Ok(ToolResult {
-                success: false,
-                output: String::new(),
-                error: Some("amount is required and must be positive".into()),
-            })
+fn execute_budget_add_entry(args: &Value, user_id: &str) -> Result<ToolResult> {
+    log::info!("[budget] execute_budget_add_entry called, user_id={}", user_id);
+
+    // Accept amount as number OR string (LLM sends both)
+    let amount_raw = args.get("amount");
+    let amount = match amount_raw {
+        Some(v) if v.is_number() => v.as_f64().unwrap_or(0.0),
+        Some(v) if v.is_string() => {
+            let s = v.as_str().unwrap_or("");
+            s.replace(",", "").parse::<f64>().unwrap_or(0.0)
         }
+        _ => 0.0,
     };
+    if amount <= 0.0 {
+        return Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some("amount is required and must be positive".into()),
+        });
+    }
+
     let category = args.get("category").and_then(|v| v.as_str()).unwrap_or("");
     if category.is_empty() {
         return Ok(ToolResult {
@@ -6206,8 +6217,6 @@ fn execute_budget_add_entry(args: &Value) -> Result<ToolResult> {
         });
     }
 
-    let id = uuid::Uuid::new_v4().to_string();
-    let engine = super::get_engine();
     let entry_type = args
         .get("entry_type")
         .and_then(|v| v.as_str())
@@ -6218,35 +6227,74 @@ fn execute_budget_add_entry(args: &Value) -> Result<ToolResult> {
     let now = super::db::EngineDb::now();
     let entry_date = date.unwrap_or(&now[..10]); // today as YYYY-MM-DD
 
-    let db = engine.db();
-    let conn = db.conn();
-    match conn.execute(
-        "INSERT INTO budget_entries (id, member_id, entry_type, category, amount, description, recurring, frequency, date, created_at) VALUES (?1, NULL, ?2, ?3, ?4, ?5, 0, NULL, ?6, ?7)",
-        rusqlite::params![id, entry_type, category, amount, description, entry_date, now],
-    ) {
-        Ok(_) => Ok(ToolResult {
-            success: true,
-            output: format!("Logged ${:.2} {} in '{}'{}{}",
-                amount, entry_type, category,
-                description.map(|d| format!(" — {}", d)).unwrap_or_default(),
-                if entry_date != &now[..10] { format!(" on {}", entry_date) } else { String::new() }),
-            error: None,
-        }),
-        Err(e) => Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }),
-    }
-}
-
-fn execute_budget_get_entries(args: &Value) -> Result<ToolResult> {
+    // Write directly to budget_transactions using user_id (no family_members lookup)
     let engine = super::get_engine();
     let db = engine.db();
     let conn = db.conn();
 
+    let sign: f64 = if entry_type == "income" { 1.0 } else { -1.0 };
+    let tx_id = uuid::Uuid::new_v4().to_string();
+
+    // Look up bucket by category name (case-insensitive partial match)
+    // Use Option<String> so we can pass NULL to SQL when no match found
+    let bucket_id_val: Option<String> = {
+        let result: std::result::Result<String, _> = conn.query_row(
+            "SELECT id FROM budget_buckets WHERE user_id = ?1 AND is_active = 1 AND LOWER(name) LIKE '%' || LOWER(?2) || '%'",
+            rusqlite::params![user_id, category],
+            |row| row.get(0),
+        );
+        result.ok()
+    };
+
+    log::info!("[budget] Insert: tx_id={}, user_id={}, entry_type={}, amount={} (sign={}), bucket_id={}, date={}, category={}",
+        tx_id, user_id, entry_type, sign * amount, sign, bucket_id_val.as_deref().unwrap_or("(none)"), entry_date, category);
+
+
+    match conn.execute(
+        "INSERT INTO budget_transactions (id, user_id, bucket_id, amount, date, status, description, merchant, category, receipt_url, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, 'reconciled', ?6, NULL, ?7, NULL, ?8, ?9)",
+        rusqlite::params![tx_id, user_id, bucket_id_val.as_deref(), sign * amount, entry_date, description, category, now, now],
+    ) {
+        Ok(n) => {
+            log::info!("[budget] Insert OK, rows affected: {}", n);
+
+            // Emit UI refresh event so BudgetView reacts immediately
+            engine.emit_tauri_event("conflux:budget-changed", serde_json::json!({
+                "action": "entry_added",
+                "entry_type": entry_type,
+                "category": category,
+                "amount": amount,
+                "description": description,
+            }));
+
+            Ok(ToolResult {
+                success: true,
+                output: format!("Logged ${:.2} {} in '{}'{}{}",
+                    amount, entry_type, category,
+                    description.map(|d| format!(" — {}", d)).unwrap_or_default(),
+                    if entry_date != &now[..10] { format!(" on {}", entry_date) } else { String::new() }),
+                error: None,
+            })
+        }
+        Err(e) => {
+            log::error!("[budget] Insert FAILED: {}", e);
+            Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) })
+        }
+    }
+}
+
+fn execute_budget_get_entries(args: &Value, user_id: &str) -> Result<ToolResult> {
+    let engine = super::get_engine();
+    let db = engine.db();
+    let conn = db.conn();
+
+
     let month = args.get("month").and_then(|v| v.as_str());
+    let use_member_id = args.get("member_id").and_then(|v| v.as_str()).unwrap_or(user_id);
 
     let query = if let Some(m) = month {
-        format!("SELECT id, entry_type, category, amount, description, date, created_at FROM budget_entries WHERE strftime('%Y-%m', date) = '{}' ORDER BY date DESC LIMIT 50", m)
+        format!("SELECT id, entry_type, category, amount, description, date, created_at FROM budget_entries WHERE member_id = '{}' AND strftime('%Y-%m', date) = '{}' ORDER BY date DESC LIMIT 50", use_member_id, m)
     } else {
-        "SELECT id, entry_type, category, amount, description, date, created_at FROM budget_entries ORDER BY date DESC LIMIT 50".to_string()
+        format!("SELECT id, entry_type, category, amount, description, date, created_at FROM budget_entries WHERE member_id = '{}' ORDER BY date DESC LIMIT 50", use_member_id)
     };
 
     let result: std::result::Result<
@@ -6308,23 +6356,22 @@ fn execute_budget_get_entries(args: &Value) -> Result<ToolResult> {
     }
 }
 
-fn execute_budget_get_summary(args: &Value) -> Result<ToolResult> {
-    let month = args.get("month").and_then(|v| v.as_str()).unwrap_or("");
-    if month.is_empty() {
-        return Ok(ToolResult {
-            success: false,
-            output: String::new(),
-            error: Some("month is required (YYYY-MM)".into()),
-        });
-    }
+fn execute_budget_get_summary(args: &Value, user_id: &str) -> Result<ToolResult> {
+    let month_arg = args.get("month").and_then(|v| v.as_str()).unwrap_or("");
+    let month = if month_arg.is_empty() || month_arg == "this_month" || month_arg == "this-month" {
+        // Default to current month YYYY-MM
+        chrono::Utc::now().format("%Y-%m").to_string()
+    } else {
+        month_arg.to_string()
+    };
 
     let engine = super::get_engine();
     let member_id = args
         .get("member_id")
         .and_then(|v| v.as_str())
-        .unwrap_or_default();
+        .unwrap_or(user_id);
     match tokio::task::block_in_place(|| {
-        engine.db().get_budget_summary_sync(&member_id, month)
+        engine.db().get_budget_summary_sync(member_id, &month)
     }) {
         Ok(summary) => {
             let cat_lines: Vec<String> = summary
@@ -6484,8 +6531,8 @@ fn execute_budget_delete_entry(args: &Value) -> Result<ToolResult> {
     }
 }
 
-fn execute_budget_parse_natural(args: &Value) -> Result<ToolResult> {
-    let input = args.get("input").and_then(|v| v.as_str()).unwrap_or("");
+fn execute_budget_parse_natural(args: &Value, _user_id: &str) -> Result<ToolResult> {
+    let input = args.get("text").and_then(|v| v.as_str()).unwrap_or("");
     if input.is_empty() {
         return Ok(ToolResult {
             success: false,
@@ -6544,12 +6591,16 @@ fn execute_budget_parse_natural(args: &Value) -> Result<ToolResult> {
         }
     }
 
+    let result_json = serde_json::json!({
+        "entry_type": entry_type,
+        "amount": amount.ceil(),
+        "category": category,
+        "description": input.clone(),
+    });
+
     Ok(ToolResult {
         success: true,
-        output: format!(
-            "Parsed: {} ${:.2} ({}) — \"{}\"",
-            entry_type, amount, category, input
-        ),
+        output: result_json.to_string(),
         error: None,
     })
 }

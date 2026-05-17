@@ -320,7 +320,7 @@ export default function PulseOnboarding({ onComplete }: Props) {
             </div>
 
             <p className="pulse-onboard-desc">
-              Pulse zero-bases every dollar. Edit later from Settings.
+              Pulse rounds up to the nearest dollar. Edit later from Settings.
             </p>
 
             <button className="pulse-onboard-launch-btn" onClick={handleConfirm}>

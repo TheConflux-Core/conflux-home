@@ -105,7 +105,7 @@ export default function PulseTour({ onComplete }: PulseTourProps) {
 
   return (
     <div className="pulse-tour-root">
-      <TourSpotlight targetRect={targetRect} padding={10} borderRadius={16} />
+      <TourSpotlight targetRect={targetRect} padding={12} borderRadius={16} verticalOffset={20} />
       <PulseTourTooltip
         targetRect={targetRect}
         step={step}

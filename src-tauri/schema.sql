@@ -1104,7 +1104,7 @@ CREATE TABLE IF NOT EXISTS budget_settings (
     created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
-CREATE INDEX IF NOT EXISTS idx_budget_settings_user ON budget_settings(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_budget_settings_user ON budget_settings(user_id);
 
 -- Budget Buckets (spending categories with goals)
 CREATE TABLE IF NOT EXISTS budget_buckets (
