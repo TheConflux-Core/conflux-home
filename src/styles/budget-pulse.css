@@ -212,6 +212,13 @@
 
 .paid-val.due { color: #fbbf24; }
 .paid-val.settled { color: #10b981; }
+.paid-val.pending { color: #fecdd3 !important; }
+
+/* paid-val children always override the parent col-paid gray */
+.col-paid > .paid-val { color: inherit; }
+.col-paid > .paid-val.pending { color: #fecdd3; }
+.col-paid > .paid-val.settled { color: #10b981; }
+.col-paid > .paid-val.due { color: #fbbf24; }
 
 .col-meter {
   display: flex;

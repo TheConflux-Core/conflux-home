@@ -592,7 +592,10 @@ const MINIMAX_URL: &str = "https://api.minimax.io/v1/chat/completions";
 /// MiniMax API key — loaded from environment variable at runtime.
 /// NEVER hardcode. Set MINIMAX_API_KEY env var or pass via CI secrets.
 /// Returns None if not configured (avoids panicking at runtime).
+/// Re-loads dotenvy each call so .env changes are picked up without restart.
 fn get_minimax_api_key() -> Option<String> {
+    // Re-load .env each call to pick up runtime changes
+    let _ = dotenvy::dotenv();
     std::env::var("MINIMAX_API_KEY")
         .ok()
         .or_else(|| option_env!("MINIMAX_API_KEY").map(|s| s.to_string()))
@@ -913,7 +916,7 @@ pub async fn cloud_chat(
                 || err_str.contains("refused");
 
             if !is_network {
-                log::warn!("[cloud_chat] MiniMax failed with non-network error: {}", e);
+                log::debug!("[cloud_chat] MiniMax not configured — routing via cloud router: {}", e);
             } else {
                 log::warn!("[cloud_chat] MiniMax network error, trying cloud router: {}", e);
             }

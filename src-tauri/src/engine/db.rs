@@ -2648,7 +2648,7 @@ impl EngineDb {
     ) -> Result<Option<super::types::BudgetSettingsRow>> {
         let conn = self.conn_async().await;
         let result = conn.query_row(
-            "SELECT id, user_id, pay_frequency, pay_dates, income_amount, currency, created_at, updated_at FROM budget_settings WHERE user_id = ?1 LIMIT 1",
+            "SELECT id, user_id, pay_frequency, pay_dates, income_amount, currency, created_at, updated_at FROM budget_settings WHERE user_id = ?1 ORDER BY created_at DESC LIMIT 1",
             params![user_id], |row| {
                 Ok(super::types::BudgetSettingsRow {
                     id: row.get(0)?, user_id: row.get(1)?, pay_frequency: row.get(2)?,
@@ -2678,7 +2678,7 @@ impl EngineDb {
         conn.execute(
             "INSERT INTO budget_settings (id, user_id, pay_frequency, pay_dates, income_amount, currency, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-             ON CONFLICT(id) DO UPDATE SET pay_frequency=?3, pay_dates=?4, income_amount=?5, currency=?6, updated_at=?8",
+             ON CONFLICT(user_id) DO UPDATE SET pay_frequency=?3, pay_dates=?4, income_amount=?5, currency=?6, updated_at=?8",
             params![id, user_id, pay_frequency, pay_dates, income_amount, currency, now, now]
         )?;
         Ok(())

@@ -42,26 +42,8 @@ export default function BudgetView() {
   } = useBudgetEngine();
 
   // Proactive nudge: Pulse — fire fairy when opened with no transactions this month
-  const [fairyNudgeFired, setFairyNudgeFired] = useState(false);
-  useEffect(() => {
-    if (loading || fairyNudgeFired) return;
-    const thisMonthTx = (transactions ?? []).filter(tx => {
-      const d = new Date(tx.date + 'T00:00:00');
-      const p = new Date(period + '-01T00:00:00');
-      return d.getMonth() === p.getMonth() && d.getFullYear() === p.getFullYear();
-    });
-    const key = 'conflux-pulse-fairy-nudged';
-    if (thisMonthTx.length === 0 && !localStorage.getItem(key)) {
-      localStorage.setItem(key, '1');
-      setFairyNudgeFired(true);
-      triggerFairyNudge({
-        id: 'pulse-first-visit',
-        text: 'No spending tracked this month — say "I spent $50 on groceries" to start.',
-        app: 'budget',
-        priority: 'info',
-      });
-    }
-  }, [loading, transactions, period, fairyNudgeFired]);
+// Proactive nudge: Pulse — fire fairy when opened with no transactions this month
+  const [fairyNudgeFired] = useState(false);
 
   // Boot → Onboarding → Tour state
   const [bootDone, setBootDone] = useState(() => localStorage.getItem('pulse-boot-done') === 'true');
@@ -152,9 +134,12 @@ export default function BudgetView() {
 
   // Helper to get actual paid amount
   const getPaid = (bucketId: string) => {
-    return transactions
-      .filter(t => t.bucket_id === bucketId && t.status === 'reconciled')
-      .reduce((sum, t) => sum + t.amount, 0);
+    // Use absolute value since expenses are stored as negative numbers
+    return Math.abs(
+      transactions
+        .filter(t => t.bucket_id === bucketId && t.status === 'reconciled')
+        .reduce((sum, t) => sum + t.amount, 0)
+    );
   };
 
   const [editingCell, setEditingCell] = useState<{ id: string; period: 'p1' | 'p2' } | null>(null);
@@ -392,8 +377,8 @@ export default function BudgetView() {
                 </div>
 
                 <div className="grid-cell col-paid">
-                  <span className={`paid-val ${totalPaid >= p1Alloc ? 'settled' : 'pending'}`}>
-                    {formatMoney(totalPaid >= p1Alloc ? p1Alloc : totalPaid)}
+                  <span className={`paid-val ${Math.min(totalPaid, p1Alloc) > 0 ? 'pending' : 'settled'}`}>
+                    {formatMoney(Math.min(totalPaid, p1Alloc))}
                   </span>
                 </div>
 
@@ -413,8 +398,8 @@ export default function BudgetView() {
                 </div>
 
                 <div className="grid-cell col-paid">
-                  <span className={`paid-val ${totalPaid >= goal ? 'settled' : 'pending'}`}>
-                    {formatMoney(totalPaid > p1Alloc ? totalPaid - p1Alloc : 0)}
+                  <span className={`paid-val ${Math.max(0, totalPaid - p1Alloc) > 0 ? 'pending' : 'settled'}`}>
+                    {formatMoney(Math.max(0, totalPaid - p1Alloc))}
                   </span>
                 </div>
 
@@ -422,7 +407,7 @@ export default function BudgetView() {
                   <div className="meter-info">
                     <span className="meter-total">Goal: {formatMoney(goal)}</span>
                     <span className={`meter-label ${isFull ? 'complete' : 'due'}`}>
-                      {isFull ? 'SECURED' : `${formatMoney(goal - totalPaid)} DUE`}
+                      {isFull ? 'SECURED' : `${formatMoney(Math.max(0, goal - totalPaid))} DUE`}
                     </span>
                   </div>
                   <div className="meter-track">
