@@ -7,7 +7,8 @@ import { invoke } from '@tauri-apps/api/core';
 let _audioCtx: AudioContext | null = null;
 let _activeSource: AudioBufferSourceNode | null = null;
 
-const ECHO_VOICE_ID = 'EST9Ui6982FZPSi7gCHi';
+export const ECHO_VOICE_ID = 'EST9Ui6982FZPSi7gCHi';
+export const HEARTH_VOICE_ID = 'W7iR5kTNHozpIl2Jqq15';
 
 function getAudioCtx(): AudioContext {
   if (!_audioCtx) {

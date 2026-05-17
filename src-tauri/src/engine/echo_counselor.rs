@@ -61,6 +61,9 @@ If someone expresses thoughts of self-harm, suicide, or being in danger:
 - Don't list multiple options like a menu
 - Use line breaks between thoughts for readability"#;
 
+// Hearth Nutritionist system prompt
+pub const HEARTH_SYSTEM_PROMPT: &str = "";
+
 // Weekly Echo Letter prompt
 const WEEKLY_ECHO_PROMPT: &str = r#"You are Echo, writing a weekly letter to the user about their week. You have access to their session summaries, journal entries, and mood trends for the past 7 days.
 

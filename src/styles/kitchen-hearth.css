@@ -710,13 +710,142 @@
 @media (min-width: 640px) {
   .hearth-modal-backdrop {
     align-items: center;
+    justify-content: center;
+    padding: 24px;
   }
 
   .hearth-modal {
+    align-self: center;
+    border-radius: 20px;
+    max-height: calc(100vh - 48px);
     width: 480px;
     max-width: 90vw;
-    border-radius: var(--hearth-radius-xl);
-    max-height: 70vh;
+  }
+
+  .add-inventory-modal {
+    max-width: 480px;
+  }
+}
+
+/* ── Form elements ── */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.form-group label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #fbbf24;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.form-input,
+.form-select {
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(12, 10, 9, 0.8);
+  border: 1.5px solid rgba(245, 158, 11, 0.15);
+  border-radius: 10px;
+  color: #fef3c7;
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.form-input:focus,
+.form-select:focus {
+  border-color: rgba(245, 158, 11, 0.6);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+}
+
+.form-input::placeholder {
+  color: #78716c;
+}
+
+.form-select {
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a8a29e' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+.form-select option {
+  background: #292524;
+  color: #fef3c7;
+}
+
+input[type="date"].form-input {
+  color-scheme: dark;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(245, 158, 11, 0.1);
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 10px 20px;
+  background: transparent;
+  color: #a8a29e;
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border: 1.5px solid rgba(245, 158, 11, 0.2);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-ghost:hover {
+  border-color: rgba(245, 158, 11, 0.5);
+  color: #fef3c7;
+}
+
+.btn-ghost:active {
+  transform: scale(0.97);
+}
+
+/* Mobile: bottom sheet style */
+@media (max-width: 639px) {
+  .hearth-modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .hearth-modal {
+    border-radius: 20px 20px 0 0;
+    align-self: flex-end;
+    max-height: 90vh;
+    width: 100%;
+  }
+
+  .add-inventory-modal {
+    border-radius: 20px 20px 0 0;
   }
 }
 
@@ -931,6 +1060,30 @@
   font-family: var(--hearth-font);
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+/* Kitchen Hearth wallpaper — warm kitchen scene */
+.kitchen-matrix::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url('/backgrounds/kitchen-bg.webp');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.3;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* All tab content sits above the wallpaper */
+.kitchen-home,
+.kitchen-library,
+.kitchen-plan,
+.kitchen-grocery,
+.kitchen-pantry {
+  position: relative;
+  z-index: 1;
 }
 
 .kitchen-matrix {
@@ -1916,49 +2069,60 @@
 
 /* ---- AI Add ---- */
 .kitchen-ai-add {
-  padding: 0 var(--hearth-space-md);
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  background: rgba(28, 25, 23, 0.6);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(245, 158, 11, 0.15);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .ai-add-header {
   display: flex;
   align-items: center;
-  gap: var(--hearth-space-sm);
-  margin-bottom: var(--hearth-space-sm);
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--hearth-100);
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #fbbf24;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
 .ai-add-icon {
-  font-size: 1.25rem;
+  font-size: 1.1rem;
 }
 
 .ai-add-row {
   display: flex;
-  gap: var(--hearth-space-sm);
+  gap: 10px;
+  align-items: center;
 }
 
 .ai-add-input {
   flex: 1;
-  min-height: var(--hearth-touch-min);
-  padding: var(--hearth-space-sm) var(--hearth-space-md);
-  background: var(--hearth-bg-input);
-  border: 1px solid var(--hearth-surface);
-  border-radius: var(--hearth-radius-lg);
-  color: var(--hearth-text);
-  font-family: var(--hearth-font);
+  min-height: 46px;
+  padding: 10px 16px;
+  background: rgba(12, 10, 9, 0.8);
+  border: 1.5px solid rgba(245, 158, 11, 0.2);
+  border-radius: 12px;
+  color: #fef3c7;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 0.95rem;
   outline: none;
-  transition: border-color var(--hearth-duration) var(--hearth-ease);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   box-sizing: border-box;
+  width: 100%;
 }
 
 .ai-add-input::placeholder {
-  color: var(--hearth-text-dim);
+  color: #78716c;
 }
 
 .ai-add-input:focus {
-  border-color: var(--hearth-500);
+  border-color: rgba(245, 158, 11, 0.6);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.08), 0 0 16px rgba(245, 158, 11, 0.1);
 }
 
 /* ---- Primary button (non-hearth-prefixed) ---- */
@@ -1967,31 +2131,38 @@
   align-items: center;
   justify-content: center;
   gap: var(--hearth-space-xs);
-  min-height: var(--hearth-touch-min);
-  padding: var(--hearth-space-sm) var(--hearth-space-lg);
-  background: var(--hearth-500);
-  color: var(--hearth-text-on-btn);
-  font-family: var(--hearth-font);
+  min-height: 46px;
+  padding: 10px 22px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #0c0a09;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 0.9rem;
-  font-weight: 600;
+  font-weight: 700;
   border: none;
-  border-radius: var(--hearth-radius-full);
+  border-radius: 12px;
   cursor: pointer;
-  transition:
-    background var(--hearth-duration) var(--hearth-ease),
-    transform var(--hearth-duration) var(--hearth-ease);
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
   -webkit-tap-highlight-color: transparent;
   white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.25);
 }
 
 .btn-primary:disabled {
   opacity: 0.4;
-  cursor: default;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  box-shadow: 0 4px 18px rgba(245, 158, 11, 0.4), 0 0 28px rgba(245, 158, 11, 0.15);
+  transform: translateY(-1px);
 }
 
 .btn-primary:active:not(:disabled) {
-  transform: scale(0.97);
-  background: var(--hearth-600);
+  transform: scale(0.96) translateY(0);
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
 }
 
 /* ---- Genre / filter buttons ---- */
