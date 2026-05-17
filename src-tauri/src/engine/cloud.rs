@@ -594,12 +594,22 @@ const MINIMAX_URL: &str = "https://api.minimax.io/v1/chat/completions";
 /// Returns None if not configured (avoids panicking at runtime).
 /// Re-loads dotenvy each call so .env changes are picked up without restart.
 fn get_minimax_api_key() -> Option<String> {
-    // Re-load .env each call to pick up runtime changes
-    let _ = dotenvy::dotenv();
-    let key = std::env::var("MINIMAX_API_KEY").ok();
-    log::debug!("[get_minimax_api_key] MINIMAX_API_KEY loaded: {:?}", key.as_ref().map(|k| &k[..k.len().min(8)]));
+    let engine = match get_engine() {
+        Some(e) => e,
+        None => {
+            log::warn!("[get_minimax_api_key] Engine not initialized yet — cannot read from DB");
+            // Fall back to env var for early startup before engine is ready
+            return std::env::var("MINIMAX_API_KEY")
+                .ok()
+                .filter(|k| !k.is_empty())
+                .or_else(|| option_env!("MINIMAX_API_KEY").map(|s| s.to_string()));
+        }
+    };
+    let key = engine.db.get_config("minimax_api_key").ok().flatten();
+    if key.is_none() {
+        log::warn!("[get_minimax_api_key] minimax_api_key not in DB config");
+    }
     key
-        .or_else(|| option_env!("MINIMAX_API_KEY").map(|s| s.to_string()))
 }
 
 
