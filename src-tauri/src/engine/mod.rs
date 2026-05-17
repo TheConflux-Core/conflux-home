@@ -100,6 +100,27 @@ pub fn init_engine(db_path: &Path) -> Result<&'static ConfluxEngine> {
             log::info!("[Engine] ElevenLabs API key loaded");
         }
     }
+    // Load MiniMax API key from environment (if not already in DB)
+    // Used for direct MiniMax inference calls
+    if engine
+        .db
+        .get_config("minimax_api_key")
+        .ok()
+        .flatten()
+        .is_none()
+    {
+        let key = std::env::var("MINIMAX_API_KEY")
+            .ok()
+            .filter(|k| !k.is_empty())
+            .or_else(|| option_env!("MINIMAX_API_KEY").map(|s| s.to_string()))
+            .filter(|k| !k.is_empty());
+        if let Some(key) = key {
+            engine.db.set_config("minimax_api_key", &key).ok();
+            log::info!("[Engine] MiniMax API key loaded from env");
+        } else {
+            log::warn!("[Engine] MINIMAX_API_KEY not found in env — direct MiniMax calls will use cloud router fallback");
+        }
+    }
 
     ENGINE
         .set(engine)
