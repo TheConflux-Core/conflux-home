@@ -596,8 +596,9 @@ const MINIMAX_URL: &str = "https://api.minimax.io/v1/chat/completions";
 fn get_minimax_api_key() -> Option<String> {
     // Re-load .env each call to pick up runtime changes
     let _ = dotenvy::dotenv();
-    std::env::var("MINIMAX_API_KEY")
-        .ok()
+    let key = std::env::var("MINIMAX_API_KEY").ok();
+    log::debug!("[get_minimax_api_key] MINIMAX_API_KEY loaded: {:?}", key.as_ref().map(|k| &k[..k.len().min(8)]));
+    key
         .or_else(|| option_env!("MINIMAX_API_KEY").map(|s| s.to_string()))
 }
 
@@ -688,9 +689,10 @@ async fn call_minimax(request_body: serde_json::Value) -> Result<ModelResponse> 
     let mut body = request_body;
     body["model"] = serde_json::json!("MiniMax-M2.7");
 
+    log::info!("[call_minimax] Attempting MiniMax API call");
     let response = client
         .post(MINIMAX_URL)
-        .header("Authorization", format!("Bearer {}", api_key))
+        .header("Authorization", format!("Bearer {}", &api_key[..8]))
         .header("Content-Type", "application/json")
         .json(&body)
         .send()
@@ -698,6 +700,7 @@ async fn call_minimax(request_body: serde_json::Value) -> Result<ModelResponse> 
         .map_err(|e| anyhow::anyhow!("Failed to call MiniMax: {}", e))?;
 
     let status = response.status();
+    log::info!("[call_minimax] MiniMax responded with status: {}", status);
     if !status.is_success() {
         let body = response.text().await.unwrap_or_default();
         anyhow::bail!("MiniMax error ({}): {}", status, body);
