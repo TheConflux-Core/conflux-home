@@ -190,7 +190,7 @@ pub fn init_tables() -> Result<(), String> {
             return Ok(());
         }
     };
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
 
     conn.execute_batch(
         r#"
@@ -279,7 +279,7 @@ pub fn init_tables() -> Result<(), String> {
 
 pub fn get_state() -> Result<EchoCounselorState, String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
 
     // Get current session
     let current_session = conn.query_row(
@@ -447,7 +447,7 @@ fn calculate_streak(conn: &rusqlite::Connection, kind: &str) -> Result<i64, Stri
 
 pub fn start_session(req: EchoStartSessionRequest) -> Result<EchoCounselorSession, String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
 
     let id = Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
@@ -500,7 +500,7 @@ pub fn start_session(req: EchoStartSessionRequest) -> Result<EchoCounselorSessio
 
 pub fn get_messages(session_id: &str) -> Result<Vec<EchoCounselorMessage>, String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
 
     println!("[DEBUG] get_messages called with session_id: {}", session_id);
 
@@ -544,7 +544,7 @@ pub async fn send_message(session_id: &str, content: &str) -> Result<EchoCounsel
 
     let result = task::spawn_blocking(move || {
         let engine = get_engine();
-        let conn = engine.db().conn();
+        let conn = engine.db().conn_blocking();
 
         // Add user message
         let user_msg_id = Uuid::new_v4().to_string();
@@ -611,7 +611,7 @@ pub async fn send_message(session_id: &str, content: &str) -> Result<EchoCounsel
     let session_id_copy = session_id.clone();
     let result = task::spawn_blocking(move || {
         let engine = get_engine();
-        let conn = engine.db().conn();
+        let conn = engine.db().conn_blocking();
         let now = Utc::now().to_rfc3339();
 
         let counselor_msg_id = Uuid::new_v4().to_string();
@@ -681,7 +681,7 @@ fn generate_counselor_response(user_content: &str, _context: &str) -> String {
 
 pub fn end_session(session_id: &str) -> Result<(), String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
     let now = Utc::now().to_rfc3339();
 
     // Get session messages for reflection generation
@@ -735,7 +735,7 @@ pub fn end_session(session_id: &str) -> Result<(), String> {
 
         if let Some(reflection_text) = reflection_text_opt {
             let engine = crate::engine::get_engine();
-            let conn = engine.db().conn();
+            let conn = engine.db().conn_blocking();
             let now = chrono::Utc::now().to_rfc3339();
             conn.execute(
                 "UPDATE echo_counselor_sessions SET counselor_reflection = ?, ended_at = ? WHERE id = ?",
@@ -765,7 +765,7 @@ pub fn flag_crisis(
     detected_text: &str,
 ) -> Result<EchoCrisisFlag, String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
     let now = Utc::now().to_rfc3339();
     let id = Uuid::new_v4().to_string();
 
@@ -799,7 +799,7 @@ pub fn flag_crisis(
 
 pub fn write_gratitude(items: Vec<String>, context: Option<String>) -> Result<(), String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
     let now = Utc::now().to_rfc3339();
     let id = Uuid::new_v4().to_string();
 
@@ -816,7 +816,7 @@ pub fn write_gratitude(items: Vec<String>, context: Option<String>) -> Result<()
 
 pub fn get_gratitude(limit: Option<i64>) -> Result<Vec<EchoGratitudeEntry>, String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
 
     let limit = limit.unwrap_or(30);
     let entries = conn
@@ -847,7 +847,7 @@ pub fn get_gratitude(limit: Option<i64>) -> Result<Vec<EchoGratitudeEntry>, Stri
 
 pub fn get_exercises() -> Result<Vec<EchoGroundingExercise>, String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
 
     let exercises = conn
         .prepare("SELECT * FROM echo_grounding_exercises ORDER BY created_at DESC")
@@ -874,7 +874,7 @@ pub fn get_exercises() -> Result<Vec<EchoGroundingExercise>, String> {
 
 pub fn complete_exercise(exercise_id: &str) -> Result<(), String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
     let now = Utc::now().to_rfc3339();
 
     conn.execute(
@@ -892,7 +892,7 @@ pub fn complete_exercise(exercise_id: &str) -> Result<(), String> {
 
 pub fn get_reflections(limit: Option<i64>) -> Result<Vec<EchoCounselorSession>, String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
 
     let limit = limit.unwrap_or(10);
     let sessions = conn
@@ -920,7 +920,7 @@ pub fn get_reflections(limit: Option<i64>) -> Result<Vec<EchoCounselorSession>, 
 
 pub fn mark_reflection_read(session_id: &str) -> Result<(), String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
 
     conn.execute(
         "UPDATE echo_counselor_sessions SET reflection_read = TRUE WHERE id = ?",
@@ -941,7 +941,7 @@ pub async fn generate_weekly_letter() -> Result<EchoWeeklyLetter, String> {
     // Collect data in a blocking context first
     let week_data = task::spawn_blocking(|| {
         let engine = get_engine();
-        let conn = engine.db.conn();
+        let conn = engine.db.conn_blocking();
 
         let week_start = chrono::Utc::now() - chrono::Duration::days(7);
         let week_end = chrono::Utc::now();
@@ -1057,7 +1057,7 @@ pub async fn generate_weekly_letter() -> Result<EchoWeeklyLetter, String> {
     let sessions_clone = sessions.clone();
     let result = task::spawn_blocking(move || {
         let engine = get_engine();
-        let conn = engine.db.conn();
+        let conn = engine.db.conn_blocking();
         let now = Utc::now().to_rfc3339();
         let id = Uuid::new_v4().to_string();
         let week_start = (chrono::Utc::now() - chrono::Duration::days(6)).format("%Y-%m-%d").to_string();
@@ -1102,7 +1102,7 @@ pub async fn generate_weekly_letter() -> Result<EchoWeeklyLetter, String> {
 
 pub fn get_weekly_letter() -> Result<Option<EchoWeeklyLetter>, String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
 
     let result = conn
         .query_row(
@@ -1132,7 +1132,7 @@ pub fn get_weekly_letter() -> Result<Option<EchoWeeklyLetter>, String> {
 
 pub fn get_weekly_letter_history(limit: Option<i64>) -> Result<Vec<EchoWeeklyLetter>, String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
     let limit = limit.unwrap_or(4);
 
     let letters = conn

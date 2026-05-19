@@ -671,7 +671,7 @@ pub async fn pulse_get_stocks(member_id: Option<String>) -> Result<Vec<PulseStoc
 #[tauri::command(rename_all = "snake_case")]
 pub fn pulse_delete_stock(id: String) -> Result<(), String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
     conn.execute("DELETE FROM pulse_stocks WHERE id=?1", params![id])
         .map_err(|e| e.to_string())?;
     Ok(())
@@ -735,7 +735,7 @@ pub fn pulse_add_holding(
         return Err("No user ID".to_string());
     }
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
 
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
@@ -778,7 +778,7 @@ pub fn pulse_get_holdings(member_id: Option<String>) -> Result<Vec<PulseHolding>
         return Ok(vec![]);
     }
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
 
     let holdings: Vec<PulseHolding> = conn
         .prepare("SELECT id, user_id, asset_name, asset_type, symbol, shares, cost_basis, current_value, tag, notes, updated_at, created_at FROM pulse_holdings WHERE user_id=?1 ORDER BY created_at ASC")
@@ -812,7 +812,7 @@ pub fn pulse_update_holding(
     req: UpdateHoldingRequest,
 ) -> Result<PulseHolding, String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
     let now = chrono::Utc::now().to_rfc3339();
 
     if let Some(v) = req.name {
@@ -875,7 +875,7 @@ pub fn pulse_update_holding(
 #[tauri::command(rename_all = "snake_case")]
 pub fn pulse_delete_holding(id: String) -> Result<(), String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
     conn.execute("DELETE FROM pulse_holdings WHERE id=?1", params![id])
         .map_err(|e| e.to_string())?;
     Ok(())
@@ -933,7 +933,7 @@ pub fn pulse_add_investment_goal(
         return Err("No user ID".to_string());
     }
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
 
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
@@ -974,7 +974,7 @@ pub fn pulse_get_investment_goals(member_id: Option<String>) -> Result<Vec<Pulse
         return Ok(vec![]);
     }
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
 
     let goals: Vec<PulseInvestmentGoal> = conn
         .prepare("SELECT id, user_id, name, goal_type, target_amount, current_amount, target_date, monthly_contribution, risk_profile, created_at, updated_at FROM pulse_investment_goals WHERE user_id=?1 ORDER BY created_at ASC")
@@ -1007,7 +1007,7 @@ pub fn pulse_update_investment_goal(
     req: UpdateInvestmentGoalRequest,
 ) -> Result<PulseInvestmentGoal, String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
     let now = chrono::Utc::now().to_rfc3339();
 
     if let Some(v) = req.name {
@@ -1065,7 +1065,7 @@ pub fn pulse_update_investment_goal(
 #[tauri::command(rename_all = "snake_case")]
 pub fn pulse_delete_investment_goal(id: String) -> Result<(), String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
     conn.execute("DELETE FROM pulse_investment_goals WHERE id=?1", params![id])
         .map_err(|e| e.to_string())?;
     Ok(())
@@ -1094,7 +1094,7 @@ pub async fn pulse_chat(req: PulseChatRequest, member_id: Option<String>) -> Res
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let uid = user_id_for_task.clone();
             let engine = get_engine();
-            let conn = engine.db.conn();
+            let conn = engine.db.conn_blocking();
             let budget_summary: Vec<(String, f64)> = match conn.prepare(
                 "SELECT category, SUM(amount) as total FROM budget_entries WHERE member_id=?1 GROUP BY category ORDER BY total DESC",
             ) {
@@ -1319,7 +1319,7 @@ pub struct FinancialHealthScore {
 pub fn pulse_health_score(member_id: Option<String>) -> Result<FinancialHealthScore, String> {
     let user_id = member_id.unwrap_or_else(get_current_user_id);
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
 
     // Budget score: based on category diversity and spending patterns
     let budget_categories: Vec<(String, f64)> = match conn.prepare("SELECT category, SUM(amount) FROM budget_entries WHERE member_id=?1 GROUP BY category") {
