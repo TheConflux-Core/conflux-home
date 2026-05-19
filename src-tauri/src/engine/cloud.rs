@@ -702,7 +702,7 @@ async fn call_minimax(request_body: serde_json::Value) -> Result<ModelResponse> 
     log::info!("[call_minimax] Attempting MiniMax API call");
     let response = client
         .post(MINIMAX_URL)
-        .header("Authorization", format!("Bearer {}", &api_key[..8]))
+        .header("Authorization", format!("Bearer {}", api_key))
         .header("Content-Type", "application/json")
         .json(&body)
         .send()
