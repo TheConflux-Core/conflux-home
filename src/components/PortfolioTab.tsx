@@ -3,6 +3,7 @@
 // Uses static sample data — no Rust backend required
 
 import { useState } from 'react';
+import './PortfolioTab.css';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
