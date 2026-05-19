@@ -264,7 +264,7 @@ async function fetchLivePrice(symbol: string): Promise<{
     return {
       price: result.price.toFixed(2),
       change: dir,
-      changeAmount: Math.abs(result.change).toFixed(2),
+      changeAmount: Math.abs(result.change_amount).toFixed(2),  // Finnhub dp = percentage
     };
   } catch (e) {
     console.warn(`[StocksTab] pulse_fetch_price(${symbol}) failed:`, e);
