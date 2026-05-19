@@ -17,6 +17,7 @@ pub mod security;
 pub mod state_events;
 pub mod state_manager;
 pub mod tools;
+pub mod pulse;
 pub mod tool_selector;
 pub mod types;
 pub mod commands {

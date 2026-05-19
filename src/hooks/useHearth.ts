@@ -1,6 +1,22 @@
 import { useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { HomeMenuItem, PantryHeatItem, CookingStep, KitchenDigest, KitchenNudge, MealPhoto } from '../types';
+import type { HomeMenuItem, TonightMeal, PantryHeatItem, CookingStep, KitchenDigest, KitchenNudge, MealPhoto } from '../types';
+
+export function useTonightsMenu() {
+  const [tonight, setTonight] = useState<TonightMeal | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
+      const meal = await invoke<TonightMeal | null>('kitchen_tonights_menu', { member_id: null });
+      setTonight(meal);
+    } catch (e) { console.error('Failed to load tonight\'s menu:', e); }
+    finally { setLoading(false); }
+  }, []);
+
+  return { tonight, loading, load };
+}
 
 export function useHomeMenu() {
   const [menu, setMenu] = useState<HomeMenuItem[]>([]);
@@ -9,7 +25,8 @@ export function useHomeMenu() {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const items = await invoke<HomeMenuItem[]>('kitchen_home_menu');
+      // Chef's Specials: real intelligent recommendations
+      const items = await invoke<HomeMenuItem[]>('kitchen_chefs_specials', { member_id: null, limit: 5 });
       setMenu(items);
     } catch (e) { console.error('Failed:', e); }
     finally { setLoading(false); }

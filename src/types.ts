@@ -1068,6 +1068,24 @@ export interface HomeMenuItem {
   reason: string;
   estimated_minutes: number;
   missing_ingredients: string[];
+  photo_url?: string | null;
+  prep_time_min?: number | null;
+  cook_time_min?: number | null;
+  is_favorite: boolean;
+}
+
+export interface TonightMeal {
+  meal_id: string;
+  name: string;
+  emoji: string;
+  photo_url?: string | null;
+  reason: string; // "Uses chicken expiring Thursday"
+  prep_time_min?: number | null;
+  cook_time_min?: number | null;
+  servings: number;
+  nutrition_tags: string[];   // ["high-protein", "low-carb"]
+  uses_expiring: string[];   // ["chicken", "lemon"]
+  confidence: number;          // 0.0–1.0
 }
 
 export interface PantryHeatItem {
