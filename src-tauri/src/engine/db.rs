@@ -265,7 +265,9 @@ impl EngineDb {
     /// Backward-compatible alias for conn_blocking(). Will be removed once all callers are async.
     #[deprecated(note = "Use conn_async() in async contexts, conn_blocking() in sync")]
     pub fn conn(&self) -> tokio::sync::MutexGuard<'_, Connection> {
-        tokio::task::block_in_place(|| self.conn.blocking_lock())
+        // Use blocking_lock() directly — block_in_place panics when called
+        // from inside a Tokio runtime (e.g. from async Tauri commands).
+        self.conn.blocking_lock()
     }
 
     // ── Agent Queries ──
