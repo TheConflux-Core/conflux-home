@@ -27,6 +27,29 @@ fn http_client() -> &'static Client {
         .unwrap_or_else(|_| Client::new()))
 }
 
+/// Ensure pulse_stocks has all required columns (handles legacy DBs).
+fn ensure_pulse_stocks_schema(engine: &crate::engine::ConfluxEngine) {
+    let conn = engine.db.conn();
+    let cols: Vec<String> = match conn.prepare("PRAGMA table_info(pulse_stocks)") {
+        Ok(mut stmt) => stmt
+            .query_map([], |row| Ok(row.get::<_, String>(1)?))
+            .map(|rows| rows.filter_map(|r| r.ok()).collect())
+            .unwrap_or_default(),
+        Err(_) => return,
+    };
+
+    for (col, ty) in [
+        ("price",         "TEXT"),
+        ("change",        "TEXT"),
+        ("change_amount", "TEXT"),
+    ] {
+        if !cols.contains(&col.to_string()) {
+            let sql = format!("ALTER TABLE pulse_stocks ADD COLUMN {} {}", col, ty);
+            let _ = conn.execute(&sql, []);
+        }
+    }
+}
+
 /// Search result for a stock symbol lookup.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StockSearchResult {
@@ -110,7 +133,7 @@ pub async fn pulse_search_stocks(query: String) -> Result<Vec<StockSearchResult>
 
 /// Fetch current market price for a given ticker.
 #[tauri::command(rename_all = "snake_case")]
-pub async fn pulse_fetch_price(symbol: String) -> Result<f64, String> {
+pub async fn pulse_fetch_price(symbol: String) -> Result<PriceResult, String> {
     let client = http_client();
     let url = format!(
         "https://query1.finance.yahoo.com/v8/finance/chart/{}?interval=1d&range=1d",
@@ -129,6 +152,10 @@ pub async fn pulse_fetch_price(symbol: String) -> Result<f64, String> {
     struct ChartMeta {
         #[serde(rename = "regularMarketPrice")]
         market_price: Option<f64>,
+        #[serde(rename = "regularMarketChange")]
+        market_change: Option<f64>,
+        #[serde(rename = "regularMarketChangePercent")]
+        market_change_pct: Option<f64>,
     }
 
     let resp = client
@@ -150,12 +177,26 @@ pub async fn pulse_fetch_price(symbol: String) -> Result<f64, String> {
     let chart: YahooChart = serde_json::from_str(&body)
         .map_err(|e| format!("Failed to parse price data: {e}"))?;
 
-    chart.result
+    chart
+        .result
         .into_iter()
         .next()
-        .and_then(|r| r.meta.market_price)
+        .map(|r| PriceResult {
+            price: r.meta.market_price.unwrap_or(0.0),
+            change: r.meta.market_change.unwrap_or(0.0),
+            change_amount: r.meta.market_change_pct.unwrap_or(0.0),
+        })
         .ok_or_else(|| "No price data found for this symbol".to_string())
 }
+
+/// Rich price result returned to the frontend.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PriceResult {
+    pub price: f64,
+    pub change: f64,
+    pub change_amount: f64,
+}
+
 
 // ── Pulse Stocks (Watchlist) ───────────────────────────────
 
@@ -203,6 +244,9 @@ pub fn pulse_add_stock(
     let engine = get_engine();
     let conn = engine.db.conn();
 
+    // Ensure all required columns exist (handles pre-schema DBs)
+    ensure_pulse_stocks_schema(&engine);
+
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
@@ -235,6 +279,9 @@ pub fn pulse_add_stock(
 #[tauri::command(rename_all = "snake_case")]
 pub fn pulse_update_stock(id: String, req: UpdateStockRequest) -> Result<PulseStock, String> {
     let engine = get_engine();
+
+    // Ensure all required columns exist (handles pre-schema DBs)
+    ensure_pulse_stocks_schema(&engine);
 
     // Read current stock first
     let stock = {
@@ -313,6 +360,9 @@ pub fn pulse_get_stocks(member_id: Option<String>) -> Result<Vec<PulseStock>, St
     }
     let engine = get_engine();
     let conn = engine.db.conn();
+
+    // Ensure all required columns exist (handles pre-schema DBs)
+    ensure_pulse_stocks_schema(&engine);
 
     let stocks: Vec<PulseStock> = conn
         .prepare("SELECT id, user_id, symbol, company_name, sector, price, change, change_amount, added_at FROM pulse_stocks WHERE user_id=?1 ORDER BY added_at ASC")
