@@ -5721,7 +5721,7 @@ fn execute_fridge_what_can_i_make(args: &Value) -> Result<ToolResult> {
 
     // Get inventory
     let inventory: std::collections::HashMap<String, Option<f64>> = {
-        let conn = tokio::task::block_in_place(|| engine.db().conn_blocking());
+        let conn = engine.db().conn_blocking();
         let mut stmt = match conn.prepare("SELECT LOWER(name), quantity FROM kitchen_inventory") {
             Ok(s) => s,
             Err(e) => {
@@ -5910,7 +5910,7 @@ fn execute_fridge_shopping_for_meals(args: &Value) -> Result<ToolResult> {
 
     // Get inventory set — collect into owned Strings before dropping conn
     let inventory_set: std::collections::HashSet<String> = {
-        let conn = tokio::task::block_in_place(|| engine.db().conn_blocking());
+        let conn = engine.db().conn_blocking();
         let mut inv_stmt = match conn.prepare("SELECT LOWER(name) FROM kitchen_inventory") {
             Ok(s) => s,
             Err(e) => {
@@ -6508,7 +6508,7 @@ fn execute_budget_delete_entry(args: &Value) -> Result<ToolResult> {
     }
 
     let engine = super::get_engine();
-    let conn = tokio::task::block_in_place(|| engine.db().conn_blocking());
+    let conn = engine.db().conn_blocking();
     match conn.execute(
         "DELETE FROM budget_entries WHERE id = ?1",
         rusqlite::params![id],
