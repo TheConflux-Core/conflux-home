@@ -265,7 +265,7 @@ fn fetch_user_email(access_token: &str) -> Result<String> {
 // ── Token Management ──
 
 pub fn store_tokens(db: &EngineDb, tokens: &GoogleTokens) -> Result<()> {
-    let conn = db.conn();
+    let conn = db.conn_blocking();
     conn.execute(
         "INSERT INTO google_tokens (id, access_token, refresh_token, expires_at, scope)
          VALUES (?, ?1, ?2, ?3, ?4)
@@ -283,7 +283,7 @@ pub fn store_tokens(db: &EngineDb, tokens: &GoogleTokens) -> Result<()> {
 }
 
 pub fn get_tokens(db: &EngineDb) -> Result<Option<GoogleTokens>> {
-    let conn = db.conn();
+    let conn = db.conn_blocking();
     let mut stmt = conn.prepare(
         "SELECT access_token, refresh_token, expires_at, scope, email FROM google_tokens WHERE id = ?"
     )?;
@@ -310,7 +310,7 @@ pub fn is_connected(db: &EngineDb) -> Result<bool> {
 }
 
 pub fn disconnect(db: &EngineDb) -> Result<()> {
-    let conn = db.conn();
+    let conn = db.conn_blocking();
     conn.execute("DELETE FROM google_tokens WHERE id = ?", [])?;
     let _ = db.set_config("google_email", "");
     Ok(())
