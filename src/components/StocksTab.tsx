@@ -728,7 +728,9 @@ export default function StocksTab() {
     if (live) {
       const updated: Stock = { ...local, price: live.price, change: live.change, changeAmount: live.changeAmount };
       setStocks(prev => prev.map(s => (s.id === id ? updated : s)));
-      await pulseUpdateStock(id, live.price, live.change, live.changeAmount);
+      await pulseUpdateStock(id, live.price, live.change, live.changeAmount).catch(e => {
+        console.error('[StocksTab] pulseUpdateStock failed:', e);
+      });
     }
   }
 
