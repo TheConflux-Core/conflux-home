@@ -96,7 +96,7 @@ pub fn init_tables() -> Result<(), String> {
             return Ok(());
         }
     };
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
 
     conn.execute_batch(
         "
@@ -130,7 +130,7 @@ pub fn init_tables() -> Result<(), String> {
 
 pub fn start_session(_req: HearthStartSessionRequest) -> Result<HearthNutritionistSession, String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
 
     let id = Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
@@ -163,7 +163,7 @@ pub fn start_session(_req: HearthStartSessionRequest) -> Result<HearthNutritioni
 
 pub fn get_messages(session_id: &str) -> Result<Vec<HearthNutritionistMessage>, String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
 
     let messages: Vec<HearthNutritionistMessage> = conn
         .prepare(
@@ -198,7 +198,7 @@ pub async fn send_message(session_id: &str, content: &str) -> Result<HearthNutri
         let txt = content_str.clone();
         move || -> Result<(), String> {
             let engine = get_engine();
-            let conn = engine.db.conn();
+            let conn = engine.db.conn_blocking();
             let now = Utc::now().to_rfc3339();
             let uid = Uuid::new_v4().to_string();
             conn.execute(
@@ -272,7 +272,7 @@ pub async fn send_message(session_id: &str, content: &str) -> Result<HearthNutri
         let cid = counselor_msg_id.clone();
         move || -> Result<(), String> {
             let engine = get_engine();
-            let conn = engine.db.conn();
+            let conn = engine.db.conn_blocking();
             conn.execute(
                 "INSERT INTO hearth_nutritionist_messages (id, session_id, role, content, timestamp) VALUES (?, ?, 'counselor', ?, ?)",
                 [&cid, &sid, &txt, &ts],
@@ -300,7 +300,7 @@ pub async fn send_message(session_id: &str, content: &str) -> Result<HearthNutri
 
 pub fn end_session(session_id: &str) -> Result<(), String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_blocking();
     let now = Utc::now().to_rfc3339();
 
     conn.execute(
