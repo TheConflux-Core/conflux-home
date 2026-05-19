@@ -988,7 +988,7 @@ impl ConfluxEngine {
         let mut results = serde_json::Map::new();
 
         // 1. Database health
-        match self.db.conn().execute("SELECT 1", []) {
+        match self.db.conn_blocking().execute("SELECT 1", []) {
             Ok(_) => {
                 self.db.record_heartbeat("database", "ok", None)?;
                 results.insert("database".into(), serde_json::json!("ok"));

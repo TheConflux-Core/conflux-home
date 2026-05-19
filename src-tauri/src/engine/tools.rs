@@ -315,7 +315,7 @@ fn check_security_gate(tool_name: &str, args: &Value, agent_id: &str) -> Result<
         "allowlist" => {
             // Check if there's an explicit allow rule for this resource
             let has_allow = db
-                .conn()
+                .conn_blocking()
                 .query_row(
                     "SELECT 1 FROM permission_rules
                  WHERE (agent_id = ?1 OR agent_id IS NULL)
@@ -365,7 +365,7 @@ fn check_security_gate(tool_name: &str, args: &Value, agent_id: &str) -> Result<
 // ── Tool Permission Check ──
 
 fn check_tool_permission(db: &EngineDb, agent_id: &str, tool_name: &str) -> Result<bool> {
-    let conn = db.conn();
+    let conn = db.conn_blocking();
     let result: std::result::Result<i64, _> = conn.query_row(
         "SELECT is_allowed FROM tool_permissions WHERE agent_id = ?1 AND tool_id = ?2",
         rusqlite::params![agent_id, tool_name],
@@ -6230,7 +6230,7 @@ fn execute_budget_add_entry(args: &Value, user_id: &str) -> Result<ToolResult> {
     // Write directly to budget_transactions using user_id (no family_members lookup)
     let engine = super::get_engine();
     let db = engine.db();
-    let conn = db.conn();
+    let conn = db.conn_blocking();
 
     let sign: f64 = if entry_type == "income" { 1.0 } else { -1.0 };
     let tx_id = uuid::Uuid::new_v4().to_string();
@@ -6285,7 +6285,7 @@ fn execute_budget_add_entry(args: &Value, user_id: &str) -> Result<ToolResult> {
 fn execute_budget_get_entries(args: &Value, user_id: &str) -> Result<ToolResult> {
     let engine = super::get_engine();
     let db = engine.db();
-    let conn = db.conn();
+    let conn = db.conn_blocking();
 
 
     let month = args.get("month").and_then(|v| v.as_str());
@@ -7192,7 +7192,7 @@ fn execute_life_add_reminder(args: &Value) -> Result<ToolResult> {
     let now = chrono::Utc::now().to_rfc3339();
 
     let db = engine.db();
-    let conn = db.conn();
+    let conn = db.conn_blocking();
     match conn.execute(
         "INSERT INTO life_reminders (id, member_id, title, description, due_date, priority, is_dismissed, created_at) VALUES (?1, NULL, ?2, ?3, ?4, ?5, 0, ?6)",
         rusqlite::params![&id, title, description, due_date, priority, &now],
@@ -7329,7 +7329,7 @@ fn execute_life_dismiss_nudge(args: &Value) -> Result<ToolResult> {
 
     let engine = super::get_engine();
     let db = engine.db();
-    let conn = db.conn();
+    let conn = db.conn_blocking();
     match conn.execute(
         "UPDATE life_nudges SET dismissed = 1 WHERE id = ?1",
         rusqlite::params![nudge_id],
@@ -7441,7 +7441,7 @@ fn execute_life_add_daily_focus(args: &Value) -> Result<ToolResult> {
     let id = uuid::Uuid::new_v4().to_string();
     let engine = super::get_engine();
     let db = engine.db();
-    let conn = db.conn();
+    let conn = db.conn_blocking();
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
     match conn.execute(
         "INSERT OR REPLACE INTO life_daily_focus (id, member_id, task_id, position, focus_date) VALUES (?1, NULL, ?2, ?3, ?4)",
@@ -7659,7 +7659,7 @@ fn execute_feed_add_item(args: &Value) -> Result<ToolResult> {
     let now = chrono::Utc::now().to_rfc3339();
 
     let db = engine.db();
-    let conn = db.conn();
+    let conn = db.conn_blocking();
     match conn.execute(
         "INSERT INTO content_feed (id, member_id, content_type, title, body, source_url, category, is_read, is_bookmarked, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 0, ?8)",
         rusqlite::params![&id, "user", content_type, title, body, source_url, category, &now],
@@ -7682,7 +7682,7 @@ fn execute_feed_list_items(args: &Value) -> Result<ToolResult> {
         .unwrap_or(false);
 
     let db = engine.db();
-    let conn = db.conn();
+    let conn = db.conn_blocking();
     let mut query = String::from(
         "SELECT id, content_type, title, source_url, category FROM content_feed WHERE 1=1",
     );
@@ -7756,7 +7756,7 @@ fn execute_feed_mark_read(args: &Value) -> Result<ToolResult> {
 
     let engine = super::get_engine();
     let db = engine.db();
-    let conn = db.conn();
+    let conn = db.conn_blocking();
     match conn.execute(
         "UPDATE content_feed SET is_read = 1 WHERE id = ?1",
         rusqlite::params![id],
@@ -7788,7 +7788,7 @@ fn execute_feed_toggle_bookmark(args: &Value) -> Result<ToolResult> {
 
     let engine = super::get_engine();
     let db = engine.db();
-    let conn = db.conn();
+    let conn = db.conn_blocking();
     match conn.execute(
         "UPDATE content_feed SET is_bookmarked = CASE WHEN is_bookmarked = 1 THEN 0 ELSE 1 END WHERE id = ?1",
         rusqlite::params![id],
@@ -7807,7 +7807,7 @@ fn execute_feed_get_ripples(args: &Value) -> Result<ToolResult> {
     let category = args.get("category").and_then(|v| v.as_str());
     let engine = super::get_engine();
     let db = engine.db();
-    let conn = db.conn();
+    let conn = db.conn_blocking();
     let mut query = String::from("SELECT id, title, description, confidence, category, why_it_could_matter, sources_json, detected_at FROM ripples");
     let mut conditions = Vec::new();
     let mut params_vec: Vec<String> = Vec::new();
@@ -7882,7 +7882,7 @@ fn execute_feed_get_ripples(args: &Value) -> Result<ToolResult> {
 fn execute_feed_signal_threads(_args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let db = engine.db();
-    let conn = db.conn();
+    let conn = db.conn_blocking();
     let mut stmt = match conn.prepare("SELECT id, topic, summary, prediction, prediction_confidence, entries_count, updated_at FROM signal_threads ORDER BY updated_at DESC") { Ok(s) => s, Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }) };
     let rows = match stmt.query_map([], |row| { Ok(serde_json::json!({"id": row.get::<_, String>(0)?, "topic": row.get::<_, String>(1)?, "summary": row.get::<_, String>(2)?, "prediction": row.get::<_, Option<String>>(3)?, "prediction_confidence": row.get::<_, Option<f64>>(4)?, "entries_count": row.get::<_, i64>(5)?, "updated_at": row.get::<_, String>(6)? })) }) { Ok(r) => r, Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }) };
     let mut threads = Vec::new();
@@ -7930,7 +7930,7 @@ fn execute_feed_get_questions(args: &Value) -> Result<ToolResult> {
     let limit = args.get("limit").and_then(|v| v.as_i64()).unwrap_or(10);
     let engine = super::get_engine();
     let db = engine.db();
-    let conn = db.conn();
+    let conn = db.conn_blocking();
     let mut stmt = match conn.prepare(&format!("SELECT id, question, answer, confidence_level, asked_at FROM questions ORDER BY asked_at DESC LIMIT {}", limit)) { Ok(s) => s, Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }) };
     let rows = match stmt.query_map([], |row| { Ok(serde_json::json!({"id": row.get::<_, String>(0)?, "question": row.get::<_, String>(1)?, "answer": row.get::<_, String>(2)?, "confidence_level": row.get::<_, Option<String>>(3)?, "asked_at": row.get::<_, String>(4)? })) }) { Ok(r) => r, Err(e) => return Ok(ToolResult { success: false, output: String::new(), error: Some(e.to_string()) }) };
     let mut questions = Vec::new();
