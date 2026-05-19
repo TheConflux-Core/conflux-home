@@ -508,7 +508,7 @@ pub struct UpdateStockRequest {
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn pulse_add_stock(
+pub async fn pulse_add_stock(
     req: AddStockRequest,
     member_id: Option<String>,
 ) -> Result<PulseStock, String> {
@@ -517,7 +517,7 @@ pub fn pulse_add_stock(
         return Err("No user ID".to_string());
     }
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_async().await;
 
     // Ensure all required columns exist (handles pre-schema DBs)
     ensure_pulse_stocks_schema(&conn);
@@ -553,16 +553,15 @@ pub fn pulse_add_stock(
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn pulse_update_stock(id: String, req: UpdateStockRequest) -> Result<PulseStock, String> {
+pub async fn pulse_update_stock(id: String, req: UpdateStockRequest) -> Result<PulseStock, String> {
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_async().await;
 
     // Ensure all required columns exist (handles pre-schema DBs)
     ensure_pulse_stocks_schema(&conn);
 
     // Read current stock first
     let stock = {
-        let conn = engine.db.conn();
         let result = conn.prepare("SELECT id, user_id, symbol, company_name, sector, price, change, change_amount, added_at FROM pulse_stocks WHERE id=?1");
         let mut stmt = match result {
             Ok(s) => s,
@@ -593,7 +592,6 @@ pub fn pulse_update_stock(id: String, req: UpdateStockRequest) -> Result<PulseSt
     let new_change_amount = req.change_amount.or(stock.change_amount.clone());
     log::info!("[pulse_update_stock] id={} price={:?} change={:?} change_amount={:?}", id, new_price, new_change, new_change_amount);
     {
-        let conn = engine.db.conn();
         log::info!("[pulse_update_stock] executing UPDATE for id={}", id);
         match conn.execute(
             "UPDATE pulse_stocks SET price=?1, change=?2, change_amount=?3 WHERE id=?4",
@@ -609,7 +607,6 @@ pub fn pulse_update_stock(id: String, req: UpdateStockRequest) -> Result<PulseSt
 
     // Re-read to return fresh data
     let stock = {
-        let conn = engine.db.conn();
         let result = conn.prepare("SELECT id, user_id, symbol, company_name, sector, price, change, change_amount, added_at FROM pulse_stocks WHERE id=?1");
         let mut stmt = match result {
             Ok(s) => s,
@@ -637,13 +634,13 @@ pub fn pulse_update_stock(id: String, req: UpdateStockRequest) -> Result<PulseSt
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn pulse_get_stocks(member_id: Option<String>) -> Result<Vec<PulseStock>, String> {
+pub async fn pulse_get_stocks(member_id: Option<String>) -> Result<Vec<PulseStock>, String> {
     let user_id = member_id.unwrap_or_else(get_current_user_id);
     if user_id.is_empty() {
         return Ok(vec![]);
     }
     let engine = get_engine();
-    let conn = engine.db.conn();
+    let conn = engine.db.conn_async().await;
 
     // Ensure all required columns exist (handles pre-schema DBs)
     ensure_pulse_stocks_schema(&conn);
