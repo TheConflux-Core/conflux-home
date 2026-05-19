@@ -713,14 +713,23 @@ export default function StocksTab() {
   }
 
   async function handleAdd(stock: Omit<Stock, 'id' | 'addedAt'>) {
+    const id = generateId();
     const local: Stock = {
       ...stock,
-      id: generateId(),
+      id,
       addedAt: Date.now(),
     };
     setStocks(prev => [local, ...prev]);
     setShowAddForm(false);
     await pulseAddStock(stock);
+
+    // Fetch live price immediately after adding
+    const live = await fetchLivePrice(stock.symbol);
+    if (live) {
+      const updated: Stock = { ...local, price: live.price, change: live.change, changeAmount: live.changeAmount };
+      setStocks(prev => prev.map(s => (s.id === id ? updated : s)));
+      await pulseUpdateStock(id, live.price, live.change, live.changeAmount);
+    }
   }
 
   async function handleUpdate(updated: Stock) {
