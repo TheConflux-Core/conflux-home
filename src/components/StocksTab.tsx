@@ -236,10 +236,13 @@ async function pulseUpdateStock(
 ): Promise<void> {
   console.log('[pulseUpdateStock] called with id=', id, 'price=', price, 'change=', change, 'changeAmount=', changeAmount);
   try {
-    const result = await invoke('pulse_update_stock', {
-      id,
-      req: { price, change, change_amount: changeAmount },
-    });
+    const result = await Promise.race([
+      invoke('pulse_update_stock', {
+        id,
+        req: { price, change, change_amount: changeAmount },
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('pulseUpdateStock timeout (10s)')), 10000)),
+    ]);
     console.log('[pulseUpdateStock] invoke succeeded, result:', result);
   } catch (e) {
     console.error('[pulseUpdateStock] invoke failed:', e);
