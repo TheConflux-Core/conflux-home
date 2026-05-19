@@ -180,17 +180,28 @@ impl EngineDb {
                             }
                         }
                         let upper = word.to_uppercase();
-                        // Check for END first (before pushing word to current)
-                        if upper == "END" && begin_depth > 0 {
-                            begin_depth -= 1;
+                        // Track BEGIN...END block nesting for trigger/procedure bodies.
+                        // A bare BEGIN (not BEGIN TRANSACTION etc.) at top level starts a block.
+                        // Nested BEGINs (inside existing blocks) increment depth.
+                        // END decrements depth (only when already inside a block).
+                        if upper == "END" {
+                            if begin_depth > 0 {
+                                begin_depth -= 1;
+                            }
+                        } else if upper == "BEGIN" {
+                            current.push_str(&word);
+                            // Only track bare BEGIN (trigger/procedure body), not
+                            // BEGIN TRANSACTION / BEGIN IMMEDIATE / BEGIN DEFERRED
+                            if begin_depth > 0 {
+                                // Already inside a block — this is a nested BEGIN
+                                begin_depth += 1;
+                            } else {
+                                // Top-level BEGIN — start of trigger body (depth becomes 1)
+                                begin_depth = 1;
+                            }
+                            continue;
                         }
                         current.push_str(&word);
-                        if upper == "BEGIN" && begin_depth > 0 {
-                            // Only count nested BEGINs that are INSIDE an existing block.
-                            // Skip top-level BEGIN (trigger body start) — we detect it
-                            // by the fact that begin_depth was already incremented.
-                            begin_depth += 1;
-                        }
                         continue;
                     }
                     current.push(ch);
