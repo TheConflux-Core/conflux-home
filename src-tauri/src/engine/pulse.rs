@@ -8,13 +8,19 @@ use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 use reqwest::Client;
 
-/// Get the current user's ID from the engine config (same pattern as commands.rs).
+/// Get the current user's ID from the engine config.
+/// Uses blocking_readonly to avoid holding the DB mutex across await points.
 fn get_current_user_id() -> String {
     let engine = get_engine();
-    tokio::task::block_in_place(|| engine.db().get_config("supabase_user_id"))
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| "default".to_string())
+    engine.db.blocking_readonly(|conn| {
+        let mut stmt = match conn.prepare("SELECT value FROM config WHERE key = 'supabase_user_id'") {
+            Ok(s) => s,
+            Err(_) => return Ok("default".to_string()),
+        };
+        let result: rusqlite::Result<String> = stmt
+            .query_row([], |row| row.get(0));
+        Ok(result.unwrap_or_else(|_| "default".to_string()))
+    })
 }
 
 /// Shared HTTP client for stock lookups.
@@ -28,8 +34,7 @@ fn http_client() -> &'static Client {
 }
 
 /// Ensure pulse_stocks has all required columns (handles legacy DBs).
-fn ensure_pulse_stocks_schema(engine: &crate::engine::ConfluxEngine) {
-    let conn = engine.db.conn();
+fn ensure_pulse_stocks_schema(conn: &rusqlite::Connection) {
     let cols: Vec<String> = match conn.prepare("PRAGMA table_info(pulse_stocks)") {
         Ok(mut stmt) => stmt
             .query_map([], |row| Ok(row.get::<_, String>(1)?))
@@ -245,7 +250,7 @@ pub fn pulse_add_stock(
     let conn = engine.db.conn();
 
     // Ensure all required columns exist (handles pre-schema DBs)
-    ensure_pulse_stocks_schema(&engine);
+    ensure_pulse_stocks_schema(&conn);
 
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
@@ -279,9 +284,10 @@ pub fn pulse_add_stock(
 #[tauri::command(rename_all = "snake_case")]
 pub fn pulse_update_stock(id: String, req: UpdateStockRequest) -> Result<PulseStock, String> {
     let engine = get_engine();
+    let conn = engine.db.conn();
 
     // Ensure all required columns exist (handles pre-schema DBs)
-    ensure_pulse_stocks_schema(&engine);
+    ensure_pulse_stocks_schema(&conn);
 
     // Read current stock first
     let stock = {
@@ -362,7 +368,7 @@ pub fn pulse_get_stocks(member_id: Option<String>) -> Result<Vec<PulseStock>, St
     let conn = engine.db.conn();
 
     // Ensure all required columns exist (handles pre-schema DBs)
-    ensure_pulse_stocks_schema(&engine);
+    ensure_pulse_stocks_schema(&conn);
 
     let stocks: Vec<PulseStock> = conn
         .prepare("SELECT id, user_id, symbol, company_name, sector, price, change, change_amount, added_at FROM pulse_stocks WHERE user_id=?1 ORDER BY added_at ASC")
