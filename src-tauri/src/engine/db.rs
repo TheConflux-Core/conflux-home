@@ -228,10 +228,9 @@ impl EngineDb {
     /// Blocks the current thread until the lock is acquired.
     /// Requires a Tokio runtime context.
     pub fn conn_blocking(&self) -> tokio::sync::MutexGuard<'_, Connection> {
-        let result = tokio::task::block_in_place(|| {
-            self.conn.blocking_lock()
-        });
-        result
+        // Use blocking_lock() directly — block_in_place panics when called
+        // from inside a Tokio runtime (e.g. from async Tauri command handlers).
+        self.conn.blocking_lock()
     }
 
     /// Run a blocking read-only DB operation in a dedicated thread.

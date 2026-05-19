@@ -1,8 +1,7 @@
 // StocksTab — Manual stock watchlist for Pulse
-// Phase 2 refinements: SVG sparklines, hero price layout, ticker zone, info hierarchy
+// Uses static sample data — no Rust backend required
 
 import { useState, useEffect, useRef } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 
 export interface Stock {
   id: string;
@@ -19,6 +18,16 @@ export type Sector = 'Tech' | 'Healthcare' | 'Finance' | 'Energy' | 'Consumer' |
 export type ChangeDirection = 'up' | 'down' | 'neutral';
 
 const SECTORS: Sector[] = ['Tech', 'Healthcare', 'Finance', 'Energy', 'Consumer', 'Other'];
+
+// ── Static Sample Data ─────────────────────────────────────────
+const SAMPLE_STOCKS: Stock[] = [
+  { id: '1', symbol: 'AAPL', companyName: 'Apple Inc.', sector: 'Tech', price: '187.50', change: 'up', changeAmount: '1.24', addedAt: Date.now() - 86400000 * 5 },
+  { id: '2', symbol: 'MSFT', companyName: 'Microsoft Corp.', sector: 'Tech', price: '415.20', change: 'up', changeAmount: '0.34', addedAt: Date.now() - 86400000 * 4 },
+  { id: '3', symbol: 'NVDA', companyName: 'NVIDIA Corp.', sector: 'Tech', price: '920.10', change: 'up', changeAmount: '2.15', addedAt: Date.now() - 86400000 * 3 },
+  { id: '4', symbol: 'TSLA', companyName: 'Tesla Inc.', sector: 'Consumer', price: '248.75', change: 'down', changeAmount: '0.82', addedAt: Date.now() - 86400000 * 2 },
+  { id: '5', symbol: 'GOOGL', companyName: 'Alphabet Inc.', sector: 'Tech', price: '175.80', change: 'down', changeAmount: '0.51', addedAt: Date.now() - 86400000 * 1 },
+  { id: '6', symbol: 'JPM', companyName: 'JPMorgan Chase', sector: 'Finance', price: '198.60', change: 'neutral', changeAmount: '0.00', addedAt: Date.now() },
+];
 
 // ── Ticker tape simulated market data ───────────────────────
 interface TickerItem {
@@ -102,7 +111,7 @@ function getSparklineDir(normalized: number[]): 'up' | 'down' | 'neutral' {
 
 // ── SVG Sparkline Component ──────────────────────────────────
 interface SVGSparklineProps {
-  data: number[];        // normalized 0–1 values, length 7
+  data: number[];
   direction: 'up' | 'down' | 'neutral';
   width?: number;
   height?: number;
@@ -134,7 +143,6 @@ function SVGSparkline({ data, direction, width = 72, height = 32, showLabel = tr
   ].join(' ');
 
   const color = direction === 'up' ? '#10b981' : direction === 'down' ? '#ef4444' : '#9ca3af';
-  const color16 = direction === 'up' ? 'rgba(16,185,129,' : direction === 'down' ? 'rgba(239,68,68,' : 'rgba(156,163,175,';
 
   return (
     <div className="stock-sparkline" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px' }}>
@@ -146,12 +154,7 @@ function SVGSparkline({ data, direction, width = 72, height = 32, showLabel = tr
             <stop offset="100%" stopColor={color} stopOpacity="0.02" />
           </linearGradient>
         </defs>
-        {/* Area fill */}
-        <polygon
-          points={areaPoints}
-          fill={`url(#spark-grad-${direction})`}
-        />
-        {/* Line */}
+        <polygon points={areaPoints} fill={`url(#spark-grad-${direction})`} />
         <polyline
           points={points}
           fill="none"
@@ -160,7 +163,6 @@ function SVGSparkline({ data, direction, width = 72, height = 32, showLabel = tr
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        {/* End dot */}
         <circle
           cx={pad + w}
           cy={pad + (1 - data[data.length - 1]) * h}
@@ -171,139 +173,6 @@ function SVGSparkline({ data, direction, width = 72, height = 32, showLabel = tr
       </svg>
     </div>
   );
-}
-
-// ── Tauri command wrappers ───────────────────────────────────
-
-interface RustStock {
-  id: string;
-  symbol: string;
-  company_name: string | null;
-  sector: string | null;
-  price: string | null;
-  change: string | null;
-  change_amount: string | null;
-  added_at: string;
-}
-
-/** Convert Rust snake_case response → frontend camelCase Stock type. */
-function fromRust(s: RustStock): Stock {
-  return {
-    id: s.id,
-    symbol: s.symbol,
-    companyName: s.company_name ?? '',
-    sector: (s.sector as Sector) ?? 'Other',
-    price: s.price ?? '',
-    change: (s.change as ChangeDirection) ?? 'neutral',
-    changeAmount: s.change_amount ?? '',
-    addedAt: new Date(s.added_at).getTime(),
-  };
-}
-
-async function pulseGetStocks(): Promise<Stock[]> {
-  try {
-    const data: RustStock[] = await invoke('pulse_get_stocks', {});
-    return data.map(fromRust).sort(sortStocks);
-  } catch {
-    return [];
-  }
-}
-
-async function pulseAddStock(stock: Omit<Stock, 'id' | 'addedAt'>): Promise<void> {
-  console.log('[pulseAddStock] called with symbol=', stock.symbol);
-  try {
-    const result = await invoke('pulse_add_stock', {
-      req: {
-        symbol: stock.symbol,
-        company_name: stock.companyName,
-        sector: stock.sector,
-        price: stock.price || null,
-        change: stock.change,
-        change_amount: stock.changeAmount || null,
-      },
-    });
-    console.log('[pulseAddStock] invoke succeeded, result:', result);
-  } catch (e) {
-    console.error('[StocksTab] pulse_add_stock failed:', e);
-  }
-}
-
-async function pulseUpdateStock(
-  id: string,
-  price: string,
-  change: ChangeDirection,
-  changeAmount: string,
-): Promise<void> {
-  console.log('[pulseUpdateStock] called with id=', id, 'price=', price, 'change=', change, 'changeAmount=', changeAmount);
-  try {
-    const result = await Promise.race([
-      invoke('pulse_update_stock', {
-        id,
-        req: { price, change, change_amount: changeAmount },
-      }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('pulseUpdateStock timeout (10s)')), 10000)),
-    ]);
-    console.log('[pulseUpdateStock] invoke succeeded, result:', result);
-  } catch (e) {
-    console.error('[pulseUpdateStock] invoke failed:', e);
-  }
-}
-
-async function pulseDeleteStock(id: string): Promise<void> {
-  try {
-    await invoke('pulse_delete_stock', { id });
-  } catch (e) {
-    console.error('[StocksTab] pulse_delete_stock failed:', e);
-  }
-}
-
-// ── Live Price Fetch — calls Rust backend (Yahoo Finance) ───
-async function fetchLivePrice(symbol: string): Promise<{
-  price: string;
-  change: ChangeDirection;
-  changeAmount: string;
-} | null> {
-  try {
-    const result = await invoke<{ price: number; change: number; change_amount: number }>('pulse_fetch_price', { symbol });
-    if (!result) return null;
-    const dir: ChangeDirection =
-      result.change > 0 ? 'up' : result.change < 0 ? 'down' : 'neutral';
-    return {
-      price: result.price.toFixed(2),
-      change: dir,
-      changeAmount: Math.abs(result.change_amount).toFixed(2),  // Finnhub dp = percentage
-    };
-  } catch (e) {
-    console.warn(`[StocksTab] pulse_fetch_price(${symbol}) failed:`, e);
-    return null;
-  }
-}
-
-// ── Symbol Search — calls Rust backend (Yahoo Finance) ───
-async function searchSymbols(query: string): Promise<Array<{
-  symbol: string;
-  companyName: string;
-  sector: string;
-}>> {
-  if (query.trim().length < 2) return [];
-  try {
-    interface RustSearchResult {
-      symbol: string;
-      company_name: string;
-      sector: string;
-      current_price: number | null;
-      logo_url: string | null;
-    }
-    const results: RustSearchResult[] = await invoke('pulse_search_stocks', { query });
-    return results.map(r => ({
-      symbol: r.symbol,
-      companyName: r.company_name,
-      sector: r.sector,
-    }));
-  } catch (e) {
-    console.warn('[StocksTab] pulse_search_stocks failed:', e);
-    return [];
-  }
 }
 
 // ── Empty State ──────────────────────────────────────────────
@@ -339,7 +208,6 @@ function StockCard({
   const [sparkline, setSparkline] = useState<number[]>([]);
   const priceRef = useRef<HTMLInputElement>(null);
 
-  // Generate sparkline on mount or price change
   useEffect(() => {
     const base = parseFloat(stock.price) || 100;
     setSparkline(generateSparkline(base));
@@ -395,7 +263,7 @@ function StockCard({
       className={`stock-card ${glowClass}`}
       style={{ animationDelay: `${animationDelay}ms` }}
     >
-      {/* Header row — symbol + company + delete */}
+      {/* Header row */}
       <div className="stock-card-header">
         <div className="stock-symbol-block">
           <span className="stock-symbol">{stock.symbol.toUpperCase()}</span>
@@ -404,7 +272,7 @@ function StockCard({
         <button
           className="stock-delete-btn"
           onClick={() => onDelete(stock.id)}
-          title={`Remove ${stock.symbol} from watchlist`}
+          title={`Remove ${stock.symbol}`}
           aria-label={`Delete ${stock.symbol}`}
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -413,12 +281,11 @@ function StockCard({
         </button>
       </div>
 
-      {/* Sector tag */}
       {stock.sector && (
         <div className="stock-sector-tag">{stock.sector}</div>
       )}
 
-      {/* Price — hero element, centered */}
+      {/* Price */}
       <div className="stock-price-row">
         {editingPrice ? (
           <input
@@ -435,24 +302,12 @@ function StockCard({
         ) : (
           <button
             className={priceWrapperClass}
-            onClick={async () => {
-              const live = await fetchLivePrice(stock.symbol);
-              if (live) {
-                const isUp = parseFloat(live.price) > parseFloat(stock.price || '0');
-                setFlashing(isUp ? 'up' : 'down');
-                setTimeout(() => setFlashing(null), 600);
-                onUpdate({ ...stock, price: live.price, change: live.change, changeAmount: live.changeAmount });
-              } else {
-                setEditingPrice(true);
-                setTimeout(() => priceRef.current?.select(), 10);
-              }
-            }}
-            title="Click to refresh price — or click again to enter manually"
+            onClick={() => setEditingPrice(true)}
+            title="Click to edit price"
           >
             {stock.price ? `$${stock.price}` : '—'}
           </button>
         )}
-        {/* Inline change badge — right of price */}
         {stock.changeAmount && (
           <span className={`stock-change-badge change-badge-${stock.change}`}>
             <span className="badge-arrow">{changeIcon}</span>
@@ -464,19 +319,18 @@ function StockCard({
         )}
       </div>
 
-      {/* Change row — cycle direction + sparkline */}
+      {/* Change row */}
       <div className="stock-change-row">
         <button
           className={`stock-change-btn change-${stock.change}`}
           onClick={cycleChange}
-          title="Click to cycle direction: Up → Down → Neutral"
+          title="Click to cycle direction"
         >
           <span className={`change-icon change-icon-${stock.change}`}>{changeIcon}</span>
           <span className="change-amount">{stock.changeAmount || '—'}</span>
           <span className="change-label">{stock.changeAmount ? '%' : 'Set'}</span>
         </button>
 
-        {/* SVG Sparkline */}
         {sparkline.length > 0 && (
           <SVGSparkline
             data={sparkline}
@@ -512,23 +366,6 @@ function AddStockForm({
     sector: 'Tech',
   });
   const [error, setError] = useState('');
-  const [searchResults, setSearchResults] = useState<Array<{ symbol: string; companyName: string; sector: string }>>([]);
-  const [searching, setSearching] = useState(false);
-
-  // Debounced symbol search as user types
-  useEffect(() => {
-    if (!form.symbol || form.symbol.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    const iv = setTimeout(async () => {
-      setSearching(true);
-      const results = await searchSymbols(form.symbol);
-      setSearchResults(results);
-      setSearching(false);
-    }, 350);
-    return () => clearTimeout(iv);
-  }, [form.symbol]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -556,7 +393,6 @@ function AddStockForm({
   function handleSymbolInput(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value.toUpperCase().replace(/[^A-Z0-9.]/g, '');
     setForm(f => ({ ...f, symbol: val }));
-    if (searchResults.length > 0) setSearchResults([]);
   }
 
   return (
@@ -571,44 +407,17 @@ function AddStockForm({
       </div>
 
       <div className="add-form-fields">
-        <div className="form-field form-field-search">
+        <div className="form-field">
           <label htmlFor="stock-symbol">Ticker</label>
-          <div className="symbol-input-wrapper">
-            <input
-              id="stock-symbol"
-              type="text"
-              placeholder="AAPL"
-              value={form.symbol}
-              onChange={handleSymbolInput}
-              maxLength={10}
-              autoFocus
-              autoComplete="off"
-            />
-            {searching && <span className="symbol-searching" />}
-            {searchResults.length > 0 && (
-              <div className="symbol-search-results">
-                {searchResults.map(r => (
-                  <button
-                    key={r.symbol}
-                    type="button"
-                    className="symbol-result-item"
-                    onClick={() => {
-                      setForm(f => ({
-                        ...f,
-                        symbol: r.symbol,
-                        companyName: r.companyName,
-                        sector: (r.sector || 'Other') as Sector,
-                      }));
-                      setSearchResults([]);
-                    }}
-                  >
-                    <span className="result-symbol">{r.symbol}</span>
-                    <span className="result-company">{r.companyName}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <input
+            id="stock-symbol"
+            type="text"
+            placeholder="AAPL"
+            value={form.symbol}
+            onChange={handleSymbolInput}
+            maxLength={10}
+            autoFocus
+          />
         </div>
 
         <div className="form-field">
@@ -682,96 +491,32 @@ function TickerTape() {
 
 // ── Main StocksTab ────────────────────────────────────────────────────
 export default function StocksTab() {
-  const [stocks, setStocks] = useState<Stock[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [stocks, setStocks] = useState<Stock[]>(SAMPLE_STOCKS);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [liveBadge, setLiveBadge] = useState(false);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const data = await pulseGetStocks();
-      if (mounted) {
-        setStocks(data.sort(sortStocks));
-        setLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
-
-  async function handleRefreshAll() {
-    if (refreshing) return;
-    setRefreshing(true);
-    setStocks(prev => prev.map(s => ({ ...s, price: '...' })));
-    await Promise.all(stocks.map(async (s) => {
-      const live = await fetchLivePrice(s.symbol);
-      if (live) {
-        setStocks(prev => prev.map(st => st.id === s.id
-          ? { ...st, price: live.price, change: live.change, changeAmount: live.changeAmount }
-          : st));
-      } else {
-        setStocks(prev => prev.map(st => st.id === s.id ? { ...st, price: st.price || '—' } : st));
-      }
-    }));
-    setRefreshing(false);
-    setLiveBadge(true);
-    setTimeout(() => setLiveBadge(false), 2500);
-  }
-
-  async function handleAdd(stock: Omit<Stock, 'id' | 'addedAt'>) {
-    const id = generateId();
+  function handleAdd(stock: Omit<Stock, 'id' | 'addedAt'>) {
     const local: Stock = {
       ...stock,
-      id,
+      id: generateId(),
       addedAt: Date.now(),
     };
     setStocks(prev => [local, ...prev]);
     setShowAddForm(false);
-    await pulseAddStock(stock);
-
-    // Fetch live price immediately after adding
-      console.log('[handleAdd] Calling fetchLivePrice for', stock.symbol);
-      const live = await fetchLivePrice(stock.symbol);
-      console.log('[handleAdd] fetchLivePrice returned:', live);
-      if (live) {
-        const updated: Stock = { ...local, price: live.price, change: live.change, changeAmount: live.changeAmount };
-        setStocks(prev => prev.map(s => (s.id === id ? updated : s)));
-        console.log('[handleAdd] Calling pulseUpdateStock for id', id);
-        await pulseUpdateStock(id, live.price, live.change, live.changeAmount).catch(e => {
-          console.error('[handleAdd] pulseUpdateStock threw:', e);
-        });
-        console.log('[handleAdd] pulseUpdateStock completed');
-      } else {
-        console.log('[handleAdd] fetchLivePrice returned null, skipping update');
-      }
-      console.log('[handleAdd] Done');
   }
 
-  async function handleUpdate(updated: Stock) {
+  function handleUpdate(updated: Stock) {
     setStocks(prev => prev.map(s => (s.id === updated.id ? updated : s)));
-    await pulseUpdateStock(updated.id, updated.price, updated.change, updated.changeAmount);
   }
 
-  async function handleDelete(id: string) {
+  function handleDelete(id: string) {
     setStocks(prev => prev.filter(s => s.id !== id));
-    await pulseDeleteStock(id);
   }
 
   const sortedStocks = [...stocks].sort(sortStocks);
 
-  if (loading) {
-    return (
-      <div className="stocks-loading">
-        <div className="stocks-spinner" />
-        <span>Loading watchlist…</span>
-      </div>
-    );
-  }
-
   return (
     <div className="stocks-tab">
-      {/* Ticker tape — sits in its own zone, sticky below tab bar */}
+      {/* Ticker tape */}
       <div className="ticker-zone">
         <TickerTape />
       </div>
@@ -785,27 +530,6 @@ export default function StocksTab() {
           )}
         </div>
         <div className="stocks-header-actions">
-          {stocks.length > 0 && !showAddForm && (
-            <button
-              className={`btn-refresh-all ${refreshing ? 'refreshing' : ''} ${liveBadge ? 'live-badge-shown' : ''}`}
-              onClick={handleRefreshAll}
-              disabled={refreshing}
-            >
-              {refreshing ? (
-                <>
-                  <span className="refresh-spinner" />
-                  <span>Refreshing…</span>
-                </>
-              ) : liveBadge ? (
-                <>
-                  <span className="live-check">✓</span>
-                  <span>Live</span>
-                </>
-              ) : (
-                <span>↻ Refresh All</span>
-              )}
-            </button>
-          )}
           {!showAddForm && (
             <button
               className="btn-open-add-form"
