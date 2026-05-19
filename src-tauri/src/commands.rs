@@ -9611,7 +9611,7 @@ pub async fn echo_counselor_send_message(
     // Phase 1: Insert user message into DB (sync, runs in blocking thread)
     let user_msg_id = task::spawn_blocking(move || {
         let engine = engine::get_engine();
-        let conn = engine.db().conn();
+        let conn = engine.db().conn_blocking();
         let now = chrono::Utc::now().to_rfc3339();
         let uid = uuid::Uuid::new_v4().to_string();
         conn.execute(
@@ -9668,7 +9668,7 @@ pub async fn echo_counselor_send_message(
     let session_id_for_db = session_id_for_db;
     task::spawn_blocking(move || {
         let engine = engine::get_engine();
-        let conn = engine.db().conn();
+        let conn = engine.db().conn_blocking();
         let now = chrono::Utc::now().to_rfc3339();
         let cid = uuid::Uuid::new_v4().to_string();
         conn.execute(
@@ -10643,7 +10643,7 @@ pub struct PulseMessage {
 pub fn pulse_start_session() -> Result<PulseSession, String> {
     use engine::pulse;
     let engine = engine::get_engine();
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_blocking();
     let now = chrono::Utc::now();
     let id = uuid::Uuid::new_v4().to_string();
     let now_str = now.to_rfc3339();
@@ -10682,7 +10682,7 @@ pub fn pulse_start_session() -> Result<PulseSession, String> {
 #[tauri::command(rename_all = "snake_case")]
 pub fn pulse_end_session(session_id: String) -> Result<(), String> {
     let engine = engine::get_engine();
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_blocking();
     let now = chrono::Utc::now().to_rfc3339();
     conn.execute(
         "UPDATE pulse_sessions SET ended_at = ?, status = 'ended' WHERE id = ?",
@@ -10695,7 +10695,7 @@ pub fn pulse_end_session(session_id: String) -> Result<(), String> {
 #[tauri::command(rename_all = "snake_case")]
 pub fn pulse_get_messages(session_id: String) -> Result<Vec<PulseMessage>, String> {
     let engine = engine::get_engine();
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_blocking();
     let mut stmt = conn
         .prepare("SELECT id, session_id, role, content, timestamp FROM pulse_messages WHERE session_id = ? ORDER BY timestamp ASC")
         .map_err(|e| e.to_string())?;
@@ -10719,7 +10719,7 @@ pub fn pulse_get_messages(session_id: String) -> Result<Vec<PulseMessage>, Strin
 #[tauri::command(rename_all = "snake_case")]
 pub fn pulse_get_sessions(limit: Option<i64>) -> Result<Vec<PulseSession>, String> {
     let engine = engine::get_engine();
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_blocking();
     let limit = limit.unwrap_or(20);
     let mut stmt = conn
         .prepare("SELECT id, started_at, ended_at, status, message_count, summary FROM pulse_sessions ORDER BY started_at DESC LIMIT ?")
@@ -10776,7 +10776,7 @@ pub fn pulse_save_message(
     timestamp: String,
 ) -> Result<(), String> {
     let engine = engine::get_engine();
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_blocking();
     let id = uuid::Uuid::new_v4().to_string();
     conn.execute(
         "INSERT INTO pulse_messages (id, session_id, role, content, timestamp) VALUES (?, ?, ?, ?, ?)",
@@ -10789,7 +10789,7 @@ pub fn pulse_save_message(
 #[tauri::command(rename_all = "snake_case")]
 pub fn pulse_increment_session_count(session_id: String) -> Result<(), String> {
     let engine = engine::get_engine();
-    let conn = engine.db().conn();
+    let conn = engine.db().conn_blocking();
     conn.execute(
         "UPDATE pulse_sessions SET message_count = message_count + 1 WHERE id = ?",
         [&session_id],
