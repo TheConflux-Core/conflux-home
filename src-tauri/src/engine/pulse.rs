@@ -101,7 +101,10 @@ pub async fn pulse_search_stocks(query: String) -> Result<Vec<StockSearchResult>
         .header("Accept", "application/json")
         .send()
         .await
-        .map_err(|e| format!("Search request failed: {e}"))?;
+        .map_err(|e| {
+            log::warn!("[pulse_search_stocks] HTTP error: {}", e);
+            format!("Search request failed: {e}")
+        })?;
 
     if !resp.status().is_success() {
         return Err(format!("Yahoo Finance returned status {}", resp.status()));
@@ -113,7 +116,10 @@ pub async fn pulse_search_stocks(query: String) -> Result<Vec<StockSearchResult>
         .map_err(|e| format!("Failed to read response: {e}"))?;
 
     let parsed: YahooSearchResponse = serde_json::from_str(&body)
-        .map_err(|e| format!("Failed to parse response: {e}"))?;
+        .map_err(|e| {
+            log::warn!("[pulse_search_stocks] parse error: {}", e);
+            format!("Failed to parse response: {e}")
+        })?;
 
     let results: Vec<StockSearchResult> = parsed
         .quotes
@@ -168,7 +174,10 @@ pub async fn pulse_fetch_price(symbol: String) -> Result<PriceResult, String> {
         .header("Accept", "application/json")
         .send()
         .await
-        .map_err(|e| format!("Price request failed: {e}"))?;
+        .map_err(|e| {
+            log::warn!("[pulse_fetch_price({})] HTTP error: {}", symbol, e);
+            format!("Price request failed: {e}")
+        })?;
 
     if !resp.status().is_success() {
         return Err(format!("Yahoo Finance price API returned {}", resp.status()));
@@ -177,15 +186,22 @@ pub async fn pulse_fetch_price(symbol: String) -> Result<PriceResult, String> {
     let body = resp
         .text()
         .await
-        .map_err(|e| format!("Failed to read price response: {e}"))?;
+        .map_err(|e| {
+            log::warn!("[pulse_fetch_price({})] parse error: {}", symbol, e);
+            format!("Failed to read price response: {e}")
+        })?;
 
     let chart: YahooChart = serde_json::from_str(&body)
-        .map_err(|e| format!("Failed to parse price data: {e}"))?;
+        .map_err(|e| {
+            log::warn!("[pulse_fetch_price({})] JSON parse error: {}", symbol, e);
+            format!("Failed to parse price data: {e}")
+        })?;
 
-    chart
+    let price_result = chart
         .result
         .into_iter()
-        .next()
+        .next();
+    price_result
         .map(|r| PriceResult {
             price: r.meta.market_price.unwrap_or(0.0),
             change: r.meta.market_change.unwrap_or(0.0),
@@ -254,6 +270,7 @@ pub fn pulse_add_stock(
 
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
+    log::info!("[pulse_add_stock] symbol={} price={:?} change={:?}", req.symbol, req.price, req.change);
 
     conn.execute(
         "INSERT OR REPLACE INTO pulse_stocks (id, user_id, symbol, company_name, sector, price, change, change_amount, added_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
@@ -320,6 +337,7 @@ pub fn pulse_update_stock(id: String, req: UpdateStockRequest) -> Result<PulseSt
     let new_price = req.price.or(stock.price.clone());
     let new_change = req.change.or(stock.change.clone());
     let new_change_amount = req.change_amount.or(stock.change_amount.clone());
+    log::info!("[pulse_update_stock] id={} price={:?} change={:?}", id, new_price, new_change);
     {
         let conn = engine.db.conn();
         conn.execute(
