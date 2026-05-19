@@ -9,7 +9,6 @@ use std::sync::Arc;
 /// The embedded database. Thread-safe via tokio::sync::Mutex.
 ///
 /// All DB access goes through `conn_async()` (async) or `conn_blocking()` (sync bridge).
-/// The sync bridge uses `block_in_place` and should only be used during migration.
 #[derive(Clone)]
 pub struct EngineDb {
     conn: Arc<tokio::sync::Mutex<Connection>>,
@@ -60,7 +59,7 @@ impl EngineDb {
     /// skipping "already exists" / "duplicate column" errors.
     fn migrate(&self) -> Result<()> {
         let schema = include_str!("../../schema.sql");
-        let conn = self.conn.blocking_lock();
+        let conn = tokio::task::block_in_place(|| self.conn.blocking_lock());
 
         // Try full batch first (fast path for fresh databases)
         match conn.execute_batch(schema) {
@@ -224,13 +223,13 @@ impl EngineDb {
         self.conn.lock().await
     }
 
-    /// Get the connection lock (sync bridge). Use ONLY during migration.
-    /// Blocks the current thread until the lock is acquired.
-    /// Requires a Tokio runtime context.
+    /// Get the connection lock (sync). Blocks until the lock is acquired.
+    /// Safe for use from sync contexts only.
     pub fn conn_blocking(&self) -> tokio::sync::MutexGuard<'_, Connection> {
-        // Use blocking_lock() directly — block_in_place panics when called
-        // from inside a Tokio runtime (e.g. from async Tauri command handlers).
-        self.conn.blocking_lock()
+        // Use block_in_place to run blocking_lock on the blocking thread pool.
+        // This works even when called from async context because block_in_place
+        // moves the closure to the blocking pool, not the async worker pool.
+        tokio::task::block_in_place(|| self.conn.blocking_lock())
     }
 
     /// Run a blocking read-only DB operation in a dedicated thread.
@@ -241,7 +240,7 @@ impl EngineDb {
         F: FnOnce(&Connection) -> Result<R> + Send + 'static,
         R: Send + 'static,
     {
-        let conn = self.conn.blocking_lock();
+        let conn = tokio::task::block_in_place(|| self.conn.blocking_lock());
         let result = f(&conn);
         drop(conn);
         result.expect("blocking_readonly DB operation failed")
@@ -255,18 +254,16 @@ impl EngineDb {
         F: FnOnce(&Connection) -> Result<R> + Send + 'static,
         R: Send + 'static,
     {
-        let conn = self.conn.blocking_lock();
+        let conn = tokio::task::block_in_place(|| self.conn.blocking_lock());
         let result = f(&conn);
         drop(conn);
         result.expect("blocking DB operation failed")
     }
 
-    /// Backward-compatible alias for conn_blocking(). Will be removed once all callers are async.
+    /// Backward-compatible alias for conn_blocking().
     #[deprecated(note = "Use conn_async() in async contexts, conn_blocking() in sync")]
     pub fn conn(&self) -> tokio::sync::MutexGuard<'_, Connection> {
-        // Use blocking_lock() directly — block_in_place panics when called
-        // from inside a Tokio runtime (e.g. from async Tauri commands).
-        self.conn.blocking_lock()
+        tokio::task::block_in_place(|| self.conn.blocking_lock())
     }
 
     // ── Agent Queries ──
