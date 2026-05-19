@@ -1,12 +1,10 @@
 // Conflux Home — PortfolioTab
 // Custom asset portfolio tracker with dark emerald Pulse aesthetic
-// Priority 2: SVG donut charts, Financial Health Score, hero summary redesign
+// Uses static sample data — no Rust backend required
 
-import { useState, useEffect, useCallback } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import './PortfolioTab.css';
+import { useState } from 'react';
 
-// ── Types (frontend camelCase) ───────────────────────────────────────────
+// ── Types ────────────────────────────────────────────────────────────────
 
 export type AssetType = 'stock' | 'crypto' | 'real_estate' | 'cash' | 'bond' | 'other';
 export type HoldingTag = 'retirement' | 'speculative' | 'emergency' | 'growth' | 'custom';
@@ -20,8 +18,6 @@ export interface Holding {
   cost_basis: number;
   current_value: number;
   tag: HoldingTag;
-  created_at?: string;
-  updated_at?: string;
 }
 
 export interface PortfolioSummary {
@@ -33,37 +29,18 @@ export interface PortfolioSummary {
   by_tag: Record<HoldingTag, number>;
 }
 
-// ── Rust → Frontend type bridge ──────────────────────────────────────────
+// ── Static Sample Holdings ───────────────────────────────────────────────
 
-interface RustHolding {
-  id: string;
-  user_id: string;
-  asset_name: string;
-  asset_type: string;
-  symbol: string | null;
-  shares: number;
-  cost_basis: number;
-  current_value: number;
-  tag: string | null;
-  notes: string | null;
-  updated_at: string | null;
-  created_at: string;
-}
-
-function fromRust(h: RustHolding): Holding {
-  return {
-    id: h.id,
-    name: h.asset_name,
-    asset_type: h.asset_type as AssetType,
-    ticker: h.symbol ?? undefined,
-    shares: h.shares,
-    cost_basis: h.cost_basis,
-    current_value: h.current_value,
-    tag: (h.tag ?? 'custom') as HoldingTag,
-    created_at: h.created_at,
-    updated_at: h.updated_at ?? undefined,
-  };
-}
+const SAMPLE_HOLDINGS: Holding[] = [
+  { id: '1', name: 'Apple Inc.', asset_type: 'stock', ticker: 'AAPL', shares: 50, cost_basis: 7500, current_value: 9375, tag: 'growth' },
+  { id: '2', name: 'Bitcoin', asset_type: 'crypto', ticker: 'BTC', shares: 0.75, cost_basis: 45000, current_value: 78500, tag: 'speculative' },
+  { id: '3', name: 'Microsoft Corp.', asset_type: 'stock', ticker: 'MSFT', shares: 30, cost_basis: 9000, current_value: 12456, tag: 'retirement' },
+  { id: '4', name: 'JPMorgan Chase', asset_type: 'stock', ticker: 'JPM', shares: 40, cost_basis: 6000, current_value: 7944, tag: 'retirement' },
+  { id: '5', name: 'NVIDIA Corp.', asset_type: 'stock', ticker: 'NVDA', shares: 15, cost_basis: 9000, current_value: 13802, tag: 'growth' },
+  { id: '6', name: 'US Savings Bond', asset_type: 'bond', shares: 1, cost_basis: 10000, current_value: 10500, tag: 'emergency' },
+  { id: '7', name: 'Emergency Fund', asset_type: 'cash', shares: 1, cost_basis: 15000, current_value: 15000, tag: 'emergency' },
+  { id: '8', name: 'Beach Condo', asset_type: 'real_estate', shares: 1, cost_basis: 180000, current_value: 225000, tag: 'custom' },
+];
 
 // ── Color/label maps ─────────────────────────────────────────────────────────
 
@@ -140,7 +117,6 @@ function calcFinancialHealthScore(holdings: Holding[]): number {
   if (holdings.length === 0) return 0;
   const total = holdings.reduce((s, h) => s + h.current_value, 0);
   if (total === 0) return 0;
-  // Heuristic: diversification bonus + gain/loss bonus
   const types = new Set(holdings.map(h => h.asset_type)).size;
   const gains = holdings.filter(h => h.current_value > h.cost_basis).length;
   const diversificationScore = Math.min(types * 12, 40);
@@ -149,17 +125,13 @@ function calcFinancialHealthScore(holdings: Holding[]): number {
   return Math.min(100, baseScore + diversificationScore + gainScore);
 }
 
-/**
- * Build SVG donut path segments for a set of data.
- * Returns an array of { color, dashArray, dashOffset, label } for SVG strokes.
- */
 function buildDonutSegments(data: DonutSegment[], size = 120): {
   segments: Array<{ color: string; dashArray: string; dashOffset: string; label: string; pct: string }>;
   circumference: number;
 } {
   const total = data.reduce((s, d) => s + d.value, 0);
-  const circumference = 2 * Math.PI * 42; // radius 42
-  const GAP = 3; // gap in degrees for visual separation
+  const circumference = 2 * Math.PI * 42;
+  const GAP = 3;
 
   if (total === 0) {
     return {
@@ -183,27 +155,6 @@ function buildDonutSegments(data: DonutSegment[], size = 120): {
   return { segments, circumference };
 }
 
-// ── Animated Number ───────────────────────────────────────────────────────
-
-function useCountUp(target: number, duration = 1200) {
-  const [value, setValue] = useState(0);
-  useEffect(() => {
-    let start = 0;
-    const step = target / (duration / 16);
-    const timer = setInterval(() => {
-      start += step;
-      if (start >= target) {
-        setValue(target);
-        clearInterval(timer);
-      } else {
-        setValue(Math.floor(start));
-      }
-    }, 16);
-    return () => clearInterval(timer);
-  }, [target, duration]);
-  return value;
-}
-
 // ── Donut Chart Component ────────────────────────────────────────────────
 
 function DonutChart({
@@ -218,33 +169,19 @@ function DonutChart({
   size?: number;
 }) {
   const radius = 48;
-  const circumference = 2 * Math.PI * radius;
   const cx = size / 2;
   const cy = size / 2;
 
   const { segments } = buildDonutSegments(data, size);
-  const total = data.reduce((s, d) => s + d.value, 0);
 
   return (
     <div className="donut-chart-container" style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {/* Track ring */}
-        <circle
-          cx={cx}
-          cy={cy}
-          r={radius}
-          fill="none"
-          stroke="rgba(255,255,255,0.04)"
-          strokeWidth={14}
-        />
-
-        {/* Segments */}
+        <circle cx={cx} cy={cy} r={radius} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={14} />
         {segments.map((seg, i) => (
           <circle
             key={i}
-            cx={cx}
-            cy={cy}
-            r={radius}
+            cx={cx} cy={cy} r={radius}
             fill="none"
             stroke={seg.color}
             strokeWidth={14}
@@ -258,28 +195,10 @@ function DonutChart({
             }}
           />
         ))}
-
-        {/* Center label */}
-        <text
-          x={cx}
-          y={cy - 8}
-          textAnchor="middle"
-          fill="rgba(236,253,245,0.45)"
-          fontSize={9}
-          fontWeight={700}
-          letterSpacing="0.1em"
-        >
+        <text x={cx} y={cy - 8} textAnchor="middle" fill="rgba(236,253,245,0.45)" fontSize={9} fontWeight={700} letterSpacing="0.1em">
           {centerLabel.toUpperCase()}
         </text>
-        <text
-          x={cx}
-          y={cy + 12}
-          textAnchor="middle"
-          fill="#ecfdf5"
-          fontSize={15}
-          fontWeight={900}
-          fontFamily="'JetBrains Mono', monospace"
-        >
+        <text x={cx} y={cy + 12} textAnchor="middle" fill="#ecfdf5" fontSize={15} fontWeight={900} fontFamily="'JetBrains Mono', monospace">
           {centerValue}
         </text>
       </svg>
@@ -310,19 +229,10 @@ function HealthScoreCard({ score }: { score: number }) {
             strokeDashoffset={circ / 4}
             strokeLinecap="round"
             transform="rotate(-90 50 50)"
-            style={{
-              filter: `drop-shadow(0 0 8px ${scoreColor}80)`,
-              transition: 'stroke-dasharray 1s cubic-bezier(0.34, 1.56, 0.64, 1)',
-            }}
+            style={{ filter: `drop-shadow(0 0 8px ${scoreColor}80)`, transition: 'stroke-dasharray 1s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
           />
-          <text x="50" y="46" textAnchor="middle" fill={scoreColor} fontSize="22" fontWeight={900}
-            fontFamily="'JetBrains Mono', monospace">
-            {score}
-          </text>
-          <text x="50" y="60" textAnchor="middle" fill="rgba(236,253,245,0.5)" fontSize="8" fontWeight={700}
-            letterSpacing="0.08em">
-            / 100
-          </text>
+          <text x="50" y="46" textAnchor="middle" fill={scoreColor} fontSize="22" fontWeight={900} fontFamily="'JetBrains Mono', monospace">{score}</text>
+          <text x="50" y="60" textAnchor="middle" fill="rgba(236,253,245,0.5)" fontSize="8" fontWeight={700} letterSpacing="0.08em">/ 100</text>
         </svg>
       </div>
       <div className="health-score-info">
@@ -346,93 +256,22 @@ interface HoldingForm {
   tag: HoldingTag;
 }
 
+function generateId() {
+  return `holding_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function PortfolioTab() {
-  const [holdings, setHoldings] = useState<Holding[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [holdings, setHoldings] = useState<Holding[]>(SAMPLE_HOLDINGS);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<StockSearchResult[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-
-  interface StockSearchResult {
-    symbol: string;
-    companyName: string;
-    sector: string;
-    current_price?: number;
-    logo_url?: string;
-  }
-
-  const handleSmartSearch = useCallback(async () => {
-    if (!searchQuery.trim() || searchLoading) return;
-    setSearchLoading(true);
-    setSearchResults([]);
-    try {
-      const results: StockSearchResult[] = await invoke('pulse_search_stocks', { query: searchQuery.trim() });
-      // Fetch live prices for each result in parallel
-      const withPrices = await Promise.all(
-        results.map(async (r) => {
-          try {
-            const price: number = await invoke('pulse_fetch_price', { symbol: r.symbol });
-            return { ...r, current_price: price };
-          } catch {
-            return { ...r };
-          }
-        })
-      );
-      setSearchResults(withPrices);
-    } catch (e) {
-      console.error('[PortfolioTab] search failed:', e);
-    } finally {
-      setSearchLoading(false);
-    }
-  }, [searchQuery, searchLoading]);
-
-
-  const handleSelectResult = useCallback(async (result: StockSearchResult) => {
-    // Infer asset type from sector keyword
-    const sector = result.sector.toLowerCase();
-    let inferredType: AssetType = 'stock';
-    if (sector.includes('techn') || sector.includes('software') || sector.includes('computer')) inferredType = 'stock';
-    else if (sector.includes('crypto') || sector.includes('digital') || result.symbol.includes('BTC') || result.symbol.includes('ETH')) inferredType = 'crypto';
-    else if (sector.includes('real estate') || sector.includes('property')) inferredType = 'real_estate';
-    else if (sector.includes('cash') || sector.includes('bank')) inferredType = 'cash';
-    else if (sector.includes('bond') || sector.includes('fixed income')) inferredType = 'bond';
-
-    setForm({
-      name: result.companyName,
-      asset_type: inferredType,
-      ticker: result.symbol,
-      shares: '',
-      cost_basis: result.current_price ? String(result.current_price) : '',
-      current_value: result.current_price ? String(result.current_price) : '',
-      tag: 'growth',
-    });
-    setSearchResults([]);
-    setSearchQuery('');
-  }, []);
 
   const [form, setForm] = useState<HoldingForm>({
     name: '', asset_type: 'stock', ticker: '',
     shares: '', cost_basis: '', current_value: '', tag: 'growth',
   });
-
-  const loadHoldings = useCallback(async () => {
-    try {
-      const data: RustHolding[] = await invoke('pulse_get_holdings', {});
-      setHoldings(data.map(fromRust));
-    } catch {
-      // empty on error
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { loadHoldings(); }, [loadHoldings]);
 
   // ── Summary ─────────────────────────────────────────────────────────────────
 
@@ -461,38 +300,39 @@ export default function PortfolioTab() {
 
   // ── Actions ─────────────────────────────────────────────────────────────────
 
-  async function handleSave() {
+  function handleSave() {
     const cost = parseFloat(form.cost_basis) || 0;
     const current = parseFloat(form.current_value) || 0;
     const shares = parseFloat(form.shares) || 0;
-    const payload = {
-      name: form.name.trim(),
-      asset_type: form.asset_type,
-      ticker: form.ticker.trim() || null,
-      shares,
-      cost_basis: cost,
-      current_value: current,
-      tag: form.tag,
-    };
-    try {
-      if (editingId) {
-        await invoke('pulse_update_holding', { id: editingId, req: payload });
-      } else {
-        await invoke('pulse_add_holding', { req: payload });
-      }
-    } catch (e) {
-      console.error('[PortfolioTab] save failed:', e);
+
+    if (editingId) {
+      setHoldings(prev => prev.map(h =>
+        h.id === editingId
+          ? { ...h, name: form.name.trim(), asset_type: form.asset_type, ticker: form.ticker.trim() || undefined, shares, cost_basis: cost, current_value: current, tag: form.tag }
+          : h
+      ));
+    } else {
+      const newHolding: Holding = {
+        id: generateId(),
+        name: form.name.trim(),
+        asset_type: form.asset_type,
+        ticker: form.ticker.trim() || undefined,
+        shares,
+        cost_basis: cost,
+        current_value: current,
+        tag: form.tag,
+      };
+      setHoldings(prev => [newHolding, ...prev]);
     }
+
     setForm({ name: '', asset_type: 'stock', ticker: '', shares: '', cost_basis: '', current_value: '', tag: 'growth' });
     setShowForm(false);
     setEditingId(null);
-    await loadHoldings();
   }
 
-  async function handleDelete(id: string) {
-    try { await invoke('pulse_delete_holding', { id }); } catch (e) { console.error('[PortfolioTab] delete failed:', e); }
+  function handleDelete(id: string) {
+    setHoldings(prev => prev.filter(h => h.id !== id));
     setConfirmDelete(null);
-    await loadHoldings();
   }
 
   function startEdit(h: Holding) {
@@ -515,43 +355,7 @@ export default function PortfolioTab() {
     setShowForm(false);
   }
 
-  // ── Render ───────────────────────────────────────────────────────────────────
-
-  if (loading) {
-    return (
-      <div className="portfolio-tab">
-        <div className="portfolio-loading">
-          <span className="portfolio-spinner" />
-          <p>Loading portfolio…</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!showForm && holdings.length === 0) {
-    return (
-      <div className="portfolio-tab">
-        <div className="portfolio-empty">
-          <div className="portfolio-empty-visual">
-            <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
-              <circle cx="40" cy="40" r="36" stroke="rgba(16,185,129,0.15)" strokeWidth="3" />
-              <circle cx="40" cy="40" r="24" stroke="rgba(16,185,129,0.1)" strokeWidth="3" />
-              <circle cx="40" cy="40" r="8" fill="rgba(16,185,129,0.2)" />
-              <line x1="40" y1="4" x2="40" y2="16" stroke="rgba(16,185,129,0.3)" strokeWidth="2" strokeLinecap="round" />
-              <line x1="40" y1="64" x2="40" y2="76" stroke="rgba(16,185,129,0.3)" strokeWidth="2" strokeLinecap="round" />
-              <line x1="4" y1="40" x2="16" y2="40" stroke="rgba(16,185,129,0.3)" strokeWidth="2" strokeLinecap="round" />
-              <line x1="64" y1="40" x2="76" y2="40" stroke="rgba(16,185,129,0.3)" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </div>
-          <h2>Build your portfolio</h2>
-          <p>Add your first asset to start tracking your wealth.</p>
-          <button className="portfolio-btn-primary" onClick={() => setShowForm(true)}>
-            + Add First Asset
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // ── Render ─────────────────────────────────────────────────────────────────---
 
   return (
     <div className="portfolio-tab">
@@ -570,8 +374,7 @@ export default function PortfolioTab() {
         {!showForm && (
           <button className="portfolio-btn-primary" onClick={() => setShowForm(true)}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ marginRight: 6 }}>
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
             </svg>
             Add Holding
           </button>
@@ -580,7 +383,6 @@ export default function PortfolioTab() {
 
       {/* ── Hero Summary Row ── */}
       <div className="portfolio-hero-row">
-        {/* Total Value — hero card */}
         <div className="portfolio-hero-card">
           <div className="hero-value-display">
             <span className="hero-label">Total Portfolio Value</span>
@@ -594,7 +396,6 @@ export default function PortfolioTab() {
           <div className="hero-glow" />
         </div>
 
-        {/* Gain / Loss — hero card */}
         <div className={`portfolio-hero-card portfolio-hero-gain ${summary.total_gain_loss >= 0 ? 'gain-positive' : 'gain-negative'}`}>
           <div className="hero-value-display">
             <span className="hero-label">Total Gain / Loss</span>
@@ -610,7 +411,6 @@ export default function PortfolioTab() {
           </div>
         </div>
 
-        {/* Health Score */}
         <HealthScoreCard score={healthScore} />
       </div>
 
@@ -623,7 +423,7 @@ export default function PortfolioTab() {
               <DonutChart
                 data={typeDonutData}
                 centerLabel="total"
-                centerValue={holdings.length > 0 ? formatCurrencyCompact(summary.total_value) : '$0'}
+                centerValue={formatCurrencyCompact(summary.total_value)}
                 size={140}
               />
               <div className="pie-legend">
@@ -646,7 +446,7 @@ export default function PortfolioTab() {
               <DonutChart
                 data={tagDonutData}
                 centerLabel="tagged"
-                centerValue={holdings.length > 0 ? `${holdings.length}` : '0'}
+                centerValue={`${holdings.length}`}
                 size={140}
               />
               <div className="pie-legend">
@@ -665,90 +465,15 @@ export default function PortfolioTab() {
         </div>
       )}
 
-      {/* ── Smart Add Form ── */}
+      {/* ── Add / Edit Form ── */}
       {showForm && (
         <div className="portfolio-glass-card portfolio-form-card">
           <div className="form-header-row">
-            <h3 className="form-title">{editingId ? '✏️ Edit Holding' : '🔍 Add New Holding'}</h3>
+            <h3 className="form-title">{editingId ? '✏️ Edit Holding' : '➕ Add New Holding'}</h3>
             <button className="form-close-btn" onClick={cancelForm}>✕</button>
           </div>
 
-          {/* AI Search Bar */}
-          {!editingId && (
-            <div className="smart-search-bar">
-              <div className="smart-search-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                </svg>
-              </div>
-              <input
-                className="smart-search-input"
-                placeholder="Search ticker or company name — e.g. Walmart, AAPL, Bitcoin..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && searchQuery.trim() && handleSmartSearch()}
-                autoFocus
-              />
-              {searchQuery && (
-                <button className="smart-search-clear" onClick={() => { setSearchQuery(''); setSearchResults([]); setSearchLoading(false); }}>✕</button>
-              )}
-              <button
-                className="smart-search-btn"
-                onClick={handleSmartSearch}
-                disabled={!searchQuery.trim() || searchLoading}
-              >
-                {searchLoading ? (
-                  <span className="smart-search-spinner" />
-                ) : (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                  </svg>
-                )}
-              </button>
-            </div>
-          )}
-
-
-          {/* Search Results */}
-          {!editingId && searchResults.length > 0 && (
-            <div className="smart-search-results">
-              <div className="smart-results-label">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round">
-                  <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
-                </svg>
-                Live market data — click to select
-              </div>
-              <div className="smart-results-grid">
-                {searchResults.map(r => (
-                  <button key={r.symbol} className="smart-result-card" onClick={() => handleSelectResult(r)}>
-                    <div className="smart-result-left">
-                      <span className="smart-result-symbol">{r.symbol}</span>
-                      <span className="smart-result-name">{r.companyName}</span>
-                      <span className="smart-result-sector">{r.sector}</span>
-                    </div>
-                    {r.current_price && (
-                      <div className="smart-result-price">
-                        <span className="smart-result-price-val">${r.current_price.toFixed(2)}</span>
-                        <span className="smart-result-price-label">live</span>
-                      </div>
-                    )}
-                    {!r.current_price && (
-                      <div className="smart-result-price smart-result-price-fetch">
-                        <span className="smart-result-price-label">fetching…</span>
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {searchQuery.trim() && searchResults.length === 0 && !searchLoading && (
-            <div className="smart-no-results">No results for "{searchQuery}" — fill in manually below</div>
-          )}
-
-          {/* Manual Form Fields */}
-          <div className={`portfolio-form-grid ${searchResults.length > 0 || editingId ? 'form-compact' : ''}`}>
+          <div className="portfolio-form-grid">
             <div className="form-group">
               <label className="form-label">Asset Name *</label>
               <input className="form-input" placeholder="e.g. Apple Inc, Bitcoin, Vacation Home"
@@ -766,26 +491,22 @@ export default function PortfolioTab() {
             <div className="form-group">
               <label className="form-label">Ticker Symbol</label>
               <input className="form-input ticker-input" placeholder="e.g. AAPL, BTC"
-                value={form.ticker}
-                onChange={e => setForm(f => ({ ...f, ticker: e.target.value.toUpperCase() }))} />
+                value={form.ticker} onChange={e => setForm(f => ({ ...f, ticker: e.target.value.toUpperCase() }))} />
             </div>
             <div className="form-group">
               <label className="form-label">Shares / Units</label>
               <input className="form-input" type="number" min="0" step="any" placeholder="0.0000"
-                value={form.shares}
-                onChange={e => setForm(f => ({ ...f, shares: e.target.value }))} />
+                value={form.shares} onChange={e => setForm(f => ({ ...f, shares: e.target.value }))} />
             </div>
             <div className="form-group">
               <label className="form-label">Cost Basis (total paid) *</label>
               <input className="form-input" type="number" min="0" step="0.01" placeholder="0.00"
-                value={form.cost_basis}
-                onChange={e => setForm(f => ({ ...f, cost_basis: e.target.value }))} />
+                value={form.cost_basis} onChange={e => setForm(f => ({ ...f, cost_basis: e.target.value }))} />
             </div>
             <div className="form-group">
               <label className="form-label">Current Value *</label>
               <input className="form-input" type="number" min="0" step="0.01" placeholder="0.00"
-                value={form.current_value}
-                onChange={e => setForm(f => ({ ...f, current_value: e.target.value }))} />
+                value={form.current_value} onChange={e => setForm(f => ({ ...f, current_value: e.target.value }))} />
             </div>
             <div className="form-group">
               <label className="form-label">Strategy Tag</label>
@@ -852,9 +573,7 @@ export default function PortfolioTab() {
                   </span>
                   <span className="holding-value">{formatCurrency(h.current_value)}</span>
                   <div className={`holding-gain ${diff >= 0 ? 'gain-positive' : 'gain-negative'}`}>
-                    <span className="gain-dollar">
-                      {diff >= 0 ? '+' : ''}{formatCurrency(diff)}
-                    </span>
+                    <span className="gain-dollar">{diff >= 0 ? '+' : ''}{formatCurrency(diff)}</span>
                     <span className="gain-pct">{formatPct(pct)}</span>
                   </div>
                   <div>
