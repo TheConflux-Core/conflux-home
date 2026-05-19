@@ -26,11 +26,13 @@ fn get_current_user_id() -> String {
 /// Shared HTTP client for stock lookups.
 fn http_client() -> &'static Client {
     static CLIENT: OnceLock<Client> = OnceLock::new();
-    CLIENT.get_or_init(|| Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .user_agent("ConfluxHome/1.0")
-        .build()
-        .unwrap_or_else(|_| Client::new()))
+    CLIENT.get_or_init(|| {
+        Client::builder()
+            .timeout(std::time::Duration::from_secs(15))
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            .build()
+            .unwrap_or_else(|_| Client::new())
+    })
 }
 
 /// Ensure pulse_stocks has all required columns (handles legacy DBs).
@@ -66,6 +68,7 @@ pub struct StockSearchResult {
 }
 
 /// Search a stock by company name or ticker using Yahoo Finance.
+/// Retries with backoff on 429/5xx errors.
 #[tauri::command(rename_all = "snake_case")]
 pub async fn pulse_search_stocks(query: String) -> Result<Vec<StockSearchResult>, String> {
     if query.trim().len() < 2 {
@@ -89,60 +92,113 @@ pub async fn pulse_search_stocks(query: String) -> Result<Vec<StockSearchResult>
         #[serde(rename = "quoteType")]
         quote_type: Option<String>,
     }
-
     #[derive(Deserialize)]
     struct YahooSearchResponse {
         quotes: Vec<YahooQuotes>,
     }
 
+    // Retry loop for transient errors
+    for attempt in 0..3 {
+        if attempt > 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(500 << attempt)).await;
+        }
 
-    let resp = client
-        .get(&search_url)
-        .header("Accept", "application/json")
-        .send()
-        .await
-        .map_err(|e| {
-            log::warn!("[pulse_search_stocks] HTTP error: {}", e);
-            format!("Search request failed: {e}")
-        })?;
+        let resp = match client
+            .get(&search_url)
+            .header("Accept", "application/json")
+            .send()
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                log::warn!("[pulse_search_stocks] attempt {} HTTP error: {}", attempt + 1, e);
+                if attempt == 2 {
+                    return Err(format!("Search request failed: {e}"));
+                }
+                continue;
+            }
+        };
 
-    if !resp.status().is_success() {
-        return Err(format!("Yahoo Finance returned status {}", resp.status()));
+        let status = resp.status();
+        if status.as_u16() == 429 {
+            log::warn!(
+                "[pulse_search_stocks] attempt {} got 429 rate limited",
+                attempt + 1
+            );
+            if attempt == 2 {
+                return Err("Yahoo Finance rate limit reached. Try again in a minute.".to_string());
+            }
+            continue;
+        }
+        if !status.is_success() {
+            log::warn!(
+                "[pulse_search_stocks] attempt {} status {}",
+                attempt + 1,
+                status
+            );
+            if attempt == 2 || !status.is_server_error() {
+                return Err(format!("Yahoo Finance search returned {}", status));
+            }
+            continue;
+        }
+
+        let body = match resp.text().await {
+            Ok(b) => b,
+            Err(e) => {
+                log::warn!("[pulse_search_stocks] attempt {} read error: {}", attempt + 1, e);
+                if attempt == 2 {
+                    return Err(format!("Failed to read response: {e}"));
+                }
+                continue;
+            }
+        };
+
+        let parsed: YahooSearchResponse = match serde_json::from_str(&body) {
+            Ok(p) => p,
+            Err(e) => {
+                log::warn!("[pulse_search_stocks] attempt {} parse error: {}", attempt + 1, e);
+                if attempt == 2 {
+                    return Err(format!("Failed to parse response: {e}"));
+                }
+                continue;
+            }
+        };
+
+        let results: Vec<StockSearchResult> = parsed
+            .quotes
+            .into_iter()
+            .filter(|q| {
+                q.quote_type
+                    .as_deref()
+                    .map(|t| matches!(t, "EQUITY" | "ETF" | "MUTUALFUND" | "CRYPTO"))
+                    .unwrap_or(false)
+            })
+            .map(|q| StockSearchResult {
+                symbol: q.symbol.clone(),
+                company_name: q
+                    .long_name
+                    .or(q.short_name)
+                    .unwrap_or_else(|| q.symbol.clone()),
+                sector: q.sector.unwrap_or_else(|| "Other".to_string()),
+                current_price: None,
+                logo_url: None,
+            })
+            .take(8)
+            .collect();
+
+        log::info!(
+            "[pulse_search_stocks] query={} -> {} results",
+            query,
+            results.len()
+        );
+        return Ok(results);
     }
 
-    let body = resp
-        .text()
-        .await
-        .map_err(|e| format!("Failed to read response: {e}"))?;
-
-    let parsed: YahooSearchResponse = serde_json::from_str(&body)
-        .map_err(|e| {
-            log::warn!("[pulse_search_stocks] parse error: {}", e);
-            format!("Failed to parse response: {e}")
-        })?;
-
-    let results: Vec<StockSearchResult> = parsed
-        .quotes
-        .into_iter()
-        .filter(|q| {
-            q.quote_type.as_deref()
-                .map(|t| matches!(t, "EQUITY" | "ETF" | "MUTUALFUND" | "CRYPTO"))
-                .unwrap_or(false)
-        })
-        .map(|q| StockSearchResult {
-            symbol: q.symbol.clone(),
-            company_name: q.long_name.or(q.short_name).unwrap_or_else(|| q.symbol.clone()),
-            sector: q.sector.unwrap_or_else(|| "Other".to_string()),
-            current_price: None,
-            logo_url: None,
-        })
-        .take(8)
-        .collect();
-
-    Ok(results)
+    Err("Search failed after retries".to_string())
 }
 
 /// Fetch current market price for a given ticker.
+/// Retries with backoff on 429/5xx errors.
 #[tauri::command(rename_all = "snake_case")]
 pub async fn pulse_fetch_price(symbol: String) -> Result<PriceResult, String> {
     let client = http_client();
@@ -169,47 +225,84 @@ pub async fn pulse_fetch_price(symbol: String) -> Result<PriceResult, String> {
         market_change_pct: Option<f64>,
     }
 
-    let resp = client
-        .get(&url)
-        .header("Accept", "application/json")
-        .send()
-        .await
-        .map_err(|e| {
-            log::warn!("[pulse_fetch_price({})] HTTP error: {}", symbol, e);
-            format!("Price request failed: {e}")
-        })?;
+    // Retry loop
+    for attempt in 0..3 {
+        if attempt > 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(500 << attempt)).await;
+        }
 
-    if !resp.status().is_success() {
-        return Err(format!("Yahoo Finance price API returned {}", resp.status()));
+        let resp = match client
+            .get(&url)
+            .header("Accept", "application/json")
+            .send()
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                log::warn!("[pulse_fetch_price({})] attempt {} HTTP error: {}", symbol, attempt + 1, e);
+                if attempt == 2 {
+                    return Err(format!("Price request failed: {e}"));
+                }
+                continue;
+            }
+        };
+
+        let status = resp.status();
+        if status.as_u16() == 429 {
+            log::warn!("[pulse_fetch_price({})] attempt {} got 429", symbol, attempt + 1);
+            if attempt == 2 {
+                return Err("Yahoo Finance rate limit reached. Try again in a minute.".to_string());
+            }
+            continue;
+        }
+        if !status.is_success() {
+            log::warn!("[pulse_fetch_price({})] attempt {} status {}", symbol, attempt + 1, status);
+            if attempt == 2 || !status.is_server_error() {
+                return Err(format!("Yahoo Finance price API returned {}", status));
+            }
+            continue;
+        }
+
+        let body = match resp.text().await {
+            Ok(b) => b,
+            Err(e) => {
+                log::warn!("[pulse_fetch_price({})] attempt {} read error: {}", symbol, attempt + 1, e);
+                if attempt == 2 {
+                    return Err(format!("Failed to read price response: {e}"));
+                }
+                continue;
+            }
+        };
+
+        let chart: YahooChart = match serde_json::from_str(&body) {
+            Ok(c) => c,
+            Err(e) => {
+                log::warn!("[pulse_fetch_price({})] attempt {} parse error: {}", symbol, attempt + 1, e);
+                if attempt == 2 {
+                    return Err(format!("Failed to parse price data: {e}"));
+                }
+                continue;
+            }
+        };
+
+        let price_result = chart.result.into_iter().next();
+        log::info!(
+            "[pulse_fetch_price({})] parsed result: {:?}",
+            symbol,
+            price_result.as_ref().map(|r| r.meta.market_price)
+        );
+
+        return price_result
+            .map(|r| PriceResult {
+                price: r.meta.market_price.unwrap_or(0.0),
+                change: r.meta.market_change.unwrap_or(0.0),
+                change_amount: r.meta.market_change_pct.unwrap_or(0.0),
+            })
+            .ok_or_else(|| "No price data found for this symbol".to_string());
     }
 
-    let body = resp
-        .text()
-        .await
-        .map_err(|e| {
-            log::warn!("[pulse_fetch_price({})] parse error: {}", symbol, e);
-            format!("Failed to read price response: {e}")
-        })?;
-
-    let chart: YahooChart = serde_json::from_str(&body)
-        .map_err(|e| {
-            log::warn!("[pulse_fetch_price({})] JSON parse error: {}", symbol, e);
-            format!("Failed to parse price data: {e}")
-        })?;
-
-    let price_result = chart
-        .result
-        .into_iter()
-        .next();
-    price_result
-        .map(|r| PriceResult {
-            price: r.meta.market_price.unwrap_or(0.0),
-            change: r.meta.market_change.unwrap_or(0.0),
-            change_amount: r.meta.market_change_pct.unwrap_or(0.0),
-        })
-        .ok_or_else(|| "No price data found for this symbol".to_string())
+    Err("Price lookup failed after retries".to_string())
 }
-
 /// Rich price result returned to the frontend.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PriceResult {
