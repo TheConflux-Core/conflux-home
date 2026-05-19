@@ -591,14 +591,20 @@ pub fn pulse_update_stock(id: String, req: UpdateStockRequest) -> Result<PulseSt
     let new_price = req.price.or(stock.price.clone());
     let new_change = req.change.or(stock.change.clone());
     let new_change_amount = req.change_amount.or(stock.change_amount.clone());
-    log::info!("[pulse_update_stock] id={} price={:?} change={:?}", id, new_price, new_change);
+    log::info!("[pulse_update_stock] id={} price={:?} change={:?} change_amount={:?}", id, new_price, new_change, new_change_amount);
     {
         let conn = engine.db.conn();
-        conn.execute(
+        log::info!("[pulse_update_stock] executing UPDATE for id={}", id);
+        match conn.execute(
             "UPDATE pulse_stocks SET price=?1, change=?2, change_amount=?3 WHERE id=?4",
             params![new_price, new_change, new_change_amount, id],
-        )
-        .map_err(|e| e.to_string())?;
+        ) {
+            Ok(n) => log::info!("[pulse_update_stock] UPDATE affected {} rows for id={}", n, id),
+            Err(e) => {
+                log::error!("[pulse_update_stock] UPDATE failed for id={}: {}", id, e);
+                return Err(e.to_string());
+            }
+        }
     }
 
     // Re-read to return fresh data
