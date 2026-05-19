@@ -6,7 +6,7 @@ import { PantryHeatItem } from '../types';
 
 interface Props {
   items: PantryHeatItem[];
-  onAddItem?: () => void;
+  onAddItem?: (location: string) => void;
 }
 
 interface LocationGroup {
@@ -81,13 +81,6 @@ export default function InventoryHeatmap({ items, onAddItem }: Props) {
         </div>
       </div>
 
-      {/* Add Item Button */}
-      {onAddItem && (
-        <button className="inv-add-btn" onClick={onAddItem}>
-          + Add Item to Inventory
-        </button>
-      )}
-
       {/* 3-Column Grid — always visible */}
       <div className="inventory-columns">
         {groups.map(group => {
@@ -118,6 +111,13 @@ export default function InventoryHeatmap({ items, onAddItem }: Props) {
                   </span>
                 )}
               </div>
+
+              {/* Add Item Button — per location */}
+              {onAddItem && (
+                <button className="inv-add-btn" onClick={() => onAddItem(group.location)}>
+                  + {config.label}
+                </button>
+              )}
 
               {/* Items */}
               <div className="inv-col-items">

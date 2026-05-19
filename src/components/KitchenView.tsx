@@ -5,10 +5,10 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
 import { useState, useCallback, useEffect, useMemo, useTransition } from 'react';
 import { useMeals, useWeeklyPlan, useGroceryList } from '../hooks/useKitchen';
-import { useHomeMenu, useKitchenNudges, useKitchenDigest } from '../hooks/useHearth';
+import { useHomeMenu, useKitchenNudges, useKitchenDigest, useTonightsMenu } from '../hooks/useHearth';
 import { useFridgeScanner } from '../hooks/useFridgeScanner';
 import { useAuth } from '../hooks/useAuth';
-import type { Meal } from '../types';
+import type { Meal, CookingStep } from '../types';
 import { MEAL_CATEGORIES, MEAL_CUISINES, MEAL_CATEGORY_EMOJI } from '../types';
 
 import KitchenNudges from './KitchenNudges';
@@ -20,6 +20,8 @@ import PantryHeatmap from './PantryHeatmap';
 import CookingMode from './CookingMode';
 import CookingModeEnhanced from './CookingModeEnhanced';
 import RestaurantMenu from './RestaurantMenu';
+import TonightHero from './TonightHero';
+import WeeklyDigest from './WeeklyDigest';
 import BrowseCards from './BrowseCards';
 import { MicButton } from './voice';
 import KitchenBoot from './KitchenBoot';
@@ -63,7 +65,7 @@ export default function KitchenView() {
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
   const [cookingMealId, setCookingMealId] = useState<string | null>(null);
   // Cooking mode step tracking (placeholder — wire to real steps when available)
-  const [cookingSteps, setCookingSteps] = useState([]);
+  const [cookingSteps, setCookingSteps] = useState<CookingStep[]>([]);
   const [cookingCurrentStep, setCookingCurrentStep] = useState(0);
 
   // Boot → Onboarding → Tour state
@@ -78,12 +80,23 @@ export default function KitchenView() {
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [tourComplete, setTourComplete] = useState(false);
   const [showAddPantryItem, setShowAddPantryItem] = useState(false);
+  const [inventoryAddLocation, setInventoryAddLocation] = useState<string | null>(null);
   // const [showKrogerExporter, setShowKrogerExporter] = useState(false); // KROGER_DISABLED
 
   // Week-plan inline meal picker: which cell is currently open for selection
   const [planPicker, setPlanPicker] = useState<{ day: number; slot: string } | null>(null);
 
-  const weekStart = useMemo(getWeekStart, []);
+  const [weekStart, setWeekStartState] = useState<string>(() => {
+    const now = new Date();
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(now.setDate(diff));
+    return monday.toISOString().split('T')[0];
+  });
+
+  const handleWeekChange = useCallback((newWeekStart: string) => {
+    setWeekStartState(newWeekStart);
+  }, []);
 
   // Existing kitchen hooks
   const { meals, loading, addWithAI, toggleFavorite, reload: reloadMeals, setMeals } = useMeals(
@@ -95,6 +108,7 @@ export default function KitchenView() {
   const { items: groceryItems, generate: generateGrocery, toggleItem, totalCost } = useGroceryList(weekStart);
 
   // New Hearth hooks
+  const { tonight, loading: tonightLoading, load: loadTonightsMenu } = useTonightsMenu();
   const { menu: homeMenu, loading: menuLoading, load: loadHomeMenu } = useHomeMenu();
   const { nudges, load: loadNudges } = useKitchenNudges();
   const { digest, loading: digestLoading, load: loadDigest } = useKitchenDigest(weekStart);
@@ -107,10 +121,11 @@ export default function KitchenView() {
 
   // Load home data on mount and when switching to home tab
   useEffect(() => {
+    loadTonightsMenu();
     loadHomeMenu();
     loadNudges();
     loadDigest();
-  }, [loadHomeMenu, loadNudges, loadDigest]);
+  }, [loadTonightsMenu, loadHomeMenu, loadNudges, loadDigest]);
 
 
   // Listen for heartbeat beat events → refresh Kitchen data
@@ -191,6 +206,21 @@ export default function KitchenView() {
     else if (nudge.nudge_type === 'pantry') setTab('inventory');
     else if (nudge.nudge_type === 'grocery') setTab('grocery');
   }, []);
+
+  const handleStartCooking = useCallback(async (mealId: string) => {
+    const meal = meals.find(m => m.id === mealId);
+    if (meal) {
+      try {
+        const steps = await invoke<CookingStep[]>('kitchen_get_cooking_steps', { meal_id: mealId, member_id: null });
+        setCookingSteps(steps);
+        setCookingCurrentStep(0);
+        setCookingMealId(mealId);
+      } catch (e) {
+        console.error('[KitchenView] Failed to load cooking steps:', e);
+        setSelectedMeal(meal);
+      }
+    }
+  }, [meals]);
 
   const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -302,15 +332,21 @@ export default function KitchenView() {
             />
           ) : (
             <>
-              {/* Restaurant Menu — Main Home View */}
+              {/* Tonight's Menu Hero */}
+              <TonightHero
+                tonight={tonight}
+                loading={tonightLoading}
+                onStartCooking={handleStartCooking}
+                onSwap={loadTonightsMenu}
+              />
+
+              {/* Restaurant Menu — Chef's Specials + Your Regulars */}
               <RestaurantMenu
                 chefsSpecials={homeMenu}
                 yourRegulars={meals.filter(m => m.is_favorite).slice(0, 6)}
                 onSelect={(id) => {
-                  // Look up the full meal from the library — works for both
-                  // Chef's Specials (meal_id → matches AI-created meals) and Your Regulars
                   const meal = meals.find(m => m.id === id);
-                  if (meal) setSelectedMeal(meal);
+                  if (meal) { setSelectedMeal(meal); setTab('library'); }
                 }}
                 loading={menuLoading}
               />
@@ -482,89 +518,16 @@ export default function KitchenView() {
       {/* ── WEEK PLAN TAB ── */}
       {tab === 'plan' && (
         <div className="kitchen-plan">
-          <div className="plan-header">
-            <h3>Week of {new Date(weekStart + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}</h3>
-            <div className="plan-stats">
-              {plan ? (
-                <>
-                  <span>🍽️ {plan.meal_count} meals planned</span>
-                  <span>💰 Est. {formatCost(plan.total_estimated_cost)}</span>
-                </>
-              ) : (
-                <span>Loading plan...</span>
-              )}
-            </div>
-          </div>
-
           {plan ? (
-            <div className="plan-grid">
-              <div className="plan-grid-header">
-                <div className="plan-slot-label"></div>
-                {dayNames.map(d => (
-                  <div key={d} className="plan-day-header">{d}</div>
-                ))}
-              </div>
-
-              {SLOTS.map(slot => (
-                <div key={slot} className="plan-grid-row">
-                  <div className="plan-slot-label">{MEAL_CATEGORY_EMOJI[slot]} {slot}</div>
-                  {plan.days.map(day => {
-                    const planSlot = day.slots.find(s => s.meal_slot === slot);
-                    const isPickerOpen = planPicker?.day === day.day_of_week && planPicker?.slot === slot;
-                    return (
-                      <div
-                        key={day.day_of_week}
-                        className={`plan-cell ${planSlot?.meal ? 'filled' : 'empty'}`}
-                        onClick={() => {
-                          if (!isPickerOpen) setPlanPicker({ day: day.day_of_week, slot });
-                        }}
-                      >
-                        {isPickerOpen ? (
-                          <select
-                            className="plan-picker"
-                            autoFocus
-                            value={planSlot?.meal?.id ?? ''}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (val === '__remove__') {
-                                setEntry(day.day_of_week, slot, null);
-                              } else if (val) {
-                                setEntry(day.day_of_week, slot, val);
-                              }
-                              setPlanPicker(null);
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            onBlur={() => setPlanPicker(null)}
-                          >
-                            <option value="">— choose —</option>
-                            {planSlot?.meal && (
-                              <option value="__remove__">✕ Remove</option>
-                            )}
-                            {meals.map(m => (
-                              <option key={m.id} value={m.id}>{m.name}</option>
-                            ))}
-                          </select>
-                        ) : planSlot?.meal ? (
-                          <div className="plan-meal-chip">
-                            <span className="plan-meal-name">{planSlot.meal.name}</span>
-                            {planSlot.meal.cost_per_serving != null && (
-                              <span className="plan-meal-cost">{formatCost(planSlot.meal.cost_per_serving)}</span>
-                            )}
-                          </div>
-                        ) : (
-                          <button className="plan-add-btn" onClick={(e) => {
-                            e.stopPropagation();
-                            setPlanPicker({ day: day.day_of_week, slot });
-                          }}>
-                            +
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
+            <WeeklyDigest
+              plan={plan}
+              meals={meals}
+              loading={false}
+              onSetEntry={setEntry}
+              onShuffle={() => console.log('[Hearth] Shuffle week')}
+              weekStart={weekStart}
+              onWeekChange={handleWeekChange}
+            />
           ) : (
             <div className="plan-loading">Loading your week plan...</div>
           )}
@@ -604,7 +567,7 @@ export default function KitchenView() {
         <div className="kitchen-pantry">
           <InventoryHeatmap
             items={pantryItems}
-            onAddItem={() => setShowAddPantryItem(true)}
+            onAddItem={(location) => { setInventoryAddLocation(location); setShowAddPantryItem(true); }}
           />
         </div>
       )}
@@ -616,11 +579,11 @@ export default function KitchenView() {
 
       {/* ── ADD ITEM MODAL ── */}
       {showAddPantryItem && (
-        <div className="hearth-modal-backdrop" onClick={() => setShowAddPantryItem(false)}>
+        <div className="hearth-modal-backdrop" onClick={() => { setShowAddPantryItem(false); setInventoryAddLocation(null); }}>
           <div className="hearth-modal add-inventory-modal" onClick={e => e.stopPropagation()}>
             <div className="hearth-modal-header">
               <h3 className="hearth-modal-title">📦 Add to Inventory</h3>
-              <button className="hearth-modal-close" onClick={() => setShowAddPantryItem(false)}>✕</button>
+              <button className="hearth-modal-close" onClick={() => { setShowAddPantryItem(false); setInventoryAddLocation(null); }}>✕</button>
             </div>
             <form onSubmit={async (e) => {
               e.preventDefault();
@@ -687,7 +650,7 @@ export default function KitchenView() {
                 </div>
                 <div className="form-group">
                   <label>Location</label>
-                  <select name="location" className="form-select">
+                  <select name="location" className="form-select" defaultValue={inventoryAddLocation ?? undefined}>
                     <option value="">Select...</option>
                     <option value="fridge">🧊 Fridge</option>
                     <option value="freezer">❄️ Freezer</option>
@@ -700,7 +663,7 @@ export default function KitchenView() {
                 <input name="expiry_date" type="date" className="form-input" />
               </div>
               <div className="form-actions">
-                <button type="button" className="btn-ghost" onClick={() => setShowAddPantryItem(false)}>Cancel</button>
+                <button type="button" className="btn-ghost" onClick={() => { setShowAddPantryItem(false); setInventoryAddLocation(null); }}>Cancel</button>
                 <button type="submit" className="btn-primary">Add Item</button>
               </div>
             </form>
