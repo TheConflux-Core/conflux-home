@@ -1,7 +1,8 @@
 // Conflux Home — InvestmentsTab (PulseWrapper Tab)
 // Long-term investment goals tracker with dark emerald Pulse aesthetic.
+// Uses static sample data — no Rust backend required.
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import '../styles/InvestmentsTab.css';
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -17,9 +18,9 @@ export interface InvestmentGoal {
   targetAmount: number;
   currentAmount: number;
   monthlyContribution: number;
-  targetDate: string | null;   // ISO date string
-  riskProfile: RiskProfile;
+  targetDate: string | null;
   createdAt: number;
+  riskProfile: RiskProfile;
 }
 
 export interface GoalFormData {
@@ -32,15 +33,75 @@ export interface GoalFormData {
   riskProfile: RiskProfile;
 }
 
+// ── Static Sample Goals ──────────────────────────────────────────────
+
+const SAMPLE_GOALS: InvestmentGoal[] = [
+  {
+    id: '1',
+    name: '2028 Retirement Target',
+    type: '401k',
+    targetAmount: 1000000,
+    currentAmount: 285000,
+    monthlyContribution: 2200,
+    targetDate: '2028-06-01',
+    riskProfile: 'aggressive',
+    createdAt: Date.now() - 86400000 * 365 * 3,
+  },
+  {
+    id: '2',
+    name: 'Emma\'s College Fund',
+    type: 'college',
+    targetAmount: 150000,
+    currentAmount: 95000,
+    monthlyContribution: 500,
+    targetDate: '2033-08-15',
+    riskProfile: 'moderate',
+    createdAt: Date.now() - 86400000 * 365 * 5,
+  },
+  {
+    id: '3',
+    name: 'Emergency Reserve',
+    type: 'emergency',
+    targetAmount: 30000,
+    currentAmount: 28500,
+    monthlyContribution: 400,
+    targetDate: null,
+    riskProfile: 'conservative',
+    createdAt: Date.now() - 86400000 * 180,
+  },
+  {
+    id: '4',
+    name: 'Roth IRA Maxout',
+    type: 'ira',
+    targetAmount: 7000,
+    currentAmount: 4200,
+    monthlyContribution: 583,
+    targetDate: '2026-12-31',
+    riskProfile: 'moderate',
+    createdAt: Date.now() - 86400000 * 90,
+  },
+  {
+    id: '5',
+    name: 'HSA Goal 2026',
+    type: 'hsa',
+    targetAmount: 8000,
+    currentAmount: 6100,
+    monthlyContribution: 300,
+    targetDate: '2026-12-31',
+    riskProfile: 'conservative',
+    createdAt: Date.now() - 86400000 * 60,
+  },
+];
+
 // ── Constants ───────────────────────────────────────────────────────
 
 const TYPE_META: Record<GoalType, { icon: string; label: string }> = {
-  '401k':     { icon: '🏦', label: '401(k)' },
-  'ira':      { icon: '🏛️', label: 'IRA' },
-  'hsa':      { icon: '🏥', label: 'HSA' },
-  'college':  { icon: '🎓', label: 'College' },
-  'emergency':{ icon: '🆘', label: 'Emergency Fund' },
-  'custom':   { icon: '⭐', label: 'Custom' },
+  '401k':      { icon: '🏦', label: '401(k)' },
+  'ira':       { icon: '🏛️', label: 'IRA' },
+  'hsa':       { icon: '🏥', label: 'HSA' },
+  'college':   { icon: '🎓', label: 'College' },
+  'emergency': { icon: '🆘', label: 'Emergency Fund' },
+  'custom':    { icon: '⭐', label: 'Custom' },
 };
 
 const RISK_META: Record<RiskProfile, { label: string; color: string }> = {
@@ -60,18 +121,10 @@ const RISK_PROFILES: RiskProfile[] = ['conservative', 'moderate', 'aggressive'];
 
 // ── Confetti directions for celebration animation ─────────────────────
 const CONFETTI_DIRECTIONS = [
-  'translate(-60px, -40px)',
-  'translate(-40px, -60px)',
-  'translate(-20px, -70px)',
-  'translate(0px, -75px)',
-  'translate(20px, -70px)',
-  'translate(40px, -60px)',
-  'translate(60px, -40px)',
-  'translate(-55px, -10px)',
-  'translate(55px, -10px)',
-  'translate(-70px, 20px)',
-  'translate(70px, 20px)',
-  'translate(-30px, -55px)',
+  'translate(-60px, -40px)', 'translate(-40px, -60px)', 'translate(-20px, -70px)',
+  'translate(0px, -75px)',   'translate(20px, -70px)',   'translate(40px, -60px)',
+  'translate(60px, -40px)', 'translate(-55px, -10px)', 'translate(55px, -10px)',
+  'translate(-70px, 20px)',  'translate(70px, 20px)',   'translate(-30px, -55px)',
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -90,9 +143,7 @@ function formatShortDate(iso: string): string {
 }
 
 function calcProgress(g: InvestmentGoal): { pct: number; remaining: number; status: GoalStatus } {
-  const pct = g.targetAmount > 0
-    ? Math.min((g.currentAmount / g.targetAmount) * 100, 100)
-    : 0;
+  const pct = g.targetAmount > 0 ? Math.min((g.currentAmount / g.targetAmount) * 100, 100) : 0;
   const remaining = Math.max(0, g.targetAmount - g.currentAmount);
   let status: GoalStatus = 'on_track';
   if (g.monthlyContribution > 0 && remaining > 0) {
@@ -159,96 +210,6 @@ function get6MonthProjection(g: InvestmentGoal): number[] {
   return projections;
 }
 
-// ── Rust → Frontend type bridge ──────────────────────────────────────────
-
-interface RustInvestmentGoal {
-  id: string;
-  user_id: string;
-  name: string;
-  goal_type: string;
-  target_amount: number;
-  current_amount: number;
-  target_date: string | null;
-  monthly_contribution: number;
-  risk_profile: string;
-  created_at: string;
-  updated_at: string;
-}
-
-function goalFromRust(g: RustInvestmentGoal): InvestmentGoal {
-  return {
-    id: g.id,
-    name: g.name,
-    type: g.goal_type as GoalType,
-    targetAmount: g.target_amount,
-    currentAmount: g.current_amount,
-    targetDate: g.target_date,
-    monthlyContribution: g.monthly_contribution,
-    riskProfile: g.risk_profile as RiskProfile,
-    createdAt: new Date(g.created_at).getTime(),
-  };
-}
-
-// ── Tauri command stubs ──────────────────────────────────────────────
-
-async function pulseGetInvestmentGoals(): Promise<InvestmentGoal[]> {
-  try {
-    const { invoke } = await import('@tauri-apps/api/core');
-    const data: RustInvestmentGoal[] = await invoke('pulse_get_investment_goals');
-    return data.map(goalFromRust);
-  } catch {
-    return [];
-  }
-}
-
-async function pulseAddInvestmentGoal(goal: InvestmentGoal): Promise<void> {
-  try {
-    const { invoke } = await import('@tauri-apps/api/core');
-    await invoke('pulse_add_investment_goal', {
-      req: {
-        name: goal.name,
-        type: goal.type,
-        target_amount: goal.targetAmount,
-        current_amount: goal.currentAmount,
-        target_date: goal.targetDate,
-        monthly_contribution: goal.monthlyContribution,
-        risk_profile: goal.riskProfile,
-      },
-    });
-  } catch (e) {
-    console.error('[InvestmentsTab] add failed:', e);
-  }
-}
-
-async function pulseUpdateInvestmentGoal(goal: InvestmentGoal): Promise<void> {
-  try {
-    const { invoke } = await import('@tauri-apps/api/core');
-    await invoke('pulse_update_investment_goal', {
-      id: goal.id,
-      req: {
-        name: goal.name,
-        type: goal.type,
-        target_amount: goal.targetAmount,
-        current_amount: goal.currentAmount,
-        target_date: goal.targetDate,
-        monthly_contribution: goal.monthlyContribution,
-        risk_profile: goal.riskProfile,
-      },
-    });
-  } catch (e) {
-    console.error('[InvestmentsTab] update failed:', e);
-  }
-}
-
-async function pulseDeleteInvestmentGoal(id: string): Promise<void> {
-  try {
-    const { invoke } = await import('@tauri-apps/api/core');
-    await invoke('pulse_delete_investment_goal', { id });
-  } catch (e) {
-    console.error('[InvestmentsTab] delete failed:', e);
-  }
-}
-
 // ── Sub-components ───────────────────────────────────────────────────
 
 function EmptyState({ onAdd }: { onAdd: () => void }) {
@@ -256,9 +217,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
     <div className="investments-empty">
       <div className="investments-empty-icon">🏦</div>
       <h3 className="investments-empty-title">Set Your First Investment Goal</h3>
-      <p className="investments-empty-body">
-        401k, IRA, college fund — track them all here.
-      </p>
+      <p className="investments-empty-body">401k, IRA, college fund — track them all here.</p>
       <button className="btn-add-first-goal" onClick={onAdd}>
         <span>➕</span> Add Investment Goal
       </button>
@@ -289,12 +248,7 @@ function ConfettiBurst() {
 }
 
 function GoalCard({
-  goal,
-  expanded,
-  onToggle,
-  onDelete,
-  onEdit,
-  celebrating,
+  goal, expanded, onToggle, onDelete, onEdit, celebrating,
 }: {
   goal: InvestmentGoal;
   expanded: boolean;
@@ -312,8 +266,6 @@ function GoalCard({
   const daysLabel = calcDaysRemaining(goal);
   const isReached = pct >= 100;
   const isActive = goal.monthlyContribution > 0 && remaining > 0;
-
-  // Build 6-month projection
   const projection = get6MonthProjection(goal);
   const maxProj = Math.max(...projection, goal.targetAmount);
 
@@ -324,7 +276,6 @@ function GoalCard({
       data-reached={isReached ? 'true' : 'false'}
       data-active={isActive && !isReached ? 'true' : 'false'}
     >
-      {/* Card header — always visible */}
       <div className="goal-card-header" onClick={onToggle}>
         <div className="goal-type-icon">{typeMeta.icon}</div>
         <div className="goal-name-block">
@@ -335,41 +286,23 @@ function GoalCard({
           <span className="goal-pct-label">{pct.toFixed(1)}%</span>
           <span className="goal-remaining-label">{formatMoney(remaining)} left</span>
         </div>
-        <div
-          className="goal-status-badge"
-          style={{ color: statusMeta.color, background: statusMeta.bg }}
-        >
+        <div className="goal-status-badge" style={{ color: statusMeta.color, background: statusMeta.bg }}>
           {isReached ? '🎉 Goal Reached!' : statusMeta.label}
         </div>
-        <button
-          className="goal-expand-btn"
-          onClick={e => { e.stopPropagation(); onToggle(); }}
-          aria-label={expanded ? 'Collapse' : 'Expand'}
-        >
+        <button className="goal-expand-btn" onClick={e => { e.stopPropagation(); onToggle(); }} aria-label={expanded ? 'Collapse' : 'Expand'}>
           {expanded ? '▲' : '▼'}
         </button>
-        {daysLabel && (
-          <span className="goal-days-remaining">{daysLabel}</span>
-        )}
+        {daysLabel && <span className="goal-days-remaining">{daysLabel}</span>}
       </div>
 
-      {/* Progress bar — always visible */}
       <div className="goal-progress-track">
         {isReached && celebrating && <ConfettiBurst />}
-        <div
-          className="goal-progress-fill"
-          style={{ width: `${pct}%` }}
-        />
-        <div
-          className="goal-progress-glow"
-          style={{ width: `${pct}%` }}
-        />
+        <div className="goal-progress-fill" style={{ width: `${pct}%` }} />
+        <div className="goal-progress-glow" style={{ width: `${pct}%` }} />
       </div>
 
-      {/* Expanded detail panel */}
       {expanded && (
         <div className="goal-detail-panel">
-          {/* Monthly projection chart */}
           {projection.length > 0 && (
             <div className="monthly-projection">
               <div className="monthly-projection-title">6-Month Projection</div>
@@ -380,10 +313,7 @@ function GoalCard({
                   const heightPct = (amt / maxProj) * 100;
                   return (
                     <div key={i} className="projection-bar" data-month={monthName}>
-                      <div
-                        className="projection-bar-fill"
-                        style={{ height: `${heightPct}%` }}
-                      />
+                      <div className="projection-bar-fill" style={{ height: `${heightPct}%` }} />
                     </div>
                   );
                 })}
@@ -392,7 +322,6 @@ function GoalCard({
           )}
 
           <div className="goal-detail-grid">
-            {/* Current / Target */}
             <div className="goal-detail-item">
               <span className="detail-label">Current Amount</span>
               <span className="detail-value">{formatMoney(goal.currentAmount)}</span>
@@ -414,37 +343,27 @@ function GoalCard({
                 )}
               </span>
             </div>
-
-            {/* Target date */}
             {goal.targetDate && (
               <div className="goal-detail-item">
                 <span className="detail-label">Target Date</span>
                 <span className="detail-value">{formatShortDate(goal.targetDate)}</span>
               </div>
             )}
-
-            {/* Risk profile */}
             <div className="goal-detail-item">
               <span className="detail-label">Risk Profile</span>
-              <span
-                className="detail-badge"
-                style={{ color: riskMeta.color, borderColor: riskMeta.color }}
-              >
+              <span className="detail-badge" style={{ color: riskMeta.color, borderColor: riskMeta.color }}>
                 {riskMeta.label}
               </span>
             </div>
           </div>
 
           <div className="goal-detail-actions">
-            <button
-              className="btn-edit-goal"
-              onClick={(e) => { e.stopPropagation(); onEdit(goal); }}
-            >
+            <button className="btn-edit-goal" onClick={e => { e.stopPropagation(); onEdit(goal); }}>
               ✏️ Edit Goal
             </button>
             <button
               className="btn-delete-goal"
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
                 if (confirm(`Delete "${goal.name}"? This cannot be undone.`)) {
                   onDelete(goal.id);
@@ -463,9 +382,7 @@ function GoalCard({
 // ── Add/Edit Form ────────────────────────────────────────────────────
 
 function GoalForm({
-  initial,
-  onSubmit,
-  onCancel,
+  initial, onSubmit, onCancel,
 }: {
   initial?: InvestmentGoal;
   onSubmit: (goal: InvestmentGoal) => void;
@@ -489,25 +406,13 @@ function GoalForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name.trim()) {
-      setError('Goal name is required.');
-      return;
-    }
+    if (!form.name.trim()) { setError('Goal name is required.'); return; }
     const target = parseFloat(form.targetAmount);
     const current = parseFloat(form.currentAmount);
     const monthly = parseFloat(form.monthlyContribution);
-    if (isNaN(target) || target <= 0) {
-      setError('Enter a valid target amount.');
-      return;
-    }
-    if (isNaN(current) || current < 0) {
-      setError('Enter a valid current amount.');
-      return;
-    }
-    if (isNaN(monthly) || monthly < 0) {
-      setError('Enter a valid monthly contribution.');
-      return;
-    }
+    if (isNaN(target) || target <= 0) { setError('Enter a valid target amount.'); return; }
+    if (isNaN(current) || current < 0) { setError('Enter a valid current amount.'); return; }
+    if (isNaN(monthly) || monthly < 0) { setError('Enter a valid monthly contribution.'); return; }
 
     const goal: InvestmentGoal = {
       id: initial?.id ?? generateId(),
@@ -532,30 +437,19 @@ function GoalForm({
         </div>
 
         <div className="goal-form-body">
-          {/* Name */}
           <div className="form-field">
             <label htmlFor="goal-name">Goal Name</label>
-            <input
-              id="goal-name"
-              type="text"
-              placeholder="e.g. 2028 Retirement Target"
-              value={form.name}
-              onChange={e => update('name', e.target.value)}
-              autoFocus
-            />
+            <input id="goal-name" type="text" placeholder="e.g. 2028 Retirement Target"
+              value={form.name} onChange={e => update('name', e.target.value)} autoFocus />
           </div>
 
-          {/* Type */}
           <div className="form-field">
             <label>Account Type</label>
             <div className="type-selector">
               {GOAL_TYPES.map(t => (
-                <button
-                  key={t}
-                  type="button"
+                <button key={t} type="button"
                   className={`type-btn ${form.type === t ? 'active' : ''}`}
-                  onClick={() => update('type', t)}
-                >
+                  onClick={() => update('type', t)}>
                   <span className="type-btn-icon">{TYPE_META[t].icon}</span>
                   <span className="type-btn-label">{TYPE_META[t].label}</span>
                 </button>
@@ -563,68 +457,37 @@ function GoalForm({
             </div>
           </div>
 
-          {/* Target / Current / Monthly */}
           <div className="form-row">
             <div className="form-field">
               <label htmlFor="goal-target">Target Amount ($)</label>
-              <input
-                id="goal-target"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="500000"
-                value={form.targetAmount}
-                onChange={e => update('targetAmount', e.target.value)}
-              />
+              <input id="goal-target" type="number" min="0" step="0.01" placeholder="500000"
+                value={form.targetAmount} onChange={e => update('targetAmount', e.target.value)} />
             </div>
             <div className="form-field">
               <label htmlFor="goal-current">Current Amount ($)</label>
-              <input
-                id="goal-current"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="125000"
-                value={form.currentAmount}
-                onChange={e => update('currentAmount', e.target.value)}
-              />
+              <input id="goal-current" type="number" min="0" step="0.01" placeholder="125000"
+                value={form.currentAmount} onChange={e => update('currentAmount', e.target.value)} />
             </div>
             <div className="form-field">
               <label htmlFor="goal-monthly">Monthly Contribution ($)</label>
-              <input
-                id="goal-monthly"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="1500"
-                value={form.monthlyContribution}
-                onChange={e => update('monthlyContribution', e.target.value)}
-              />
+              <input id="goal-monthly" type="number" min="0" step="0.01" placeholder="1500"
+                value={form.monthlyContribution} onChange={e => update('monthlyContribution', e.target.value)} />
             </div>
           </div>
 
-          {/* Target date */}
           <div className="form-field">
             <label htmlFor="goal-target-date">Target Date (optional)</label>
-            <input
-              id="goal-target-date"
-              type="date"
-              value={form.targetDate}
-              onChange={e => update('targetDate', e.target.value)}
-            />
+            <input id="goal-target-date" type="date"
+              value={form.targetDate} onChange={e => update('targetDate', e.target.value)} />
           </div>
 
-          {/* Risk profile */}
           <div className="form-field">
             <label>Risk Profile</label>
             <div className="risk-selector">
               {RISK_PROFILES.map(r => (
-                <button
-                  key={r}
-                  type="button"
+                <button key={r} type="button"
                   className={`risk-btn risk-${r} ${form.riskProfile === r ? 'active' : ''}`}
-                  onClick={() => update('riskProfile', r)}
-                >
+                  onClick={() => update('riskProfile', r)}>
                   {RISK_META[r].label}
                 </button>
               ))}
@@ -635,12 +498,8 @@ function GoalForm({
         </div>
 
         <div className="goal-form-actions">
-          <button type="button" className="btn-cancel-goal" onClick={onCancel}>
-            Cancel
-          </button>
-          <button type="submit" className="btn-save-goal">
-            {initial ? 'Save Changes' : 'Create Goal'}
-          </button>
+          <button type="button" className="btn-cancel-goal" onClick={onCancel}>Cancel</button>
+          <button type="submit" className="btn-save-goal">{initial ? 'Save Changes' : 'Create Goal'}</button>
         </div>
       </form>
     </div>
@@ -650,50 +509,30 @@ function GoalForm({
 // ── Main Component ──────────────────────────────────────────────────
 
 export default function InvestmentsTab() {
-  const [goals, setGoals] = useState<InvestmentGoal[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [goals, setGoals] = useState<InvestmentGoal[]>(SAMPLE_GOALS);
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingGoal, setEditingGoal] = useState<InvestmentGoal | null>(null);
   const [celebratingIds, setCelebratingIds] = useState<Set<string>>(new Set());
   const celebratedRef = useRef<Set<string>>(new Set());
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const data = await pulseGetInvestmentGoals();
-      if (mounted) {
-        setGoals(data);
-        setLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
-
-  async function handleAdd(goal: InvestmentGoal) {
+  function handleAdd(goal: InvestmentGoal) {
     setGoals(prev => [goal, ...prev]);
     setShowForm(false);
     setEditingGoal(null);
-    await pulseAddInvestmentGoal(goal);
   }
 
-  async function handleUpdate(goal: InvestmentGoal) {
+  function handleUpdate(goal: InvestmentGoal) {
     setGoals(prev => prev.map(g => g.id === goal.id ? goal : g));
     setShowForm(false);
     setEditingGoal(null);
-    await pulseUpdateInvestmentGoal(goal);
   }
 
-  async function handleDelete(id: string) {
+  function handleDelete(id: string) {
     setGoals(prev => prev.filter(g => g.id !== id));
     if (expandedId === id) setExpandedId(null);
     celebratedRef.current.delete(id);
-    setCelebratingIds(prev => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-    await pulseDeleteInvestmentGoal(id);
+    setCelebratingIds(prev => { const next = new Set(prev); next.delete(id); return next; });
   }
 
   function handleEdit(goal: InvestmentGoal) {
@@ -702,11 +541,8 @@ export default function InvestmentsTab() {
   }
 
   function handleFormSubmit(goal: InvestmentGoal) {
-    if (editingGoal) {
-      handleUpdate(goal);
-    } else {
-      handleAdd(goal);
-    }
+    if (editingGoal) handleUpdate(goal);
+    else handleAdd(goal);
   }
 
   function handleFormCancel() {
@@ -714,17 +550,7 @@ export default function InvestmentsTab() {
     setEditingGoal(null);
   }
 
-  // Compute total portfolio value
   const totalPortfolioValue = goals.reduce((sum, g) => sum + g.currentAmount, 0);
-
-  if (loading) {
-    return (
-      <div className="investments-loading">
-        <div className="investments-spinner" />
-        <span>Loading investment goals…</span>
-      </div>
-    );
-  }
 
   return (
     <div className="investments-tab">
@@ -744,10 +570,7 @@ export default function InvestmentsTab() {
           )}
         </div>
         {!showForm && (
-          <button
-            className="btn-open-add-form"
-            onClick={() => { setEditingGoal(null); setShowForm(true); }}
-          >
+          <button className="btn-open-add-form" onClick={() => { setEditingGoal(null); setShowForm(true); }}>
             <span>➕</span> Add Goal
           </button>
         )}
@@ -773,17 +596,11 @@ export default function InvestmentsTab() {
             const alreadyCelebrated = celebratedRef.current.has(goal.id);
             const shouldCelebrate = isReached && !alreadyCelebrated;
 
-            // Trigger celebration once
             if (shouldCelebrate) {
               celebratedRef.current.add(goal.id);
               setCelebratingIds(prev => new Set(prev).add(goal.id));
-              // Auto-clear celebration after animation
               setTimeout(() => {
-                setCelebratingIds(prev => {
-                  const next = new Set(prev);
-                  next.delete(goal.id);
-                  return next;
-                });
+                setCelebratingIds(prev => { const next = new Set(prev); next.delete(goal.id); return next; });
               }, 2500);
             }
 
@@ -792,9 +609,7 @@ export default function InvestmentsTab() {
                 key={goal.id}
                 goal={goal}
                 expanded={expandedId === goal.id}
-                onToggle={() =>
-                  setExpandedId(prev => prev === goal.id ? null : goal.id)
-                }
+                onToggle={() => setExpandedId(prev => prev === goal.id ? null : goal.id)}
                 onDelete={handleDelete}
                 onEdit={handleEdit}
                 celebrating={celebratingIds.has(goal.id)}
