@@ -272,7 +272,7 @@ impl EngineDb {
     // ── Agent Queries ──
 
     pub fn get_agent(&self, id: &str) -> Result<Option<super::types::Agent>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, name, emoji, role, soul, instructions, model_alias, tier, is_active, created_at, updated_at
              FROM agents WHERE id = ?1"
@@ -302,7 +302,7 @@ impl EngineDb {
     }
 
     pub fn get_active_agents(&self) -> Result<Vec<super::types::Agent>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, name, emoji, role, soul, instructions, model_alias, tier, is_active, created_at, updated_at
              FROM agents WHERE is_active = 1 ORDER BY name"
@@ -335,7 +335,7 @@ impl EngineDb {
 
     pub fn create_session(&self, agent_id: &str, user_id: &str) -> Result<super::types::Session> {
         let id = uuid::Uuid::new_v4().to_string();
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "INSERT INTO sessions (id, agent_id, user_id) VALUES (?1, ?2, ?3)",
             params![id, agent_id, user_id],
@@ -355,7 +355,7 @@ impl EngineDb {
     }
 
     pub fn get_session(&self, id: &str) -> Result<Option<super::types::Session>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, agent_id, user_id, title, status, message_count, total_tokens, created_at, updated_at
              FROM sessions WHERE id = ?1"
@@ -387,7 +387,7 @@ impl EngineDb {
         user_id: &str,
         limit: i64,
     ) -> Result<Vec<super::types::Session>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, agent_id, user_id, title, status, message_count, total_tokens, created_at, updated_at
              FROM sessions WHERE user_id = ?1 AND status = 'active' ORDER BY updated_at DESC LIMIT ?2"
@@ -457,7 +457,7 @@ impl EngineDb {
     ) -> Result<super::types::Message> {
         let id = uuid::Uuid::new_v4().to_string();
         let now = Self::now();
-        let conn = self.conn();
+        let conn = self.conn_blocking();
 
         conn.execute(
             "INSERT INTO messages (id, session_id, role, content, tokens_used, model, provider_id, latency_ms, tool_call_id, tool_name, tool_args, tool_result)
@@ -489,7 +489,7 @@ impl EngineDb {
     }
 
     pub fn get_messages(&self, session_id: &str, limit: i64) -> Result<Vec<super::types::Message>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, session_id, role, content, tool_call_id, tool_name, tool_args, tool_result,
                     tokens_used, model, provider_id, latency_ms, created_at
@@ -533,7 +533,7 @@ impl EngineDb {
         source: Option<&str>,
     ) -> Result<String> {
         let id = uuid::Uuid::new_v4().to_string();
-        let conn = self.conn();
+        let conn = self.conn_blocking();
 
         conn.execute(
             "INSERT INTO memory (id, agent_id, memory_type, key, content, source)
@@ -550,7 +550,7 @@ impl EngineDb {
         query: &str,
         limit: i64,
     ) -> Result<Vec<super::types::Memory>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
 
         // Try FTS5 search first (better relevance ranking)
         let fts_result = conn.prepare(
@@ -673,7 +673,7 @@ impl EngineDb {
         agent_id: &str,
         key: &str,
     ) -> Result<Option<super::types::Memory>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, agent_id, memory_type, key, content, source, confidence,
                     access_count, last_accessed, created_at, updated_at, expires_at
@@ -712,7 +712,7 @@ impl EngineDb {
         user_id: &str,
         date: &str,
     ) -> Result<Option<super::types::QuotaRecord>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT user_id, date, calls_used, tokens_used, providers_used
              FROM quota WHERE user_id = ?1 AND date = ?2",
@@ -742,7 +742,7 @@ impl EngineDb {
         tokens: i64,
         provider_id: &str,
     ) -> Result<i64> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
 
         // Upsert quota record
         conn.execute(
@@ -797,7 +797,7 @@ impl EngineDb {
     }
 
     pub fn set_config(&self, key: &str, value: &str) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "INSERT INTO config (key, value) VALUES (?1, ?2)
              ON CONFLICT(key) DO UPDATE SET value = ?2, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
@@ -816,7 +816,7 @@ impl EngineDb {
         data: Option<&str>,
     ) -> Result<()> {
         let id = uuid::Uuid::new_v4().to_string();
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "INSERT INTO telemetry_events (id, event_type, agent_id, session_id, data) VALUES (?1, ?2, ?3, ?4, ?5)",
             params![id, event_type, agent_id, session_id, data],
@@ -845,7 +845,7 @@ impl EngineDb {
         model_alias: Option<&str>,
         is_active: Option<bool>,
     ) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let _now = Self::now();
 
         // Build dynamic update query
@@ -910,7 +910,7 @@ impl EngineDb {
         agent_id: &str,
         limit: i64,
     ) -> Result<Vec<super::types::Memory>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, agent_id, memory_type, key, content, source, confidence,
                     access_count, last_accessed, created_at, updated_at, expires_at
@@ -943,13 +943,13 @@ impl EngineDb {
     }
 
     pub fn delete_memory(&self, memory_id: &str) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute("DELETE FROM memory WHERE id = ?1", params![memory_id])?;
         Ok(())
     }
 
     pub fn set_memory_confidence(&self, memory_id: &str, confidence: f64) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "UPDATE memory SET confidence = ?2, updated_at = ?3 WHERE id = ?1",
             params![memory_id, confidence, Self::now()],
@@ -961,7 +961,7 @@ impl EngineDb {
 
     /// Count messages in a session.
     pub fn count_messages(&self, session_id: &str) -> Result<i64> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let count: i64 = conn.query_row(
             "SELECT COUNT(*) FROM messages WHERE session_id = ?1",
             params![session_id],
@@ -976,7 +976,7 @@ impl EngineDb {
         session_id: &str,
         keep_recent: i64,
     ) -> Result<Vec<super::types::Message>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, session_id, role, content, tool_call_id, tool_name, tool_args, tool_result,
                     tokens_used, model, provider_id, latency_ms, created_at
@@ -1012,7 +1012,7 @@ impl EngineDb {
 
     /// Delete messages by ID list.
     pub fn delete_messages(&self, message_ids: &[String]) -> Result<i64> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut count = 0i64;
         for id in message_ids {
             count += conn.execute("DELETE FROM messages WHERE id = ?1", params![id])? as i64;
@@ -1023,7 +1023,7 @@ impl EngineDb {
     // ── Provider CRUD ──
 
     pub fn get_providers(&self) -> Result<Vec<super::types::ProviderConfig>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, name, base_url, api_key, model_id, model_alias, priority, is_enabled, created_at, updated_at
              FROM providers ORDER BY priority ASC"
@@ -1052,7 +1052,7 @@ impl EngineDb {
     }
 
     pub fn get_provider(&self, id: &str) -> Result<Option<super::types::ProviderConfig>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, name, base_url, api_key, model_id, model_alias, priority, is_enabled, created_at, updated_at
              FROM providers WHERE id = ?1"
@@ -1091,7 +1091,7 @@ impl EngineDb {
         priority: i32,
         is_enabled: bool,
     ) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let enabled: i64 = if is_enabled { 1 } else { 0 };
         conn.execute(
             "INSERT INTO providers (id, name, base_url, api_key, model_id, model_alias, priority, is_enabled)
@@ -1106,7 +1106,7 @@ impl EngineDb {
     }
 
     pub fn delete_provider(&self, id: &str) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute("DELETE FROM providers WHERE id = ?1", params![id])?;
         Ok(())
     }
@@ -1114,7 +1114,7 @@ impl EngineDb {
     // ── Provider Templates ──
 
     pub fn get_provider_templates(&self) -> Result<Vec<super::types::ProviderTemplate>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, name, emoji, description, base_url, models, default_model, model_alias, category, docs_url, is_free, sort_order
              FROM provider_templates ORDER BY sort_order ASC"
@@ -1150,7 +1150,7 @@ impl EngineDb {
         &self,
         id: &str,
     ) -> Result<Option<super::types::ProviderTemplate>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, name, emoji, description, base_url, models, default_model, model_alias, category, docs_url, is_free, sort_order
              FROM provider_templates WHERE id = ?1"
@@ -1183,7 +1183,7 @@ impl EngineDb {
     }
 
     pub fn check_template_installed(&self, template_id: &str) -> Result<bool> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let count: i64 = conn.query_row(
             "SELECT COUNT(*) FROM providers WHERE id LIKE ?1",
             params![format!("{}%", template_id)],
@@ -1194,7 +1194,7 @@ impl EngineDb {
 
     /// Rebuild FTS index from existing memories (for migration).
     pub fn rebuild_memory_fts(&self) -> Result<i64> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
 
         // Clear existing FTS data
         let _ = conn.execute_batch("DELETE FROM memory_fts;");
@@ -1221,7 +1221,7 @@ impl EngineDb {
         &self,
         agent_id: &str,
     ) -> Result<Vec<super::types::AgentCapability>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT agent_id, capability, proficiency FROM agent_capabilities WHERE agent_id = ?1",
         )?;
@@ -1242,7 +1242,7 @@ impl EngineDb {
     }
 
     pub fn find_agents_by_capability(&self, capability: &str) -> Result<Vec<String>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT DISTINCT agent_id FROM agent_capabilities WHERE capability = ?1 ORDER BY proficiency DESC"
         )?;
@@ -1261,7 +1261,7 @@ impl EngineDb {
         &self,
         agent_id: &str,
     ) -> Result<Option<super::types::AgentPermission>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT agent_id, can_talk_to, max_delegation_depth, max_tokens_per_session,
                     can_create_tasks, can_delete_data, requires_verification, anti_hallucination
@@ -1313,7 +1313,7 @@ impl EngineDb {
         session_id: Option<&str>,
     ) -> Result<String> {
         let id = uuid::Uuid::new_v4().to_string();
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "INSERT INTO agent_communications (id, from_agent, to_agent, message_type, content, session_id)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -1323,7 +1323,7 @@ impl EngineDb {
     }
 
     pub fn complete_communication(&self, id: &str, response: &str, tokens_used: i64) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let now = Self::now();
         conn.execute(
             "UPDATE agent_communications SET response = ?2, status = 'responded', tokens_used = ?3, responded_at = ?4 WHERE id = ?1",
@@ -1337,7 +1337,7 @@ impl EngineDb {
         agent_id: &str,
         limit: i64,
     ) -> Result<Vec<super::types::AgentCommunication>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, from_agent, to_agent, message_type, content, response, status, session_id, tokens_used, created_at, responded_at
              FROM agent_communications
@@ -1380,7 +1380,7 @@ impl EngineDb {
         requires_verify: bool,
     ) -> Result<String> {
         let id = uuid::Uuid::new_v4().to_string();
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let rv: i64 = if requires_verify { 1 } else { 0 };
         conn.execute(
             "INSERT INTO tasks (id, title, description, agent_id, created_by, priority, requires_verify)
@@ -1396,7 +1396,7 @@ impl EngineDb {
         status: &str,
         result: Option<&str>,
     ) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let now = Self::now();
         match status {
             "completed" | "failed" => {
@@ -1416,7 +1416,7 @@ impl EngineDb {
     }
 
     pub fn verify_task(&self, task_id: &str, verified: bool) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let v: i64 = if verified { 1 } else { 0 };
         conn.execute(
             "UPDATE tasks SET verified = ?2, updated_at = ?3 WHERE id = ?1",
@@ -1426,7 +1426,7 @@ impl EngineDb {
     }
 
     pub fn get_task(&self, task_id: &str) -> Result<Option<super::types::Task>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, title, description, agent_id, status, result, parent_task_id, session_id,
                     created_by, priority, requires_verify, verified, created_at, updated_at, completed_at
@@ -1465,7 +1465,7 @@ impl EngineDb {
         agent_id: &str,
         status_filter: Option<&str>,
     ) -> Result<Vec<super::types::Task>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let (query, params_vec): (String, Vec<String>) = match status_filter {
             Some(status) => (
                 "SELECT id, title, description, agent_id, status, result, parent_task_id, session_id,
@@ -1524,7 +1524,7 @@ impl EngineDb {
         claim: &str,
     ) -> Result<String> {
         let id = uuid::Uuid::new_v4().to_string();
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "INSERT INTO verification_records (id, agent_id, session_id, claim_type, claim, verification)
              VALUES (?1, ?2, ?3, ?4, ?5, 'unverified')",
@@ -1540,7 +1540,7 @@ impl EngineDb {
         result: &str,
         evidence: Option<&str>,
     ) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "UPDATE verification_records SET verified_by = ?2, verification = ?3, evidence = ?4 WHERE id = ?1",
             params![id, verified_by, result, evidence],
@@ -1552,7 +1552,7 @@ impl EngineDb {
         &self,
         agent_id: Option<&str>,
     ) -> Result<Vec<super::types::VerificationRecord>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut result = Vec::new();
 
         match agent_id {
@@ -1616,7 +1616,7 @@ impl EngineDb {
         action: Option<&str>,
     ) -> Result<String> {
         let id = uuid::Uuid::new_v4().to_string();
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "INSERT INTO lessons_learned (id, agent_id, category, lesson, evidence, action_taken)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -1629,7 +1629,7 @@ impl EngineDb {
         &self,
         category: Option<&str>,
     ) -> Result<Vec<super::types::LessonLearned>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, agent_id, category, lesson, evidence, action_taken, is_active, created_at
              FROM lessons_learned WHERE is_active = 1 AND (?1 IS NULL OR category = ?1)
@@ -1667,7 +1667,7 @@ impl EngineDb {
         task_message: &str,
     ) -> Result<String> {
         let id = uuid::Uuid::new_v4().to_string();
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "INSERT INTO cron_jobs (id, name, agent_id, schedule, timezone, task_message)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -1677,7 +1677,7 @@ impl EngineDb {
     }
 
     pub fn get_cron_jobs(&self, enabled_only: bool) -> Result<Vec<super::types::CronJob>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let query = if enabled_only {
             "SELECT id, name, agent_id, schedule, timezone, task_message, is_enabled, last_run_at, next_run_at, run_count, error_count, created_at, updated_at
              FROM cron_jobs WHERE is_enabled = 1 ORDER BY next_run_at ASC"
@@ -1711,7 +1711,7 @@ impl EngineDb {
     }
 
     pub fn get_due_cron_jobs(&self) -> Result<Vec<super::types::CronJob>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let now = Self::now();
         let mut stmt = conn.prepare(
             "SELECT id, name, agent_id, schedule, timezone, task_message, is_enabled, last_run_at, next_run_at, run_count, error_count, created_at, updated_at
@@ -1745,7 +1745,7 @@ impl EngineDb {
 
     /// Get seconds until the next cron job is due. Returns None if no jobs are scheduled.
     pub fn get_next_cron_due_seconds(&self) -> Result<Option<i64>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let result: Option<String> = conn.query_row(
             "SELECT MIN(next_run_at) FROM cron_jobs WHERE is_enabled = 1 AND next_run_at IS NOT NULL",
             [],
@@ -1773,7 +1773,7 @@ impl EngineDb {
         tokens: i64,
         error: Option<&str>,
     ) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let now = Self::now();
 
         // Get the schedule to compute next run
@@ -1797,7 +1797,7 @@ impl EngineDb {
     }
 
     pub fn update_cron_next_run(&self, id: &str, next_run: &str) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "UPDATE cron_jobs SET next_run_at = ?2, updated_at = ?3 WHERE id = ?1",
             params![id, next_run, Self::now()],
@@ -1807,7 +1807,7 @@ impl EngineDb {
 
     /// Update next_run_at for a cron job by name (for system jobs where we don't know the UUID).
     pub fn update_cron_next_run_by_name(&self, name: &str, next_run: &str) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "UPDATE cron_jobs SET next_run_at = ?1 WHERE name = ?2",
             params![next_run, name],
@@ -1816,7 +1816,7 @@ impl EngineDb {
     }
 
     pub fn toggle_cron_job(&self, id: &str, enabled: bool) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let e: i64 = if enabled { 1 } else { 0 };
         conn.execute(
             "UPDATE cron_jobs SET is_enabled = ?2, updated_at = ?3 WHERE id = ?1",
@@ -1826,7 +1826,7 @@ impl EngineDb {
     }
 
     pub fn delete_cron_job(&self, id: &str) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute("DELETE FROM cron_jobs WHERE id = ?1", params![id])?;
         Ok(())
     }
@@ -1842,7 +1842,7 @@ impl EngineDb {
         task_template: &str,
     ) -> Result<String> {
         let id = uuid::Uuid::new_v4().to_string();
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "INSERT INTO webhooks (id, name, agent_id, path, secret, task_template)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -1852,7 +1852,7 @@ impl EngineDb {
     }
 
     pub fn get_webhook_by_path(&self, path: &str) -> Result<Option<super::types::Webhook>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, name, agent_id, path, secret, task_template, is_enabled, call_count, last_called_at, created_at, updated_at
              FROM webhooks WHERE path = ?1 AND is_enabled = 1"
@@ -1880,7 +1880,7 @@ impl EngineDb {
     }
 
     pub fn get_webhooks(&self) -> Result<Vec<super::types::Webhook>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, name, agent_id, path, secret, task_template, is_enabled, call_count, last_called_at, created_at, updated_at
              FROM webhooks ORDER BY created_at DESC"
@@ -1908,7 +1908,7 @@ impl EngineDb {
     }
 
     pub fn record_webhook_call(&self, path: &str) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let now = Self::now();
         conn.execute(
             "UPDATE webhooks SET call_count = call_count + 1, last_called_at = ?2 WHERE path = ?1",
@@ -1918,7 +1918,7 @@ impl EngineDb {
     }
 
     pub fn delete_webhook(&self, id: &str) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute("DELETE FROM webhooks WHERE id = ?1", params![id])?;
         Ok(())
     }
@@ -1933,7 +1933,7 @@ impl EngineDb {
         payload: Option<&str>,
     ) -> Result<String> {
         let id = uuid::Uuid::new_v4().to_string();
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "INSERT INTO events (id, event_type, source_agent, target_agent, payload)
              VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -1946,7 +1946,7 @@ impl EngineDb {
         &self,
         target_agent: Option<&str>,
     ) -> Result<Vec<super::types::Event>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, event_type, source_agent, target_agent, payload, processed, created_at
              FROM events WHERE processed = 0 AND (?1 IS NULL OR target_agent = ?1 OR target_agent IS NULL)
@@ -1971,13 +1971,13 @@ impl EngineDb {
     }
 
     pub fn mark_event_processed(&self, id: &str) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute("UPDATE events SET processed = 1 WHERE id = ?1", params![id])?;
         Ok(())
     }
 
     pub fn cleanup_old_events(&self, days: i64) -> Result<i64> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let deleted = conn.execute(
             "DELETE FROM events WHERE processed = 1 AND created_at < datetime('now', ?1)",
             params![format!("-{} days", days)],
@@ -1994,7 +1994,7 @@ impl EngineDb {
         details: Option<&str>,
     ) -> Result<String> {
         let id = uuid::Uuid::new_v4().to_string();
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "INSERT INTO heartbeats (id, check_name, status, details) VALUES (?1, ?2, ?3, ?4)",
             params![id, check_name, status, details],
@@ -2003,7 +2003,7 @@ impl EngineDb {
     }
 
     pub fn get_latest_heartbeats(&self) -> Result<Vec<super::types::HeartbeatRecord>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT h.id, h.check_name, h.status, h.details, h.checked_at
              FROM heartbeats h
@@ -2032,7 +2032,7 @@ impl EngineDb {
     // ── Skills ──
 
     pub fn get_skills(&self, active_only: bool) -> Result<Vec<super::types::Skill>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let query = if active_only {
             "SELECT id, name, description, emoji, version, author, skill_type, instructions, triggers, agents, permissions, is_active, install_source, manifest_json, installed_at, updated_at
              FROM skills WHERE is_active = 1 ORDER BY name"
@@ -2069,7 +2069,7 @@ impl EngineDb {
     }
 
     pub fn get_skill(&self, id: &str) -> Result<Option<super::types::Skill>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, name, description, emoji, version, author, skill_type, instructions, triggers, agents, permissions, is_active, install_source, manifest_json, installed_at, updated_at
              FROM skills WHERE id = ?1"
@@ -2103,7 +2103,7 @@ impl EngineDb {
 
     /// Get skills applicable to a specific agent.
     pub fn get_skills_for_agent(&self, agent_id: &str) -> Result<Vec<super::types::Skill>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, name, description, emoji, version, author, skill_type, instructions, triggers, agents, permissions, is_active, install_source, manifest_json, installed_at, updated_at
              FROM skills
@@ -2153,7 +2153,7 @@ impl EngineDb {
         source: &str,
         manifest: Option<&str>,
     ) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let now = Self::now();
         conn.execute(
             "INSERT INTO skills (id, name, description, emoji, version, author, instructions, triggers, agents, permissions, install_source, manifest_json, installed_at, updated_at)
@@ -2169,7 +2169,7 @@ impl EngineDb {
 
     /// Get skill fragments from the lessons_learned table (sprouting seeds for skills).
     pub fn get_skill_fragments(&self) -> Result<Vec<serde_json::Value>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let seven_days_ago = chrono::Utc::now() - chrono::Duration::days(7);
         let cutoff = seven_days_ago.format("%Y-%m-%d %H:%M:%S").to_string();
         let mut stmt = conn.prepare(
@@ -2208,7 +2208,7 @@ impl EngineDb {
     }
 
     pub fn get_trajectory_patterns(&self, agent_id: &str, min_count: i64) -> Result<Vec<serde_json::Value>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT sequence_hash, call_count, last_used FROM trajectory_patterns WHERE agent_id = ?1 AND call_count >= ?2 ORDER BY call_count DESC LIMIT 20",
         )?;
@@ -2226,7 +2226,7 @@ impl EngineDb {
     }
 
     pub fn get_today_lessons(&self, agent_id: &str) -> Result<Vec<serde_json::Value>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
         let mut stmt = conn.prepare(
             "SELECT id, category, lesson, created_at FROM lessons_learned WHERE agent_id = ?1 AND date(created_at) = ?2 ORDER BY created_at DESC LIMIT 20",
@@ -2246,7 +2246,7 @@ impl EngineDb {
     }
 
     pub fn toggle_skill(&self, id: &str, active: bool) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let a: i64 = if active { 1 } else { 0 };
         conn.execute(
             "UPDATE skills SET is_active = ?2, updated_at = ?3 WHERE id = ?1",
@@ -2256,7 +2256,7 @@ impl EngineDb {
     }
 
     pub fn uninstall_skill(&self, id: &str) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute("DELETE FROM skills WHERE id = ?1", params![id])?;
         Ok(())
     }
@@ -2277,7 +2277,7 @@ impl EngineDb {
         default_agent_id: Option<&str>,
         parent_id: Option<&str>,
     ) -> Result<super::types::FamilyMember> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let now = Self::now();
         let color = color.unwrap_or("#6366f1");
         conn.execute(
@@ -2301,7 +2301,7 @@ impl EngineDb {
     }
 
     pub fn get_family_members(&self, user_id: &str) -> Result<Vec<super::types::FamilyMember>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, name, age, age_group, avatar, color, default_agent_id, parent_id, is_active, created_at, updated_at
              FROM family_members WHERE user_id = ?1 AND is_active = 1 ORDER BY created_at"
@@ -2333,7 +2333,7 @@ impl EngineDb {
         id: &str,
         user_id: &str,
     ) -> Result<Option<super::types::FamilyMember>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, name, age, age_group, avatar, color, default_agent_id, parent_id, is_active, created_at, updated_at
              FROM family_members WHERE id = ?1 AND user_id = ?2"
@@ -2357,7 +2357,7 @@ impl EngineDb {
     }
 
     pub fn delete_family_member(&self, id: &str, user_id: &str) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute("UPDATE family_members SET is_active = 0, updated_at = ?2 WHERE id = ?1 AND user_id = ?3",
             params![id, Self::now(), user_id])?;
         Ok(())
@@ -3053,7 +3053,7 @@ impl EngineDb {
         &self,
         age_group: Option<&str>,
     ) -> Result<Vec<super::types::AgentTemplate>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mapper = |row: &rusqlite::Row| -> rusqlite::Result<super::types::AgentTemplate> {
             Ok(super::types::AgentTemplate {
                 id: row.get(0)?,
@@ -3097,7 +3097,7 @@ impl EngineDb {
         template_id: &str,
         _member_id: Option<&str>,
     ) -> Result<Option<super::types::Agent>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         // Get template
         let _stmt = conn.prepare(
             "SELECT id, name, emoji, role_description, soul, instructions, model_alias, category
@@ -3157,7 +3157,7 @@ impl EngineDb {
         difficulty: &str,
         story_state: Option<&str>,
     ) -> Result<super::types::StoryGame> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let now = Self::now();
         conn.execute(
             "INSERT INTO story_games (id, member_id, title, genre, age_group, difficulty, story_state, created_at, updated_at)
@@ -3181,7 +3181,7 @@ impl EngineDb {
     }
 
     pub fn get_story_games(&self, member_id: Option<&str>) -> Result<Vec<super::types::StoryGame>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mapper = |row: &rusqlite::Row| -> rusqlite::Result<super::types::StoryGame> {
             Ok(super::types::StoryGame {
                 id: row.get(0)?,
@@ -3220,7 +3220,7 @@ impl EngineDb {
     }
 
     pub fn get_story_game(&self, id: &str) -> Result<Option<super::types::StoryGame>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, member_id, agent_id, title, genre, age_group, difficulty, status, current_chapter, story_state, created_at, updated_at
              FROM story_games WHERE id = ?1"
@@ -3259,7 +3259,7 @@ impl EngineDb {
         puzzle: Option<&str>,
         image_prompt: Option<&str>,
     ) -> Result<super::types::StoryChapter> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let now = Self::now();
         conn.execute(
             "INSERT INTO story_chapters (id, game_id, chapter_number, title, narrative, choices, puzzle, image_prompt, created_at)
@@ -3288,7 +3288,7 @@ impl EngineDb {
     }
 
     pub fn get_story_chapters(&self, game_id: &str) -> Result<Vec<super::types::StoryChapter>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, game_id, chapter_number, title, narrative, choices, puzzle, puzzle_solved, image_prompt, image_url, chosen_choice_id, created_at
              FROM story_chapters WHERE game_id = ?1 ORDER BY chapter_number"
@@ -3317,7 +3317,7 @@ impl EngineDb {
     }
 
     pub fn choose_story_path(&self, chapter_id: &str, choice_id: &str) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "UPDATE story_chapters SET chosen_choice_id = ?2 WHERE id = ?1",
             params![chapter_id, choice_id],
@@ -3326,7 +3326,7 @@ impl EngineDb {
     }
 
     pub fn solve_puzzle(&self, chapter_id: &str) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "UPDATE story_chapters SET puzzle_solved = 1 WHERE id = ?1",
             params![chapter_id],
@@ -3339,7 +3339,7 @@ impl EngineDb {
         age_group: Option<&str>,
         genre: Option<&str>,
     ) -> Result<Vec<super::types::StorySeed>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut conditions = Vec::new();
         let mut params_vec: Vec<String> = Vec::new();
         if let Some(ag) = age_group {
@@ -3404,7 +3404,7 @@ impl EngineDb {
         duration_sec: Option<i64>,
         metadata: Option<&str>,
     ) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "INSERT INTO learning_activities (id, member_id, agent_id, session_id, activity_type, topic, description, difficulty, score, duration_sec, metadata)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
@@ -3416,7 +3416,7 @@ impl EngineDb {
     }
 
     fn update_goals_for_activity(&self, member_id: &str, activity_type: &str) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         // Update streak goals
         conn.execute(
             "UPDATE learning_goals SET current_value = current_value + 1,
@@ -3446,7 +3446,7 @@ impl EngineDb {
         member_id: &str,
         limit: i64,
     ) -> Result<Vec<super::types::LearningActivity>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, member_id, agent_id, session_id, activity_type, topic, description, difficulty, score, duration_sec, tokens_used, metadata, created_at
              FROM learning_activities WHERE member_id = ?1 ORDER BY created_at DESC LIMIT ?2"
@@ -3476,7 +3476,7 @@ impl EngineDb {
     }
 
     pub fn get_learning_progress(&self, member_id: &str) -> Result<super::types::LearningProgress> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
 
         // Get member name
         let member_name: String = conn
@@ -3627,7 +3627,7 @@ impl EngineDb {
         unit: Option<&str>,
         deadline: Option<&str>,
     ) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "INSERT INTO learning_goals (id, member_id, goal_type, activity_type, title, target_value, unit, deadline)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
@@ -3637,7 +3637,7 @@ impl EngineDb {
     }
 
     pub fn get_learning_goals(&self, member_id: &str) -> Result<Vec<super::types::LearningGoal>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, member_id, goal_type, activity_type, title, target_value, current_value, unit, deadline, is_complete, created_at, completed_at
              FROM learning_goals WHERE member_id = ?1 ORDER BY is_complete ASC, created_at DESC"
@@ -4737,7 +4737,7 @@ impl EngineDb {
         ai_action_items: Option<&str>,
         source: &str,
     ) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let now = Self::now();
         let mid = member_id.map(String::from);
         let cnt = content.map(String::from);
@@ -4902,7 +4902,7 @@ impl EngineDb {
     }
 
     pub fn get_overdue_reminders(&self) -> Result<Vec<super::types::LifeReminder>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
         let mut stmt = conn.prepare("SELECT id, member_id, document_id, reminder_type, title, description, due_date, priority, is_dismissed, is_completed, recurring, frequency, created_at FROM life_reminders WHERE is_dismissed = 0 AND is_completed = 0 AND due_date < ?1 ORDER BY due_date")?;
         let rows = stmt.query_map(params![today], Self::map_reminder)?;
@@ -4937,7 +4937,7 @@ impl EngineDb {
         key: &str,
         value: &str,
     ) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let now = Self::now();
         let mid = member_id.map(String::from);
         conn.execute("INSERT OR REPLACE INTO life_knowledge (id, member_id, category, key, value, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
@@ -5508,13 +5508,13 @@ impl EngineDb {
         message: &str,
         action_label: Option<&str>,
     ) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute("INSERT INTO life_nudges (id, member_id, nudge_type, message, action_label) VALUES (?1, ?2, ?3, ?4, ?5)", params![id, member_id, nudge_type, message, action_label])?;
         Ok(())
     }
 
     pub fn get_nudges(&self) -> Result<Vec<super::types::LifeNudge>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare("SELECT id, nudge_type, message, action_label, dismissed, created_at FROM life_nudges WHERE dismissed = 0 ORDER BY created_at DESC LIMIT 5")?;
         let rows = stmt.query_map([], |row| {
             Ok(super::types::LifeNudge {
@@ -5700,7 +5700,7 @@ impl EngineDb {
     }
 
     pub fn get_bill_trends(&self, months: i64) -> Result<Vec<super::types::BillTrendPoint>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare("SELECT billing_month, bill_type, SUM(amount) FROM home_bills GROUP BY billing_month, bill_type ORDER BY billing_month DESC LIMIT ?1")?;
         let rows = stmt.query_map(
             params![months * 3],
@@ -6496,7 +6496,7 @@ impl EngineDb {
     }
 
     pub fn get_seasonal_tasks(&self, month: i64) -> Result<Vec<serde_json::Value>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, task, category, priority, estimated_time_minutes, estimated_cost, diy_possible, description, month, completed, completed_date
              FROM home_seasonal_tasks WHERE month = ?1 ORDER BY priority DESC, task"
@@ -6524,7 +6524,7 @@ impl EngineDb {
     }
 
     pub fn complete_seasonal_task(&self, task_id: &str) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let now = Self::now();
         conn.execute(
             "UPDATE home_seasonal_tasks SET completed = 1, completed_date = ?2 WHERE id = ?1",
@@ -6540,7 +6540,7 @@ impl EngineDb {
         content: &str,
         context_json: Option<&str>,
     ) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "INSERT INTO home_chat_history (id, role, content, context_json) VALUES (?1, ?2, ?3, ?4)",
             params![id, role, content, context_json],
@@ -6549,7 +6549,7 @@ impl EngineDb {
     }
 
     pub fn get_chat_history(&self, limit: i64) -> Result<Vec<serde_json::Value>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, role, content, timestamp, context_json FROM home_chat_history ORDER BY timestamp DESC LIMIT ?1"
         )?;
@@ -6571,7 +6571,7 @@ impl EngineDb {
     }
 
     pub fn get_bills_by_type_grouped(&self) -> Result<Vec<(String, Vec<f64>)>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt =
             conn.prepare("SELECT bill_type, amount FROM home_bills ORDER BY billing_month DESC")?;
         let rows = stmt.query_map([], |row| {
@@ -6586,7 +6586,7 @@ impl EngineDb {
     }
 
     pub fn get_bills_rolling_avg(&self, _months: i64) -> Result<Vec<serde_json::Value>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT bill_type,
                     (SELECT amount FROM home_bills b2 WHERE b2.bill_type = b1.bill_type ORDER BY billing_month DESC LIMIT 1) as current_amount,
@@ -6621,7 +6621,7 @@ impl EngineDb {
     }
 
     pub fn get_year_bills_summary(&self) -> Result<serde_json::Value> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let twelve_months_ago = (chrono::Utc::now() - chrono::Duration::days(365))
             .format("%Y-%m")
             .to_string();
@@ -7611,7 +7611,7 @@ impl EngineDb {
         topics_discussed: Option<&str>,
         memorable_moment: Option<&str>,
     ) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let word_count = content.split_whitespace().count() as i64;
         let tt = title.map(String::from);
         let td = topics_discussed.map(String::from);
@@ -7627,7 +7627,7 @@ impl EngineDb {
         agent_id: &str,
         limit: i64,
     ) -> Result<Vec<super::types::DiaryEntry>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare("SELECT id, agent_id, entry_date, title, content, mood, topics_discussed, memorable_moment, word_count, created_at FROM diary_entries WHERE agent_id = ?1 ORDER BY entry_date DESC, created_at DESC LIMIT ?2")?;
         let rows = stmt.query_map(params![agent_id, limit], Self::map_diary_entry)?;
         let mut result = Vec::new();
@@ -7637,7 +7637,7 @@ impl EngineDb {
         Ok(result)
     }
     pub fn get_diary_entries_by_date(&self, date: &str) -> Result<Vec<super::types::DiaryEntry>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare("SELECT id, agent_id, entry_date, title, content, mood, topics_discussed, memorable_moment, word_count, created_at FROM diary_entries WHERE entry_date = ?1 ORDER BY created_at DESC")?;
         let rows = stmt.query_map(params![date], Self::map_diary_entry)?;
         let mut result = Vec::new();
@@ -7647,7 +7647,7 @@ impl EngineDb {
         Ok(result)
     }
     pub fn get_all_diary_entries(&self, limit: i64) -> Result<Vec<super::types::DiaryEntry>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare("SELECT id, agent_id, entry_date, title, content, mood, topics_discussed, memorable_moment, word_count, created_at FROM diary_entries ORDER BY entry_date DESC, created_at DESC LIMIT ?1")?;
         let rows = stmt.query_map(params![limit], Self::map_diary_entry)?;
         let mut result = Vec::new();
@@ -7672,7 +7672,7 @@ impl EngineDb {
     }
     pub fn get_diary_dashboard(&self) -> Result<super::types::DiaryDashboard> {
         let (total, this_week, moods) = {
-            let conn = self.conn();
+            let conn = self.conn_blocking();
             let total: i64 = conn
                 .query_row("SELECT COUNT(*) FROM diary_entries", [], |row| row.get(0))
                 .unwrap_or(0);
@@ -7703,7 +7703,7 @@ impl EngineDb {
             (total, this_week, moods)
         }; // conn dropped here
         let latest = self.get_all_diary_entries(5).unwrap_or_default();
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut agents_stmt =
             conn.prepare("SELECT DISTINCT agent_id FROM diary_entries ORDER BY agent_id")?;
         let agents_rows = agents_stmt.query_map([], |row| row.get::<_, String>(0))?;
@@ -7728,7 +7728,7 @@ impl EngineDb {
         intensity: i64,
         trigger: Option<&str>,
     ) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let tr = trigger.map(String::from);
         conn.execute("INSERT INTO diary_mood_log (id, agent_id, mood, intensity, trigger_event) VALUES (?1, ?2, ?3, ?4, ?5)",
             params![id, agent_id, mood, intensity, tr])?;
@@ -7746,7 +7746,7 @@ impl EngineDb {
         let word_count = req.content.split_whitespace().count() as i32;
         let is_voice = req.is_voice.unwrap_or(false) as i32;
         let now = chrono::Utc::now().to_rfc3339();
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "INSERT INTO echo_entries (id, content, mood, tags, is_voice, word_count, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
@@ -7771,7 +7771,7 @@ impl EngineDb {
     ) -> Result<Vec<crate::commands::EchoEntry>> {
         let limit = limit.unwrap_or(50);
         let offset = offset.unwrap_or(0);
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, content, mood, tags, is_voice, word_count, created_at, updated_at
              FROM echo_entries ORDER BY created_at DESC LIMIT ?1 OFFSET ?2",
@@ -7794,7 +7794,7 @@ impl EngineDb {
     }
 
     pub fn echo_get_entry(&self, id: &str) -> Result<Option<crate::commands::EchoEntry>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, content, mood, tags, is_voice, word_count, created_at, updated_at
              FROM echo_entries WHERE id = ?1",
@@ -7817,13 +7817,13 @@ impl EngineDb {
     }
 
     pub fn echo_delete_entry(&self, id: &str) -> Result<()> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute("DELETE FROM echo_entries WHERE id = ?1", params![id])?;
         Ok(())
     }
 
     pub fn echo_get_stats(&self) -> Result<crate::commands::EchoDailyBrief> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let total: i32 = conn.query_row("SELECT COUNT(*) FROM echo_entries", [], |r| r.get(0))?;
 
         // Entries today
@@ -7875,7 +7875,7 @@ impl EngineDb {
     // ── Echo Patterns ──
 
     pub fn echo_get_patterns(&self) -> Result<Vec<crate::commands::EchoPattern>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, pattern_type, title, description, confidence, data_json, created_at
              FROM echo_patterns ORDER BY confidence DESC, created_at DESC",
@@ -7904,7 +7904,7 @@ impl EngineDb {
     ) -> Result<()> {
         let id = uuid::Uuid::new_v4().to_string();
         let now = chrono::Utc::now().to_rfc3339();
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         conn.execute(
             "INSERT INTO echo_patterns (id, pattern_type, title, description, confidence, data_json, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
@@ -7914,7 +7914,7 @@ impl EngineDb {
     }
 
     pub fn echo_get_entries_by_date(&self, date: &str) -> Result<Vec<crate::commands::EchoEntry>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let mut stmt = conn.prepare(
             "SELECT id, content, mood, tags, is_voice, word_count, created_at, updated_at
              FROM echo_entries WHERE DATE(created_at) = ?1 ORDER BY created_at DESC",
