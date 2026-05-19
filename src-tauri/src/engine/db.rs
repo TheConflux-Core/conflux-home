@@ -185,11 +185,10 @@ impl EngineDb {
                             begin_depth -= 1;
                         }
                         current.push_str(&word);
-                        if upper == "BEGIN" {
-                            // Only count BEGIN if it's a top-level keyword (trigger body)
-                            // Skip BEGIN TRANSACTION, BEGIN DEFERRED, etc.
-                            // We detect these by checking if begin_depth was 0 and we're
-                            // likely inside a CREATE TRIGGER body.
+                        if upper == "BEGIN" && begin_depth > 0 {
+                            // Only count nested BEGINs that are INSIDE an existing block.
+                            // Skip top-level BEGIN (trigger body start) — we detect it
+                            // by the fact that begin_depth was already incremented.
                             begin_depth += 1;
                         }
                         continue;
