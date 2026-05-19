@@ -1,7 +1,7 @@
 // StocksTab — Manual stock watchlist for Pulse
-// Phase 2: Fixed to use pulse_update_stock for price/change persistence
+// Phase 2 refinements: SVG sparklines, hero price layout, ticker zone, info hierarchy
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
 export interface Stock {
@@ -92,20 +92,85 @@ function generateSparkline(basePrice: number): number[] {
   return data.map(d => (d - min) / range);
 }
 
-// Unicode bar characters for sparkline (▁▂▃▄▅▆▇█)
-const SPARK_BARS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-
-function sparklineBars(normalized: number[]): string[] {
-  return normalized.map(n => {
-    const idx = Math.min(7, Math.floor(n * 8));
-    return SPARK_BARS[idx];
-  });
-}
-
-function getSparklineClass(normalized: number[], basePrice: number): string {
+function getSparklineDir(normalized: number[]): 'up' | 'down' | 'neutral' {
   const first = normalized[0] ?? 0.5;
   const last = normalized[normalized.length - 1] ?? 0.5;
-  return last >= first ? 'spark-up' : 'spark-down';
+  if (last > first + 0.02) return 'up';
+  if (last < first - 0.02) return 'down';
+  return 'neutral';
+}
+
+// ── SVG Sparkline Component ──────────────────────────────────
+interface SVGSparklineProps {
+  data: number[];        // normalized 0–1 values, length 7
+  direction: 'up' | 'down' | 'neutral';
+  width?: number;
+  height?: number;
+  showLabel?: boolean;
+  label?: string;
+}
+
+function SVGSparkline({ data, direction, width = 72, height = 32, showLabel = true, label = '7D' }: SVGSparklineProps) {
+  if (data.length < 2) return null;
+
+  const pad = 2;
+  const w = width - pad * 2;
+  const h = height - pad * 2;
+
+  const points = data.map((v, i) => {
+    const x = pad + (i / (data.length - 1)) * w;
+    const y = pad + (1 - v) * h;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+
+  const areaPoints = [
+    `${pad},${pad + h}`,
+    ...data.map((v, i) => {
+      const x = pad + (i / (data.length - 1)) * w;
+      const y = pad + (1 - v) * h;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }),
+    `${pad + w},${pad + h}`,
+  ].join(' ');
+
+  const color = direction === 'up' ? '#10b981' : direction === 'down' ? '#ef4444' : '#9ca3af';
+  const color16 = direction === 'up' ? 'rgba(16,185,129,' : direction === 'down' ? 'rgba(239,68,68,' : 'rgba(156,163,175,';
+
+  return (
+    <div className="stock-sparkline" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px' }}>
+      {showLabel && <span className="sparkline-label">{label}</span>}
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
+        <defs>
+          <linearGradient id={`spark-grad-${direction}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+            <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        {/* Area fill */}
+        <polygon
+          points={areaPoints}
+          fill={`url(#spark-grad-${direction})`}
+        />
+        {/* Line */}
+        <polyline
+          points={points}
+          fill="none"
+          stroke={color}
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        {/* End dot */}
+        <circle
+          cx={pad + w}
+          cy={pad + (1 - data[data.length - 1]) * h}
+          r="2.5"
+          fill={color}
+          opacity="0.85"
+        />
+      </svg>
+    </div>
+  );
 }
 
 // ── Tauri command wrappers ───────────────────────────────────
@@ -185,6 +250,55 @@ async function pulseDeleteStock(id: string): Promise<void> {
   }
 }
 
+// ── Live Price Fetch — calls Rust backend (Yahoo Finance) ───
+async function fetchLivePrice(symbol: string): Promise<{
+  price: string;
+  change: ChangeDirection;
+  changeAmount: string;
+} | null> {
+  try {
+    const result = await invoke<{ price: number; change: number; change_amount: number }>('pulse_fetch_price', { symbol });
+    if (!result) return null;
+    const dir: ChangeDirection =
+      result.change > 0 ? 'up' : result.change < 0 ? 'down' : 'neutral';
+    return {
+      price: result.price.toFixed(2),
+      change: dir,
+      changeAmount: Math.abs(result.change).toFixed(2),
+    };
+  } catch (e) {
+    console.warn(`[StocksTab] pulse_fetch_price(${symbol}) failed:`, e);
+    return null;
+  }
+}
+
+// ── Symbol Search — calls Rust backend (Yahoo Finance) ───
+async function searchSymbols(query: string): Promise<Array<{
+  symbol: string;
+  companyName: string;
+  sector: string;
+}>> {
+  if (query.trim().length < 2) return [];
+  try {
+    interface RustSearchResult {
+      symbol: string;
+      company_name: string;
+      sector: string;
+      current_price: number | null;
+      logo_url: string | null;
+    }
+    const results: RustSearchResult[] = await invoke('pulse_search_stocks', { query });
+    return results.map(r => ({
+      symbol: r.symbol,
+      companyName: r.company_name,
+      sector: r.sector,
+    }));
+  } catch (e) {
+    console.warn('[StocksTab] pulse_search_stocks failed:', e);
+    return [];
+  }
+}
+
 // ── Empty State ──────────────────────────────────────────────
 function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
@@ -216,23 +330,12 @@ function StockCard({
   const [priceValue, setPriceValue] = useState(stock.price);
   const [flashing, setFlashing] = useState<'up' | 'down' | null>(null);
   const [sparkline, setSparkline] = useState<number[]>([]);
-  const [showTooltip, setShowTooltip] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<string>('just now');
   const priceRef = useRef<HTMLInputElement>(null);
 
   // Generate sparkline on mount or price change
   useEffect(() => {
     const base = parseFloat(stock.price) || 100;
     setSparkline(generateSparkline(base));
-  }, [stock.price]);
-
-  // "Last updated" ticker
-  useEffect(() => {
-    setLastUpdated('just now');
-    const iv = setInterval(() => {
-      setLastUpdated('just now');
-    }, 30000);
-    return () => clearInterval(iv);
   }, [stock.price]);
 
   useEffect(() => {
@@ -274,10 +377,8 @@ function StockCard({
   const changeIcon =
     stock.change === 'up' ? '▲' : stock.change === 'down' ? '▼' : '◆';
 
-  const bars = sparklineBars(sparkline);
-  const sparkClass = getSparklineClass(sparkline, parseFloat(stock.price) || 100);
+  const sparkDir = sparkline.length > 0 ? getSparklineDir(sparkline) : 'neutral';
 
-  // Build price flash class
   let priceWrapperClass = 'stock-price-display';
   if (flashing === 'up') priceWrapperClass += ' price-flash-up';
   if (flashing === 'down') priceWrapperClass += ' price-flash-down';
@@ -287,7 +388,7 @@ function StockCard({
       className={`stock-card ${glowClass}`}
       style={{ animationDelay: `${animationDelay}ms` }}
     >
-      {/* Header row */}
+      {/* Header row — symbol + company + delete */}
       <div className="stock-card-header">
         <div className="stock-symbol-block">
           <span className="stock-symbol">{stock.symbol.toUpperCase()}</span>
@@ -296,10 +397,12 @@ function StockCard({
         <button
           className="stock-delete-btn"
           onClick={() => onDelete(stock.id)}
-          title="Remove from watchlist"
+          title={`Remove ${stock.symbol} from watchlist`}
           aria-label={`Delete ${stock.symbol}`}
         >
-          ✕
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+          </svg>
         </button>
       </div>
 
@@ -308,99 +411,75 @@ function StockCard({
         <div className="stock-sector-tag">{stock.sector}</div>
       )}
 
-      {/* Price section */}
-      <div className="stock-price-section">
-        <span className="stock-price-label">Price</span>
-        <div className="stock-price-wrapper">
-          {editingPrice ? (
-            <input
-              ref={priceRef}
-              className="stock-price-input"
-              type="text"
-              value={priceValue ?? ''}
-              onChange={e => setPriceValue(e.target.value)}
-              onBlur={handlePriceBlur}
-              onKeyDown={handlePriceKeyDown}
-              autoFocus
-              placeholder="0.00"
-            />
-          ) : (
-            <button
-              className={priceWrapperClass}
-              onClick={async () => {
-                const live = await fetchLivePrice(stock.symbol);
-                if (live) {
-                  const isUp = parseFloat(live.price) > parseFloat(stock.price || '0');
-                  setFlashing(isUp ? 'up' : 'down');
-                  setTimeout(() => setFlashing(null), 600);
-                  onUpdate({ ...stock, price: live.price, change: live.change, changeAmount: live.changeAmount });
-                } else {
-                  setEditingPrice(true);
-                  setTimeout(() => priceRef.current?.select(), 10);
-                }
-              }}
-              title="Click to refresh live price (or edit manually)"
-              onMouseEnter={() => setShowTooltip(true)}
-              onMouseLeave={() => setShowTooltip(false)}
-            >
-              ${stock.price || '—'}
-              {showTooltip && sparkline.length > 0 && (
-                <div className="price-tooltip">
-                  <div className="price-tooltip-title">7-day trend</div>
-                  <div className={`price-tooltip-spark ${sparkClass}`}>
-                    {bars.join('')}
-                  </div>
-                </div>
-              )}
-            </button>
-          )}
-        </div>
+      {/* Price — hero element, centered */}
+      <div className="stock-price-row">
+        {editingPrice ? (
+          <input
+            ref={priceRef}
+            className="stock-price-input"
+            type="text"
+            value={priceValue ?? ''}
+            onChange={e => setPriceValue(e.target.value)}
+            onBlur={handlePriceBlur}
+            onKeyDown={handlePriceKeyDown}
+            autoFocus
+            placeholder="0.00"
+          />
+        ) : (
+          <button
+            className={priceWrapperClass}
+            onClick={async () => {
+              const live = await fetchLivePrice(stock.symbol);
+              if (live) {
+                const isUp = parseFloat(live.price) > parseFloat(stock.price || '0');
+                setFlashing(isUp ? 'up' : 'down');
+                setTimeout(() => setFlashing(null), 600);
+                onUpdate({ ...stock, price: live.price, change: live.change, changeAmount: live.changeAmount });
+              } else {
+                setEditingPrice(true);
+                setTimeout(() => priceRef.current?.select(), 10);
+              }
+            }}
+            title="Click to refresh price — or click again to enter manually"
+          >
+            {stock.price ? `$${stock.price}` : '—'}
+          </button>
+        )}
+        {/* Inline change badge — right of price */}
+        {stock.changeAmount && (
+          <span className={`stock-change-badge change-badge-${stock.change}`}>
+            <span className="badge-arrow">{changeIcon}</span>
+            <span className="badge-pct">
+              {stock.change === 'up' ? '+' : stock.change === 'down' ? '-' : ''}
+              {stock.changeAmount}%
+            </span>
+          </span>
+        )}
       </div>
 
-      {/* Change row */}
+      {/* Change row — cycle direction + sparkline */}
       <div className="stock-change-row">
         <button
           className={`stock-change-btn change-${stock.change}`}
           onClick={cycleChange}
-          title="Click to cycle: Up → Down → Neutral"
+          title="Click to cycle direction: Up → Down → Neutral"
         >
-          <span className={`change-icon ${stock.change !== 'neutral' ? 'change-icon-animated' : ''}`}>
-            {changeIcon}
-          </span>
-          <span className="change-amount">
-            {stock.changeAmount ? `${stock.changeAmount}` : '—'}
-          </span>
-          <span className="change-label">
-            {stock.changeAmount ? '' : 'Set direction'}
-          </span>
+          <span className={`change-icon change-icon-${stock.change}`}>{changeIcon}</span>
+          <span className="change-amount">{stock.changeAmount || '—'}</span>
+          <span className="change-label">{stock.changeAmount ? '%' : 'Set'}</span>
         </button>
 
-        {stock.changeAmount && (
-          <div className="stock-change-pct">
-            {stock.change === 'up' && '+'}
-            {stock.change === 'neutral' && ''}
-            {stock.change === 'down' && '-'}
-            {stock.changeAmount}%
-          </div>
-        )}
-
-        {/* Sparkline */}
+        {/* SVG Sparkline */}
         {sparkline.length > 0 && (
-          <div className="stock-sparkline" title="7-day trend">
-            <span className="sparkline-label">7D</span>
-            <div className={`sparkline-bars ${sparkClass}`}>
-              {bars.map((bar, i) => (
-                <span key={i} className="spark-bar">{bar}</span>
-              ))}
-            </div>
-          </div>
+          <SVGSparkline
+            data={sparkline}
+            direction={sparkDir}
+            width={80}
+            height={36}
+            showLabel={true}
+            label="7D"
+          />
         )}
-      </div>
-
-      {/* Card footer */}
-      <div className="stock-card-footer">
-        <span className="footer-clock">⏰</span>
-        <span className="footer-time">Updated {lastUpdated}</span>
       </div>
     </div>
   );
@@ -426,6 +505,23 @@ function AddStockForm({
     sector: 'Tech',
   });
   const [error, setError] = useState('');
+  const [searchResults, setSearchResults] = useState<Array<{ symbol: string; companyName: string; sector: string }>>([]);
+  const [searching, setSearching] = useState(false);
+
+  // Debounced symbol search as user types
+  useEffect(() => {
+    if (!form.symbol || form.symbol.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    const iv = setTimeout(async () => {
+      setSearching(true);
+      const results = await searchSymbols(form.symbol);
+      setSearchResults(results);
+      setSearching(false);
+    }, 350);
+    return () => clearTimeout(iv);
+  }, [form.symbol]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -451,36 +547,69 @@ function AddStockForm({
   }
 
   function handleSymbolInput(e: React.ChangeEvent<HTMLInputElement>) {
-    setForm(f => ({ ...f, symbol: e.target.value.toUpperCase().replace(/[^A-Z0-9.]/g, '') }));
+    const val = e.target.value.toUpperCase().replace(/[^A-Z0-9.]/g, '');
+    setForm(f => ({ ...f, symbol: val }));
+    if (searchResults.length > 0) setSearchResults([]);
   }
 
   return (
     <form className="add-stock-form" onSubmit={handleSubmit}>
       <div className="add-form-header">
         <h3>Add to Watchlist</h3>
-        <button type="button" className="form-cancel-btn" onClick={onCancel}>✕</button>
+        <button type="button" className="form-cancel-btn" onClick={onCancel}>
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+            <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+          </svg>
+        </button>
       </div>
 
       <div className="add-form-fields">
-        <div className="form-field">
-          <label htmlFor="stock-symbol">Ticker Symbol</label>
-          <input
-            id="stock-symbol"
-            type="text"
-            placeholder="e.g. AAPL"
-            value={form.symbol}
-            onChange={handleSymbolInput}
-            maxLength={10}
-            autoFocus
-          />
+        <div className="form-field form-field-search">
+          <label htmlFor="stock-symbol">Ticker</label>
+          <div className="symbol-input-wrapper">
+            <input
+              id="stock-symbol"
+              type="text"
+              placeholder="AAPL"
+              value={form.symbol}
+              onChange={handleSymbolInput}
+              maxLength={10}
+              autoFocus
+              autoComplete="off"
+            />
+            {searching && <span className="symbol-searching" />}
+            {searchResults.length > 0 && (
+              <div className="symbol-search-results">
+                {searchResults.map(r => (
+                  <button
+                    key={r.symbol}
+                    type="button"
+                    className="symbol-result-item"
+                    onClick={() => {
+                      setForm(f => ({
+                        ...f,
+                        symbol: r.symbol,
+                        companyName: r.companyName,
+                        sector: (r.sector || 'Other') as Sector,
+                      }));
+                      setSearchResults([]);
+                    }}
+                  >
+                    <span className="result-symbol">{r.symbol}</span>
+                    <span className="result-company">{r.companyName}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="form-field">
-          <label htmlFor="stock-company">Company Name</label>
+          <label htmlFor="stock-company">Company</label>
           <input
             id="stock-company"
             type="text"
-            placeholder="e.g. Apple Inc."
+            placeholder="Apple Inc."
             value={form.companyName}
             onChange={e => setForm(f => ({ ...f, companyName: e.target.value }))}
           />
@@ -542,17 +671,6 @@ function TickerTape() {
       </div>
     </div>
   );
-}
-
-// ── Live Price Fetch ───────────────────────────────────────────────
-
-async function fetchLivePrice(symbol: string): Promise<{ price: string; change: ChangeDirection; changeAmount: string } | null> {
-  try {
-    const price: number = await invoke('pulse_fetch_price', { symbol });
-    return { price: String(price), change: 'neutral' as ChangeDirection, changeAmount: '' };
-  } catch {
-    return null;
-  }
 }
 
 // ── Main StocksTab ────────────────────────────────────────────────────
@@ -628,8 +746,10 @@ export default function StocksTab() {
 
   return (
     <div className="stocks-tab">
-      {/* Ticker tape */}
-      <TickerTape />
+      {/* Ticker tape — sits in its own zone, sticky below tab bar */}
+      <div className="ticker-zone">
+        <TickerTape />
+      </div>
 
       {/* Page header */}
       <div className="stocks-header">
@@ -639,35 +759,37 @@ export default function StocksTab() {
             <span className="stocks-count">{stocks.length} stock{stocks.length !== 1 ? 's' : ''}</span>
           )}
         </div>
-        {stocks.length > 0 && !showAddForm && (
-          <button
-            className={`btn-refresh-all ${refreshing ? 'refreshing' : ''} ${liveBadge ? 'live-badge-shown' : ''}`}
-            onClick={handleRefreshAll}
-            disabled={refreshing}
-          >
-            {refreshing ? (
-              <>
-                <span className="refresh-spinner" />
-                <span>Refreshing…</span>
-              </>
-            ) : liveBadge ? (
-              <>
-                <span className="live-check">✓</span>
-                <span>Live</span>
-              </>
-            ) : (
-              <span>↻ Refresh All</span>
-            )}
-          </button>
-        )}
-        {!showAddForm && (
-          <button
-            className="btn-open-add-form"
-            onClick={() => setShowAddForm(true)}
-          >
-            <span>➕</span> Add Stock
-          </button>
-        )}
+        <div className="stocks-header-actions">
+          {stocks.length > 0 && !showAddForm && (
+            <button
+              className={`btn-refresh-all ${refreshing ? 'refreshing' : ''} ${liveBadge ? 'live-badge-shown' : ''}`}
+              onClick={handleRefreshAll}
+              disabled={refreshing}
+            >
+              {refreshing ? (
+                <>
+                  <span className="refresh-spinner" />
+                  <span>Refreshing…</span>
+                </>
+              ) : liveBadge ? (
+                <>
+                  <span className="live-check">✓</span>
+                  <span>Live</span>
+                </>
+              ) : (
+                <span>↻ Refresh All</span>
+              )}
+            </button>
+          )}
+          {!showAddForm && (
+            <button
+              className="btn-open-add-form"
+              onClick={() => setShowAddForm(true)}
+            >
+              <span>➕</span> Add Stock
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Add form */}
