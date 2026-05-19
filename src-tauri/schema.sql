@@ -1153,6 +1153,60 @@ CREATE INDEX IF NOT EXISTS idx_budget_transactions_bucket ON budget_transactions
 CREATE INDEX IF NOT EXISTS idx_budget_transactions_date ON budget_transactions(date);
 
 -- ============================================================
+-- PULSE FINANCE — Stock Watchlist & Portfolio Tracking
+-- ============================================================
+
+-- Stock Watchlist Items
+CREATE TABLE IF NOT EXISTS pulse_stocks (
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL,
+    symbol          TEXT NOT NULL,
+    company_name    TEXT,
+    sector          TEXT,
+    price           TEXT,
+    change          TEXT,
+    change_amount   TEXT,
+    added_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    UNIQUE(user_id, symbol)
+);
+CREATE INDEX IF NOT EXISTS idx_pulse_stocks_user ON pulse_stocks(user_id);
+
+-- Portfolio Holdings (custom asset tracker)
+CREATE TABLE IF NOT EXISTS pulse_holdings (
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL,
+    asset_name      TEXT NOT NULL,
+    asset_type      TEXT NOT NULL,
+    symbol          TEXT,
+    shares          REAL DEFAULT 0,
+    cost_basis      REAL DEFAULT 0,
+    current_value   REAL DEFAULT 0,
+    tag             TEXT,
+    notes           TEXT,
+    last_updated    TEXT,
+    updated_at      TEXT,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_pulse_holdings_user ON pulse_holdings(user_id);
+CREATE INDEX IF NOT EXISTS idx_pulse_holdings_tag ON pulse_holdings(tag);
+
+-- Investment Goals (long-term: 401k, IRA, HSA, custom)
+CREATE TABLE IF NOT EXISTS pulse_investment_goals (
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL,
+    name            TEXT NOT NULL,
+    goal_type       TEXT NOT NULL,
+    target_amount   REAL NOT NULL DEFAULT 0,
+    current_amount  REAL NOT NULL DEFAULT 0,
+    target_date     TEXT,
+    monthly_contribution REAL NOT NULL DEFAULT 0,
+    risk_profile    TEXT DEFAULT 'moderate',
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_pulse_investments_user ON pulse_investment_goals(user_id);
+
+-- ============================================================
 -- SMART KITCHEN — Meal Management System
 -- ============================================================
 
@@ -2264,3 +2318,31 @@ CREATE TABLE IF NOT EXISTS siem_weekly_reports (
 );
 
 CREATE INDEX IF NOT EXISTS idx_siem_reports_week ON siem_weekly_reports(week_start DESC);
+
+-- ─────────────────────────────────────────────────────────
+-- PULSE FINANCE — Sessions & Messages
+-- Manages Pulse financial advisor chat sessions + history
+-- ─────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS pulse_sessions (
+    id              TEXT PRIMARY KEY,
+    started_at      TEXT NOT NULL,
+    ended_at        TEXT,
+    status          TEXT NOT NULL DEFAULT 'active',
+    message_count   INTEGER NOT NULL DEFAULT 0,
+    summary         TEXT,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_pulse_sessions_started ON pulse_sessions(started_at DESC);
+
+CREATE TABLE IF NOT EXISTS pulse_messages (
+    id              TEXT PRIMARY KEY,
+    session_id      TEXT NOT NULL,
+    role            TEXT NOT NULL,          -- 'user' | 'pulse'
+    content         TEXT NOT NULL,
+    timestamp       TEXT NOT NULL,
+    FOREIGN KEY (session_id) REFERENCES pulse_sessions(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_pulse_messages_session ON pulse_messages(session_id);

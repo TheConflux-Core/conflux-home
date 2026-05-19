@@ -858,6 +858,25 @@ pub struct HomeMenuItem {
     pub reason: String, // "You have all ingredients" / "Uses expiring X"
     pub estimated_minutes: i64,
     pub missing_ingredients: Vec<String>,
+    pub photo_url: Option<String>,
+    pub prep_time_min: Option<i64>,
+    pub cook_time_min: Option<i64>,
+    pub is_favorite: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TonightMeal {
+    pub meal_id: String,
+    pub name: String,
+    pub emoji: String,
+    pub photo_url: Option<String>,
+    pub reason: String, // "Uses chicken expiring Thursday"
+    pub prep_time_min: Option<i64>,
+    pub cook_time_min: Option<i64>,
+    pub servings: i64,
+    pub nutrition_tags: Vec<String>,     // ["high-protein", "low-carb"]
+    pub uses_expiring: Vec<String>,       // ["chicken", "lemon"]
+    pub confidence: f64,                 // 0.0–1.0
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

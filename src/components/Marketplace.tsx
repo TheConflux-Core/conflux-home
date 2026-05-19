@@ -3,6 +3,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { MARKETPLACE_ITEMS, MarketplaceItem, MarketplaceItemType } from '../data/marketplace-items';
 import '../styles-marketplace.css';
 
+// ── Type & Category Config ─────────────────────────────────────
+
 type TypeTab = 'all' | MarketplaceItemType;
 
 const TYPE_TABS: { id: TypeTab; label: string; emoji: string }[] = [
@@ -18,27 +20,51 @@ const TYPE_LABELS: Record<MarketplaceItemType, string> = {
   agent: 'Agent',
 };
 
+// Per-category accent colors — consistent identity across the bazaar
+const CATEGORY_COLORS: Record<string, string> = {
+  all: '#f5c842',
+  life: '#ff8844',
+  productivity: '#00cc88',
+  knowledge: '#64748b',
+  classic: '#fbbf24',
+  story: '#cc66aa',
+  creative: '#ff66cc',
+  work: '#00d4ff',
+  expert: '#ff6633',
+  education: '#8b5cf6',
+  fun: '#ff44aa',
+};
+
+function categoryColor(cat: string): string {
+  return CATEGORY_COLORS[cat] ?? '#f5c842';
+}
+
+// ── Marketplace ────────────────────────────────────────────────
+
 export default function Marketplace() {
   const [typeTab, setTypeTab] = useState<TypeTab>('all');
   const [categoryTab, setCategoryTab] = useState('all');
   const [search, setSearch] = useState('');
   const [localStatus, setLocalStatus] = useState<Record<string, MarketplaceItem['status']>>({});
 
-  // Compute categories for current type
+  // All categories visible under the current type
   const categories = useMemo(() => {
-    const source = typeTab === 'all' ? MARKETPLACE_ITEMS : MARKETPLACE_ITEMS.filter((i) => i.type === typeTab);
+    const source =
+      typeTab === 'all'
+        ? MARKETPLACE_ITEMS
+        : MARKETPLACE_ITEMS.filter((i) => i.type === typeTab);
     const cats = [...new Set(source.map((i) => i.category))];
     return ['all', ...cats.sort()];
   }, [typeTab]);
 
-  // Reset category when type changes
-  const handleTypeTab = (id: TypeTab) => {
+  // Stable handler — resets category to 'all' when switching type
+  const handleTypeTab = useCallback((id: TypeTab) => {
     setTypeTab(id);
     setCategoryTab('all');
-  };
+  }, []);
 
-  // Filtered items
-  const filtered = useMemo(() => {
+  // Items after all filters applied (for grid mode)
+  const filteredItems = useMemo(() => {
     let items = MARKETPLACE_ITEMS;
     if (typeTab !== 'all') items = items.filter((i) => i.type === typeTab);
     if (categoryTab !== 'all') items = items.filter((i) => i.category === categoryTab);
@@ -55,16 +81,26 @@ export default function Marketplace() {
     return items.map((i) => ({ ...i, status: localStatus[i.id] ?? i.status }));
   }, [typeTab, categoryTab, search, localStatus]);
 
-  // Featured items
-  const featured = useMemo(() => {
-    if (typeTab !== 'all' || search.trim()) {
-      return filtered.filter((i) => i.featured);
-    }
+  // Featured items — only on All + no search
+  const featuredItems = useMemo(() => {
+    if (typeTab !== 'all' || search.trim()) return [];
     return MARKETPLACE_ITEMS.filter((i) => i.featured).map((i) => ({
       ...i,
       status: localStatus[i.id] ?? i.status,
     }));
-  }, [typeTab, search, filtered, localStatus]);
+  }, [typeTab, search, localStatus]);
+
+  // Group non-featured items by category — for the grouped browse view
+  const groupedItems = useMemo(() => {
+    if (typeTab !== 'all' || search.trim()) return [];
+    const nonFeatured = filteredItems.filter((i) => !i.featured);
+    const groups: Record<string, MarketplaceItem[]> = {};
+    for (const item of nonFeatured) {
+      if (!groups[item.category]) groups[item.category] = [];
+      groups[item.category].push(item);
+    }
+    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+  }, [typeTab, search, filteredItems]);
 
   // Handlers
   const handleOpen = useCallback((item: MarketplaceItem) => {
@@ -76,16 +112,19 @@ export default function Marketplace() {
     );
   }, []);
 
-  const handleInstall = useCallback(async (item: MarketplaceItem, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (item.status === 'coming-soon' || item.status === 'installed') return;
-    try {
-      await invoke('agent_template_install', { template_id: item.agentId, member_id: null });
-      setLocalStatus((prev) => ({ ...prev, [item.id]: 'installed' }));
-    } catch {
-      // install failed — leave as available
-    }
-  }, []);
+  const handleInstall = useCallback(
+    async (item: MarketplaceItem, e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (item.status === 'coming-soon' || item.status === 'installed') return;
+      try {
+        await invoke('agent_template_install', { template_id: item.agentId, member_id: null });
+        setLocalStatus((prev) => ({ ...prev, [item.id]: 'installed' }));
+      } catch {
+        // leave as available
+      }
+    },
+    []
+  );
 
   const getButtonText = (status: MarketplaceItem['status']) => {
     switch (status) {
@@ -95,16 +134,16 @@ export default function Marketplace() {
     }
   };
 
-  const showCategories = categories.length > 2;
+  const isGroupedBrowse = typeTab === 'all' && !search.trim() && categoryTab === 'all';
 
   return (
-    <div className="marketplace-hub" style={{ paddingTop: '50px', paddingBottom: '150px', paddingLeft: '121px', paddingRight: '121px' }}>
+    <div className="marketplace-hub">
       {/* Hero */}
       <div className="marketplace-hero">
         <div className="marketplace-hero-glow" />
         <div className="marketplace-hero-content">
           <div className="marketplace-hero-icon">
-            <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+            <svg width="52" height="52" viewBox="0 0 56 56" fill="none">
               <rect x="4" y="20" width="48" height="32" rx="4" fill="rgba(245,200,66,0.12)" stroke="rgba(245,200,66,0.4)" strokeWidth="1.5"/>
               <rect x="10" y="26" width="12" height="10" rx="2" fill="rgba(245,200,66,0.2)" stroke="rgba(245,200,66,0.3)" strokeWidth="1"/>
               <rect x="26" y="26" width="12" height="10" rx="2" fill="rgba(245,200,66,0.2)" stroke="rgba(245,200,66,0.3)" strokeWidth="1"/>
@@ -118,83 +157,149 @@ export default function Marketplace() {
         </div>
       </div>
 
-      <div className="marketplace-content">
-        {/* Search */}
-        <div className="marketplace-search">
-          <div className="marketplace-search-inner">
-            <span className="marketplace-search-icon">🔍</span>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search apps, games, agents..."
-            />
-          </div>
-        </div>
+      {/* Sticky filter bar */}
+      <div className="marketplace-filters">
+        <div className="marketplace-content">
 
-        {/* Tabs */}
-        <div className="marketplace-tabs-row">
-          <div className="marketplace-tabs">
-            {TYPE_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                className={`type-tab ${typeTab === tab.id ? 'active' : ''}`}
-                data-type={tab.id}
-                onClick={() => handleTypeTab(tab.id)}
-              >
-                {tab.emoji} {tab.label}
-              </button>
-            ))}
+          {/* Search */}
+          <div className="marketplace-search">
+            <div className="marketplace-search-inner">
+              <span className="marketplace-search-icon">🔍</span>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search apps, games, agents..."
+              />
+              {search && (
+                <button className="search-clear" onClick={() => setSearch('')}>✕</button>
+              )}
+            </div>
           </div>
 
-          {/* Category Tabs */}
-          {showCategories && (
-            <div className="marketplace-tabs">
-              {categories.map((cat) => (
+          {/* Type Tabs */}
+          <div className="marketplace-tabs-row">
+            <div className="marketplace-type-tabs">
+              {TYPE_TABS.map((tab) => (
                 <button
-                  key={cat}
-                  className={`category-tab ${categoryTab === cat ? 'active' : ''}`}
-                  onClick={() => setCategoryTab(cat)}
+                  key={tab.id}
+                  className={`type-tab ${typeTab === tab.id ? 'active' : ''}`}
+                  data-type={tab.id}
+                  onClick={() => handleTypeTab(tab.id)}
                 >
-                  {cat === 'all' ? 'All' : cat}
+                  {tab.emoji} {tab.label}
                 </button>
               ))}
             </div>
-          )}
-        </div>
 
-        {/* Featured Section */}
-        {featured.length > 0 && typeTab === 'all' && !search.trim() && (
-          <div className="marketplace-featured">
-            <div className="marketplace-section-label">⭐ Featured</div>
-            <div className="featured-grid">
-              {featured.map((item) => (
-                <MarketplaceFeaturedCard
-                  key={item.id}
-                  item={item}
-                  onOpen={() => handleOpen(item)}
-                  onInstall={(e) => handleInstall(item, e)}
-                  getButtonText={getButtonText}
-                />
-              ))}
-            </div>
+            {/* Category Tabs — only show when not on "All" type, or in grouped mode */}
+            {(typeTab !== 'all' || (typeTab === 'all' && categoryTab !== 'all')) && (
+              <div className="marketplace-category-tabs">
+                <button
+                  className={`category-tab ${categoryTab === 'all' ? 'active' : ''}`}
+                  onClick={() => setCategoryTab('all')}
+                  style={{ '--cat-color': '#f5c842' } as React.CSSProperties}
+                >
+                  All
+                </button>
+                {categories.filter((c) => c !== 'all').map((cat) => (
+                  <button
+                    key={cat}
+                    className={`category-tab ${categoryTab === cat ? 'active' : ''}`}
+                    onClick={() => setCategoryTab(cat)}
+                    style={{ '--cat-color': categoryColor(cat) } as React.CSSProperties}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div className="marketplace-content marketplace-body">
+
+        {/* ── Grouped Browse View (All, no filter) ── */}
+        {isGroupedBrowse && (
+          <>
+            {/* Featured row */}
+            {featuredItems.length > 0 && (
+              <div className="marketplace-section">
+                <div className="marketplace-section-header">
+                  <div className="section-header-accent" style={{ background: 'linear-gradient(90deg, #f5c842, #f0a830)' }} />
+                  <div>
+                    <span className="section-eyebrow">Handpicked</span>
+                    <h2 className="marketplace-section-title">Featured</h2>
+                  </div>
+                </div>
+                <div className="marketplace-card-row">
+                  {featuredItems.map((item) => (
+                    <MarketplaceCard
+                      key={item.id}
+                      item={item}
+                      variant="featured"
+                      onOpen={() => handleOpen(item)}
+                      onInstall={(e) => handleInstall(item, e)}
+                      getButtonText={getButtonText}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Category groups */}
+            {groupedItems.map(([category, items]) => (
+              <div key={category} className="marketplace-section">
+                <div className="marketplace-section-header">
+                  <div
+                    className="section-header-accent"
+                    style={{ background: `linear-gradient(90deg, ${categoryColor(category)}, ${categoryColor(category)}66)` }}
+                  />
+                  <div className="section-header-text">
+                    <span className="section-eyebrow">Browse</span>
+                    <h2 className="marketplace-section-title" style={{ color: categoryColor(category) }}>
+                      {category.charAt(0).toUpperCase() + category.slice(1)}
+                    </h2>
+                    <span className="section-count">{items.length} item{items.length !== 1 ? 's' : ''}</span>
+                  </div>
+                </div>
+                <div className="marketplace-card-row">
+                  {items.map((item) => (
+                    <MarketplaceCard
+                      key={item.id}
+                      item={item}
+                      variant="browse"
+                      onOpen={() => handleOpen(item)}
+                      onInstall={(e) => handleInstall(item, e)}
+                      getButtonText={getButtonText}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </>
         )}
 
-        {/* Main Grid */}
-        {filtered.length > 0 ? (
+        {/* ── Grid View (type selected OR search active OR category selected) ── */}
+        {!isGroupedBrowse && filteredItems.length > 0 && (
           <div className="marketplace-grid">
-            {filtered.map((item) => (
+            {filteredItems.map((item) => (
               <MarketplaceCard
                 key={item.id}
                 item={item}
+                variant="grid"
                 onOpen={() => handleOpen(item)}
                 onInstall={(e) => handleInstall(item, e)}
                 getButtonText={getButtonText}
               />
             ))}
           </div>
-        ) : (
+        )}
+
+        {/* ── Empty State ── */}
+        {filteredItems.length === 0 && (
           <div className="marketplace-empty">
             <span className="empty-emoji">🔍</span>
             <h3>No results found</h3>
@@ -206,79 +311,67 @@ export default function Marketplace() {
   );
 }
 
-// ─── Card Components ──────────────────────────────────────────
+// ── Card Component ────────────────────────────────────────────────
+
+type CardVariant = 'featured' | 'browse' | 'grid';
 
 function MarketplaceCard({
   item,
+  variant,
   onOpen,
   onInstall,
   getButtonText,
 }: {
   item: MarketplaceItem;
+  variant: CardVariant;
   onOpen: () => void;
   onInstall: (e: React.MouseEvent) => void;
   getButtonText: (s: MarketplaceItem['status']) => string;
 }) {
-  return (
-    <div
-      className={`marketplace-card ${item.status === 'coming-soon' ? 'coming-soon' : ''}`}
-      style={{ '--card-color': item.color } as React.CSSProperties}
-      onClick={onOpen}
-    >
-      <span className="card-emoji">{item.emoji}</span>
-      <h3 className="card-name">{item.name}</h3>
-      <p className="card-tagline">{item.tagline}</p>
-      <span className="card-category-badge">{TYPE_LABELS[item.type]}</span>
-      <div className="card-skills">
-        {item.skills.slice(0, 3).map((skill) => (
-          <span key={skill} className="skill-tag">{skill}</span>
-        ))}
-      </div>
-      <button
-        className={`card-action ${item.status}`}
-        onClick={item.status === 'available' ? onInstall : item.status === 'installed' ? onOpen : undefined}
-        disabled={item.status === 'coming-soon'}
-      >
-        {getButtonText(item.status)}
-      </button>
-    </div>
-  );
-}
+  const isDisabled = item.status === 'coming-soon';
+  const cardStyle = { '--card-color': item.color } as React.CSSProperties;
 
-function MarketplaceFeaturedCard({
-  item,
-  onOpen,
-  onInstall,
-  getButtonText,
-}: {
-  item: MarketplaceItem;
-  onOpen: () => void;
-  onInstall: (e: React.MouseEvent) => void;
-  getButtonText: (s: MarketplaceItem['status']) => string;
-}) {
   return (
     <div
-      className={`featured-card ${item.status === 'coming-soon' ? 'coming-soon' : ''}`}
-      style={{ '--card-color': item.color } as React.CSSProperties}
-      onClick={onOpen}
+      className={`mp-card mp-card--${variant} ${isDisabled ? 'mp-card--disabled' : ''}`}
+      style={cardStyle}
+      onClick={isDisabled ? undefined : onOpen}
     >
-      <span className="featured-badge">Featured</span>
-      <span className="card-emoji">{item.emoji}</span>
-      <h3 className="card-name">{item.name}</h3>
-      <p className="card-tagline">{item.tagline}</p>
-      <span className="card-category-badge">{TYPE_LABELS[item.type]}</span>
-      <div className="card-skills">
-        {item.skills.slice(0, 3).map((skill) => (
-          <span key={skill} className="skill-tag">{skill}</span>
-        ))}
+      {/* Color accent top bar */}
+      <div className="mp-card-accent" />
+
+      {/* Card header row */}
+      <div className="mp-card-header">
+        <span className="mp-card-emoji">{item.emoji}</span>
+        <div className="mp-card-meta">
+          <span className="mp-card-type-badge">{TYPE_LABELS[item.type]}</span>
+          {item.status === 'installed' && <span className="mp-installed-dot" title="Installed" />}
+        </div>
       </div>
-      <button
-        className={`card-action ${item.status}`}
-        onClick={item.status === 'available' ? onInstall : item.status === 'installed' ? onOpen : undefined}
-        disabled={item.status === 'coming-soon'}
-      >
-        {getButtonText(item.status)}
-      </button>
+
+      {/* Content */}
+      <div className="mp-card-body">
+        <h3 className="mp-card-name">{item.name}</h3>
+        <p className="mp-card-tagline">{item.tagline}</p>
+
+        {/* Skill tags */}
+        <div className="mp-card-skills">
+          {item.skills.slice(0, 3).map((skill) => (
+            <span key={skill} className="mp-skill-tag">{skill}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* CTA */}
+      <div className="mp-card-footer">
+        <button
+          className={`mp-card-action mp-card-action--${item.status}`}
+          onClick={item.status === 'available' ? onInstall : item.status === 'installed' ? onOpen : undefined}
+          disabled={isDisabled}
+        >
+          {getButtonText(item.status)}
+        </button>
+      </div>
     </div>
   );
 }

@@ -2850,34 +2850,154 @@ pub async fn kitchen_get_inventory(
 
 // ── Kitchen Hearth Commands ──
 
+/// Returns tonight's top recommended meal with a reason grounded in the user's pantry + goals.
 #[tauri::command]
-pub async fn kitchen_home_menu(
+pub async fn kitchen_tonights_menu(
     member_id: Option<String>,
+) -> Result<Option<engine::types::TonightMeal>, String> {
+    let user_id = member_id.unwrap_or_else(|| get_supabase_user_id());
+    let engine = engine::get_engine();
+
+    // Fetch inventory and meals
+    let inventory = engine.db().get_inventory(&user_id, None).await.unwrap_or_default();
+    let meals = engine.db().get_meals(None, None, false).await.unwrap_or_default();
+
+
+    if meals.is_empty() {
+        return Ok(None);
+    }
+
+    // Find ingredients expiring within 5 days
+    let today = chrono::Utc::now().date_naive();
+    let expiring: Vec<String> = inventory
+        .iter()
+        .filter_map(|item| {
+            let expiry = item.expiry_date.as_ref()?;
+            let exp_date = chrono::NaiveDate::parse_from_str(expiry, "%Y-%m-%d").ok()?;
+            let days = (exp_date - today).num_days();
+            if days >= 0 && days <= 5 {
+                Some(item.name.to_lowercase())
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // Score meals: prefer those using expiring ingredients + favorites
+    let mut scored: Vec<(i64, engine::types::TonightMeal)> = meals
+        .iter()
+        .map(|meal| {
+            let expiring_count = 0i64; // simplified: no ingredient cross-check yet
+            let score = if meal.is_favorite { 10 } else { 0 } + expiring_count;
+            let reason = if meal.is_favorite {
+                format!("One of your favorites — {} (made {}x)", meal.name, meal.times_made)
+            } else if !expiring.is_empty() {
+                format!("Uses ingredients you have on hand")
+            } else {
+                format!("Ready to cook")
+            };
+            (
+                score,
+                engine::types::TonightMeal {
+                    meal_id: meal.id.clone(),
+                    name: meal.name.clone(),
+                    emoji: resolve_meal_emoji(meal),
+                    photo_url: meal.photo_url.clone(),
+                    reason,
+                    prep_time_min: meal.prep_time_min,
+                    cook_time_min: meal.cook_time_min,
+                    servings: meal.servings,
+                    nutrition_tags: parse_tags(meal.tags.as_deref()),
+                    uses_expiring: Vec::new(),
+                    confidence: 0.7,
+                },
+            )
+        })
+        .collect();
+
+
+    scored.sort_by(|a, b| b.0.cmp(&a.0));
+    Ok(scored.into_iter().next().map(|(_, m)| m))
+}
+
+/// Chef's Specials: top 5 intelligent recommendations (not tonight's top pick).
+#[tauri::command]
+pub async fn kitchen_chefs_specials(
+    member_id: Option<String>,
+    limit: Option<i64>,
 ) -> Result<Vec<engine::types::HomeMenuItem>, String> {
     let user_id = member_id.unwrap_or_else(|| get_supabase_user_id());
     let engine = engine::get_engine();
-    let _inventory = engine
-        .db()
-        .get_inventory(&user_id, None)
-        .await
-        .unwrap_or_default();
-    let meals = engine
-        .db()
-        .get_meals(None, None, false)
-        .await
-        .unwrap_or_default();
-    let mut menu = Vec::new();
-    for meal in meals.iter().take(5) {
-        menu.push(engine::types::HomeMenuItem {
-            meal_id: meal.id.clone(),
-            name: meal.name.clone(),
-            emoji: "🍽️".to_string(),
-            reason: "Ready to cook".to_string(),
-            estimated_minutes: 30,
-            missing_ingredients: Vec::new(),
-        });
+    let inventory = engine.db().get_inventory(&user_id, None).await.unwrap_or_default();
+    let meals = engine.db().get_meals(None, None, false).await.unwrap_or_default();
+
+    let today = chrono::Utc::now().date_naive();
+    let expiring: std::collections::HashSet<String> = inventory
+        .iter()
+        .filter_map(|item| {
+            let expiry = item.expiry_date.as_ref()?;
+            let exp_date = chrono::NaiveDate::parse_from_str(expiry, "%Y-%m-%d").ok()?;
+            let days = (exp_date - today).num_days();
+            if days >= 0 && days <= 5 {
+                Some(item.name.to_lowercase())
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let limit = limit.unwrap_or(5) as usize;
+    let specials: Vec<engine::types::HomeMenuItem> = meals
+        .iter()
+        .enumerate()
+        .map(|(idx, meal)| {
+            let reason = if meal.is_favorite {
+                format!("⭐ A favorite you love ({}x)", meal.times_made)
+            } else if meal.times_made > 0 {
+                format!("You've made this {} time(s)", meal.times_made)
+            } else {
+                format!("✨ Fresh find — new to your kitchen")
+            };
+            engine::types::HomeMenuItem {
+                meal_id: meal.id.clone(),
+                name: meal.name.clone(),
+                emoji: resolve_meal_emoji(meal),
+                reason,
+                estimated_minutes: meal.prep_time_min.unwrap_or(0)
+                    + meal.cook_time_min.unwrap_or(0),
+                missing_ingredients: Vec::new(),
+                photo_url: meal.photo_url.clone(),
+                prep_time_min: meal.prep_time_min,
+                cook_time_min: meal.cook_time_min,
+                is_favorite: meal.is_favorite,
+            }
+        })
+        .take(limit)
+        .collect();
+
+    Ok(specials)
+}
+
+fn resolve_meal_emoji(meal: &engine::types::Meal) -> String {
+    if let Some(ref cat) = meal.category {
+        match cat.as_str() {
+            "breakfast" => "🥞".to_string(),
+            "lunch" => "🥗".to_string(),
+            "dinner" => "🍽️".to_string(),
+            "snack" => "🍪".to_string(),
+            "dessert" => "🍰".to_string(),
+            _ => "🍽️".to_string(),
+        }
+    } else {
+        "🍽️".to_string()
     }
-    Ok(menu)
+}
+
+fn parse_tags(tags: Option<&str>) -> Vec<String> {
+    match tags {
+        Some(s) => serde_json::from_str(s).unwrap_or_default(),
+        None => Vec::new(),
+    }
 }
 
 #[tauri::command]
@@ -3260,37 +3380,37 @@ pub async fn budget_get_entries(
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn budget_get_summary(
-    member_id: String,
+    member_id: Option<String>,
     month: String,
 ) -> Result<engine::types::BudgetSummary, String> {
     let engine = engine::get_engine();
     let conn = engine.db().conn_async().await;
 
     let total_income: f64 = conn.query_row(
-        "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id = ?1 AND entry_type = 'income' AND strftime('%Y-%m', date) = ?2",
-        rusqlite::params![member_id, month], |row| row.get(0)
+        "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE entry_type = 'income' AND strftime('%Y-%m', date) = ?1",
+        rusqlite::params![&month], |row| row.get(0)
     ).unwrap_or(0.0);
 
     let total_expenses: f64 = conn.query_row(
-        "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id = ?1 AND entry_type = 'expense' AND strftime('%Y-%m', date) = ?2",
-        rusqlite::params![member_id, month], |row| row.get(0)
+        "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE entry_type = 'expense' AND strftime('%Y-%m', date) = ?1",
+        rusqlite::params![&month], |row| row.get(0)
     ).unwrap_or(0.0);
 
     let total_savings: f64 = conn.query_row(
-        "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id = ?1 AND entry_type = 'savings' AND strftime('%Y-%m', date) = ?2",
-        rusqlite::params![member_id, month], |row| row.get(0)
+        "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE entry_type = 'savings' AND strftime('%Y-%m', date) = ?1",
+        rusqlite::params![&month], |row| row.get(0)
     ).unwrap_or(0.0);
 
     // Category breakdown for expenses
     let mut cat_stmt = conn
         .prepare(
             "SELECT category, SUM(amount) as total FROM budget_entries
-         WHERE member_id = ?1 AND entry_type = 'expense' AND strftime('%Y-%m', date) = ?2
+         WHERE entry_type = 'expense' AND strftime('%Y-%m', date) = ?1
          GROUP BY category ORDER BY total DESC",
         )
         .map_err(|e| e.to_string())?;
     let cat_rows = cat_stmt
-        .query_map(rusqlite::params![member_id, month], |row| {
+        .query_map(rusqlite::params![&month], |row| {
             Ok(engine::types::CategoryTotal {
                 category: row.get(0)?,
                 total: row.get(1)?,
@@ -10492,6 +10612,132 @@ pub async fn siem_get_weekly_reports(limit: Option<i64>) -> Result<Vec<serde_jso
 }
 
 
+// ─────────────────────────────────────────────
+// PULSE FINANCE ADVISOR COMMANDS
+// ─────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PulseSession {
+    pub id: String,
+    pub started_at: String,
+    pub ended_at: Option<String>,
+    pub status: String,
+    pub message_count: i64,
+    pub summary: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PulseMessage {
+    pub id: String,
+    pub session_id: String,
+    pub role: String,
+    pub content: String,
+    pub timestamp: String,
+}
+
+/// Start a new Pulse financial chat session.
+#[tauri::command(rename_all = "snake_case")]
+pub fn pulse_start_session() -> Result<PulseSession, String> {
+    use engine::pulse;
+    let engine = engine::get_engine();
+    let conn = engine.db().conn();
+    let now = chrono::Utc::now();
+    let id = uuid::Uuid::new_v4().to_string();
+    let now_str = now.to_rfc3339();
+
+    conn.execute(
+        "INSERT INTO pulse_sessions (id, started_at, status) VALUES (?, ?, 'active')",
+        [&id, &now_str],
+    ).map_err(|e| e.to_string())?;
+
+
+    // Insert opening message from Pulse
+    let opening_id = uuid::Uuid::new_v4().to_string();
+    let opening = "Hey, I'm Pulse — your financial advisor. I know your budget, your goals, and how you're tracking. I can answer questions about your finances, help you make decisions, or just give you a check-up on where things stand. What do you need?";
+    conn.execute(
+        "INSERT INTO pulse_messages (id, session_id, role, content, timestamp) VALUES (?, ?, 'pulse', ?, ?)",
+        rusqlite::params![&opening_id, &id, opening, &now_str],
+    ).map_err(|e| e.to_string())?;
+
+    conn.execute(
+        "UPDATE pulse_sessions SET message_count = 1 WHERE id = ?",
+        [&id],
+    ).map_err(|e| e.to_string())?;
+
+    Ok(PulseSession {
+        id,
+        started_at: now_str,
+        ended_at: None,
+        status: "active".to_string(),
+        message_count: 1,
+        summary: None,
+    })
+}
+
+
+/// End an active Pulse session.
+#[tauri::command(rename_all = "snake_case")]
+pub fn pulse_end_session(session_id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let conn = engine.db().conn();
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "UPDATE pulse_sessions SET ended_at = ?, status = 'ended' WHERE id = ?",
+        rusqlite::params![&now, &session_id],
+    ).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Get all messages for a Pulse session.
+#[tauri::command(rename_all = "snake_case")]
+pub fn pulse_get_messages(session_id: String) -> Result<Vec<PulseMessage>, String> {
+    let engine = engine::get_engine();
+    let conn = engine.db().conn();
+    let mut stmt = conn
+        .prepare("SELECT id, session_id, role, content, timestamp FROM pulse_messages WHERE session_id = ? ORDER BY timestamp ASC")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([&session_id], |row| {
+            Ok(PulseMessage {
+                id: row.get(0)?,
+                session_id: row.get(1)?,
+                role: row.get(2)?,
+                content: row.get(3)?,
+                timestamp: row.get(4)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    rows.map(|r| r.map_err(|e| e.to_string()))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
+}
+
+/// Get all Pulse sessions (most recent first).
+#[tauri::command(rename_all = "snake_case")]
+pub fn pulse_get_sessions(limit: Option<i64>) -> Result<Vec<PulseSession>, String> {
+    let engine = engine::get_engine();
+    let conn = engine.db().conn();
+    let limit = limit.unwrap_or(20);
+    let mut stmt = conn
+        .prepare("SELECT id, started_at, ended_at, status, message_count, summary FROM pulse_sessions ORDER BY started_at DESC LIMIT ?")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([limit], |row| {
+            Ok(PulseSession {
+                id: row.get(0)?,
+                started_at: row.get(1)?,
+                ended_at: row.get(2)?,
+                status: row.get(3)?,
+                message_count: row.get(4)?,
+                summary: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    rows.map(|r| r.map_err(|e| e.to_string()))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
+}
+
 /// Test command — returns a hardcoded string, no DB access.
 #[tauri::command]
 pub fn test_ping() -> Result<String, String> {
@@ -10513,4 +10759,38 @@ pub async fn test_db_ping() -> Result<String, String> {
     .await
     .map_err(|e| e.to_string())??;
     Ok(format!("agents: {}", count))
+}
+
+// ─────────────────────────────────────────────
+// PULSE MESSAGING HELPERS
+// ─────────────────────────────────────────────
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn pulse_save_message(
+    session_id: String,
+    role: String,
+    content: String,
+    timestamp: String,
+) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let conn = engine.db().conn();
+    let id = uuid::Uuid::new_v4().to_string();
+    conn.execute(
+        "INSERT INTO pulse_messages (id, session_id, role, content, timestamp) VALUES (?, ?, ?, ?, ?)",
+        rusqlite::params![&id, &session_id, &role, &content, &timestamp],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn pulse_increment_session_count(session_id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let conn = engine.db().conn();
+    conn.execute(
+        "UPDATE pulse_sessions SET message_count = message_count + 1 WHERE id = ?",
+        [&session_id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
 }

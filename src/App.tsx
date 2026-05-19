@@ -40,7 +40,7 @@ import StoryGameReader from './components/StoryGameReader';
 import ParentDashboard from './components/ParentDashboard';
 import VoiceChat from './components/VoiceChat';
 import KitchenView from './components/KitchenView';
-import BudgetView from './components/BudgetView';
+import PulseWrapper from './components/PulseWrapper';
 import FeedView from './components/FeedView';
 import LifeAutopilotView from './components/LifeAutopilotView';
 import HomeHealthView from './components/HomeHealthView';
@@ -104,7 +104,7 @@ const VIEW_BACKGROUNDS: Record<string, string> = {
   settings: '/backgrounds/settings-bg.webp',
   dashboard: '/backgrounds/dashboard-bg.webp',
   'api-dashboard': '/backgrounds/dashboard-bg.webp', // Re-using an existing dashboard background
-  security: '/backgrounds/dashboard-bg.webp', // Re-using dashboard background
+  security: '/backgrounds/themes/aegis.png',
 };
 
 // Default wallpapers — uses color theme if set
@@ -1275,7 +1275,7 @@ const [activeSnake, setActiveSnake] = useState(false);
           onClose={() => setImmersiveView(null)}
         >
           {immersiveView === 'kitchen' && <KitchenView />}
-          {immersiveView === 'budget' && <BudgetView />}
+          {immersiveView === 'budget' && <PulseWrapper />}
           {immersiveView === 'feed' && <FeedView />}
           {immersiveView === 'life' && <LifeAutopilotView />}
           {immersiveView === 'home' && <HomeHealthView />}
