@@ -67,19 +67,139 @@ pub struct StockSearchResult {
     pub logo_url: Option<String>,
 }
 
-/// Search a stock by company name or ticker using Yahoo Finance.
-/// Retries with backoff on 429/5xx errors.
+/// Search a stock by company name or ticker.
+/// Tries Finnhub first, then Alpha Vantage, then Yahoo.
 #[tauri::command(rename_all = "snake_case")]
 pub async fn pulse_search_stocks(query: String) -> Result<Vec<StockSearchResult>, String> {
     if query.trim().len() < 2 {
         return Ok(vec![]);
     }
 
+    let finnhub_key = std::env::var("FINNHUB_API_KEY").unwrap_or_default();
+    let alpha_key = std::env::var("ALPHA_VANTAGE_KEY").unwrap_or_default();
     let client = http_client();
+
+    // ── 1. Finnhub symbol search ─────────────────────────────────────────────
+    if !finnhub_key.is_empty() {
+        let url = format!(
+            "https://finnhub.io/api/v1/search?q={}&token={}&type=stock",
+            urlencoding::encode(&query),
+            finnhub_key
+        );
+        log::info!("[pulse_search_stocks] trying Finnhub for query={}", query);
+
+        match client.get(&url).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                #[derive(Deserialize)]
+                struct FinnhubSearchResult {
+                    count: usize,
+                    result: Vec<FinnhubSearchItem>,
+                }
+                #[derive(Deserialize)]
+                struct FinnhubSearchItem {
+                    description: Option<String>,
+                    display_symbol: Option<String>,
+                    symbol: Option<String>,
+                    #[serde(rename = "type")]
+                    type_field: Option<String>,
+                }
+                match resp.json::<FinnhubSearchResult>().await {
+                    Ok(sr) if sr.count > 0 => {
+                        let results: Vec<StockSearchResult> = sr
+                            .result
+                            .into_iter()
+                            .filter(|item| {
+                                item.type_field.as_deref()
+                                    .map(|t| matches!(t, "Common Stock") || matches!(t, "ETF"))
+                                    .unwrap_or(false)
+                            })
+                            .take(8)
+                            .map(|item| StockSearchResult {
+                                symbol: item.display_symbol
+                                    .or(item.symbol)
+                                    .unwrap_or_default(),
+                                company_name: item.description
+                                    .unwrap_or_default(),
+                                sector: "Other".to_string(),
+                                current_price: None,
+                                logo_url: None,
+                            })
+                            .collect();
+                        log::info!("[pulse_search_stocks] Finnhub: {} results", results.len());
+                        return Ok(results);
+                    }
+                    _ => log::warn!("[pulse_search_stocks] Finnhub parse/empty for query={}", query),
+                }
+            }
+            Ok(resp) => log::warn!("[pulse_search_stocks] Finnhub status {} for query={}", resp.status(), query),
+            Err(e) => log::warn!("[pulse_search_stocks] Finnhub error {} for query={}", e, query),
+        }
+    }
+
+    // ── 2. Alpha Vantage symbol search ───────────────────────────────────────
+    if !alpha_key.is_empty() {
+        let url = format!(
+            "https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords={}&apikey={}",
+            urlencoding::encode(&query),
+            alpha_key
+        );
+        log::info!("[pulse_search_stocks] trying Alpha Vantage for query={}", query);
+
+        match client.get(&url).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                #[derive(Deserialize)]
+                struct AlphaSearchResponse {
+                    best_matches: Option<Vec<AlphaSearchMatch>>,
+                }
+                #[derive(Deserialize)]
+                struct AlphaSearchMatch {
+                    #[serde(rename = "1. symbol")]
+                    symbol: Option<String>,
+                    #[serde(rename = "2. name")]
+                    name: Option<String>,
+                    #[serde(rename = "4. region")]
+                    region: Option<String>,
+                    #[serde(rename = "8. type")]
+                    type_field: Option<String>,
+                }
+                match resp.json::<AlphaSearchResponse>().await {
+                    Ok(sr) => {
+                        if let Some(matches) = sr.best_matches {
+                            let results: Vec<StockSearchResult> = matches
+                                .into_iter()
+                                .filter(|m| {
+                                    m.type_field.as_deref()
+                                        .map(|t| matches!(t, "Equity") || matches!(t, "ETF"))
+                                        .unwrap_or(false)
+                                })
+                                .take(8)
+                                .map(|m| StockSearchResult {
+                                    symbol: m.symbol.unwrap_or_default(),
+                                    company_name: m.name.unwrap_or_default(),
+                                    sector: m.region.unwrap_or_else(|| "Other".to_string()),
+                                    current_price: None,
+                                    logo_url: None,
+                                })
+                                .collect();
+                            log::info!("[pulse_search_stocks] Alpha Vantage: {} results", results.len());
+                            return Ok(results);
+                        }
+                        log::warn!("[pulse_search_stocks] Alpha Vantage no matches for query={}", query);
+                    }
+                    Err(e) => log::warn!("[pulse_search_stocks] Alpha Vantage parse error: {}", e),
+                }
+            }
+            Ok(resp) => log::warn!("[pulse_search_stocks] Alpha Vantage status {} for query={}", resp.status(), query),
+            Err(e) => log::warn!("[pulse_search_stocks] Alpha Vantage error {} for query={}", e, query),
+        }
+    }
+
+    // ── 3. Yahoo Finance (last resort — rate-limited) ──────────────────────────
     let search_url = format!(
         "https://query1.finance.yahoo.com/v1/finance/search?q={}&quotesCount=8&newsCount=0",
         urlencoding::encode(&query)
     );
+    log::info!("[pulse_search_stocks] trying Yahoo for query={}", query);
 
     #[derive(Deserialize)]
     struct YahooQuotes {
@@ -97,45 +217,27 @@ pub async fn pulse_search_stocks(query: String) -> Result<Vec<StockSearchResult>
         quotes: Vec<YahooQuotes>,
     }
 
-    // Retry loop for transient errors
     for attempt in 0..3 {
         if attempt > 0 {
             tokio::time::sleep(std::time::Duration::from_millis(500 << attempt)).await;
         }
 
-        let resp = match client
-            .get(&search_url)
-            .header("Accept", "application/json")
-            .send()
-            .await
-        {
+        let resp = match client.get(&search_url).header("Accept", "application/json").send().await {
             Ok(r) => r,
             Err(e) => {
-                log::warn!("[pulse_search_stocks] attempt {} HTTP error: {}", attempt + 1, e);
-                if attempt == 2 {
-                    return Err(format!("Search request failed: {e}"));
-                }
+                log::warn!("[pulse_search_stocks] Yahoo attempt {} HTTP error: {}", attempt + 1, e);
+                if attempt == 2 { return Err(format!("Search request failed: {e}")); }
                 continue;
             }
         };
 
         let status = resp.status();
         if status.as_u16() == 429 {
-            log::warn!(
-                "[pulse_search_stocks] attempt {} got 429 rate limited",
-                attempt + 1
-            );
-            if attempt == 2 {
-                return Err("Yahoo Finance rate limit reached. Try again in a minute.".to_string());
-            }
+            log::warn!("[pulse_search_stocks] Yahoo attempt {} got 429", attempt + 1);
+            if attempt == 2 { return Err("Yahoo Finance rate limit reached. Try again in a minute.".to_string()); }
             continue;
         }
         if !status.is_success() {
-            log::warn!(
-                "[pulse_search_stocks] attempt {} status {}",
-                attempt + 1,
-                status
-            );
             if attempt == 2 || !status.is_server_error() {
                 return Err(format!("Yahoo Finance search returned {}", status));
             }
@@ -145,10 +247,7 @@ pub async fn pulse_search_stocks(query: String) -> Result<Vec<StockSearchResult>
         let body = match resp.text().await {
             Ok(b) => b,
             Err(e) => {
-                log::warn!("[pulse_search_stocks] attempt {} read error: {}", attempt + 1, e);
-                if attempt == 2 {
-                    return Err(format!("Failed to read response: {e}"));
-                }
+                if attempt == 2 { return Err(format!("Failed to read response: {e}")); }
                 continue;
             }
         };
@@ -156,10 +255,7 @@ pub async fn pulse_search_stocks(query: String) -> Result<Vec<StockSearchResult>
         let parsed: YahooSearchResponse = match serde_json::from_str(&body) {
             Ok(p) => p,
             Err(e) => {
-                log::warn!("[pulse_search_stocks] attempt {} parse error: {}", attempt + 1, e);
-                if attempt == 2 {
-                    return Err(format!("Failed to parse response: {e}"));
-                }
+                if attempt == 2 { return Err(format!("Failed to parse response: {e}")); }
                 continue;
             }
         };
@@ -175,10 +271,7 @@ pub async fn pulse_search_stocks(query: String) -> Result<Vec<StockSearchResult>
             })
             .map(|q| StockSearchResult {
                 symbol: q.symbol.clone(),
-                company_name: q
-                    .long_name
-                    .or(q.short_name)
-                    .unwrap_or_else(|| q.symbol.clone()),
+                company_name: q.long_name.or(q.short_name).unwrap_or_else(|| q.symbol.clone()),
                 sector: q.sector.unwrap_or_else(|| "Other".to_string()),
                 current_price: None,
                 logo_url: None,
@@ -186,37 +279,126 @@ pub async fn pulse_search_stocks(query: String) -> Result<Vec<StockSearchResult>
             .take(8)
             .collect();
 
-        log::info!(
-            "[pulse_search_stocks] query={} -> {} results",
-            query,
-            results.len()
-        );
+        log::info!("[pulse_search_stocks] Yahoo: {} results", results.len());
         return Ok(results);
     }
 
-    Err("Search failed after retries".to_string())
+    Err("All search providers failed. Try again later.".to_string())
 }
 
-/// Fetch current market price for a given ticker.
-/// Retries with backoff on 429/5xx errors.
+
+/// Tries Finnhub first, then Alpha Vantage, then Yahoo — returns as soon as one succeeds.
 #[tauri::command(rename_all = "snake_case")]
 pub async fn pulse_fetch_price(symbol: String) -> Result<PriceResult, String> {
+    let finnhub_key = std::env::var("FINNHUB_API_KEY").unwrap_or_default();
+    let alpha_key = std::env::var("ALPHA_VANTAGE_KEY").unwrap_or_default();
+
+    // ── 1. Finnhub (best: 60 req/min, real-time, no quota exhaustion) ──────────
+    if !finnhub_key.is_empty() {
+        let client = http_client();
+        let url = format!(
+            "https://finnhub.io/api/v1/quote?symbol={}&token={}",
+            urlencoding::encode(&symbol),
+            finnhub_key
+        );
+        log::info!("[pulse_fetch_price({})] trying Finnhub", symbol);
+
+        match client.get(&url).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                #[derive(Deserialize)]
+                struct FinnhubQuote {
+                    c: Option<f64>,   // current price
+                    d: Option<f64>,   // change
+                    dp: Option<f64>,  // change percent
+                    h: Option<f64>,   // high
+                    l: Option<f64>,   // low
+                }
+                match resp.json::<FinnhubQuote>().await {
+                    Ok(q) if q.c.is_some() => {
+                        let price = q.c.unwrap_or(0.0);
+                        let change = q.d.unwrap_or(0.0);
+                        let change_pct = q.dp.unwrap_or(0.0);
+                        log::info!("[pulse_fetch_price({})] Finnhub: price={} change={}", symbol, price, change);
+                        return Ok(PriceResult {
+                            price,
+                            change,
+                            change_amount: change_pct,
+                        });
+                    }
+                    _ => log::warn!("[pulse_fetch_price({})] Finnhub parse failed or empty", symbol),
+                }
+            }
+            Ok(resp) => log::warn!("[pulse_fetch_price({})] Finnhub status {}", symbol, resp.status()),
+            Err(e) => log::warn!("[pulse_fetch_price({})] Finnhub error: {}", symbol, e),
+        }
+    }
+
+    // ── 2. Alpha Vantage (fallback: 25 req/day, GLOBAL_QUOTE) ────────────────
+    if !alpha_key.is_empty() {
+        let client = http_client();
+        let url = format!(
+            "https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={}&apikey={}",
+            urlencoding::encode(&symbol),
+            alpha_key
+        );
+        log::info!("[pulse_fetch_price({})] trying Alpha Vantage", symbol);
+
+        match client.get(&url).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                #[derive(Deserialize)]
+                struct AlphaGlobalQuote {
+                    #[serde(rename = "Global Quote")]
+                    global_quote: Option<AlphaQuoteEntry>,
+                }
+                #[derive(Deserialize)]
+                struct AlphaQuoteEntry {
+                    #[serde(rename = "05. price")]
+                    price: Option<String>,
+                    #[serde(rename = "09. change")]
+                    change: Option<String>,
+                    #[serde(rename = "10. change percent")]
+                    change_pct: Option<String>,
+                }
+                match resp.json::<AlphaGlobalQuote>().await {
+                    Ok(q) => {
+                        if let Some(gq) = q.global_quote {
+                            let price: f64 = gq.price.as_ref().and_then(|v| v.parse().ok()).unwrap_or(0.0);
+                            let change: f64 = gq.change.as_ref().and_then(|v| v.parse().ok()).unwrap_or(0.0);
+                            let change_pct_str = gq.change_pct.as_ref().and_then(|v| v.strip_suffix('%')).unwrap_or("0");
+                            let change_pct: f64 = change_pct_str.parse().unwrap_or(0.0);
+                            if price > 0.0 {
+                                log::info!("[pulse_fetch_price({})] Alpha Vantage: price={}", symbol, price);
+                                return Ok(PriceResult { price, change, change_amount: change_pct });
+                            }
+                        }
+                        log::warn!("[pulse_fetch_price({})] Alpha Vantage empty quote", symbol);
+                    }
+                    Err(e) => log::warn!("[pulse_fetch_price({})] Alpha Vantage parse error: {}", symbol, e),
+                }
+            }
+            Ok(resp) => log::warn!("[pulse_fetch_price({})] Alpha Vantage status {}", symbol, resp.status()),
+            Err(e) => log::warn!("[pulse_fetch_price({})] Alpha Vantage error: {}", symbol, e),
+        }
+    }
+
+    // ── 3. Yahoo Finance (last resort — rate-limited but sometimes works) ──────
     let client = http_client();
     let url = format!(
         "https://query1.finance.yahoo.com/v8/finance/chart/{}?interval=1d&range=1d",
         urlencoding::encode(&symbol)
     );
+    log::info!("[pulse_fetch_price({})] trying Yahoo (last resort)", symbol);
 
     #[derive(Deserialize)]
     struct YahooChart {
-        result: Vec<ChartResult>,
+        result: Vec<YahooChartResult>,
     }
     #[derive(Deserialize)]
-    struct ChartResult {
-        meta: ChartMeta,
+    struct YahooChartResult {
+        meta: YahooChartMeta,
     }
     #[derive(Deserialize)]
-    struct ChartMeta {
+    struct YahooChartMeta {
         #[serde(rename = "regularMarketPrice")]
         market_price: Option<f64>,
         #[serde(rename = "regularMarketChange")]
@@ -225,40 +407,29 @@ pub async fn pulse_fetch_price(symbol: String) -> Result<PriceResult, String> {
         market_change_pct: Option<f64>,
     }
 
-    // Retry loop
     for attempt in 0..3 {
         if attempt > 0 {
             tokio::time::sleep(std::time::Duration::from_millis(500 << attempt)).await;
         }
 
-        let resp = match client
-            .get(&url)
-            .header("Accept", "application/json")
-            .send()
-            .await
-        {
+        let resp = match client.get(&url).header("Accept", "application/json").send().await {
             Ok(r) => r,
             Err(e) => {
-                log::warn!("[pulse_fetch_price({})] attempt {} HTTP error: {}", symbol, attempt + 1, e);
-                if attempt == 2 {
-                    return Err(format!("Price request failed: {e}"));
-                }
+                log::warn!("[pulse_fetch_price({})] Yahoo attempt {} HTTP error: {}", symbol, attempt + 1, e);
+                if attempt == 2 { return Err(format!("Price request failed: {e}")); }
                 continue;
             }
         };
 
         let status = resp.status();
         if status.as_u16() == 429 {
-            log::warn!("[pulse_fetch_price({})] attempt {} got 429", symbol, attempt + 1);
-            if attempt == 2 {
-                return Err("Yahoo Finance rate limit reached. Try again in a minute.".to_string());
-            }
+            log::warn!("[pulse_fetch_price({})] Yahoo attempt {} got 429", symbol, attempt + 1);
+            if attempt == 2 { return Err("Yahoo Finance rate limit reached. Try again later.".to_string()); }
             continue;
         }
         if !status.is_success() {
-            log::warn!("[pulse_fetch_price({})] attempt {} status {}", symbol, attempt + 1, status);
             if attempt == 2 || !status.is_server_error() {
-                return Err(format!("Yahoo Finance price API returned {}", status));
+                return Err(format!("Yahoo Finance returned {}", status));
             }
             continue;
         }
@@ -266,10 +437,7 @@ pub async fn pulse_fetch_price(symbol: String) -> Result<PriceResult, String> {
         let body = match resp.text().await {
             Ok(b) => b,
             Err(e) => {
-                log::warn!("[pulse_fetch_price({})] attempt {} read error: {}", symbol, attempt + 1, e);
-                if attempt == 2 {
-                    return Err(format!("Failed to read price response: {e}"));
-                }
+                if attempt == 2 { return Err(format!("Failed to read response: {e}")); }
                 continue;
             }
         };
@@ -277,32 +445,25 @@ pub async fn pulse_fetch_price(symbol: String) -> Result<PriceResult, String> {
         let chart: YahooChart = match serde_json::from_str(&body) {
             Ok(c) => c,
             Err(e) => {
-                log::warn!("[pulse_fetch_price({})] attempt {} parse error: {}", symbol, attempt + 1, e);
-                if attempt == 2 {
-                    return Err(format!("Failed to parse price data: {e}"));
-                }
+                if attempt == 2 { return Err(format!("Failed to parse price data: {e}")); }
                 continue;
             }
         };
 
-        let price_result = chart.result.into_iter().next();
-        log::info!(
-            "[pulse_fetch_price({})] parsed result: {:?}",
-            symbol,
-            price_result.as_ref().map(|r| r.meta.market_price)
-        );
-
-        return price_result
-            .map(|r| PriceResult {
-                price: r.meta.market_price.unwrap_or(0.0),
-                change: r.meta.market_change.unwrap_or(0.0),
-                change_amount: r.meta.market_change_pct.unwrap_or(0.0),
-            })
-            .ok_or_else(|| "No price data found for this symbol".to_string());
+        if let Some(r) = chart.result.into_iter().next() {
+            let price = r.meta.market_price.unwrap_or(0.0);
+            let change = r.meta.market_change.unwrap_or(0.0);
+            let change_pct = r.meta.market_change_pct.unwrap_or(0.0);
+            log::info!("[pulse_fetch_price({})] Yahoo: price={}", symbol, price);
+            return Ok(PriceResult { price, change, change_amount: change_pct });
+        } else {
+            if attempt == 2 { return Err("No price data found for this symbol".to_string()); }
+        }
     }
 
-    Err("Price lookup failed after retries".to_string())
+    Err("All price providers failed. Check your API keys or try again later.".to_string())
 }
+
 /// Rich price result returned to the frontend.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PriceResult {
