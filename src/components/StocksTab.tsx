@@ -210,8 +210,9 @@ async function pulseGetStocks(): Promise<Stock[]> {
 }
 
 async function pulseAddStock(stock: Omit<Stock, 'id' | 'addedAt'>): Promise<void> {
+  console.log('[pulseAddStock] called with symbol=', stock.symbol);
   try {
-    await invoke('pulse_add_stock', {
+    const result = await invoke('pulse_add_stock', {
       req: {
         symbol: stock.symbol,
         company_name: stock.companyName,
@@ -221,6 +222,7 @@ async function pulseAddStock(stock: Omit<Stock, 'id' | 'addedAt'>): Promise<void
         change_amount: stock.changeAmount || null,
       },
     });
+    console.log('[pulseAddStock] invoke succeeded, result:', result);
   } catch (e) {
     console.error('[StocksTab] pulse_add_stock failed:', e);
   }
@@ -232,13 +234,15 @@ async function pulseUpdateStock(
   change: ChangeDirection,
   changeAmount: string,
 ): Promise<void> {
+  console.log('[pulseUpdateStock] called with id=', id, 'price=', price, 'change=', change, 'changeAmount=', changeAmount);
   try {
-    await invoke('pulse_update_stock', {
+    const result = await invoke('pulse_update_stock', {
       id,
       req: { price, change, change_amount: changeAmount },
     });
+    console.log('[pulseUpdateStock] invoke succeeded, result:', result);
   } catch (e) {
-    console.error('[StocksTab] pulse_update_stock failed:', e);
+    console.error('[pulseUpdateStock] invoke failed:', e);
   }
 }
 
@@ -724,14 +728,21 @@ export default function StocksTab() {
     await pulseAddStock(stock);
 
     // Fetch live price immediately after adding
-    const live = await fetchLivePrice(stock.symbol);
-    if (live) {
-      const updated: Stock = { ...local, price: live.price, change: live.change, changeAmount: live.changeAmount };
-      setStocks(prev => prev.map(s => (s.id === id ? updated : s)));
-      await pulseUpdateStock(id, live.price, live.change, live.changeAmount).catch(e => {
-        console.error('[StocksTab] pulseUpdateStock failed:', e);
-      });
-    }
+      console.log('[handleAdd] Calling fetchLivePrice for', stock.symbol);
+      const live = await fetchLivePrice(stock.symbol);
+      console.log('[handleAdd] fetchLivePrice returned:', live);
+      if (live) {
+        const updated: Stock = { ...local, price: live.price, change: live.change, changeAmount: live.changeAmount };
+        setStocks(prev => prev.map(s => (s.id === id ? updated : s)));
+        console.log('[handleAdd] Calling pulseUpdateStock for id', id);
+        await pulseUpdateStock(id, live.price, live.change, live.changeAmount).catch(e => {
+          console.error('[handleAdd] pulseUpdateStock threw:', e);
+        });
+        console.log('[handleAdd] pulseUpdateStock completed');
+      } else {
+        console.log('[handleAdd] fetchLivePrice returned null, skipping update');
+      }
+      console.log('[handleAdd] Done');
   }
 
   async function handleUpdate(updated: Stock) {
