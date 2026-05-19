@@ -767,7 +767,7 @@ impl EngineDb {
     // ── Config ──
 
     pub fn get_config(&self, key: &str) -> Result<Option<String>> {
-        let conn = self.conn();
+        let conn = self.conn_blocking();
         let result: std::result::Result<String, _> = conn.query_row(
             "SELECT value FROM config WHERE key = ?1",
             params![key],

@@ -3528,7 +3528,8 @@ pub async fn budget_detect_patterns(
 #[tauri::command(rename_all = "snake_case")]
 pub async fn budget_can_afford(amount: f64, month: String) -> Result<bool, String> {
     let engine = engine::get_engine();
-    let member_id = tokio::task::block_in_place(|| engine.db().get_config("supabase_user_id"))
+    let member_id = engine.db()
+        .get_config("supabase_user_id")
         .unwrap_or_default()
         .unwrap_or_else(|| "default_user".to_string());
     engine
@@ -3615,7 +3616,8 @@ pub async fn budget_goal_status(member_id: Option<String>) -> Result<serde_json:
 #[tauri::command(rename_all = "snake_case")]
 pub async fn budget_generate_report(month: String) -> Result<engine::types::MonthlyReport, String> {
     let engine = engine::get_engine();
-    let member_id = tokio::task::block_in_place(|| engine.db().get_config("supabase_user_id"))
+    let member_id = engine.db()
+        .get_config("supabase_user_id")
         .unwrap_or_default()
         .unwrap_or_else(|| "default_user".to_string());
     engine
@@ -9290,7 +9292,8 @@ pub async fn purchase_credits(user_id: String, pack: String) -> Result<String, S
 /// Get the stored Supabase user ID from engine config.
 fn get_supabase_user_id() -> String {
     let engine = engine::get_engine();
-    tokio::task::block_in_place(|| engine.db().get_config("supabase_user_id"))
+    engine.db()
+        .get_config("supabase_user_id")
         .ok()
         .flatten()
         .unwrap_or_default()
