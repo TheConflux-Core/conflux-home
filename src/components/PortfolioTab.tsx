@@ -110,10 +110,10 @@ function calcGainLoss(cost: number, current: number) {
 
 function calcFinancialHealthScore(holdings: Holding[]): number {
   if (holdings.length === 0) return 0;
-  const total = holdings.reduce((s, h) => s + h.current_value, 0);
+  const total = holdings.reduce((s, h) => s + h.shares * h.current_value, 0);
   if (total === 0) return 0;
   const types = new Set(holdings.map(h => h.asset_type)).size;
-  const gains = holdings.filter(h => h.current_value > h.cost_basis).length;
+  const gains = holdings.filter(h => h.shares * h.current_value > h.shares * h.cost_basis).length;
   return Math.min(100, 20 + Math.min(types * 12, 40) + Math.round((gains / holdings.length) * 40));
 }
 
@@ -343,13 +343,17 @@ export default function PortfolioTab() {
   // ── Summary ─────────────────────────────────────────────────────────────────
 
   const summary: PortfolioSummary = (() => {
-    const total_value = holdings.reduce((s, h) => s + h.current_value, 0);
-    const total_cost_basis = holdings.reduce((s, h) => s + h.cost_basis, 0);
+    const total_value = holdings.reduce((s, h) => s + h.shares * h.current_value, 0);
+    const total_cost_basis = holdings.reduce((s, h) => s + h.shares * h.cost_basis, 0);
     const total_gain_loss = total_value - total_cost_basis;
     const total_gain_loss_pct = total_cost_basis > 0 ? (total_gain_loss / total_cost_basis) * 100 : 0;
     const by_type: Record<AssetType, number> = { stock: 0, crypto: 0, real_estate: 0, cash: 0, bond: 0, other: 0 };
     const by_tag: Record<HoldingTag, number> = { retirement: 0, speculative: 0, emergency: 0, growth: 0, custom: 0 };
-    holdings.forEach(h => { by_type[h.asset_type] += h.current_value; by_tag[h.tag] += h.current_value; });
+    holdings.forEach(h => {
+      const total = h.shares * h.current_value;
+      by_type[h.asset_type] += total;
+      by_tag[h.tag] += total;
+    });
     return { total_value, total_cost_basis, total_gain_loss, total_gain_loss_pct, by_type, by_tag };
   })();
 
