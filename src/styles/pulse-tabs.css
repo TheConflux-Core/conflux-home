@@ -279,7 +279,7 @@
   height: calc(100vh - 72px);
   position: relative;
   z-index: 1;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -292,6 +292,7 @@
   margin: 0 auto;
   padding: 40px 48px 56px;
   animation: fadeSlideIn 0.35s ease forwards;
+  overflow-y: auto;
 }
 
 @keyframes fadeSlideIn {
