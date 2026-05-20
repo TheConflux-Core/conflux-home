@@ -18,8 +18,10 @@ interface Props {
 const SLOT_ORDER = ['breakfast', 'lunch', 'dinner', 'snack'];
 
 function formatDate(weekStart: string, dayOfWeek: number): string {
+  // DB stores 0=Monday, 6=Sunday; week starts Sunday
+  const offset = (dayOfWeek + 1) % 7;
   const d = new Date(weekStart + 'T12:00:00');
-  d.setDate(d.getDate() + dayOfWeek);
+  d.setDate(d.getDate() + offset);
   return d.getDate().toString();
 }
 
@@ -95,8 +97,9 @@ function DayCard({
 }) {
   const [pickerSlot, setPickerSlot] = useState<string | null>(null);
 
+  const offset = (day.day_of_week + 1) % 7;
   const dayDate = new Date(weekStart + 'T12:00:00');
-  dayDate.setDate(dayDate.getDate() + day.day_of_week);
+  dayDate.setDate(dayDate.getDate() + offset);
 
   const slotMap = Object.fromEntries(day.slots.map(s => [s.meal_slot, s]));
 
