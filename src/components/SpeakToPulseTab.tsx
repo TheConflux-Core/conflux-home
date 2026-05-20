@@ -1,12 +1,15 @@
 // Conflux Home — Speak to Pulse Tab
-// Voice + chat financial advisor with session management
+// Voice + chat financial advisor with session persistence
 // Layout: left health banner + right chat panel (always open)
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useVoiceInput } from '../hooks/useVoiceInput';
 import { flushSync } from 'react-dom';
 import '../styles/pulse-tabs.css';
+
+// ─── LocalStorage keys ────────────────────────────────────────────────────────
+const STORAGE_KEY_ACTIVE_SESSION = 'pulse_active_session_id';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -223,26 +226,61 @@ export default function SpeakToPulseTab() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
-  // ── Auto-start a session if none exists ─────────────────
+  // ── Auto-start / restore session ────────────────────────
   useEffect(() => {
-    if (!currentSessionId && !startingSession) {
+    const storedId = localStorage.getItem(STORAGE_KEY_ACTIVE_SESSION);
+    if (storedId && !currentSessionId && !startingSession) {
+      handleRestoreSession(storedId);
+    } else if (!storedId && !currentSessionId && !startingSession) {
       handleStartSession();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Restore a stored session ───────────────────────────
+  const handleRestoreSession = async (sessionId: string) => {
+    setStartingSession(true);
+    setLoadingSession(true);
+    try {
+      const sessions: any[] = await invoke('pulse_get_sessions', { limit: 100 });
+      const existing = sessions.find((s: any) => s.id === sessionId);
+      if (existing && existing.status === 'active') {
+        setCurrentSessionId(sessionId);
+        const msgs: any[] = await invoke('pulse_get_messages', { session_id: sessionId });
+        setChatMessages(msgs.map((m: any) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          timestamp: new Date(m.timestamp),
+        })));
+      } else {
+        // Session ended or missing — clear storage and start fresh
+        localStorage.removeItem(STORAGE_KEY_ACTIVE_SESSION);
+        handleStartSession();
+      }
+    } catch {
+      localStorage.removeItem(STORAGE_KEY_ACTIVE_SESSION);
+      handleStartSession();
+    } finally {
+      setLoadingSession(false);
+      setStartingSession(false);
+    }
+  };
 
   const shouldReact = (text: string) => {
     const lower = text.toLowerCase();
     return REACTION_KEYWORDS.some(kw => lower.includes(kw));
   };
 
-  // ── Start session ──────────────────────────────────────
-  const handleStartSession = async () => {
+  // ── Start a new session ────────────────────────────────
+  const handleStartSession = useCallback(async () => {
+    if (startingSession) return;
     setStartingSession(true);
     setLoadingSession(true);
     try {
       const session = await invoke<any>('pulse_start_session');
       setCurrentSessionId(session.id);
+      localStorage.setItem(STORAGE_KEY_ACTIVE_SESSION, session.id);
       const msgs: any[] = await invoke('pulse_get_messages', { session_id: session.id });
       setChatMessages(msgs.map((m: any) => ({
         id: m.id,
@@ -256,16 +294,18 @@ export default function SpeakToPulseTab() {
       setLoadingSession(false);
       setStartingSession(false);
     }
-  };
+  }, [startingSession]);
 
   // ── End session ────────────────────────────────────────
   const handleEndSession = async () => {
     if (!currentSessionId) return;
+    const sessionIdToEnd = currentSessionId;
     try {
-      await invoke('pulse_end_session', { session_id: currentSessionId });
+      await invoke('pulse_end_session', { session_id: sessionIdToEnd });
     } catch (e) {
       console.error('[SpeakToPulse] endSession:', e);
     }
+    localStorage.removeItem(STORAGE_KEY_ACTIVE_SESSION);
     setCurrentSessionId(null);
     setChatMessages([]);
     setView('sessions');
