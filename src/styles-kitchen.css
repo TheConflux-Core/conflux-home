@@ -1384,35 +1384,41 @@
 .inventory-heatmap {
   position: relative;
   z-index: 1;
-  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 260px);
 }
 
 /* ── INVENTORY — Stats + Add Button ── */
 .inventory-summary {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  align-items: center;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
 }
 
 .inv-stat {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 14px 10px;
-  background: rgba(28, 25, 23, 0.6);
+  padding: 16px 20px;
+  background: rgba(28, 25, 23, 0.7);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(245, 158, 11, 0.1);
-  border-radius: 14px;
+  border: 1px solid rgba(245, 158, 11, 0.12);
+  border-radius: 16px;
   text-align: center;
+  flex: 1;
+  min-width: 100px;
 }
 
 .inv-stat-value {
-  font-size: 26px;
-  font-weight: 800;
+  font-size: 2rem;
+  font-weight: 900;
   color: #fef3c7;
   line-height: 1;
   margin-bottom: 4px;
+  font-family: 'Sora', 'DM Sans', sans-serif;
 }
 
 .inv-stat-fresh .inv-stat-value { color: #22c55e; }
@@ -1420,11 +1426,11 @@
 .inv-stat-danger .inv-stat-value { color: #ef4444; }
 
 .inv-stat-label {
-  font-size: 10px;
-  color: #a8a29e;
+  font-size: 0.72rem;
+  color: rgba(253, 230, 138, 0.5);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
+  letter-spacing: 0.06em;
+  font-weight: 700;
 }
 
 .inv-add-btn {
@@ -1453,21 +1459,22 @@
 
 .inventory-columns {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin-top: 20px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  flex: 1;
+  align-items: start;
 }
 
 /* Each column */
 .inventory-column {
   display: flex;
   flex-direction: column;
-  background: rgba(28, 25, 23, 0.5);
+  background: rgba(28, 25, 23, 0.7);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(245, 158, 11, 0.1);
-  border-radius: 16px;
+  border: 1px solid rgba(245, 158, 11, 0.12);
+  border-radius: 18px;
   overflow: hidden;
-  min-height: 300px;
+  min-height: 400px;
 }
 
 /* Column header */
@@ -1475,20 +1482,20 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: 16px 18px;
   border-top: 3px solid;
-  background: rgba(28, 25, 23, 0.6);
-  border-bottom: 1px solid rgba(245, 158, 11, 0.08);
+  background: rgba(28, 25, 23, 0.8);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.1);
 }
 
 .inv-col-header-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .inv-col-emoji {
-  font-size: 22px;
+  font-size: 26px;
 }
 
 .inv-col-info {
@@ -1497,50 +1504,54 @@
 }
 
 .inv-col-label {
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 0.9rem;
+  font-weight: 800;
   color: #fef3c7;
+  font-family: 'Sora', 'DM Sans', sans-serif;
 }
 
 .inv-col-count {
-  font-size: 11px;
-  color: #a8a29e;
+  font-size: 0.75rem;
+  color: rgba(253, 230, 138, 0.45);
+  font-weight: 600;
 }
 
 .inv-col-alert {
-  min-width: 22px;
-  height: 22px;
+  min-width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 11px;
-  font-size: 12px;
-  font-weight: 800;
-  padding: 0 6px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 900;
+  padding: 0 7px;
 }
 
 /* Items list */
 .inv-col-items {
   flex: 1;
-  padding: 10px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .inv-col-item {
-  padding: 10px 12px;
-  background: rgba(12, 10, 9, 0.5);
-  border: 1px solid rgba(245, 158, 11, 0.08);
-  border-radius: 10px;
+  padding: 12px 14px;
+  background: rgba(12, 10, 9, 0.6);
+  border: 1px solid rgba(245, 158, 11, 0.1);
+  border-radius: 12px;
   position: relative;
   overflow: hidden;
   transition: all 0.2s ease;
 }
 
 .inv-col-item:hover {
-  background: rgba(245, 158, 11, 0.06);
-  border-color: rgba(245, 158, 11, 0.18);
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.22);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .inv-item-urgent {
