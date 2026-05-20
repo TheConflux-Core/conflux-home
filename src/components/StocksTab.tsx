@@ -193,12 +193,15 @@ function PriceChart({ candles, color }: { candles: Candle[]; color: string }) {
 
 // ── Detail Modal ─────────────────────────────────────────────────────
 
-function StockDetailModal({ stock, onClose }: { stock: Stock; onClose: () => void }) {
+// ── Inline Expanded Detail Card (replaces modal) ─────────────────────────
+
+function StockDetailCard({ stock, onClose }: { stock: Stock; onClose: () => void }) {
   const [priceData, setPriceData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeRange, setActiveRange] = useState<TimeRange>('1M');
   const [candles, setCandles] = useState<Candle[]>([]);
   const [loadingChart, setLoadingChart] = useState(false);
+  const [chartExpanded, setChartExpanded] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -208,6 +211,7 @@ function StockDetailModal({ stock, onClose }: { stock: Stock; onClose: () => voi
   }, [stock.symbol]);
 
   useEffect(() => {
+    if (!chartExpanded) return;
     setLoadingChart(true);
     const { days } = rangeParams(activeRange);
     const from = Math.floor(Date.now() / 1000) - days * 86400;
@@ -218,104 +222,98 @@ function StockDetailModal({ stock, onClose }: { stock: Stock; onClose: () => voi
       from,
       to,
     }).then(data => {
-      console.log('[Detail] candles fetched:', data?.length, 'for range', activeRange);
       setCandles(data ?? []); setLoadingChart(false);
-    })
-      .catch(e => { console.warn('[Detail] candles error:', e); setCandles([]); setLoadingChart(false); });
-  }, [stock.symbol, activeRange]);
+    }).catch(e => { console.warn('[Detail] candles error:', e); setCandles([]); setLoadingChart(false); });
+  }, [stock.symbol, activeRange, chartExpanded]);
 
   const isUp = priceData && priceData.change >= 0;
   const accentColor = !priceData ? '#10b981' : isUp ? '#10b981' : '#ef4444';
-
   const pd = priceData;
 
   return (
-    <div className="stock-detail-overlay" onClick={onClose}>
-      <div className="stock-detail-modal" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="detail-header">
-          <div className="detail-symbol-block">
-            <span className="detail-symbol">{stock.symbol}</span>
-            <span className="detail-company">{stock.companyName}</span>
-            {stock.sector && <span className="detail-sector-tag">{stock.sector}</span>}
-          </div>
-          <button className="detail-close-btn" onClick={onClose}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-          </button>
+    <div className="stock-detail-card" onClick={onClose}>
+      {/* Header row */}
+      <div className="detail-card-header">
+        <div className="detail-symbol-block">
+          <span className="detail-symbol">{stock.symbol}</span>
+          <span className="detail-company">{stock.companyName}</span>
+          {stock.sector && <span className="detail-sector-tag">{stock.sector}</span>}
         </div>
-
-        {loading ? (
-          <div className="detail-loading">
-            <div className="portfolio-spinner" />
-            <span>Loading...</span>
-          </div>
-        ) : pd ? (
-          <>
-            {/* Price hero */}
-            <div className="detail-price-hero">
-              <span className="detail-current-price">${pd.price.toFixed(2)}</span>
-              <span className="detail-change-badge" style={{ color: accentColor, borderColor: accentColor + '40', background: accentColor + '15' }}>
-                {isUp ? '▲' : '▼'} {isUp ? '+' : ''}{pd.change.toFixed(2)} ({isUp ? '+' : ''}{pd.change_amount.toFixed(2)}%)
-              </span>
-            </div>
-
-            {/* Time range tabs */}
-            <div className="detail-range-tabs">
-              {TIME_RANGES.map(r => (
-                <button key={r} className={`range-tab ${activeRange === r ? 'range-tab-active' : ''}`}
-                  onClick={() => setActiveRange(r)}>
-                  {r}
-                </button>
-              ))}
-            </div>
-
-            {/* Chart */}
-            <div className="detail-chart-wrap">
-              {loadingChart ? (
-                <div className="detail-chart-loading">
-                  <div className="portfolio-spinner" style={{ width: 24, height: 24 }} />
-                </div>
-              ) : candles.length > 0 ? (
-                <PriceChart candles={candles} color={accentColor} />
-              ) : (
-                <div className="detail-chart-empty">No chart data for {activeRange}</div>
-              )}
-            </div>
-
-            {/* Stats grid */}
-            <div className="detail-stats-grid">
-              <div className="detail-stat"><span className="stat-label">Open</span><span className="stat-value">${(pd.open ?? pd.price).toFixed(2)}</span></div>
-              <div className="detail-stat"><span className="stat-label">Prev Close</span><span className="stat-value">${(pd.prev_close ?? pd.price).toFixed(2)}</span></div>
-              <div className="detail-stat"><span className="stat-label">Day High</span><span className="stat-value">${(pd.high ?? pd.price).toFixed(2)}</span></div>
-              <div className="detail-stat"><span className="stat-label">Day Low</span><span className="stat-value">${(pd.low ?? pd.price).toFixed(2)}</span></div>
-              <div className="detail-stat"><span className="stat-label">52W High</span><span className="stat-value" style={{ color: '#10b981' }}>${(pd.week_52_high ?? pd.price).toFixed(2)}</span></div>
-              <div className="detail-stat"><span className="stat-label">52W Low</span><span className="stat-value" style={{ color: '#ef4444' }}>${(pd.week_52_low ?? pd.price).toFixed(2)}</span></div>
-              {pd.volume > 0 && <div className="detail-stat"><span className="stat-label">Volume</span><span className="stat-value">{(pd.volume / 1_000_000).toFixed(1)}M</span></div>}
-              {pd.market_cap > 0 && <div className="detail-stat">
-                <span className="stat-label">Mkt Cap</span>
-                <span className="stat-value">{pd.market_cap > 1e12 ? `$${(pd.market_cap / 1e12).toFixed(2)}T` : pd.market_cap > 1e9 ? `$${(pd.market_cap / 1e9).toFixed(1)}B` : `$${(pd.market_cap / 1e6).toFixed(0)}M`}</span>
-              </div>}
-            </div>
-
-            {/* 52-week range bar */}
-            <div className="detail-range-bar">
-              <span className="range-low">${(pd.week_52_low ?? 0).toFixed(0)}</span>
-              <div className="range-track">
-                <div className="range-fill" style={{
-                  left: `${((pd.price - (pd.week_52_low ?? pd.price)) / ((pd.week_52_high ?? pd.price) - (pd.week_52_low ?? pd.price))) * 100}%`,
-                  background: accentColor,
-                  boxShadow: `0 0 8px ${accentColor}60`,
-                }} />
-              </div>
-              <span className="range-high">${(pd.week_52_high ?? 0).toFixed(0)}</span>
-            </div>
-          </>
-        ) : (
-          <div className="detail-error">Failed to load stock data.</div>
-        )}
+        <button className="detail-close-btn" onClick={onClose} title="Close">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M2 8h12M8 2l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
       </div>
+
+      {loading ? (
+        <div className="detail-loading"><div className="portfolio-spinner" /><span>Loading...</span></div>
+      ) : pd ? (
+        <>
+          {/* Price hero */}
+          <div className="detail-price-hero">
+            <span className="detail-current-price">${pd.price.toFixed(2)}</span>
+            <span className="detail-change-badge" style={{ color: accentColor, borderColor: accentColor + '40', background: accentColor + '15' }}>
+              {isUp ? '▲' : '▼'} {isUp ? '+' : ''}{pd.change.toFixed(2)} ({isUp ? '+' : ''}{pd.change_amount.toFixed(2)}%)
+            </span>
+          </div>
+
+          {/* Stats grid */}
+          <div className="detail-stats-grid">
+            <div className="detail-stat"><span className="stat-label">Open</span><span className="stat-value">${(pd.open ?? pd.price).toFixed(2)}</span></div>
+            <div className="detail-stat"><span className="stat-label">Prev Close</span><span className="stat-value">${(pd.prev_close ?? pd.price).toFixed(2)}</span></div>
+            <div className="detail-stat"><span className="stat-label">Day High</span><span className="stat-value">${(pd.high ?? pd.price).toFixed(2)}</span></div>
+            <div className="detail-stat"><span className="stat-label">Day Low</span><span className="stat-value">${(pd.low ?? pd.price).toFixed(2)}</span></div>
+            <div className="detail-stat"><span className="stat-label">52W High</span><span className="stat-value" style={{ color: '#10b981' }}>${(pd.week_52_high ?? pd.price).toFixed(2)}</span></div>
+            <div className="detail-stat"><span className="stat-label">52W Low</span><span className="stat-value" style={{ color: '#ef4444' }}>${(pd.week_52_low ?? pd.price).toFixed(2)}</span></div>
+            {pd.volume > 0 && <div className="detail-stat"><span className="stat-label">Volume</span><span className="stat-value">{(pd.volume / 1_000_000).toFixed(1)}M</span></div>}
+            {pd.market_cap > 0 && <div className="detail-stat">
+              <span className="stat-label">Mkt Cap</span>
+              <span className="stat-value">{pd.market_cap > 1e12 ? `$${(pd.market_cap / 1e12).toFixed(2)}T` : pd.market_cap > 1e9 ? `$${(pd.market_cap / 1e9).toFixed(1)}B` : `$${(pd.market_cap / 1e6).toFixed(0)}M`}</span>
+            </div>}
+          </div>
+
+          {/* 52-week range bar */}
+          <div className="detail-range-bar">
+            <span className="range-low">${(pd.week_52_low ?? 0).toFixed(0)}</span>
+            <div className="range-track">
+              <div className="range-fill" style={{
+                left: `${((pd.price - (pd.week_52_low ?? pd.price)) / ((pd.week_52_high ?? pd.price) - (pd.week_52_low ?? pd.price))) * 100}%`,
+                background: accentColor,
+                boxShadow: `0 0 8px ${accentColor}60`,
+              }} />
+            </div>
+            <span className="range-high">${(pd.week_52_high ?? 0).toFixed(0)}</span>
+          </div>
+
+          {/* Expand/Collapse chart section */}
+          <button className="detail-chart-toggle" onClick={e => { e.stopPropagation(); setChartExpanded(v => !v); }}>
+            <span>{chartExpanded ? '▲ Hide Chart' : '▼ Show Chart'}</span>
+          </button>
+
+          {chartExpanded && (
+            <div className="detail-chart-section" onClick={e => e.stopPropagation()}>
+              <div className="detail-range-tabs">
+                {TIME_RANGES.map(r => (
+                  <button key={r} className={`range-tab ${activeRange === r ? 'range-tab-active' : ''}`}
+                    onClick={() => setActiveRange(r)}>{r}</button>
+                ))}
+              </div>
+              <div className="detail-chart-wrap">
+                {loadingChart ? (
+                  <div className="detail-chart-loading"><div className="portfolio-spinner" style={{ width: 24, height: 24 }} /></div>
+                ) : candles.length > 0 ? (
+                  <PriceChart candles={candles} color={accentColor} />
+                ) : (
+                  <div className="detail-chart-empty">No chart data for {activeRange}</div>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="detail-error">Failed to load stock data.</div>
+      )}
     </div>
   );
 }
@@ -647,8 +645,26 @@ export default function StocksTab() {
         </div>
       )}
 
+      {selectedStock ? (
+        <div className="stocks-detail-view">
+          <button className="detail-back-btn" onClick={() => setSelectedStock(null)}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M10 4L6 8l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Back to Watchlist
+          </button>
+          <StockDetailCard key={selectedStock.id + '-' + Date.now()} stock={selectedStock} onClose={() => setSelectedStock(null)} />
+        </div>
+      ) : (
+        <div className="stocks-grid">
+          {sortedStocks.map((stock, i) => (
+            <StockCard key={stock.id} stock={stock} onDelete={handleDelete}
+              onCardClick={s => setSelectedStock(s)} animationDelay={i * 60} />
+          ))}
+        </div>
+      )}
+
       {showAddModal && <AddStockModal onAdd={handleAdd} onClose={() => setShowAddModal(false)} />}
-      {selectedStock && <StockDetailModal stock={selectedStock} onClose={() => setSelectedStock(null)} />}
     </div>
   );
 }
