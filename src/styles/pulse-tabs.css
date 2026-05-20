@@ -1422,6 +1422,8 @@
   background: rgba(16, 185, 129, 0.14);
   color: #34d399;
   box-shadow: 0 0 16px rgba(16, 185, 129, 0.08);
+  border-bottom: 2px solid #34d399;
+  border-radius: 8px 8px 0 0;
 }
 
 .pulse-view-tab-icon {
@@ -1434,8 +1436,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 24px 14px;
+  padding: 14px 20px 12px;
   flex-shrink: 0;
+  border-bottom: 1px solid rgba(16, 185, 129, 0.08);
 }
 
 .pulse-chat-title {
@@ -1858,7 +1861,7 @@
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
-  padding: 0 20px 12px;
+  padding: 0;
 }
 
 /* ── Loading State ─────────────────────────────────────────────── */
@@ -1868,7 +1871,7 @@
   align-items: center;
   justify-content: center;
   gap: 14px;
-  height: 200px;
+  flex: 1;
   color: rgba(236, 253, 245, 0.4);
   font-size: 0.88rem;
 }
@@ -1889,9 +1892,10 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  height: 100%;
+  flex: 1;
   padding: 24px 32px;
   text-align: center;
+  min-height: 0;
 }
 
 .chat-empty-icon {
@@ -2314,10 +2318,9 @@
 .pulse-sessions-view {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 20px 16px;
+  padding: 0 20px 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
 }
 
 .pulse-sessions-view::-webkit-scrollbar { width: 5px; }
@@ -2352,30 +2355,33 @@
 .pulse-sessions-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .pulse-session-card {
-  background: rgba(2, 13, 8, 0.6);
-  border: 1px solid rgba(16, 185, 129, 0.1);
-  border-radius: 14px;
+  background: rgba(2, 13, 8, 0.5);
+  border: 1px solid rgba(16, 185, 129, 0.08);
+  border-radius: 12px;
   overflow: hidden;
-  transition: border-color 0.2s ease;
+  transition: all 0.2s ease;
 }
-
 .pulse-session-card:hover,
 .pulse-session-card.is-active {
   border-color: rgba(16, 185, 129, 0.22);
+  background: rgba(2, 13, 8, 0.75);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
-
+.pulse-session-card.is-active {
+  border-color: rgba(52, 211, 153, 0.3);
+}
 .pulse-session-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
+  padding: 12px 16px;
   cursor: pointer;
   transition: background 0.15s ease;
-  gap: 12px;
+  gap: 8px;
 }
 
 .pulse-session-card-header:hover {
@@ -2383,9 +2389,9 @@
 }
 
 .pulse-session-card-date {
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   font-weight: 700;
-  color: #ecfdf5;
+  color: #d1fae5;
 }
 
 .pulse-session-duration {
@@ -2400,24 +2406,36 @@
   color: rgba(236, 253, 245, 0.38);
   font-weight: 600;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .pulse-session-card-messages {
-  padding: 12px 18px 16px;
-  border-top: 1px solid rgba(16, 185, 129, 0.07);
+  padding: 8px 16px 16px;
+  border-top: 1px solid rgba(16, 185, 129, 0.06);
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: 360px;
+  max-height: 320px;
   overflow-y: auto;
 }
 
-.pulse-session-loading,
-.pulse-session-empty-msgs {
-  font-size: 0.82rem;
-  color: rgba(236, 253, 245, 0.35);
-  padding: 8px 0;
+.pulse-session-card-messages::-webkit-scrollbar { width: 4px; }
+.pulse-session-card-messages::-webkit-scrollbar-track { background: transparent; }
+.pulse-session-card-messages::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.2); border-radius: 2px; }
+
+.pulse-session-loading {
   text-align: center;
+  padding: 16px;
+  color: rgba(236, 253, 245, 0.4);
+  font-size: 0.82rem;
+}
+
+.pulse-session-empty-msgs {
+  text-align: center;
+  padding: 12px;
+  color: rgba(236, 253, 245, 0.3);
+  font-size: 0.8rem;
+  font-style: italic;
 }
 
 .pulse-session-msg {
@@ -2426,22 +2444,372 @@
   gap: 3px;
 }
 
+.pulse-session-msg.user {
+  align-items: flex-end;
+}
+
 .pulse-session-msg-role {
   font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: rgba(52, 211, 153, 0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .pulse-session-msg.user .pulse-session-msg-role { color: rgba(52, 211, 153, 0.6); }
 
 .pulse-session-msg-content {
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   color: #ecfdf5;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 8px 12px;
+  border-radius: 10px;
+  max-width: 85%;
+}
+
+.pulse-session-msg.pulse .pulse-session-msg-content {
+  border-left: 2px solid rgba(16, 185, 129, 0.4);
+}
+
+.pulse-session-msg.user .pulse-session-msg-content {
+  border-right: 2px solid rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.08);
+}
+
+/* ── Chat Input Bar ─────────────────────────────────────────────── */
+.chat-input {
+  flex: 1;
+  padding: 12px 18px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 24px;
+  color: #ecfdf5;
+  font-size: 0.9rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.chat-input::placeholder { color: rgba(236, 253, 245, 0.2); }
+
+.chat-input:focus {
+  border-color: rgba(16, 185, 129, 0.45);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.08);
+}
+
+.chat-input:disabled { opacity: 0.5; }
+
+/* ── Voice Button ────────────────────────────────────────────────── */
+.voice-btn {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.22);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.voice-btn:hover {
+  background: rgba(16, 185, 129, 0.2);
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.2);
+}
+
+.voice-btn.listening {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  animation: ringExpand 1s ease-in-out infinite;
+}
+
+.mic-icon {
+  font-size: 1.15rem;
+  line-height: 1;
+  position: relative;
+  z-index: 2;
+}
+
+/* ── Voice Visualizer ───────────────────────────────────────────── */
+.voice-visualizer-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.voice-rings {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.voice-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1.5px solid rgba(239, 68, 68, 0.5);
+}
+
+.ring-1 { width: 100%; height: 100%; animation-delay: 0s; }
+.ring-2 { width: 100%; height: 100%; animation-delay: 0.3s; }
+.ring-3 { width: 100%; height: 100%; animation-delay: 0.6s; }
+
+.voice-visualizer-wrap.active .voice-ring {
+  animation: ringExpand 1.5s ease-out infinite;
+}
+
+@keyframes ringExpand {
+  0% { transform: scale(0.6); opacity: 0.8; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+.sound-wave-bars {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  height: 20px;
+  position: relative;
+  z-index: 2;
+}
+
+.sound-bar {
+  width: 3px;
+  height: 100%;
+  background: rgba(239, 68, 68, 0.7);
+  border-radius: 2px;
+}
+
+.voice-visualizer-wrap.active .sound-bar {
+  animation: soundBar 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes soundBar {
+  0% { transform: scaleY(0.3); }
+  100% { transform: scaleY(1); }
+}
+
+/* ── Send Button ────────────────────────────────────────────────── */
+.send-btn {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(16, 185, 129, 0.15));
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 50%;
+  color: #34d399;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.send-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.45), rgba(16, 185, 129, 0.25));
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.25);
+  transform: scale(1.05);
+}
+
+.send-btn:active:not(:disabled) { transform: scale(0.97); }
+.send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* ── End Session Button ─────────────────────────────────────────── */
+.end-session-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 20px;
+  color: rgba(239, 68, 68, 0.7);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.end-session-btn:hover {
+  background: rgba(239, 68, 68, 0.22);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* ── Sessions History View ──────────────────────────────────────── */
+.pulse-sessions-view {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 20px 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.pulse-sessions-view::-webkit-scrollbar { width: 5px; }
+.pulse-sessions-view::-webkit-scrollbar-track { background: transparent; }
+.pulse-sessions-view::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.2); border-radius: 3px; }
+
+.pulse-sessions-intro h3 {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #ecfdf5;
+  margin: 0 0 4px;
+}
+
+.pulse-sessions-intro p {
+  font-size: 0.82rem;
+  color: rgba(236, 253, 245, 0.4);
+  margin: 0;
+}
+
+.pulse-sessions-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 20px;
+  text-align: center;
+  color: rgba(236, 253, 245, 0.3);
+  font-size: 0.85rem;
+}
+
+.pulse-sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pulse-session-card {
+  background: rgba(2, 13, 8, 0.5);
+  border: 1px solid rgba(16, 185, 129, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+.pulse-session-card:hover,
+.pulse-session-card.is-active {
+  border-color: rgba(16, 185, 129, 0.22);
+  background: rgba(2, 13, 8, 0.75);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+.pulse-session-card.is-active {
+  border-color: rgba(52, 211, 153, 0.3);
+}
+.pulse-session-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  gap: 8px;
+}
+
+.pulse-session-card-header:hover {
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.pulse-session-card-date {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #d1fae5;
+}
+
+.pulse-session-duration {
+  font-size: 0.78rem;
+  color: rgba(236, 253, 245, 0.45);
+  font-weight: 500;
+  margin-left: 4px;
+}
+
+.pulse-session-card-meta {
+  font-size: 0.72rem;
+  color: rgba(236, 253, 245, 0.38);
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pulse-session-card-messages {
+  padding: 8px 16px 16px;
+  border-top: 1px solid rgba(16, 185, 129, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.pulse-session-card-messages::-webkit-scrollbar { width: 4px; }
+.pulse-session-card-messages::-webkit-scrollbar-track { background: transparent; }
+.pulse-session-card-messages::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.2); border-radius: 2px; }
+
+.pulse-session-loading {
+  text-align: center;
+  padding: 16px;
+  color: rgba(236, 253, 245, 0.4);
+  font-size: 0.82rem;
+}
+
+.pulse-session-empty-msgs {
+  text-align: center;
+  padding: 12px;
+  color: rgba(236, 253, 245, 0.3);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.pulse-session-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pulse-session-msg.user {
+  align-items: flex-end;
+}
+
+.pulse-session-msg-role {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: rgba(52, 211, 153, 0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.pulse-session-msg.user .pulse-session-msg-role { color: rgba(52, 211, 153, 0.6); }
+
+.pulse-session-msg-content {
+  font-size: 0.85rem;
+  color: #ecfdf5;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 8px 12px;
+  border-radius: 10px;
+  max-width: 85%;
+}
+
+.pulse-session-msg.pulse .pulse-session-msg-content {
+  border-left: 2px solid rgba(16, 185, 129, 0.4);
+}
+
+.pulse-session-msg.user .pulse-session-msg-content {
+  border-right: 2px solid rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.08);
 }
 
 /* ── Chat Input Bar ─────────────────────────────────────────────── */
