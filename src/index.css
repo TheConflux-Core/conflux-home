@@ -1241,7 +1241,8 @@ body {
   gap: 12px;
 }
 
-.chat-message {
+/* Scoped to .chat-panel so Pulse's own .chat-message elements are unaffected */
+.chat-panel .chat-message {
   max-width: 75%;
   padding: 10px 14px;
   border-radius: var(--border-radius);
@@ -1249,21 +1250,21 @@ body {
   line-height: 1.5;
 }
 
-.chat-message.user {
+.chat-panel .chat-message.user {
   align-self: flex-end;
   background: rgba(99, 102, 241, 0.12);
   border: 1px solid rgba(99, 102, 241, 0.15);
   border-bottom-right-radius: 4px;
 }
 
-.chat-message.agent {
+.chat-panel .chat-message.agent {
   align-self: flex-start;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-bottom-left-radius: 4px;
 }
 
-.chat-message.system {
+.chat-panel .chat-message.system {
   align-self: center;
   background: transparent;
   color: var(--text-muted);
