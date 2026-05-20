@@ -25,6 +25,7 @@ import WeeklyDigest from './WeeklyDigest';
 import BrowseCards from './BrowseCards';
 import { MicButton } from './voice';
 import KitchenBoot from './KitchenBoot';
+import HearthChat from './HearthChat';
 import HearthOnboarding, { hasCompletedHearthOnboarding } from './HearthOnboarding';
 import HearthTour, { hasCompletedHearthTour } from './HearthTour';
 import KitchenEmptyState from './KitchenEmptyState';
@@ -339,6 +340,9 @@ export default function KitchenView() {
                 onStartCooking={handleStartCooking}
                 onSwap={loadTonightsMenu}
               />
+
+              {/* Hearth NL Chat */}
+              <HearthChat />
 
               {/* Restaurant Menu — Chef's Specials + Your Regulars */}
               <RestaurantMenu

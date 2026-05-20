@@ -3216,6 +3216,258 @@ pub async fn kitchen_get_meal_photos(
         .map_err(|e| e.to_string())
 }
 
+// ── Hearth Chat: Natural Language Kitchen Interface ─────────────────────────
+
+/// Hearth's natural language chat — routes to the right kitchen handler and
+/// gives contextual, warm, proactive responses. No forms. Just talk.
+#[tauri::command]
+pub async fn hearth_chat(req: engine::types::HearthChatRequest) -> Result<engine::types::HearthChatResponse, String> {
+    use engine::router::OpenAIMessage;
+
+    let req_msg = req.message.trim();
+    let greeting = "Hey, I'm Hearth — your kitchen companion. I know your meals, your pantry, and what's about to expire. I can suggest what to cook, help you plan your week, add items to your inventory, or just chat about food. What's on your mind?";
+    
+    if req_msg.is_empty() {
+        return Ok(engine::types::HearthChatResponse {
+            content: greeting.to_string(),
+            suggestions: vec![
+                "What should I cook tonight?".to_string(),
+                "Plan my week for high protein".to_string(),
+                "What's about to expire?".to_string(),
+                "Add chicken to my pantry".to_string(),
+            ],
+        });
+    }
+
+    let user_id = get_supabase_user_id();
+
+    // ── Gather kitchen context on thread pool (blocking DB) ──
+    let data = tokio::task::spawn_blocking(move || {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let engine = engine::get_engine();
+            let uid = user_id.clone();
+
+            let meals: Vec<(String, String, Option<String>, Option<i64>, Option<i64>, i64, bool)> =
+                engine.db().get_meals_sync(None, None, false)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|m| (m.id, m.name, m.category.clone(), m.prep_time_min, m.cook_time_min, m.servings, m.is_favorite))
+                    .collect();
+
+            let inventory: Vec<(String, Option<f64>, Option<String>, Option<String>)> =
+                engine.db().get_inventory_sync(&uid, None)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|i| (i.name, i.quantity, i.unit.clone(), i.category.clone()))
+                    .collect();
+
+            let expiring: Vec<(String, Option<String>)> =
+                engine.db().get_expiring_items_sync(5)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|i| (i.name, i.expiry_date.clone()))
+                    .collect();
+
+            let today = chrono::Utc::now().date_naive();
+            let day_name = today.format("%A").to_string();
+            let day_of_week = today.weekday().num_days_from_monday() as i64;
+            let days_since_monday = day_of_week as i64;
+            let week_start = today - chrono::Duration::days(days_since_monday as i64);
+            let week_start_str = week_start.format("%Y-%m-%d").to_string();
+            let plan = engine.db().get_weekly_plan_sync(&week_start_str)
+                .unwrap_or_else(|_| engine::types::WeeklyPlan {
+                    week_start: week_start_str.clone(),
+                    days: Vec::new(),
+                    total_estimated_cost: 0.0,
+                    meal_count: 0,
+                });
+            let today_slots: Vec<(String, String)> = plan.days
+                .iter()
+                .find(|d| d.day_of_week == day_of_week)
+                .map(|d| d.slots.iter().filter_map(|s| s.meal.as_ref().map(|m| (s.meal_slot.clone(), m.name.clone()))).collect())
+                .unwrap_or_default();
+
+            (meals, inventory, expiring, today_slots, day_name)
+        }))
+    }).await.map_err(|e| format!("task join error: {:?}", e))?;
+    let (meals, inventory, expiring, today_slots, day_name) = match data {
+        Ok(v) => v,
+        Err(e) => return Err(format!("panic in hearth_chat: {:?}", e)),
+    };
+
+    let context = hearth_build_context(&meals, &inventory, &expiring, &today_slots, &day_name);
+
+    let system_prompt = format!(
+        r#"You are Hearth — a warm, knowledgeable, and proactive kitchen companion embedded in the Conflux Home desktop app. You have a complete picture of the user's kitchen: their meal library, pantry inventory, what ingredients are about to expire, their current meal plan, and grocery list.
+
+Your personality:
+- Warm but practical. You sound like a knowledgeable home cook who genuinely loves food.
+- Proactive. You notice patterns and share insights unprompted. "Your chicken expires Thursday — maybe tonight's the night?"
+- Specific. Never generic. Reference actual items, actual numbers.
+- Concise. Short, punchy responses. 2-4 sentences unless the user wants detail.
+- Confident but not bossy. Suggest, don't lecture.
+
+When a user asks what to cook, you recommend from their actual meal library and reference what's in their pantry.
+When ingredients are expiring, you flag them and suggest meals that use them.
+When they want to plan, ask clarifying questions (high protein? budget? quick? vegetarian?)
+When they add to pantry/inventory, confirm what you understood and infer expiry dates from USDA FoodKeeper standards.
+You occasionally suggest specific meals by name from their library.
+
+{}"#,
+        context
+    );
+
+    let messages = vec![
+        OpenAIMessage { role: "system".to_string(), content: Some(system_prompt), tool_call_id: None, tool_calls: None },
+        OpenAIMessage { role: "user".to_string(), content: Some(req_msg.to_string()), tool_call_id: None, tool_calls: None },
+    ];
+
+    match engine::router::chat("conflux-core", messages, Some(800), None, None).await {
+        Ok(response) => {
+            let suggestions = hearth_generate_suggestions(&req_msg, &meals, &inventory, &expiring);
+            Ok(engine::types::HearthChatResponse { content: response.content, suggestions })
+        }
+        Err(e) => {
+            log::warn!("[hearth_chat] LLM failed, falling back: {}", e);
+            Ok(engine::types::HearthChatResponse {
+                content: hearth_fallback(&req_msg, &meals, &inventory, &expiring),
+                suggestions: vec!["What should I cook tonight?".to_string(), "What's about to expire?".to_string()],
+            })
+        }
+    }
+}
+
+fn hearth_build_context(
+    meals: &[(String, String, Option<String>, Option<i64>, Option<i64>, i64, bool)],
+    inventory: &[(String, Option<f64>, Option<String>, Option<String>)],
+    expiring: &[(String, Option<String>)],
+    today_slots: &[(String, String)],
+    day_name: &str,
+) -> String {
+    let mut ctx = format!("Today is {}.\n", day_name);
+
+    if !inventory.is_empty() {
+        ctx.push_str("\n## Your Pantry\n");
+        for (name, qty, unit, _cat) in inventory.iter().take(20) {
+            let q = qty.as_ref().map(|q| format!("{} ", q)).unwrap_or_default();
+            let u = unit.as_deref().unwrap_or("");
+            ctx.push_str(&format!("  - {}{}{}  {}  {}\n", q, u, if !u.is_empty() && !q.is_empty() { " " } else { "" }, name, ""));
+        }
+    } else {
+        ctx.push_str("\n## Your Pantry: Empty.\n");
+    }
+
+    if !expiring.is_empty() {
+        ctx.push_str("\n## ⚠️ Expiring Soon\n");
+        for (name, expiry) in expiring.iter().take(5) {
+            let exp_str = expiry.as_ref().map(|e| format!(" (expires {})", e)).unwrap_or_default();
+            ctx.push_str(&format!("  - {}{}\n", name, exp_str));
+        }
+    }
+
+    if !today_slots.is_empty() {
+        ctx.push_str(&format!("\n## Today's Plan ({})\n", day_name));
+        for (slot, meal_name) in today_slots.iter() {
+            ctx.push_str(&format!("  - {}: {}\n", slot, meal_name));
+        }
+    } else {
+        ctx.push_str(&format!("\n## Today's Plan ({}): Nothing planned yet.\n", day_name));
+    }
+
+    ctx.push_str(&format!("\n## Your Meal Library ({} meals)\n", meals.len()));
+    for (_id, name, cat, _prep, cook, _servings, fav) in meals.iter().take(15) {
+        let cat_str = cat.as_deref().unwrap_or("dinner");
+        let fav_str = if *fav { " ⭐" } else { "" };
+        let times_str = if let Some(c) = cook { format!(" ({}m cook)", c) } else { String::new() };
+        ctx.push_str(&format!("  - {} [{}{}]{}\n", name, cat_str, fav_str, times_str));
+    }
+
+    ctx
+}
+
+fn hearth_generate_suggestions(
+    msg: &str,
+    meals: &[(String, String, Option<String>, Option<i64>, Option<i64>, i64, bool)],
+    inventory: &[(String, Option<f64>, Option<String>, Option<String>)],
+    expiring: &[(String, Option<String>)],
+) -> Vec<String> {
+    let msg_lower = msg.to_lowercase();
+    let mut s = Vec::new();
+
+    if msg_lower.contains("cook") || msg_lower.contains("tonight") || msg_lower.contains("dinner") || msg_lower.contains("lunch") {
+        if !meals.is_empty() { s.push("Show me something quick (<30 min)".to_string()); }
+        s.push("What about something with chicken?".to_string());
+        s.push("Surprise me".to_string());
+    } else if msg_lower.contains("plan") || msg_lower.contains("week") {
+        s.push("High protein, low budget".to_string());
+        s.push("Quick & easy meals".to_string());
+        s.push("One pot / one pan".to_string());
+    } else if msg_lower.contains("expir") {
+        s.push("Give me a recipe using it".to_string());
+        s.push("How should I store it?".to_string());
+    } else if msg_lower.contains("add") || msg_lower.contains("pantry") || msg_lower.contains("fridge") {
+        s.push("Add more items".to_string());
+        s.push("What else do I have?".to_string());
+    } else {
+        if !meals.is_empty() { s.push("What should I cook tonight?".to_string()); }
+        if !expiring.is_empty() { s.push("What's about to expire?".to_string()); }
+        if !inventory.is_empty() { s.push("Add something to my pantry".to_string()); }
+        s.push("Plan my week".to_string());
+    }
+
+    s.sort(); s.dedup();
+    s.into_iter().take(4).collect()
+}
+
+fn hearth_fallback(
+    msg: &str,
+    meals: &[(String, String, Option<String>, Option<i64>, Option<i64>, i64, bool)],
+    inventory: &[(String, Option<f64>, Option<String>, Option<String>)],
+    expiring: &[(String, Option<String>)],
+) -> String {
+    let msg_lower = msg.to_lowercase();
+
+    if msg_lower.contains("what") && (msg_lower.contains("cook") || msg_lower.contains("tonight") || msg_lower.contains("dinner") || msg_lower.contains("eat")) {
+        if !meals.is_empty() {
+            let favs: Vec<_> = meals.iter().filter(|m| m.6).collect();
+            if !favs.is_empty() {
+                let m = &favs[0];
+                return format!("Try {} — one of your favorites! You've made it {} time(s). Want me to pull up the recipe?", m.1, m.5);
+            }
+            return format!("I think {} would be great tonight. Want me to show you the details?", meals[0].1);
+        }
+        return "Your meal library is empty! Describe something you'd like to cook and I'll add it to your collection.".to_string();
+    }
+
+    if msg_lower.contains("expir") || msg_lower.contains("expire") {
+        if !expiring.is_empty() {
+            let names: Vec<_> = expiring.iter().map(|(n, _)| n.as_str()).collect();
+            return format!("⚠️ {} item(s) expiring within 5 days: {}. Want me to suggest meals that use them?", expiring.len(), names.join(", "));
+        }
+        return "Nothing expiring soon — your pantry is looking fresh!".to_string();
+    }
+
+    if msg_lower.contains("add") && (msg_lower.contains("pantry") || msg_lower.contains("fridge") || msg_lower.contains("inventory")) {
+        return "Just say what you want to add — like 'add chicken breast and eggs to my fridge' and I'll handle it, including expiry inference.".to_string();
+    }
+
+    if msg_lower.contains("plan") || msg_lower.contains("week") {
+        if !meals.is_empty() {
+            return format!("I can plan your week around your {} meals! High protein? Quick & easy? Budget-conscious?", meals.len());
+        }
+        return "Start by adding some meals to your library, then I can plan your whole week!".to_string();
+    }
+
+    if msg_lower.contains("grocery") || msg_lower.contains("shop") {
+        return "Head to the Grocery tab and hit '✨ Generate from Plan' — or tell me what you need and I'll add it.".to_string();
+    }
+
+    if !meals.is_empty() {
+        return format!("I'm here! You have {} meals and {} pantry items. What do you need?", meals.len(), inventory.len());
+    }
+    "I'm Hearth — your kitchen companion. Add some meals to your library and I'll help you plan, cook, and eat well!".to_string()
+}
+
 // ── Onboarding Setup ──
 
 /// Onboarding: save_budget_data — seeds initial budget data for the current user.
