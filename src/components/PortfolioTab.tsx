@@ -39,15 +39,25 @@ export interface StockSearchResult {
 
 // ── DB Field mapping ─────────────────────────────────────────────────────
 
+function parseMoneyField(val: unknown): number {
+  if (typeof val === 'number') return val;
+  if (typeof val === 'string') {
+    // Strip $, commas, spaces — parse what remains
+    const cleaned = val.replace(/[^0-9.-]/g, '');
+    return parseFloat(cleaned) || 0;
+  }
+  return 0;
+}
+
 function dbToHolding(raw: any): Holding {
   return {
     id: raw.id,
     name: raw.asset_name ?? raw.name ?? '',
     asset_type: (raw.asset_type ?? 'other') as AssetType,
     ticker: raw.symbol ?? raw.ticker,
-    shares: typeof raw.shares === 'number' ? raw.shares : parseFloat(raw.shares ?? '0'),
-    cost_basis: typeof raw.cost_basis === 'number' ? raw.cost_basis : parseFloat(raw.cost_basis ?? '0'),
-    current_value: typeof raw.current_value === 'number' ? raw.current_value : parseFloat(raw.current_value ?? '0'),
+    shares: typeof raw.shares === 'number' ? raw.shares : parseFloat(String(raw.shares ?? '0').replace(/[^0-9.-]/g, '')) || 0,
+    cost_basis: parseMoneyField(raw.cost_basis),
+    current_value: parseMoneyField(raw.current_value),
     tag: (raw.tag ?? 'custom') as HoldingTag,
   };
 }
