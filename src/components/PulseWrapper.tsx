@@ -11,11 +11,11 @@ import '../styles/budget-pulse.css';
 import BudgetTab from './BudgetTab';
 import StocksTab from './StocksTab';
 import PortfolioTab from './PortfolioTab';
-import InvestmentsTab from './InvestmentsTab';
+// import InvestmentsTab from './InvestmentsTab';
 import SpeakToPulseTab from './SpeakToPulseTab';
 import '../styles/pulse-tabs.css';
 
-export type PulseTab = 'budget' | 'stocks' | 'portfolio' | 'investments' | 'speak';
+export type PulseTab = 'budget' | 'stocks' | 'portfolio' | 'speak';
 
 export default function PulseWrapper() {
   const [bootDone, setBootDone] = useState(() => localStorage.getItem('pulse-boot-done') === 'true');
@@ -174,7 +174,7 @@ export default function PulseWrapper() {
             {activeTab === 'budget' && <BudgetTab />}
             {activeTab === 'stocks' && <StocksTab />}
             {activeTab === 'portfolio' && <PortfolioTab />}
-            {activeTab === 'investments' && <InvestmentsTab />}
+            {/* activeTab === 'investments' && <InvestmentsTab /> — coming soon */}
             {activeTab === 'speak' && <SpeakToPulseTab />}
           </>
         ) : (
@@ -203,12 +203,6 @@ const TABS: { id: PulseTab; label: string; icon: string; iconSvg: string }[] = [
     label: 'Portfolio',
     icon: '🎒',
     iconSvg: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="12"/></svg>`,
-  },
-  {
-    id: 'investments',
-    label: 'Investments',
-    icon: '🏦',
-    iconSvg: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/><path d="M8 12a4 4 0 0 1 8 0"/></svg>`,
   },
   {
     id: 'speak',
