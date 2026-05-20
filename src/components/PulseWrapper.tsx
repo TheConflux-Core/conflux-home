@@ -44,15 +44,15 @@ export default function PulseWrapper() {
       // BudgetTab itself shows the real number; here we just give max credit if buckets exist
       budgetScore = 20; // base: budgeting system is active
 
-      // Portfolio component (0–40 points): diversification + performance
+      // Portfolio component (0–50 points): diversification + performance
+      // Matches PortfolioTab calcFinancialHealthScore formula exactly
       let portfolioScore = 0;
       if (holdings && holdings.length > 0) {
-        const totalValue = holdings.reduce((s: number, h: any) => s + (h.current_value || 0), 0);
-        const totalCost = holdings.reduce((s: number, h: any) => s + (h.cost_basis || 0), 0);
         const types = new Set(holdings.map((h: any) => h.asset_type)).size;
         const gainers = holdings.filter((h: any) => (h.current_value || 0) > (h.cost_basis || 0)).length;
-        portfolioScore = Math.min(20, types * 5); // up to 30 pts for diversification
-        portfolioScore += Math.round((gainers / holdings.length) * 10); // up to 10 pts for performance
+        portfolioScore = 20 // base engagement score
+          + Math.min(types * 12, 40) // up to 40 pts for asset diversification
+          + Math.round((gainers / holdings.length) * 40); // up to 40 pts for % holdings in profit
       }
 
       // Goals component (0–20 points): progress toward investment goals
