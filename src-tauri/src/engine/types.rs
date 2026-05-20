@@ -914,6 +914,27 @@ pub struct KitchenNudge {
     pub emoji: String,
 }
 
+// ── Hearth Chat (NL kitchen interface) ──────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HearthChatRequest {
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HearthChatMessage {
+    pub id: String,
+    pub role: String, // "user" | "hearth"
+    pub content: String,
+    pub timestamp: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HearthChatResponse {
+    pub content: String,
+    pub suggestions: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KitchenInventoryItem {
     pub id: String,

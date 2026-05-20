@@ -531,6 +531,7 @@ pub fn run() {
             commands::kitchen_get_nudges,
             commands::kitchen_smart_grocery,
             commands::kitchen_get_meal_photos,
+            commands::hearth_chat,
             // Onboarding Setup
             commands::save_budget_data,
             // Budget Tracker
