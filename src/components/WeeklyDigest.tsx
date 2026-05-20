@@ -179,11 +179,13 @@ export default function WeeklyDigest({ plan, meals, loading, onSetEntry, onShuff
   }
 
   // Determine which day is "today"
+  // weekStart is Sunday. Today is Wednesday May 20 2026.
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const weekStartDate = new Date(weekStart + 'T12:00:00');
-  weekStartDate.setHours(0, 0, 0, 0);
-  const daysSinceWeekStart = Math.round((today.getTime() - weekStartDate.getTime()) / (1000 * 60 * 60 * 24));
+  // DB day_of_week: 0=Monday, 1=Tue, ..., 6=Sunday
+  // JS getDay(): 0=Sun, 1=Mon, ..., 6=Sat
+  // Map: DB = (getDay() + 6) % 7
+  const todayDB = (today.getDay() + 6) % 7;
 
   // Count filled slots
   const filledSlots = plan.days.reduce((acc, day) =>
@@ -258,18 +260,23 @@ export default function WeeklyDigest({ plan, meals, loading, onSetEntry, onShuff
         <span className="weekly-summary-hint">Click a day to edit</span>
       </div>
 
-      {/* Day cards grid */}
+      {/* Day cards grid — Sunday first, then Mon–Sat */}
       <div className="weekly-day-grid">
-        {plan.days.map(day => (
-          <DayCard
-            key={day.day_of_week}
-            day={day}
-            weekStart={weekStart}
-            meals={meals}
-            onSetEntry={onSetEntry}
-            isToday={day.day_of_week === daysSinceWeekStart}
-          />
-        ))}
+        {[...plan.days]
+          .sort((a, b) => {
+            const order = [6, 0, 1, 2, 3, 4, 5]; // Sunday=6 → first, Mon=0 → second, ...
+            return order.indexOf(a.day_of_week) - order.indexOf(b.day_of_week);
+          })
+          .map(day => (
+            <DayCard
+              key={day.day_of_week}
+              day={day}
+              weekStart={weekStart}
+              meals={meals}
+              onSetEntry={onSetEntry}
+              isToday={day.day_of_week === todayDB}
+            />
+          ))}
       </div>
     </div>
   );
