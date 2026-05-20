@@ -2,7 +2,8 @@
 // Long-term investment goals tracker with dark emerald Pulse aesthetic.
 // Uses static sample data — no Rust backend required.
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import '../styles/InvestmentsTab.css';
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -93,7 +94,21 @@ const SAMPLE_GOALS: InvestmentGoal[] = [
   },
 ];
 
-// ── Constants ───────────────────────────────────────────────────────
+// ── DB → frontend mapper ────────────────────────────────────────────
+
+function dbToGoal(raw: any): InvestmentGoal {
+  return {
+    id: raw.id,
+    name: raw.name,
+    type: (raw.goal_type ?? raw.type ?? 'custom') as InvestmentGoal['type'],
+    targetAmount: typeof raw.target_amount === 'number' ? raw.target_amount : parseFloat(raw.target_amount ?? '0'),
+    currentAmount: typeof raw.current_amount === 'number' ? raw.current_amount : parseFloat(raw.current_amount ?? '0'),
+    monthlyContribution: typeof raw.monthly_contribution === 'number' ? raw.monthly_contribution : parseFloat(raw.monthly_contribution ?? '0'),
+    targetDate: raw.target_date ?? null,
+    riskProfile: (raw.risk_profile ?? 'moderate') as InvestmentGoal['riskProfile'],
+    createdAt: raw.created_at ? new Date(raw.created_at).getTime() : Date.now(),
+  };
+}
 
 const TYPE_META: Record<GoalType, { icon: string; label: string }> = {
   '401k':      { icon: '🏦', label: '401(k)' },
@@ -509,46 +524,74 @@ function GoalForm({
 // ── Main Component ──────────────────────────────────────────────────
 
 export default function InvestmentsTab() {
-  const [goals, setGoals] = useState<InvestmentGoal[]>(SAMPLE_GOALS);
+  const [goals, setGoals] = useState<InvestmentGoal[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingGoal, setEditingGoal] = useState<InvestmentGoal | null>(null);
   const [celebratingIds, setCelebratingIds] = useState<Set<string>>(new Set());
   const celebratedRef = useRef<Set<string>>(new Set());
 
-  function handleAdd(goal: InvestmentGoal) {
-    setGoals(prev => [goal, ...prev]);
+  // ── DB load ──────────────────────────────────────────────────────
+  async function loadGoals() {
+    try {
+      const raw: any[] = await invoke('pulse_get_investment_goals', { memberId: null });
+      setGoals(raw.map(dbToGoal));
+    } catch (e) {
+      console.error('[InvestmentsTab] loadGoals error:', e);
+    }
+  }
+
+  useEffect(() => { loadGoals(); }, []);
+
+  // ── DB persistence ─────────────────────────────────────────────────
+  const handleAdd = useCallback(async (goal: InvestmentGoal) => {
+    try {
+      const created: any = await invoke('pulse_add_investment_goal', {
+        req: { name: goal.name, goal_type: goal.type, target_amount: goal.targetAmount, current_amount: goal.currentAmount, monthly_contribution: goal.monthlyContribution, target_date: goal.targetDate, risk_profile: goal.riskProfile },
+        memberId: null,
+      });
+      setGoals(prev => [dbToGoal(created), ...prev]);
+      setShowForm(false);
+      setEditingGoal(null);
+    } catch (e) { console.error('[InvestmentsTab] add error:', e); }
+  }, []);
+
+  const handleUpdate = useCallback(async (goal: InvestmentGoal) => {
+    try {
+      const updated: any = await invoke('pulse_update_investment_goal', {
+        id: goal.id,
+        req: { name: goal.name, goal_type: goal.type, target_amount: goal.targetAmount, current_amount: goal.currentAmount, monthly_contribution: goal.monthlyContribution, target_date: goal.targetDate, risk_profile: goal.riskProfile },
+      });
+      setGoals(prev => prev.map(g => g.id === goal.id ? dbToGoal(updated) : g));
+      setShowForm(false);
+      setEditingGoal(null);
+    } catch (e) { console.error('[InvestmentsTab] update error:', e); }
+  }, []);
+
+  const handleDelete = useCallback(async (id: string) => {
+    try {
+      await invoke('pulse_delete_investment_goal', { id });
+      setGoals(prev => prev.filter(g => g.id !== id));
+      if (expandedId === id) setExpandedId(null);
+      celebratedRef.current.delete(id);
+      setCelebratingIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+    } catch (e) { console.error('[InvestmentsTab] delete error:', e); }
+  }, [expandedId]);
+
+  const handleFormCancel = useCallback(() => {
     setShowForm(false);
     setEditingGoal(null);
-  }
+  }, []);
 
-  function handleUpdate(goal: InvestmentGoal) {
-    setGoals(prev => prev.map(g => g.id === goal.id ? goal : g));
-    setShowForm(false);
-    setEditingGoal(null);
-  }
-
-  function handleDelete(id: string) {
-    setGoals(prev => prev.filter(g => g.id !== id));
-    if (expandedId === id) setExpandedId(null);
-    celebratedRef.current.delete(id);
-    setCelebratingIds(prev => { const next = new Set(prev); next.delete(id); return next; });
-  }
-
-  function handleEdit(goal: InvestmentGoal) {
+  const handleEdit = useCallback((goal: InvestmentGoal) => {
     setEditingGoal(goal);
     setShowForm(true);
-  }
+  }, []);
 
-  function handleFormSubmit(goal: InvestmentGoal) {
+  const handleFormSubmit = useCallback((goal: InvestmentGoal) => {
     if (editingGoal) handleUpdate(goal);
     else handleAdd(goal);
-  }
-
-  function handleFormCancel() {
-    setShowForm(false);
-    setEditingGoal(null);
-  }
+  }, [editingGoal, handleAdd, handleUpdate]);
 
   const totalPortfolioValue = goals.reduce((sum, g) => sum + g.currentAmount, 0);
 

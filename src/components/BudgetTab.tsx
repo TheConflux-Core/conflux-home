@@ -63,6 +63,92 @@ export default function BudgetTab({ preOnboarding = false }: BudgetTabProps) {
   const surplus = totalIncome - totalObligations;
   const showNudgePlaceholder = buckets.length < 3 || !settings?.income_amount;
 
+  // ── Proactive Nudge Engine ─────────────────────────────────
+  // Generate actionable insights based on budget state
+  const nudge = (() => {
+    if (showNudgePlaceholder) return null;
+
+    const surplusPct = totalIncome > 0 ? (surplus / totalIncome) * 100 : 0;
+    const bucketNames = buckets.map(b => b.name.toLowerCase());
+
+    // 1. Deficit alert — most urgent
+    if (surplus < 0) {
+      const shortfall = Math.abs(surplus);
+      return {
+        icon: '🚨',
+        title: 'Deficit Alert',
+        body: `Your obligations exceed income by ${formatMoney(shortfall)} (${surplusPct.toFixed(0)}% over budget). Review your ${buckets.find(b => (b.monthly_goal || 0) > 0)?.name ?? 'top'} bucket to find cuts.`,
+        color: '#ef4444',
+        urgency: 'high' as const,
+      };
+    }
+
+    // 2. Rollover warning — bucket fully paid before period end
+    const now = new Date();
+    const daysIntoPeriod = (now.getDate() / 30) * 100; // rough % of month
+    const nearFullBuckets = buckets.filter(b => {
+      const paid = transactions.filter(t => t.bucket_id === b.id && t.status === 'reconciled')
+        .reduce((s, t) => s + Math.abs(t.amount), 0);
+      return paid >= (b.monthly_goal || 0) * 0.9 && daysIntoPeriod < 70;
+    });
+    if (nearFullBuckets.length > 0) {
+      return {
+        icon: '♻️',
+        title: 'Bucket Ready to Rollover',
+        body: `${nearFullBuckets[0].name} is 90%+ funded with time to spare. Consider adding more or rolling surplus to savings.`,
+        color: '#34d399',
+        urgency: 'low' as const,
+      };
+    }
+
+    // 3. Savings rate nudge — encourage saving more
+    if (surplusPct > 15) {
+      return {
+        icon: '🎯',
+        title: 'Strong Savings Rate',
+        body: `${surplusPct.toFixed(0)}% of income is unallocated — ${formatMoney(surplus)}. Move it to savings or investments before you spend it.`,
+        color: '#34d399',
+        urgency: 'low' as const,
+      };
+    }
+
+    // 4. Unallocated bucket — no goal set
+    const unallocatedBuckets = buckets.filter(b => !(b.monthly_goal && b.monthly_goal > 0));
+    if (unallocatedBuckets.length > 0) {
+      return {
+        icon: '💡',
+        title: 'Bucket Needs a Goal',
+        body: `${unallocatedBuckets[0].name} has no monthly limit set. Add a goal in Config to start tracking.`,
+        color: '#fbbf24',
+        urgency: 'medium' as const,
+      };
+    }
+
+    // 5. High-spend category alert — if one bucket dominates
+    const topBucket = [...buckets].sort((a, b) => (b.monthly_goal || 0) - (a.monthly_goal || 0))[0];
+    if (topBucket && totalObligations > 0) {
+      const dominantPct = ((topBucket.monthly_goal || 0) / totalObligations) * 100;
+      if (dominantPct > 60) {
+        return {
+          icon: '📊',
+          title: `${topBucket.name} Dominates Budget`,
+          body: `${topBucket.name} is ${dominantPct.toFixed(0)}% of your obligations. Is that intentional? Review if you want to rebalance.`,
+          color: '#fbbf24',
+          urgency: 'medium' as const,
+        };
+      }
+    }
+
+    // Default: positive status
+    return {
+      icon: '✅',
+      title: 'Budget On Track',
+      body: `All ${buckets.length} buckets tracked. ${surplus > 0 ? formatMoney(surplus) + ' surplus this period.' : 'Spending is balanced.'}`,
+      color: '#34d399',
+      urgency: 'none' as const,
+    };
+  })();
+
   // ── Helpers ─────────────────────────────────────────────
   const getAllocation = (bucketId: string, p: number) => {
     const bucket = buckets.find(b => b.id === bucketId);
@@ -147,7 +233,7 @@ export default function BudgetTab({ preOnboarding = false }: BudgetTabProps) {
       <PulseParticles />
 
       {/* Proactive Nudge — placeholder state */}
-      {showNudgePlaceholder && (
+      {!nudge && (
         <div className="pulse-proactive pulse-proactive-placeholder">
           <span className="pulse-proactive-icon">💡</span>
           <div className="pulse-proactive-content">
@@ -159,18 +245,13 @@ export default function BudgetTab({ preOnboarding = false }: BudgetTabProps) {
         </div>
       )}
 
-      {/* Proactive Nudge — data exists */}
-      {!showNudgePlaceholder && (
-        <div className="pulse-proactive">
-          <span className="pulse-proactive-icon">📊</span>
+      {/* Proactive Nudge — computed */}
+      {nudge && (
+        <div className="pulse-proactive" style={{ borderLeft: `3px solid ${nudge.color}` }}>
+          <span className="pulse-proactive-icon">{nudge.icon}</span>
           <div className="pulse-proactive-content">
-            <div className="pulse-proactive-title">Pulse Insight</div>
-            <div className="pulse-proactive-body">
-              You're tracking {buckets.length} buckets with ${(settings?.income_amount || 0).toLocaleString()} monthly income.
-              {surplus > 0
-                ? ` $${surplus.toLocaleString()} projected surplus.`
-                : ` ${Math.abs(surplus).toLocaleString()} deficit.`}
-            </div>
+            <div className="pulse-proactive-title">{nudge.title}</div>
+            <div className="pulse-proactive-body">{nudge.body}</div>
           </div>
         </div>
       )}
