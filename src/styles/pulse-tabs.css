@@ -1370,7 +1370,7 @@
   flex-direction: column;
   overflow: hidden;
   min-width: 0;
-  height: 100%;
+  min-height: 0;
   padding: 0 4px 0 6px;
 }
 
