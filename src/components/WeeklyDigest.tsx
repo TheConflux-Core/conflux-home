@@ -231,21 +231,7 @@ export default function WeeklyDigest({ plan, meals, loading, onSetEntry, onShuff
         </div>
       </div>
 
-      {/* Day cards grid */}
-      <div className="weekly-day-grid">
-        {plan.days.map(day => (
-          <DayCard
-            key={day.day_of_week}
-            day={day}
-            weekStart={weekStart}
-            meals={meals}
-            onSetEntry={onSetEntry}
-            isToday={day.day_of_week === daysSinceWeekStart}
-          />
-        ))}
-      </div>
-
-      {/* Bottom summary bar */}
+      {/* Stats bar — moved above the grid */}
       <div className="weekly-summary">
         <div className="weekly-summary-item">
           <span className="summary-value">🍽️ {filledSlots}</span>
@@ -267,6 +253,20 @@ export default function WeeklyDigest({ plan, meals, loading, onSetEntry, onShuff
         )}
         <div className="weekly-summary-spacer" />
         <span className="weekly-summary-hint">Click a day to edit</span>
+      </div>
+
+      {/* Day cards grid */}
+      <div className="weekly-day-grid">
+        {plan.days.map(day => (
+          <DayCard
+            key={day.day_of_week}
+            day={day}
+            weekStart={weekStart}
+            meals={meals}
+            onSetEntry={onSetEntry}
+            isToday={day.day_of_week === daysSinceWeekStart}
+          />
+        ))}
       </div>
     </div>
   );
