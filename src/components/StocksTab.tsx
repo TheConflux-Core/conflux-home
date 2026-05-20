@@ -611,7 +611,7 @@ export default function StocksTab() {
   const sortedStocks = [...stocks].sort(sortStocks);
 
   return (
-    <div className="stocks-tab">
+    <div className={`stocks-tab${selectedStock ? ' overlay-open' : ''}`}>
       <div className="ticker-zone"><TickerTape /></div>
 
       <div className="stocks-header">
