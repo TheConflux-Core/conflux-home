@@ -2969,7 +2969,7 @@
 /* ── Stock Detail Modal ── */
 .stock-detail-overlay {
   position: absolute;
-  inset: 0;
+  top: -40px; right: -48px; bottom: -56px; left: -48px;
   background: rgba(2, 13, 8, 0.92);
   backdrop-filter: blur(12px);
   z-index: 9999;
@@ -2978,6 +2978,18 @@
   justify-content: center;
   overflow-y: auto;
   animation: fadeIn 0.2s ease;
+}
+
+/* Reset .stocks-tab padding only when overlay is open so overlay can truly full-bleed */
+.stocks-tab.overlay-open {
+  padding: 0;
+}
+
+.stocks-tab.overlay-open .stocks-header,
+.stocks-tab.overlay-open .stocks-grid,
+.stocks-tab.overlay-open .ticker-zone {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .stock-detail-modal {
