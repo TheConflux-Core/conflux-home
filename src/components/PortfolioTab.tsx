@@ -620,14 +620,19 @@ export default function PortfolioTab() {
                 value={form.shares} onChange={e => setForm(f => ({ ...f, shares: e.target.value }))} />
             </div>
             <div className="form-group">
-              <label className="form-label">Cost Basis (total paid) *</label>
+              <label className="form-label">Cost Basis (total for all shares)</label>
               <input className="form-input" type="number" min="0" step="0.01" placeholder="0.00"
                 value={form.cost_basis} onChange={e => setForm(f => ({ ...f, cost_basis: e.target.value }))} />
             </div>
             <div className="form-group">
-              <label className="form-label">Current Value *</label>
+              <label className="form-label">Current Price per Share</label>
               <input className="form-input" type="number" min="0" step="0.01" placeholder="0.00"
                 value={form.current_value} onChange={e => setForm(f => ({ ...f, current_value: e.target.value }))} />
+              <span className="form-hint">Total value: {(() => {
+                const v = parseFloat(form.current_value) || 0;
+                const s = parseFloat(form.shares) || 0;
+                return s > 0 && v > 0 ? formatCurrency(v * s) + ` (${s} shares × ${formatCurrency(v)})` : '—';
+              })()}</span>
             </div>
             <div className="form-group">
               <label className="form-label">Strategy Tag</label>
@@ -661,7 +666,9 @@ export default function PortfolioTab() {
           <div className="holdings-table">
             <div className="holdings-thead"><span>Asset</span><span>Type</span><span>Shares</span><span>Current Value</span><span>Gain / Loss</span><span>Tag</span><span></span></div>
             {holdings.map((h, i) => {
-              const { diff, pct } = calcGainLoss(h.cost_basis, h.current_value);
+              const totalValue = h.shares * h.current_value;
+              const totalCost = h.shares * h.cost_basis;
+              const { diff, pct } = calcGainLoss(totalCost, totalValue);
               return (
                 <div key={h.id} className="holdings-row" style={{ animationDelay: `${i * 40}ms` }}>
                   <div className="holding-asset">
@@ -677,7 +684,7 @@ export default function PortfolioTab() {
                     </span>
                   </div>
                   <span className="holding-shares">{h.shares.toLocaleString('en-US', { maximumFractionDigits: 4 })}</span>
-                  <span className="holding-value">{formatCurrency(h.current_value)}</span>
+                  <span className="holding-value">{formatCurrency(totalValue)}</span>
                   <div className={`holding-gain ${diff >= 0 ? 'gain-positive' : 'gain-negative'}`}>
                     <span className="gain-dollar">{diff >= 0 ? '+' : ''}{formatCurrency(diff)}</span>
                     <span className="gain-pct">{formatPct(pct)}</span>
