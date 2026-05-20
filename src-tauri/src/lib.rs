@@ -566,6 +566,7 @@ pub fn run() {
             engine::pulse::pulse_update_stock,
             engine::pulse::pulse_search_stocks,
             engine::pulse::pulse_fetch_price,
+            engine::pulse::pulse_get_stock_candles,
             engine::pulse::pulse_add_holding,
             engine::pulse::pulse_get_holdings,
             engine::pulse::pulse_update_holding,
