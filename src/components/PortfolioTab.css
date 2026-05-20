@@ -26,6 +26,21 @@
 }
 .portfolio-tab::-webkit-scrollbar-thumb:hover { background: rgba(16, 185, 129, 0.35); }
 
+/* ── Error Banner ── */
+.portfolio-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  color: #fca5a5;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
 /* ── Loading ── */
 .portfolio-loading {
   display: flex;
@@ -971,7 +986,7 @@
    ═══════════════════════════════════════════════════════ */
 
 .portfolio-modal-overlay {
-  position: fixed;
+  position: absolute;
   inset: 0;
   background: rgba(2, 13, 8, 0.85);
   backdrop-filter: blur(8px);
@@ -1079,4 +1094,90 @@
   .holdings-row {
     grid-template-columns: 1fr 1fr 1fr 60px;
   }
+}
+/* ── Stock Search Dropdown ── */
+.stock-search-spinner {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(16, 185, 129, 0.2);
+  border-top-color: #10b981;
+  border-radius: 50%;
+  animation: portfolio-spin 0.7s linear infinite;
+}
+
+.stock-search-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: rgba(2, 15, 10, 0.98);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  overflow: hidden;
+  backdrop-filter: blur(20px);
+}
+
+.stock-search-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  color: #ecfdf5;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+  border-bottom: 1px solid rgba(16, 185, 129, 0.06);
+}
+
+.stock-search-item:last-child { border-bottom: none; }
+
+.stock-search-item:hover,
+.stock-search-item:focus {
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.stock-search-symbol {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  padding: 3px 8px;
+  border-radius: 6px;
+  min-width: 56px;
+  text-align: center;
+}
+
+.stock-search-name {
+  flex: 1;
+  font-size: 0.85rem;
+  color: rgba(236, 253, 245, 0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stock-search-price {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  color: #34d399;
+  font-weight: 600;
+}
+
+/* ── Form Hint ── */
+.form-hint {
+  display: block;
+  font-size: 0.72rem;
+  color: rgba(236, 253, 245, 0.35);
+  margin-top: 4px;
+  font-style: italic;
 }

@@ -1,8 +1,8 @@
 // Conflux Home — PortfolioTab
 // Custom asset portfolio tracker with dark emerald Pulse aesthetic
-// Uses static sample data — no Rust backend required
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import './PortfolioTab.css';
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -30,72 +30,54 @@ export interface PortfolioSummary {
   by_tag: Record<HoldingTag, number>;
 }
 
-// ── Static Sample Holdings ───────────────────────────────────────────────
+export interface StockSearchResult {
+  symbol: string;
+  company_name: string;
+  sector: string;
+  current_price: number | null;
+}
 
-const SAMPLE_HOLDINGS: Holding[] = [
-  { id: '1', name: 'Apple Inc.', asset_type: 'stock', ticker: 'AAPL', shares: 50, cost_basis: 7500, current_value: 9375, tag: 'growth' },
-  { id: '2', name: 'Bitcoin', asset_type: 'crypto', ticker: 'BTC', shares: 0.75, cost_basis: 45000, current_value: 78500, tag: 'speculative' },
-  { id: '3', name: 'Microsoft Corp.', asset_type: 'stock', ticker: 'MSFT', shares: 30, cost_basis: 9000, current_value: 12456, tag: 'retirement' },
-  { id: '4', name: 'JPMorgan Chase', asset_type: 'stock', ticker: 'JPM', shares: 40, cost_basis: 6000, current_value: 7944, tag: 'retirement' },
-  { id: '5', name: 'NVIDIA Corp.', asset_type: 'stock', ticker: 'NVDA', shares: 15, cost_basis: 9000, current_value: 13802, tag: 'growth' },
-  { id: '6', name: 'US Savings Bond', asset_type: 'bond', shares: 1, cost_basis: 10000, current_value: 10500, tag: 'emergency' },
-  { id: '7', name: 'Emergency Fund', asset_type: 'cash', shares: 1, cost_basis: 15000, current_value: 15000, tag: 'emergency' },
-  { id: '8', name: 'Beach Condo', asset_type: 'real_estate', shares: 1, cost_basis: 180000, current_value: 225000, tag: 'custom' },
-];
+// ── DB Field mapping ─────────────────────────────────────────────────────
+
+function dbToHolding(raw: any): Holding {
+  return {
+    id: raw.id,
+    name: raw.asset_name ?? raw.name ?? '',
+    asset_type: (raw.asset_type ?? 'other') as AssetType,
+    ticker: raw.symbol ?? raw.ticker,
+    shares: typeof raw.shares === 'number' ? raw.shares : parseFloat(raw.shares ?? '0'),
+    cost_basis: typeof raw.cost_basis === 'number' ? raw.cost_basis : parseFloat(raw.cost_basis ?? '0'),
+    current_value: typeof raw.current_value === 'number' ? raw.current_value : parseFloat(raw.current_value ?? '0'),
+    tag: (raw.tag ?? 'custom') as HoldingTag,
+  };
+}
 
 // ── Color/label maps ─────────────────────────────────────────────────────────
 
 const ASSET_TYPE_LABELS: Record<AssetType, string> = {
-  stock: 'Stock',
-  crypto: 'Crypto',
-  real_estate: 'Real Estate',
-  cash: 'Cash',
-  bond: 'Bond',
-  other: 'Other',
+  stock: 'Stock', crypto: 'Crypto', real_estate: 'Real Estate',
+  cash: 'Cash', bond: 'Bond', other: 'Other',
 };
 
 const ASSET_TYPE_COLORS: Record<AssetType, string> = {
-  stock: '#3b82f6',
-  crypto: '#f97316',
-  real_estate: '#10b981',
-  cash: '#6b7280',
-  bond: '#8b5cf6',
-  other: '#94a3b8',
+  stock: '#3b82f6', crypto: '#f97316', real_estate: '#10b981',
+  cash: '#6b7280', bond: '#8b5cf6', other: '#94a3b8',
 };
 
 const TAG_LABELS: Record<HoldingTag, string> = {
-  retirement: 'Retirement',
-  speculative: 'Speculative',
-  emergency: 'Emergency',
-  growth: 'Growth',
-  custom: 'Custom',
+  retirement: 'Retirement', speculative: 'Speculative', emergency: 'Emergency',
+  growth: 'Growth', custom: 'Custom',
 };
 
 const TAG_COLORS: Record<HoldingTag, string> = {
-  retirement: '#6366f1',
-  speculative: '#f59e0b',
-  emergency: '#ef4444',
-  growth: '#10b981',
-  custom: '#6b7280',
+  retirement: '#6366f1', speculative: '#f59e0b', emergency: '#ef4444',
+  growth: '#10b981', custom: '#6b7280',
 };
-
-// ── Donut Chart Segment type ──────────────────────────────────────────────
-
-interface DonutSegment {
-  label: string;
-  value: number;
-  color: string;
-}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatCurrency(n: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(n);
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 }
 
 function formatCurrencyCompact(n: number): string {
@@ -120,27 +102,14 @@ function calcFinancialHealthScore(holdings: Holding[]): number {
   if (total === 0) return 0;
   const types = new Set(holdings.map(h => h.asset_type)).size;
   const gains = holdings.filter(h => h.current_value > h.cost_basis).length;
-  const diversificationScore = Math.min(types * 12, 40);
-  const gainScore = Math.round((gains / holdings.length) * 40);
-  const baseScore = 20;
-  return Math.min(100, baseScore + diversificationScore + gainScore);
+  return Math.min(100, 20 + Math.min(types * 12, 40) + Math.round((gains / holdings.length) * 40));
 }
 
-function buildDonutSegments(data: DonutSegment[], size = 120): {
-  segments: Array<{ color: string; dashArray: string; dashOffset: string; label: string; pct: string }>;
-  circumference: number;
-} {
+function buildDonutSegments(data: { label: string; value: number; color: string }[], size = 120) {
   const total = data.reduce((s, d) => s + d.value, 0);
   const circumference = 2 * Math.PI * 42;
   const GAP = 3;
-
-  if (total === 0) {
-    return {
-      segments: [{ color: '#1f2937', dashArray: `${circumference}`, dashOffset: '0', label: data[0]?.label ?? '', pct: '0%' }],
-      circumference,
-    };
-  }
-
+  if (total === 0) return { segments: [{ color: '#1f2937', dashArray: `${circumference}`, dashOffset: '0', label: '', pct: '0%' }], circumference };
   let accum = 0;
   const segments = data.map(d => {
     const share = (d.value / total) * 360;
@@ -152,62 +121,34 @@ function buildDonutSegments(data: DonutSegment[], size = 120): {
     accum += share;
     return seg;
   });
-
   return { segments, circumference };
 }
 
-// ── Donut Chart Component ────────────────────────────────────────────────
+// ── Donut Chart ───────────────────────────────────────────────────────────
 
-function DonutChart({
-  data,
-  centerLabel,
-  centerValue,
-  size = 140,
-}: {
-  data: DonutSegment[];
-  centerLabel: string;
-  centerValue: string;
-  size?: number;
-}) {
+function DonutChart({ data, centerLabel, centerValue, size = 140 }: { data: { label: string; value: number; color: string }[]; centerLabel: string; centerValue: string; size?: number }) {
   const radius = 48;
   const cx = size / 2;
   const cy = size / 2;
-
   const { segments } = buildDonutSegments(data, size);
-
   return (
     <div className="donut-chart-container" style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <circle cx={cx} cy={cy} r={radius} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth={14} />
         {segments.map((seg, i) => (
-          <circle
-            key={i}
-            cx={cx} cy={cy} r={radius}
-            fill="none"
-            stroke={seg.color}
-            strokeWidth={14}
-            strokeDasharray={seg.dashArray}
-            strokeDashoffset={seg.dashOffset}
-            strokeLinecap="butt"
+          <circle key={i} cx={cx} cy={cy} r={radius} fill="none" stroke={seg.color} strokeWidth={14}
+            strokeDasharray={seg.dashArray} strokeDashoffset={seg.dashOffset} strokeLinecap="butt"
             transform={`rotate(-90 ${cx} ${cy})`}
-            style={{
-              filter: `drop-shadow(0 0 6px ${seg.color}60)`,
-              transition: 'stroke-dasharray 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)',
-            }}
-          />
+            style={{ filter: `drop-shadow(0 0 6px ${seg.color}60)`, transition: 'stroke-dasharray 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
         ))}
-        <text x={cx} y={cy - 8} textAnchor="middle" fill="rgba(236,253,245,0.45)" fontSize={9} fontWeight={700} letterSpacing="0.1em">
-          {centerLabel.toUpperCase()}
-        </text>
-        <text x={cx} y={cy + 12} textAnchor="middle" fill="#ecfdf5" fontSize={15} fontWeight={900} fontFamily="'JetBrains Mono', monospace">
-          {centerValue}
-        </text>
+        <text x={cx} y={cy - 8} textAnchor="middle" fill="rgba(236,253,245,0.45)" fontSize={9} fontWeight={700} letterSpacing="0.1em">{centerLabel.toUpperCase()}</text>
+        <text x={cx} y={cy + 12} textAnchor="middle" fill="#ecfdf5" fontSize={15} fontWeight={900} fontFamily="'JetBrains Mono', monospace">{centerValue}</text>
       </svg>
     </div>
   );
 }
 
-// ── Financial Health Score Card ─────────────────────────────────────────
+// ── Health Score Card ─────────────────────────────────────────────────────
 
 function HealthScoreCard({ score }: { score: number }) {
   const radius = 40;
@@ -215,23 +156,15 @@ function HealthScoreCard({ score }: { score: number }) {
   const dashLen = (score / 100) * circ;
   const scoreColor = score >= 75 ? '#10b981' : score >= 45 ? '#f59e0b' : '#ef4444';
   const scoreLabel = score >= 75 ? 'Excellent' : score >= 45 ? 'Fair' : 'Needs Attention';
-
   return (
     <div className="health-score-card">
       <div className="health-score-ring">
         <svg width="100" height="100" viewBox="0 0 100 100">
           <circle cx="50" cy="50" r={radius} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
-          <circle
-            cx="50" cy="50" r={radius}
-            fill="none"
-            stroke={scoreColor}
-            strokeWidth="6"
-            strokeDasharray={`${dashLen} ${circ}`}
-            strokeDashoffset={circ / 4}
-            strokeLinecap="round"
+          <circle cx="50" cy="50" r={radius} fill="none" stroke={scoreColor} strokeWidth="6"
+            strokeDasharray={`${dashLen} ${circ}`} strokeDashoffset={circ / 4} strokeLinecap="round"
             transform="rotate(-90 50 50)"
-            style={{ filter: `drop-shadow(0 0 8px ${scoreColor}80)`, transition: 'stroke-dasharray 1s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
-          />
+            style={{ filter: `drop-shadow(0 0 8px ${scoreColor}80)`, transition: 'stroke-dasharray 1s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
           <text x="50" y="46" textAnchor="middle" fill={scoreColor} fontSize="22" fontWeight={900} fontFamily="'JetBrains Mono', monospace">{score}</text>
           <text x="50" y="60" textAnchor="middle" fill="rgba(236,253,245,0.5)" fontSize="8" fontWeight={700} letterSpacing="0.08em">/ 100</text>
         </svg>
@@ -257,22 +190,117 @@ interface HoldingForm {
   tag: HoldingTag;
 }
 
-function generateId() {
-  return `holding_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function PortfolioTab() {
-  const [holdings, setHoldings] = useState<Holding[]>(SAMPLE_HOLDINGS);
+  const [holdings, setHoldings] = useState<Holding[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
+  // Stock search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<StockSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
   const [form, setForm] = useState<HoldingForm>({
-    name: '', asset_type: 'stock', ticker: '',
-    shares: '', cost_basis: '', current_value: '', tag: 'growth',
+    name: '', asset_type: 'stock', ticker: '', shares: '', cost_basis: '', current_value: '', tag: 'growth',
   });
+
+  // ── Fetch holdings from DB ────────────────────────────────────────────────
+
+  async function loadHoldings() {
+    try {
+      setLoading(true);
+      setError(null);
+      const raw: any[] = await invoke('pulse_get_holdings', { memberId: null });
+      setHoldings(raw.map(dbToHolding));
+    } catch (e: any) {
+      console.error('[PortfolioTab] loadHoldings error:', e);
+      setError('Failed to load holdings: ' + (e?.message ?? String(e)));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { loadHoldings(); }, []);
+
+  // ── Stock search ───────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    // Only search for stock/crypto type
+    if (form.asset_type !== 'stock' && form.asset_type !== 'crypto') {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+
+    if (searchQuery.trim().length < 2) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    setSearching(true);
+    searchTimerRef.current = setTimeout(async () => {
+      try {
+        const results: StockSearchResult[] = await invoke('pulse_search_stocks', { query: searchQuery.trim() });
+        setSearchResults(results);
+        setShowDropdown(results.length > 0);
+      } catch (e) {
+        console.warn('[PortfolioTab] stock search error:', e);
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 350);
+
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    };
+  }, [searchQuery, form.asset_type]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  async function applySearchResult(result: StockSearchResult) {
+    // Pre-fill from search result
+    setForm(f => ({
+      ...f,
+      name: result.company_name || result.symbol,
+      ticker: result.symbol,
+      current_value: result.current_price != null ? String(result.current_price) : f.current_value,
+    }));
+
+    // Fetch live price for selected symbol
+    if (result.symbol) {
+      try {
+        const priceData: any = await invoke('pulse_fetch_price', { symbol: result.symbol });
+        setForm(f => ({ ...f, current_value: String(priceData.price) }));
+      } catch (e) {
+        console.warn('[PortfolioTab] pulse_fetch_price failed:', e);
+      }
+    }
+
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowDropdown(false);
+  }
 
   // ── Summary ─────────────────────────────────────────────────────────────────
 
@@ -289,63 +317,70 @@ export default function PortfolioTab() {
 
   const healthScore = calcFinancialHealthScore(holdings);
 
-  // ── Donut data ─────────────────────────────────────────────────────────────────
-
-  const typeDonutData: DonutSegment[] = (Object.entries(summary.by_type) as [AssetType, number][])
+  const typeDonutData = (Object.entries(summary.by_type) as [AssetType, number][])
     .filter(([, v]) => v > 0)
     .map(([k, v]) => ({ label: ASSET_TYPE_LABELS[k], value: v, color: ASSET_TYPE_COLORS[k] }));
 
-  const tagDonutData: DonutSegment[] = (Object.entries(summary.by_tag) as [HoldingTag, number][])
-    .filter(([, v]) => v > 0)
-    .map(([k, v]) => ({ label: TAG_LABELS[k], value: v, color: TAG_COLORS[k] }));
+  const tagDonutData = (Object.entries(summary.by_tag) as [HoldingTag, number][])
+    .filter(([, v]: [HoldingTag, number]) => v > 0)
+    .map(([k, v]: [HoldingTag, number]) => ({ label: TAG_LABELS[k], value: v, color: TAG_COLORS[k] }));
 
   // ── Actions ─────────────────────────────────────────────────────────────────
 
-  function handleSave() {
+  async function handleSave() {
     const cost = parseFloat(form.cost_basis) || 0;
     const current = parseFloat(form.current_value) || 0;
     const shares = parseFloat(form.shares) || 0;
 
-    if (editingId) {
-      setHoldings(prev => prev.map(h =>
-        h.id === editingId
-          ? { ...h, name: form.name.trim(), asset_type: form.asset_type, ticker: form.ticker.trim() || undefined, shares, cost_basis: cost, current_value: current, tag: form.tag }
-          : h
-      ));
-    } else {
-      const newHolding: Holding = {
-        id: generateId(),
-        name: form.name.trim(),
-        asset_type: form.asset_type,
-        ticker: form.ticker.trim() || undefined,
-        shares,
-        cost_basis: cost,
-        current_value: current,
-        tag: form.tag,
-      };
-      setHoldings(prev => [newHolding, ...prev]);
-    }
+    const payload = {
+      name: form.name.trim(),
+      asset_type: form.asset_type,
+      ticker: form.ticker.trim() || null,
+      shares,
+      cost_basis: cost,
+      current_value: current,
+      tag: form.tag,
+      notes: null,
+    };
 
-    setForm({ name: '', asset_type: 'stock', ticker: '', shares: '', cost_basis: '', current_value: '', tag: 'growth' });
-    setShowForm(false);
-    setEditingId(null);
+    try {
+      if (editingId) {
+        const updateReq: any = {};
+        if (form.name.trim()) updateReq.name = form.name.trim();
+        updateReq.asset_type = form.asset_type;
+        if (form.ticker.trim()) updateReq.symbol = form.ticker.trim();
+        if (!isNaN(shares)) updateReq.shares = shares;
+        if (!isNaN(cost)) updateReq.cost_basis = cost;
+        if (!isNaN(current)) updateReq.current_value = current;
+        updateReq.tag = form.tag;
+        const updated: any = await invoke('pulse_update_holding', { id: editingId, req: updateReq });
+        setHoldings(prev => prev.map(h => h.id === editingId ? dbToHolding(updated) : h));
+      } else {
+        const created: any = await invoke('pulse_add_holding', { req: payload, memberId: null });
+        setHoldings(prev => [dbToHolding(created), ...prev]);
+      }
+      setForm({ name: '', asset_type: 'stock', ticker: '', shares: '', cost_basis: '', current_value: '', tag: 'growth' });
+      setShowForm(false);
+      setEditingId(null);
+    } catch (e: any) {
+      console.error('[PortfolioTab] handleSave error:', e);
+      setError('Failed to save: ' + (e?.message ?? String(e)));
+    }
   }
 
-  function handleDelete(id: string) {
-    setHoldings(prev => prev.filter(h => h.id !== id));
-    setConfirmDelete(null);
+  async function handleDelete(id: string) {
+    try {
+      await invoke('pulse_delete_holding', { id });
+      setHoldings(prev => prev.filter(h => h.id !== id));
+      setConfirmDelete(null);
+    } catch (e: any) {
+      console.error('[PortfolioTab] handleDelete error:', e);
+      setError('Failed to delete: ' + (e?.message ?? String(e)));
+    }
   }
 
   function startEdit(h: Holding) {
-    setForm({
-      name: h.name,
-      asset_type: h.asset_type,
-      ticker: h.ticker ?? '',
-      shares: String(h.shares),
-      cost_basis: String(h.cost_basis),
-      current_value: String(h.current_value),
-      tag: h.tag,
-    });
+    setForm({ name: h.name, asset_type: h.asset_type, ticker: h.ticker ?? '', shares: String(h.shares), cost_basis: String(h.cost_basis), current_value: String(h.current_value), tag: h.tag });
     setEditingId(h.id);
     setShowForm(true);
   }
@@ -354,6 +389,9 @@ export default function PortfolioTab() {
     setForm({ name: '', asset_type: 'stock', ticker: '', shares: '', cost_basis: '', current_value: '', tag: 'growth' });
     setEditingId(null);
     setShowForm(false);
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowDropdown(false);
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────---
@@ -365,8 +403,7 @@ export default function PortfolioTab() {
         <div className="portfolio-title-block">
           <h1 className="portfolio-title">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 10, verticalAlign: 'middle' }}>
-              <rect x="2" y="7" width="20" height="14" rx="2" />
-              <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+              <rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
             </svg>
             Portfolio
           </h1>
@@ -382,82 +419,90 @@ export default function PortfolioTab() {
         )}
       </div>
 
+      {error && (
+        <div className="portfolio-error-banner" onClick={() => setError(null)}>
+          <span>⚠️ {error}</span>
+          <button className="error-dismiss-btn">✕</button>
+        </div>
+      )}
+
+      {loading && (
+        <div className="portfolio-loading">
+          <div className="portfolio-spinner" />
+          <span>Loading portfolio...</span>
+        </div>
+      )}
+
+      {!loading && holdings.length === 0 && !showForm && (
+        <div className="portfolio-empty">
+          <div className="empty-icon">📊</div>
+          <h3>No holdings yet</h3>
+          <p>Add your first asset to start tracking your portfolio performance.</p>
+          <button className="portfolio-btn-primary" onClick={() => setShowForm(true)}>Add Your First Holding</button>
+        </div>
+      )}
+
       {/* ── Hero Summary Row ── */}
-      <div className="portfolio-hero-row">
-        <div className="portfolio-hero-card">
-          <div className="hero-value-display">
-            <span className="hero-label">Total Portfolio Value</span>
-            <span className="hero-currency">$</span>
-            <span className="hero-amount">{formatCurrencyCompact(summary.total_value).replace('$', '')}</span>
+      {!loading && (holdings.length > 0 || showForm) && (
+        <div className="portfolio-hero-row">
+          <div className="portfolio-hero-card">
+            <div className="hero-value-display">
+              <span className="hero-label">Total Portfolio Value</span>
+              <span className="hero-currency">$</span>
+              <span className="hero-amount">{formatCurrencyCompact(summary.total_value).replace('$', '')}</span>
+            </div>
+            <div className="hero-sub-row">
+              <span className="hero-cost-basis">Cost basis {formatCurrency(summary.total_cost_basis)}</span>
+              <span className="hero-asset-count">{holdings.length} asset{holdings.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div className="hero-glow" />
           </div>
-          <div className="hero-sub-row">
-            <span className="hero-cost-basis">Cost basis {formatCurrency(summary.total_cost_basis)}</span>
-            <span className="hero-asset-count">{holdings.length} asset{holdings.length !== 1 ? 's' : ''}</span>
+          <div className={`portfolio-hero-card portfolio-hero-gain ${summary.total_gain_loss >= 0 ? 'gain-positive' : 'gain-negative'}`}>
+            <div className="hero-value-display">
+              <span className="hero-label">Total Gain / Loss</span>
+              <span className={`hero-gain-value ${summary.total_gain_loss >= 0 ? 'gain-positive' : 'gain-negative'}`}>
+                {summary.total_gain_loss >= 0 ? '+' : ''}{formatCurrency(summary.total_gain_loss)}
+              </span>
+            </div>
+            <div className="hero-sub-row">
+              <span className={`hero-pct-badge ${summary.total_gain_loss >= 0 ? 'gain-positive' : 'gain-negative'}`}>
+                {summary.total_gain_loss >= 0 ? '▲' : '▼'} {formatPct(summary.total_gain_loss_pct)}
+              </span>
+              <span className="hero-gain-label">all-time</span>
+            </div>
           </div>
-          <div className="hero-glow" />
+          <HealthScoreCard score={healthScore} />
         </div>
-
-        <div className={`portfolio-hero-card portfolio-hero-gain ${summary.total_gain_loss >= 0 ? 'gain-positive' : 'gain-negative'}`}>
-          <div className="hero-value-display">
-            <span className="hero-label">Total Gain / Loss</span>
-            <span className={`hero-gain-value ${summary.total_gain_loss >= 0 ? 'gain-positive' : 'gain-negative'}`}>
-              {summary.total_gain_loss >= 0 ? '+' : ''}{formatCurrency(summary.total_gain_loss)}
-            </span>
-          </div>
-          <div className="hero-sub-row">
-            <span className={`hero-pct-badge ${summary.total_gain_loss >= 0 ? 'gain-positive' : 'gain-negative'}`}>
-              {summary.total_gain_loss >= 0 ? '▲' : '▼'} {formatPct(summary.total_gain_loss_pct)}
-            </span>
-            <span className="hero-gain-label">all-time</span>
-          </div>
-        </div>
-
-        <HealthScoreCard score={healthScore} />
-      </div>
+      )}
 
       {/* ── Donut Charts Row ── */}
-      {holdings.length > 0 && (
+      {!loading && holdings.length > 0 && (
         <div className="portfolio-charts-row">
           <div className="portfolio-glass-card portfolio-pie-card">
             <h3 className="pie-card-title">Allocation by Type</h3>
             <div className="pie-chart-layout">
-              <DonutChart
-                data={typeDonutData}
-                centerLabel="total"
-                centerValue={formatCurrencyCompact(summary.total_value)}
-                size={140}
-              />
+              <DonutChart data={typeDonutData} centerLabel="total" centerValue={formatCurrencyCompact(summary.total_value)} size={140} />
               <div className="pie-legend">
                 {typeDonutData.map(d => (
                   <div key={d.label} className="pie-legend-item">
                     <span className="pie-legend-dot" style={{ background: d.color, boxShadow: `0 0 6px ${d.color}60` }} />
                     <span className="pie-legend-label">{d.label}</span>
-                    <span className="pie-legend-pct">
-                      {summary.total_value > 0 ? ((d.value / summary.total_value) * 100).toFixed(1) : '0'}%
-                    </span>
+                    <span className="pie-legend-pct">{summary.total_value > 0 ? ((d.value / summary.total_value) * 100).toFixed(1) : '0'}%</span>
                   </div>
                 ))}
               </div>
             </div>
           </div>
-
           <div className="portfolio-glass-card portfolio-pie-card">
             <h3 className="pie-card-title">Allocation by Tag</h3>
             <div className="pie-chart-layout">
-              <DonutChart
-                data={tagDonutData}
-                centerLabel="tagged"
-                centerValue={`${holdings.length}`}
-                size={140}
-              />
+              <DonutChart data={tagDonutData} centerLabel="tagged" centerValue={`${holdings.length}`} size={140} />
               <div className="pie-legend">
                 {tagDonutData.map(d => (
                   <div key={d.label} className="pie-legend-item">
                     <span className="pie-legend-dot" style={{ background: d.color, boxShadow: `0 0 6px ${d.color}60` }} />
                     <span className="pie-legend-label">{d.label}</span>
-                    <span className="pie-legend-pct">
-                      {summary.total_value > 0 ? ((d.value / summary.total_value) * 100).toFixed(1) : '0'}%
-                    </span>
+                    <span className="pie-legend-pct">{summary.total_value > 0 ? ((d.value / summary.total_value) * 100).toFixed(1) : '0'}%</span>
                   </div>
                 ))}
               </div>
@@ -475,25 +520,62 @@ export default function PortfolioTab() {
           </div>
 
           <div className="portfolio-form-grid">
-            <div className="form-group">
+            {/* ── Asset Name with live search ── */}
+            <div className="form-group" style={{ position: 'relative' }} ref={dropdownRef}>
               <label className="form-label">Asset Name *</label>
-              <input className="form-input" placeholder="e.g. Apple Inc, Bitcoin, Vacation Home"
-                value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+              <input
+                className="form-input"
+                placeholder="Type to search (e.g. Walmart, Apple, Bitcoin)"
+                value={searchQuery || form.name}
+                onChange={e => {
+                  setSearchQuery(e.target.value);
+                  setForm(f => ({ ...f, name: e.target.value }));
+                }}
+                onFocus={() => { if (searchResults.length > 0) setShowDropdown(true); }}
+                autoComplete="off"
+              />
+              {/* Search spinner */}
+              {searching && (
+                <span className="stock-search-spinner" />
+              )}
+              {/* Results dropdown */}
+              {showDropdown && searchResults.length > 0 && (
+                <div className="stock-search-dropdown">
+                  {searchResults.map(r => (
+                    <button key={r.symbol} className="stock-search-item"
+                      onClick={() => applySearchResult(r)} type="button">
+                      <span className="stock-search-symbol">{r.symbol}</span>
+                      <span className="stock-search-name">{r.company_name}</span>
+                      {r.current_price != null && (
+                        <span className="stock-search-price">${r.current_price.toFixed(2)}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
+
+            {/* ── Asset Type (triggers search toggle) ── */}
             <div className="form-group">
               <label className="form-label">Asset Type</label>
               <select className="form-select" value={form.asset_type}
-                onChange={e => setForm(f => ({ ...f, asset_type: e.target.value as AssetType }))}>
+                onChange={e => { setForm(f => ({ ...f, asset_type: e.target.value as AssetType })); setSearchQuery(''); setShowDropdown(false); }}>
                 {(Object.keys(ASSET_TYPE_LABELS) as AssetType[]).map(k => (
                   <option key={k} value={k}>{ASSET_TYPE_LABELS[k]}</option>
                 ))}
               </select>
+              {(form.asset_type === 'real_estate' || form.asset_type === 'cash' || form.asset_type === 'bond') && (
+                <span className="form-hint">Search disabled for this type</span>
+              )}
             </div>
+
+            {/* ── Ticker (auto-filled from search) ── */}
             <div className="form-group">
               <label className="form-label">Ticker Symbol</label>
-              <input className="form-input ticker-input" placeholder="e.g. AAPL, BTC"
+              <input className="form-input ticker-input" placeholder="Auto-filled or manual"
                 value={form.ticker} onChange={e => setForm(f => ({ ...f, ticker: e.target.value.toUpperCase() }))} />
             </div>
+
             <div className="form-group">
               <label className="form-label">Shares / Units</label>
               <input className="form-input" type="number" min="0" step="any" placeholder="0.0000"
@@ -529,7 +611,7 @@ export default function PortfolioTab() {
       )}
 
       {/* ── Holdings List ── */}
-      {holdings.length > 0 && (
+      {!loading && holdings.length > 0 && (
         <div className="portfolio-holdings-list">
           <h3 className="holdings-title">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6, verticalAlign: 'middle' }}>
@@ -539,15 +621,7 @@ export default function PortfolioTab() {
             Holdings ({holdings.length})
           </h3>
           <div className="holdings-table">
-            <div className="holdings-thead">
-              <span>Asset</span>
-              <span>Type</span>
-              <span>Shares</span>
-              <span>Current Value</span>
-              <span>Gain / Loss</span>
-              <span>Tag</span>
-              <span></span>
-            </div>
+            <div className="holdings-thead"><span>Asset</span><span>Type</span><span>Shares</span><span>Current Value</span><span>Gain / Loss</span><span>Tag</span><span></span></div>
             {holdings.map((h, i) => {
               const { diff, pct } = calcGainLoss(h.cost_basis, h.current_value);
               return (
@@ -560,30 +634,18 @@ export default function PortfolioTab() {
                     {h.ticker && <span className="holding-ticker">{h.ticker}</span>}
                   </div>
                   <div>
-                    <span className="type-badge"
-                      style={{
-                        background: ASSET_TYPE_COLORS[h.asset_type] + '20',
-                        border: `1px solid ${ASSET_TYPE_COLORS[h.asset_type]}50`,
-                        color: ASSET_TYPE_COLORS[h.asset_type],
-                      }}>
+                    <span className="type-badge" style={{ background: ASSET_TYPE_COLORS[h.asset_type] + '20', border: `1px solid ${ASSET_TYPE_COLORS[h.asset_type]}50`, color: ASSET_TYPE_COLORS[h.asset_type] }}>
                       {ASSET_TYPE_LABELS[h.asset_type]}
                     </span>
                   </div>
-                  <span className="holding-shares">
-                    {h.shares.toLocaleString('en-US', { maximumFractionDigits: 4 })}
-                  </span>
+                  <span className="holding-shares">{h.shares.toLocaleString('en-US', { maximumFractionDigits: 4 })}</span>
                   <span className="holding-value">{formatCurrency(h.current_value)}</span>
                   <div className={`holding-gain ${diff >= 0 ? 'gain-positive' : 'gain-negative'}`}>
                     <span className="gain-dollar">{diff >= 0 ? '+' : ''}{formatCurrency(diff)}</span>
                     <span className="gain-pct">{formatPct(pct)}</span>
                   </div>
                   <div>
-                    <span className="tag-badge"
-                      style={{
-                        background: TAG_COLORS[h.tag] + '18',
-                        border: `1px solid ${TAG_COLORS[h.tag]}45`,
-                        color: TAG_COLORS[h.tag],
-                      }}>
+                    <span className="tag-badge" style={{ background: TAG_COLORS[h.tag] + '18', border: `1px solid ${TAG_COLORS[h.tag]}45`, color: TAG_COLORS[h.tag] }}>
                       {TAG_LABELS[h.tag]}
                     </span>
                   </div>
@@ -596,10 +658,8 @@ export default function PortfolioTab() {
                     </button>
                     <button className="action-btn action-btn-danger" onClick={() => setConfirmDelete(h.id)} title="Delete">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                        <polyline points="3 6 5 6 21 6" />
-                        <path d="M19 6l-1 14H6L5 6" />
-                        <path d="M10 11v6" /><path d="M14 11v6" />
-                        <path d="M9 6V4h6v2" />
+                        <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
+                        <path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" />
                       </svg>
                     </button>
                   </div>

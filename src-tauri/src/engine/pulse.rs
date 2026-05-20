@@ -68,6 +68,158 @@ pub struct StockSearchResult {
 }
 
 /// Search a stock by company name or ticker.
+/// Candle data for sparkline charts.
+/// resolution: 1, 5, 15, 30, 60, D, W, M
+/// Returns Vec of [timestamp, open, high, low, close, volume] arrays.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn pulse_get_stock_candles(
+    symbol: String,
+    resolution: String,
+    from: i64,
+    to: i64,
+) -> Result<Vec<Vec<f64>>, String> {
+    let finnhub_key = std::env::var("FINNHUB_API_KEY").unwrap_or_default();
+    if finnhub_key.is_empty() {
+        return Err("FINNHUB_API_KEY not configured".to_string());
+    }
+
+    let client = http_client();
+    let url = format!(
+        "https://finnhub.io/api/v1/stock/candle?symbol={}&token={}&resolution={}&from={}&to={}",
+        urlencoding::encode(&symbol),
+        finnhub_key,
+        resolution,
+        from,
+        to,
+    );
+    log::info!("[pulse_get_stock_candles({})] fetching {} candles", symbol, resolution);
+
+    #[derive(Deserialize)]
+    struct FinnhubCandle {
+        c: Option<Vec<f64>>,
+        o: Option<Vec<f64>>,
+        h: Option<Vec<f64>>,
+        l: Option<Vec<f64>>,
+        v: Option<Vec<f64>>,
+        t: Option<Vec<i64>>,
+        s: Option<String>,
+    }
+
+    match client.get(&url).send().await {
+        Ok(resp) if resp.status().is_success() => {
+            let candles: FinnhubCandle = resp.json().await.map_err(|e| e.to_string())?;
+            if candles.s.as_deref() == Some("ok") && candles.t.as_ref().map(|t| t.len()).unwrap_or(0) > 0 {
+                let t = candles.t.unwrap();
+                let o = candles.o.unwrap_or_default();
+                let h = candles.h.unwrap_or_default();
+                let l = candles.l.unwrap_or_default();
+                let c = candles.c.unwrap_or_default();
+                let v = candles.v.unwrap_or_default();
+                let result: Vec<Vec<f64>> = t.iter().enumerate().map(|(i, ts)| {
+                    vec![
+                        *ts as f64,
+                        o.get(i).copied().unwrap_or(0.0),
+                        h.get(i).copied().unwrap_or(0.0),
+                        l.get(i).copied().unwrap_or(0.0),
+                        c.get(i).copied().unwrap_or(0.0),
+                        v.get(i).copied().unwrap_or(0.0),
+                    ]
+                }).collect();
+                log::info!("[pulse_get_stock_candles({})] Finnhub: {} candles", symbol, result.len());
+                return Ok(result);
+            }
+            log::warn!("[pulse_get_stock_candles({})] Finnhub returned no data, trying Yahoo fallback", symbol);
+        }
+        Ok(resp) => {
+            log::warn!("[pulse_get_stock_candles({})] Finnhub status {}, trying Yahoo fallback", symbol, resp.status());
+        }
+        Err(e) => {
+            log::warn!("[pulse_get_stock_candles({})] Finnhub error {}, trying Yahoo fallback", symbol, e);
+        }
+    }
+
+    // Yahoo fallback — no API key needed
+    let days = (to - from) / 86400;
+    match fetch_candles_yahoo(&symbol, &resolution, days).await {
+        Ok(candles) => {
+            log::info!("[pulse_get_stock_candles({})] Yahoo fallback: {} candles", symbol, candles.len());
+            Ok(candles)
+        }
+        Err(e) => {
+            log::error!("[pulse_get_stock_candles({})] Yahoo fallback also failed: {}", symbol, e);
+            Err(e)
+        }
+    }
+}
+
+/// Fallback candle fetcher using Yahoo Finance (no API key required).
+/// resolution maps: D→1d, W→1wk, 5/60/30/15→1h (approximate)
+async fn fetch_candles_yahoo(symbol: &str, resolution: &str, days: i64) -> Result<Vec<Vec<f64>>, String> {
+    let interval = match resolution {
+        "D" | "1d" => "1d",
+        "W" | "1wk" => "1wk",
+        "5" | "60" | "30" | "15" => "1h",
+        _ => "1d",
+    };
+    let period1 = (chrono::Utc::now() - chrono::Duration::days(days)).timestamp();
+    let period2 = chrono::Utc::now().timestamp();
+    let url = format!(
+        "https://query1.finance.yahoo.com/v8/finance/chart/{}?interval={}&period1={}&period2={}&includePrePost=false",
+        symbol, interval, period1, period2
+    );
+    log::info!("[pulse_get_stock_candles][Yahoo fallback] fetching {} candles for {}", resolution, symbol);
+
+    #[derive(Deserialize)]
+    struct YChart { chart: YChartInner }
+    #[derive(Deserialize)]
+    struct YChartInner { result: Vec<YResult> }
+    #[derive(Deserialize)]
+    struct YResult {
+        meta: YMeta,
+        timestamp: Vec<f64>,
+        indicators: YIndicators,
+    }
+    #[derive(Deserialize)]
+    struct YMeta {
+        current_price: Option<f64>,
+        previous_close: Option<f64>,
+    }
+    #[derive(Deserialize)]
+    struct YIndicators { quote: Vec<YQuote> }
+    #[derive(Deserialize)]
+    struct YQuote {
+        open: Vec<f64>,
+        high: Vec<f64>,
+        low: Vec<f64>,
+        close: Vec<f64>,
+        volume: Vec<f64>,
+    }
+
+    let client = http_client();
+    let resp = client.get(&url).header("User-Agent", "Mozilla/5.0").send().await.map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("Yahoo chart API status: {}", resp.status()));
+    }
+    let body = resp.text().await.map_err(|e| e.to_string())?;
+    let chart: YChart = serde_json::from_str(&body).map_err(|e| e.to_string())?;
+    let result = chart.chart.result.into_iter().next().ok_or("No result in Yahoo chart response")?;
+    let quote = result.indicators.quote.into_iter().next().ok_or("No quote in Yahoo chart response")?;
+
+    let candles: Vec<Vec<f64>> = result.timestamp.iter().enumerate().map(|(i, ts)| {
+        vec![
+            *ts,
+            quote.open.get(i).copied().unwrap_or(0.0),
+            quote.high.get(i).copied().unwrap_or(0.0),
+            quote.low.get(i).copied().unwrap_or(0.0),
+            quote.close.get(i).copied().unwrap_or(0.0),
+            quote.volume.get(i).copied().unwrap_or(0.0),
+        ]
+    }).collect();
+
+    log::info!("[pulse_get_stock_candles][Yahoo fallback] {} candles for {}", candles.len(), symbol);
+    Ok(candles)
+}
+
 /// Tries Finnhub first, then Alpha Vantage, then Yahoo.
 #[tauri::command(rename_all = "snake_case")]
 pub async fn pulse_search_stocks(query: String) -> Result<Vec<StockSearchResult>, String> {
@@ -312,6 +464,8 @@ pub async fn pulse_fetch_price(symbol: String) -> Result<PriceResult, String> {
                     dp: Option<f64>,  // change percent
                     h: Option<f64>,   // high
                     l: Option<f64>,   // low
+                    o: Option<f64>,   // open
+                    pc: Option<f64>,  // previous close
                 }
                 match resp.json::<FinnhubQuote>().await {
                     Ok(q) if q.c.is_some() => {
@@ -323,6 +477,14 @@ pub async fn pulse_fetch_price(symbol: String) -> Result<PriceResult, String> {
                             price,
                             change,
                             change_amount: change_pct,
+                            high: q.h,
+                            low: q.l,
+                            open: q.o,
+                            prev_close: q.pc,
+                            week_52_high: None,
+                            week_52_low: None,
+                            volume: None,
+                            market_cap: None,
                         });
                     }
                     _ => log::warn!("[pulse_fetch_price({})] Finnhub parse failed or empty", symbol),
@@ -368,7 +530,19 @@ pub async fn pulse_fetch_price(symbol: String) -> Result<PriceResult, String> {
                             let change_pct: f64 = change_pct_str.parse().unwrap_or(0.0);
                             if price > 0.0 {
                                 log::info!("[pulse_fetch_price({})] Alpha Vantage: price={}", symbol, price);
-                                return Ok(PriceResult { price, change, change_amount: change_pct });
+                                return Ok(PriceResult {
+                                    price,
+                                    change,
+                                    change_amount: change_pct,
+                                    high: None,
+                                    low: None,
+                                    open: None,
+                                    prev_close: None,
+                                    week_52_high: None,
+                                    week_52_low: None,
+                                    volume: None,
+                                    market_cap: None,
+                                });
                             }
                         }
                         log::warn!("[pulse_fetch_price({})] Alpha Vantage empty quote", symbol);
@@ -455,7 +629,19 @@ pub async fn pulse_fetch_price(symbol: String) -> Result<PriceResult, String> {
             let change = r.meta.market_change.unwrap_or(0.0);
             let change_pct = r.meta.market_change_pct.unwrap_or(0.0);
             log::info!("[pulse_fetch_price({})] Yahoo: price={}", symbol, price);
-            return Ok(PriceResult { price, change, change_amount: change_pct });
+            return Ok(PriceResult {
+                price,
+                change,
+                change_amount: change_pct,
+                high: None,
+                low: None,
+                open: None,
+                prev_close: None,
+                week_52_high: None,
+                week_52_low: None,
+                volume: None,
+                market_cap: None,
+            });
         } else {
             if attempt == 2 { return Err("No price data found for this symbol".to_string()); }
         }
@@ -470,6 +656,14 @@ pub struct PriceResult {
     pub price: f64,
     pub change: f64,
     pub change_amount: f64,
+    pub high: Option<f64>,
+    pub low: Option<f64>,
+    pub open: Option<f64>,
+    pub prev_close: Option<f64>,
+    pub week_52_high: Option<f64>,
+    pub week_52_low: Option<f64>,
+    pub volume: Option<f64>,
+    pub market_cap: Option<f64>,
 }
 
 

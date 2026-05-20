@@ -1183,8 +1183,8 @@ CREATE TABLE IF NOT EXISTS pulse_holdings (
     current_value   REAL DEFAULT 0,
     tag             TEXT,
     notes           TEXT,
-    last_updated    TEXT,
     updated_at      TEXT,
+    last_updated    TEXT,
     created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 CREATE INDEX IF NOT EXISTS idx_pulse_holdings_user ON pulse_holdings(user_id);
