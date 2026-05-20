@@ -52,23 +52,13 @@ function rangeParams(range: TimeRange): { resolution: string; days: number } {
     case '1W': return { resolution: '60', days: 7 };
     case '1M': return { resolution: 'D',  days: 30 };
     case '3M': return { resolution: 'D',  days: 90 };
-    case '1Y': return { resolution: 'W',  days: 365 };
-    case '5Y': return { resolution: 'W',  days: 1825 };
+    case '1Y': return { resolution: 'W', days: 365 };
+    case '5Y': return { resolution: 'W', days: 1825 };
   }
 }
 
 // candle: [timestamp, open, high, low, close, volume]
 type Candle = number[];
-
-function normalizeCandles(candles: Candle[]): number[] {
-  if (candles.length < 2) return [];
-  const closes = candles.map(c => c[4]).filter(v => v > 0);
-  if (closes.length < 2) return [];
-  const min = Math.min(...closes);
-  const max = Math.max(...closes);
-  const range = max - min || 1;
-  return closes.map(d => (d - min) / range);
-}
 
 // ── DB field mapping ───────────────────────────────────────────────────
 
@@ -112,7 +102,6 @@ function PriceChart({ candles, color }: { candles: Candle[]; color: string }) {
   console.log('[PriceChart] rendering, candles:', candles?.length, 'color:', color);
   if (candles.length < 2) return <div className="detail-chart-empty">Need at least 2 data points (got {candles.length})</div>;
 
-  // Hardcoded test — if candles looks broken, substitute test data
   const testCandles: Candle[] = [
     [Date.now() / 1000 - 5 * 86400, 100, 102, 99, 101, 1000000],
     [Date.now() / 1000 - 4 * 86400, 101, 103, 100, 102, 1200000],
@@ -160,13 +149,9 @@ function PriceChart({ candles, color }: { candles: Candle[]; color: string }) {
         </linearGradient>
       </defs>
 
-      {/* Price area fill */}
       <path d={areaPath} fill={`url(#chart-grad-${color.replace('#', '')})`} />
-
-      {/* Price line */}
       <path d={pricePath} fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
 
-      {/* Volume bars */}
       {data.map((c, i) => {
         const x = pad.left + (i / (candles.length - 1)) * chartW;
         const barH = (c[5] / maxV) * (volH - 4);
@@ -176,11 +161,9 @@ function PriceChart({ candles, color }: { candles: Candle[]; color: string }) {
         );
       })}
 
-      {/* Divider line between price and volume */}
       <line x1={pad.left} y1={volY - 2} x2={pad.left + chartW} y2={volY - 2}
         stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
 
-      {/* Price labels */}
       <text x={pad.left} y={pad.top + 10} fill="rgba(236,253,245,0.4)" fontSize="9" fontFamily="'JetBrains Mono', monospace">
         ${maxC.toFixed(0)}
       </text>
@@ -191,11 +174,15 @@ function PriceChart({ candles, color }: { candles: Candle[]; color: string }) {
   );
 }
 
-// ── Detail Modal ─────────────────────────────────────────────────────
+// ── Collapsible Stock Card ─────────────────────────────────────────────
 
-// ── Inline Expanded Detail Card (replaces modal) ─────────────────────────
-
-function StockDetailCard({ stock, onClose }: { stock: Stock; onClose: () => void }) {
+function CollapsibleStockCard({ stock, onDelete, isExpanded, onToggle, animationDelay }: {
+  stock: Stock;
+  onDelete: (id: string) => void;
+  isExpanded: boolean;
+  onToggle: () => void;
+  animationDelay: number;
+}) {
   const [priceData, setPriceData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeRange, setActiveRange] = useState<TimeRange>('1M');
@@ -203,15 +190,17 @@ function StockDetailCard({ stock, onClose }: { stock: Stock; onClose: () => void
   const [loadingChart, setLoadingChart] = useState(false);
   const [chartExpanded, setChartExpanded] = useState(false);
 
+  // Load price data immediately on mount (live data for collapsed state)
   useEffect(() => {
     setLoading(true);
     invoke<any>('pulse_fetch_price', { symbol: stock.symbol })
       .then(data => { setPriceData(data); setLoading(false); })
-      .catch(e => { console.warn('[Detail] fetch price error:', e); setLoading(false); });
+      .catch(e => { console.warn('[Card] fetch price error:', e); setLoading(false); });
   }, [stock.symbol]);
 
+  // Load chart data when chart section is expanded
   useEffect(() => {
-    if (!chartExpanded) return;
+    if (!isExpanded || !chartExpanded) return;
     setLoadingChart(true);
     const { days } = rangeParams(activeRange);
     const from = Math.floor(Date.now() / 1000) - days * 86400;
@@ -223,96 +212,137 @@ function StockDetailCard({ stock, onClose }: { stock: Stock; onClose: () => void
       to,
     }).then(data => {
       setCandles(data ?? []); setLoadingChart(false);
-    }).catch(e => { console.warn('[Detail] candles error:', e); setCandles([]); setLoadingChart(false); });
-  }, [stock.symbol, activeRange, chartExpanded]);
+    }).catch(e => { console.warn('[Card] candles error:', e); setCandles([]); setLoadingChart(false); });
+  }, [stock.symbol, activeRange, chartExpanded, isExpanded]);
 
-  const isUp = priceData && priceData.change >= 0;
+  const isUp = priceData ? priceData.change >= 0 : stock.change === 'up';
   const accentColor = !priceData ? '#10b981' : isUp ? '#10b981' : '#ef4444';
   const pd = priceData;
 
   return (
-    <div className="stock-detail-card" onClick={onClose}>
-      {/* Header row */}
-      <div className="detail-card-header">
-        <div className="detail-symbol-block">
-          <span className="detail-symbol">{stock.symbol}</span>
-          <span className="detail-company">{stock.companyName}</span>
-          {stock.sector && <span className="detail-sector-tag">{stock.sector}</span>}
+    <div
+      className={`stock-card stock-collapsible ${isExpanded ? 'stock-card-expanded' : ''} ${!isUp ? 'card-glow-negative' : isUp ? 'card-glow-positive' : 'card-glow-neutral'}`}
+      style={{
+        animationDelay: `${animationDelay}ms`,
+        animation: `cardEntrance 0.4s ease forwards`,
+      }}
+    >
+      {/* ── Collapsed Header (always visible) ── */}
+      <div className="stock-card-header" onClick={onToggle}>
+        <div className="stock-symbol-block">
+          <span className="stock-symbol">{stock.symbol}</span>
+          <span className="stock-company">{stock.companyName}</span>
         </div>
-        <button className="detail-close-btn" onClick={onClose} title="Close">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M2 8h12M8 2l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
+        <div className="stock-card-actions" onClick={e => e.stopPropagation()}>
+          <button className="stock-delete-btn" onClick={() => onDelete(stock.id)} title="Remove">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+            </svg>
+          </button>
+          <button className="stock-expand-btn" title={isExpanded ? 'Collapse' : 'Expand'}>
+            <svg
+              width="14" height="14" viewBox="0 0 14 14" fill="none"
+              style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}
+            >
+              <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
-      {loading ? (
-        <div className="detail-loading"><div className="portfolio-spinner" /><span>Loading...</span></div>
-      ) : pd ? (
-        <>
-          {/* Price hero */}
-          <div className="detail-price-hero">
-            <span className="detail-current-price">${pd.price.toFixed(2)}</span>
-            <span className="detail-change-badge" style={{ color: accentColor, borderColor: accentColor + '40', background: accentColor + '15' }}>
-              {isUp ? '▲' : '▼'} {isUp ? '+' : ''}{pd.change.toFixed(2)} ({isUp ? '+' : ''}{pd.change_amount.toFixed(2)}%)
+      {stock.sector && !isExpanded && <div className="stock-sector-tag">{stock.sector}</div>}
+
+      {!isExpanded && (
+        <div className="stock-collapsed-body" onClick={onToggle}>
+          <div className="stock-price-row">
+            <span className="stock-price-display" style={{ color: accentColor }}>
+              {loading ? '—' : pd ? `$${pd.price.toFixed(2)}` : stock.price ? `$${stock.price}` : '—'}
             </span>
+            {pd && (
+              <span className="stock-change-inline" style={{ color: accentColor }}>
+                {isUp ? '▲' : '▼'} {isUp ? '+' : ''}{pd.change.toFixed(2)} ({isUp ? '+' : ''}{pd.change_amount.toFixed(2)}%)
+              </span>
+            )}
           </div>
-
-          {/* Stats grid */}
-          <div className="detail-stats-grid">
-            <div className="detail-stat"><span className="stat-label">Open</span><span className="stat-value">${(pd.open ?? pd.price).toFixed(2)}</span></div>
-            <div className="detail-stat"><span className="stat-label">Prev Close</span><span className="stat-value">${(pd.prev_close ?? pd.price).toFixed(2)}</span></div>
-            <div className="detail-stat"><span className="stat-label">Day High</span><span className="stat-value">${(pd.high ?? pd.price).toFixed(2)}</span></div>
-            <div className="detail-stat"><span className="stat-label">Day Low</span><span className="stat-value">${(pd.low ?? pd.price).toFixed(2)}</span></div>
-            <div className="detail-stat"><span className="stat-label">52W High</span><span className="stat-value" style={{ color: '#10b981' }}>${(pd.week_52_high ?? pd.price).toFixed(2)}</span></div>
-            <div className="detail-stat"><span className="stat-label">52W Low</span><span className="stat-value" style={{ color: '#ef4444' }}>${(pd.week_52_low ?? pd.price).toFixed(2)}</span></div>
-            {pd.volume > 0 && <div className="detail-stat"><span className="stat-label">Volume</span><span className="stat-value">{(pd.volume / 1_000_000).toFixed(1)}M</span></div>}
-            {pd.market_cap > 0 && <div className="detail-stat">
-              <span className="stat-label">Mkt Cap</span>
-              <span className="stat-value">{pd.market_cap > 1e12 ? `$${(pd.market_cap / 1e12).toFixed(2)}T` : pd.market_cap > 1e9 ? `$${(pd.market_cap / 1e9).toFixed(1)}B` : `$${(pd.market_cap / 1e6).toFixed(0)}M`}</span>
-            </div>}
+          <div className="stock-card-footer">
+            <span className="card-detail-hint">Click to expand</span>
           </div>
+        </div>
+      )}
 
-          {/* 52-week range bar */}
-          <div className="detail-range-bar">
-            <span className="range-low">${(pd.week_52_low ?? 0).toFixed(0)}</span>
-            <div className="range-track">
-              <div className="range-fill" style={{
-                left: `${((pd.price - (pd.week_52_low ?? pd.price)) / ((pd.week_52_high ?? pd.price) - (pd.week_52_low ?? pd.price))) * 100}%`,
-                background: accentColor,
-                boxShadow: `0 0 8px ${accentColor}60`,
-              }} />
-            </div>
-            <span className="range-high">${(pd.week_52_high ?? 0).toFixed(0)}</span>
-          </div>
+      {/* ── Expanded Content ── */}
+      {isExpanded && (
+        <div className="stock-expanded-content" onClick={e => e.stopPropagation()}>
 
-          {/* Expand/Collapse chart section */}
-          <button className="detail-chart-toggle" onClick={e => { e.stopPropagation(); setChartExpanded(v => !v); }}>
-            <span>{chartExpanded ? '▲ Hide Chart' : '▼ Show Chart'}</span>
-          </button>
-
-          {chartExpanded && (
-            <div className="detail-chart-section" onClick={e => e.stopPropagation()}>
-              <div className="detail-range-tabs">
-                {TIME_RANGES.map(r => (
-                  <button key={r} className={`range-tab ${activeRange === r ? 'range-tab-active' : ''}`}
-                    onClick={() => setActiveRange(r)}>{r}</button>
-                ))}
+          {loading ? (
+            <div className="detail-loading"><div className="portfolio-spinner" /><span>Loading...</span></div>
+          ) : pd ? (
+            <>
+              {/* Price hero */}
+              <div className="detail-price-hero">
+                <span className="detail-current-price">${pd.price.toFixed(2)}</span>
+                <span className="detail-change-badge" style={{ color: accentColor, borderColor: accentColor + '40', background: accentColor + '15' }}>
+                  {isUp ? '▲' : '▼'} {isUp ? '+' : ''}{pd.change.toFixed(2)} ({isUp ? '+' : ''}{pd.change_amount.toFixed(2)}%)
+                </span>
               </div>
-              <div className="detail-chart-wrap">
-                {loadingChart ? (
-                  <div className="detail-chart-loading"><div className="portfolio-spinner" style={{ width: 24, height: 24 }} /></div>
-                ) : candles.length > 0 ? (
-                  <PriceChart candles={candles} color={accentColor} />
-                ) : (
-                  <div className="detail-chart-empty">No chart data for {activeRange}</div>
-                )}
+
+              {/* Stats grid */}
+              <div className="detail-stats-grid">
+                <div className="detail-stat"><span className="stat-label">Open</span><span className="stat-value">${(pd.open ?? pd.price).toFixed(2)}</span></div>
+                <div className="detail-stat"><span className="stat-label">Prev Close</span><span className="stat-value">${(pd.prev_close ?? pd.price).toFixed(2)}</span></div>
+                <div className="detail-stat"><span className="stat-label">Day High</span><span className="stat-value">${(pd.high ?? pd.price).toFixed(2)}</span></div>
+                <div className="detail-stat"><span className="stat-label">Day Low</span><span className="stat-value">${(pd.low ?? pd.price).toFixed(2)}</span></div>
+                <div className="detail-stat"><span className="stat-label">52W High</span><span className="stat-value" style={{ color: '#10b981' }}>${(pd.week_52_high ?? pd.price).toFixed(2)}</span></div>
+                <div className="detail-stat"><span className="stat-label">52W Low</span><span className="stat-value" style={{ color: '#ef4444' }}>${(pd.week_52_low ?? pd.price).toFixed(2)}</span></div>
+                {pd.volume > 0 && <div className="detail-stat"><span className="stat-label">Volume</span><span className="stat-value">{(pd.volume / 1_000_000).toFixed(1)}M</span></div>}
+                {pd.market_cap > 0 && <div className="detail-stat">
+                  <span className="stat-label">Mkt Cap</span>
+                  <span className="stat-value">{pd.market_cap > 1e12 ? `$${(pd.market_cap / 1e12).toFixed(2)}T` : pd.market_cap > 1e9 ? `$${(pd.market_cap / 1e9).toFixed(1)}B` : `$${(pd.market_cap / 1e6).toFixed(0)}M`}</span>
+                </div>}
               </div>
-            </div>
+
+              {/* 52-week range bar */}
+              <div className="detail-range-bar">
+                <span className="range-low">${(pd.week_52_low ?? 0).toFixed(0)}</span>
+                <div className="range-track">
+                  <div className="range-fill" style={{
+                    left: `${((pd.price - (pd.week_52_low ?? pd.price)) / ((pd.week_52_high ?? pd.price) - (pd.week_52_low ?? pd.price))) * 100}%`,
+                    background: accentColor,
+                    boxShadow: `0 0 8px ${accentColor}60`,
+                  }} />
+                </div>
+                <span className="range-high">${(pd.week_52_high ?? 0).toFixed(0)}</span>
+              </div>
+
+              {/* Expand/Collapse chart section */}
+              <button className="detail-chart-toggle" onClick={e => { e.stopPropagation(); setChartExpanded(v => !v); }}>
+                <span>{chartExpanded ? '▲ Hide Chart' : '▼ Show Chart'}</span>
+              </button>
+
+              {chartExpanded && (
+                <div className="detail-chart-section" onClick={e => e.stopPropagation()}>
+                  <div className="detail-range-tabs">
+                    {TIME_RANGES.map(r => (
+                      <button key={r} className={`range-tab ${activeRange === r ? 'range-tab-active' : ''}`}
+                        onClick={() => setActiveRange(r)}>{r}</button>
+                    ))}
+                  </div>
+                  <div className="detail-chart-wrap">
+                    {loadingChart ? (
+                      <div className="detail-chart-loading"><div className="portfolio-spinner" style={{ width: 24, height: 24 }} /></div>
+                    ) : candles.length > 0 ? (
+                      <PriceChart candles={candles} color={accentColor} />
+                    ) : (
+                      <div className="detail-chart-empty">No chart data for {activeRange}</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="detail-error">Failed to load stock data.</div>
           )}
-        </>
-      ) : (
-        <div className="detail-error">Failed to load stock data.</div>
+        </div>
       )}
     </div>
   );
@@ -455,53 +485,6 @@ function AddStockModal({ onAdd, onClose }: { onAdd: (stock: Omit<Stock, 'id' | '
   );
 }
 
-// ── Stock Card ───────────────────────────────────────────────────────
-
-function StockCard({ stock, onDelete, onCardClick, animationDelay }: {
-  stock: Stock;
-  onDelete: (id: string) => void;
-  onCardClick: (stock: Stock) => void;
-  animationDelay: number;
-}) {
-  const accentColor = stock.change === 'up' ? '#10b981' : stock.change === 'down' ? '#ef4444' : '#9ca3af';
-  const changeIcon = stock.change === 'up' ? '▲' : stock.change === 'down' ? '▼' : '◆';
-
-  return (
-    <div className="stock-card" style={{ animationDelay: `${animationDelay}ms`, borderColor: accentColor + '30' }}
-      onClick={() => onCardClick(stock)}>
-      <div className="stock-card-header" onClick={e => e.stopPropagation()}>
-        <div className="stock-symbol-block">
-          <span className="stock-symbol">{stock.symbol}</span>
-          <span className="stock-company">{stock.companyName}</span>
-        </div>
-        <button className="stock-delete-btn" onClick={() => onDelete(stock.id)} title="Remove">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-          </svg>
-        </button>
-      </div>
-
-      {stock.sector && <div className="stock-sector-tag">{stock.sector}</div>}
-
-      <div className="stock-price-row" onClick={e => e.stopPropagation()}>
-        <span className="stock-price-display" style={{ color: accentColor }}>
-          {stock.price ? `$${stock.price}` : '—'}
-        </span>
-        {stock.changeAmount && (
-          <span className="stock-change-badge" style={{ color: accentColor, borderColor: accentColor + '40', background: accentColor + '15' }}>
-            <span>{changeIcon}</span>
-            <span>{stock.change === 'up' ? '+' : stock.change === 'down' ? '-' : ''}{stock.changeAmount}%</span>
-          </span>
-        )}
-      </div>
-
-      <div className="stock-card-footer">
-        <span className="card-detail-hint">Click for chart + details</span>
-      </div>
-    </div>
-  );
-}
-
 // ── Ticker Tape ───────────────────────────────────────────────────────
 
 const TICKER_STOCKS = [
@@ -521,7 +504,7 @@ function generateTickerContent(): string {
   return TICKER_STOCKS.map(s => {
     const arrow = s.change === 'up' ? '▲' : s.change === 'down' ? '▼' : '◆';
     const cls = s.change === 'up' ? 'up' : s.change === 'down' ? 'down' : 'neutral';
-    return `<span class="ticker-item ticker-${cls}">${s.symbol} $${s.price} ${arrow} ${s.changeAmount}%</span>`;
+    return `<span class="ticker-item"><span class="ticker-sym">${s.symbol}</span> <span class="ticker-price">$${s.price}</span> <span class="ticker-${cls}">${arrow} ${s.changeAmount}%</span></span>`;
   }).join('<span class="ticker-sep">•</span>');
 }
 
@@ -565,7 +548,7 @@ export default function StocksTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   async function loadStocks() {
     try {
@@ -606,10 +589,14 @@ export default function StocksTab() {
     }
   }
 
+  function handleToggle(id: string) {
+    setExpandedId(prev => prev === id ? null : id);
+  }
+
   const sortedStocks = [...stocks].sort(sortStocks);
 
   return (
-    <div className={`stocks-tab${selectedStock ? ' overlay-open' : ''}`}>
+    <div className="stocks-tab">
       <div className="ticker-zone"><TickerTape /></div>
 
       <div className="stocks-header">
@@ -639,27 +626,14 @@ export default function StocksTab() {
       ) : (
         <div className="stocks-grid">
           {sortedStocks.map((stock, i) => (
-            <StockCard key={stock.id} stock={stock} onDelete={handleDelete}
-              onCardClick={s => setSelectedStock(s)} animationDelay={i * 60} />
-          ))}
-        </div>
-      )}
-
-      {selectedStock ? (
-        <div className="stocks-detail-view">
-          <button className="detail-back-btn" onClick={() => setSelectedStock(null)}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M10 4L6 8l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Back to Watchlist
-          </button>
-          <StockDetailCard key={selectedStock.id + '-' + Date.now()} stock={selectedStock} onClose={() => setSelectedStock(null)} />
-        </div>
-      ) : (
-        <div className="stocks-grid">
-          {sortedStocks.map((stock, i) => (
-            <StockCard key={stock.id} stock={stock} onDelete={handleDelete}
-              onCardClick={s => setSelectedStock(s)} animationDelay={i * 60} />
+            <CollapsibleStockCard
+              key={stock.id}
+              stock={stock}
+              onDelete={handleDelete}
+              isExpanded={expandedId === stock.id}
+              onToggle={() => handleToggle(stock.id)}
+              animationDelay={i * 60}
+            />
           ))}
         </div>
       )}
