@@ -101,8 +101,10 @@ function formatPct(n: number): string {
 }
 
 function calcGainLoss(cost: number, current: number) {
+  if (cost === 0 && current === 0) return { diff: 0, pct: 0 };
+  if (cost === 0) return { diff: current, pct: current > 0 ? 100 : -100 };
   const diff = current - cost;
-  const pct = cost > 0 ? (diff / cost) * 100 : 0;
+  const pct = (diff / cost) * 100;
   return { diff, pct };
 }
 
@@ -229,7 +231,33 @@ export default function PortfolioTab() {
       setLoading(true);
       setError(null);
       const raw: any[] = await invoke('pulse_get_holdings', { memberId: null });
-      setHoldings(raw.map(dbToHolding));
+
+      // Fetch live prices for any holdings with shares but zero current_value
+      const enriched = await Promise.all(
+        raw.map(async (h) => {
+          const holding = dbToHolding(h);
+          // If shares > 0 but current_value is 0 (free stock or failed fetch), try live quote
+          if (holding.shares > 0 && holding.current_value === 0 && holding.ticker) {
+            try {
+              const priceData: any = await invoke('pulse_fetch_price', { symbol: holding.ticker });
+              if (priceData?.price && priceData.price > 0) {
+                const liveValue = priceData.price * holding.shares;
+                // Update DB with live value
+                await invoke('pulse_update_holding', {
+                  id: holding.id,
+                  req: { current_value: liveValue },
+                });
+                return { ...holding, current_value: liveValue };
+              }
+            } catch {
+              // Live price unavailable — leave as-is
+            }
+          }
+          return holding;
+        })
+      );
+
+      setHoldings(enriched);
     } catch (e: any) {
       console.error('[PortfolioTab] loadHoldings error:', e);
       setError('Failed to load holdings: ' + (e?.message ?? String(e)));
