@@ -40,10 +40,10 @@ const NUTRITION_TIPS = [
 
 function getWeekStart(): string {
   const now = new Date();
-  const day = now.getDay();
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(now.setDate(diff));
-  return monday.toISOString().split('T')[0];
+  const day = now.getDay(); // 0 = Sunday, week starts on Sunday
+  const diff = now.getDate() - day;
+  const sunday = new Date(now.setDate(diff));
+  return sunday.toISOString().split('T')[0];
 }
 
 function formatCost(n: number | null): string {
@@ -90,9 +90,9 @@ export default function KitchenView() {
   const [weekStart, setWeekStartState] = useState<string>(() => {
     const now = new Date();
     const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(now.setDate(diff));
-    return monday.toISOString().split('T')[0];
+    const diff = now.getDate() - day;
+    const sunday = new Date(now.setDate(diff));
+    return sunday.toISOString().split('T')[0];
   });
 
   const handleWeekChange = useCallback((newWeekStart: string) => {
