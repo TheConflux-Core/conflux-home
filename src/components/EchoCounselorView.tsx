@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEchoCounselor } from '../hooks/useEchoCounselor';
 import { useVoiceInput } from '../hooks/useVoiceInput';
-import { useAudioPlayer } from '../hooks/useAudioPlayer';
+import { useAudioPlayer, ECHO_VOICE_ID } from '../hooks/useAudioPlayer';
 import type { EchoCounselorMessage, EchoCrisisFlag, EchoCounselorSession, EchoWeeklyLetter } from '../types';
 import { ECHO_CRISIS_RESOURCES } from '../types';
 import '../styles-echo-counselor.css';
@@ -334,7 +334,7 @@ export default function EchoCounselorView() {
                     {msg.role === 'counselor' && (
                       <button
                         className={`echo-msg-speak-btn ${audio.playingId === msg.id ? 'playing' : ''}`}
-                        onClick={() => audio.playingId === msg.id ? audio.stop() : audio.speak(msg.content, msg.id)}
+                        onClick={() => audio.playingId === msg.id ? audio.stop() : audio.speak(msg.content, msg.id, ECHO_VOICE_ID)}
                         title={audio.playingId === msg.id ? 'Stop' : 'Hear Echo'}
                       >
                         {audio.playingId === msg.id ? '⏹' : '▶'}

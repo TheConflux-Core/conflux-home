@@ -9,6 +9,7 @@ let _activeSource: AudioBufferSourceNode | null = null;
 
 export const ECHO_VOICE_ID = 'EST9Ui6982FZPSi7gCHi';
 export const HEARTH_VOICE_ID = 'W7iR5kTNHozpIl2Jqq15';
+export const PULSE_VOICE_ID = 'auq43ws1oslv0tO4BDa7';
 
 function getAudioCtx(): AudioContext {
   if (!_audioCtx) {
@@ -28,7 +29,7 @@ export function useAudioPlayer() {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const playingIdRef = useRef<string | null>(null);
 
-  const speak = useCallback(async (text: string, msgId: string, voiceId = ECHO_VOICE_ID) => {
+  const speak = useCallback(async (text: string, msgId: string, voiceId: string) => {
     // Stop any current speech first
     stopAudio();
     setPlayingId(msgId);

@@ -166,5 +166,8 @@ export function useHearthNutritionist() {
     endSession,
     resumeSession,
     loadPastMessages,
+    setCurrentSession,
+    setMessages,
+    setSessions,
   };
 }

@@ -916,6 +916,37 @@ input[type="date"].form-input {
   margin: 0;
 }
 
+/* Hearth Nutritionist chat spinner */
+.hearth-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(245, 158, 11, 0.15);
+  border-top-color: var(--hearth-500);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* Hearth Nutritionist typing indicator (three dots) */
+.hearth-nutritionist-msg.counselor .typing-indicator {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  padding: 4px 0;
+}
+.hearth-nutritionist-msg.counselor .typing-indicator span {
+  width: 8px;
+  height: 8px;
+  background: var(--hearth-500);
+  border-radius: 50%;
+  animation: typingBounce 1s ease-in-out infinite;
+}
+.hearth-nutritionist-msg.counselor .typing-indicator span:nth-child(2) { animation-delay: 0.15s; }
+.hearth-nutritionist-msg.counselor .typing-indicator span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-6px); opacity: 1; }
+}
+
 /* --------------------------------------------------------------------------
    19. Keyframe Animations
    -------------------------------------------------------------------------- */
