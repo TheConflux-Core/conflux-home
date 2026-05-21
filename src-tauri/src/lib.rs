@@ -514,6 +514,7 @@ pub fn run() {
             commands::kitchen_generate_grocery,
             commands::kitchen_get_grocery,
             commands::kitchen_toggle_grocery_item,
+            commands::kitchen_add_grocery_item,
             commands::kitchen_add_inventory,
             commands::kitchen_nl_add_inventory,
             commands::kitchen_get_inventory,

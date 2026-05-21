@@ -2678,6 +2678,31 @@ pub async fn kitchen_toggle_grocery_item(
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn kitchen_add_grocery_item(
+    name: String,
+    quantity: Option<f64>,
+    unit: Option<String>,
+    category: Option<String>,
+    estimated_cost: Option<f64>,
+    week_start: Option<String>,
+    member_id: Option<String>,
+) -> Result<engine::types::GroceryItem, String> {
+    let _member_id = member_id;
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    let ws = week_start.unwrap_or_else(|| {
+        let now = chrono::Utc::now().date_naive();
+        let day = now.weekday().num_days_from_sunday();
+        (now - chrono::Duration::days(day as i64)).format("%Y-%m-%d").to_string()
+    });
+    engine
+        .db()
+        .add_grocery_item(&id, &name, quantity, unit.as_deref(), category.as_deref(), estimated_cost, &ws)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 // ── Smart Kitchen — Inventory ──
 
 #[derive(Debug, Serialize, Deserialize)]

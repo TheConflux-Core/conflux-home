@@ -38,7 +38,7 @@ export default function ImmersiveView({ view, backgroundUrl, onClose, children }
     let stop: (() => void) | undefined;
     switch (view) {
       case 'budget':  stop = startPulseAmbient(); break;
-      case 'kitchen':  stop = startHearthAmbient(); break;
+      // case 'kitchen':  stop = startHearthAmbient(); break;
       case 'life':     /* stop = startOrbitAmbient(); */ break;
       case 'echo':     stop = startEchoAmbient(); break;
       // horizon (dreams) and other apps — no ambient (could add later)
