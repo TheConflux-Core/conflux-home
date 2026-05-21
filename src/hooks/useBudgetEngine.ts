@@ -11,7 +11,7 @@ import type {
 import { useAuth } from './useAuth';
 
 export function useBudgetEngine(explicitUserId?: string | null) {
-  const { user: authUser } = useAuth();
+  const { user: authUser, loading: authLoading } = useAuth();
   const [settings, setSettings] = useState<BudgetSettings | null>(null);
   const [buckets, setBuckets] = useState<BudgetBucket[]>([]);
   const [allocations, setAllocations] = useState<BudgetAllocation[]>([]);
@@ -27,6 +27,8 @@ export function useBudgetEngine(explicitUserId?: string | null) {
   // ── Fetchers ──
 
   const refreshData = useCallback(async () => {
+    // Never fetch with a null/undefined memberId — auth isn't ready yet
+    if (!resolvedMemberId) return;
     try {
       setLoading(true);
       console.log('[useBudgetEngine] Loading for member:', resolvedMemberId);
@@ -51,7 +53,11 @@ export function useBudgetEngine(explicitUserId?: string | null) {
     }
   }, [resolvedMemberId]);
 
-  useEffect(() => { refreshData(); }, [refreshData]);
+  // Wait for auth to resolve before first fetch — prevents null member_id race
+  useEffect(() => {
+    if (authLoading) return; // still determining who the user is
+    refreshData();
+  }, [authLoading, resolvedMemberId]);
 
   // ── Actions ──
 
