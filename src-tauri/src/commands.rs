@@ -2449,14 +2449,15 @@ Respond in this EXACT JSON format (no markdown, no code fences, just raw JSON):
         tool_calls: None,
     }];
 
-    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(2000), None, None)
+    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(5000), None, None)
         .await
         .map_err(|e| format!("AI failed: {}", e))?;
 
     let content = response.content.trim();
-    log::debug!("[kitchen_ai_add_meal] AI response content length: {}", content.len());
+    log::info!("[kitchen_ai_add_meal] AI response length={}, model={}, provider={}, tokens_used={}",
+        content.len(), response.model, response.provider_id, response.tokens_used);
     if content.is_empty() {
-        log::error!("[kitchen_ai_add_meal] AI returned empty content — MiniMax/cloud router both failed");
+        log::error!("[kitchen_ai_add_meal] AI returned empty content");
         return Err("AI returned empty response. Check API key and credits.".to_string());
     }
     let json_str = content
