@@ -9,6 +9,7 @@
 // Pattern: follows HearthOnboarding.tsx (recipe card = budget preview here)
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useAuth } from '../hooks/useAuth';
 import { useBudgetEngine } from '../hooks/useBudgetEngine';
 import '../styles/pulse-onboarding-v2.css';
 
@@ -35,7 +36,8 @@ export function hasCompletedPulseOnboarding(): boolean {
 }
 
 export default function PulseOnboarding({ onComplete }: Props) {
-  const { updateSettings, createBucket } = useBudgetEngine();
+  const { user } = useAuth();
+  const { updateSettings, createBucket } = useBudgetEngine(user?.id ?? null);
   const [phase, setPhase] = useState<'question' | 'interpreting' | 'preview' | 'saving'>('question');
   const [incomeInput, setIncomeInput] = useState('');
   const [parsed, setParsed] = useState<ParsedSetup | null>(null);
