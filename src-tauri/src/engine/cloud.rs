@@ -741,11 +741,14 @@ async fn call_minimax(request_body: serde_json::Value) -> Result<ModelResponse> 
         .await
         .map_err(|e| anyhow::anyhow!("Failed to parse MiniMax response: {}", e))?;
 
+    log::info!("[call_minimax] Raw parsed choices: {:?}", parsed.choices);
+
     let choice = parsed.choices.first();
     let raw_content = choice
         .and_then(|c| c.message.as_ref())
         .and_then(|m| m.content.clone())
         .unwrap_or_default();
+    log::info!("[call_minimax] raw_content from choice: {:?}", raw_content);
 
     let (extracted_tool_call, raw_content) = maybe_extract_tool_call_from_text(&raw_content);
 
