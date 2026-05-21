@@ -384,10 +384,36 @@ jobs:
       - name: Rename updater artifacts by arch
         run: |
           BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle/macos"
+          echo "=== macOS bundle dir contents ==="
+          find "$BUNDLE_DIR" -type f 2>/dev/null | head -20
+          echo "================================="
+          # Rename the .app.tar.gz (there should be exactly one)
           if [ -f "$BUNDLE_DIR/Conflux Home.app.tar.gz" ]; then
             mv "$BUNDLE_DIR/Conflux Home.app.tar.gz" "$BUNDLE_DIR/Conflux.Home_${{ matrix.arch }}.app.tar.gz"
-            mv "$BUNDLE_DIR/Conflux Home.app.tar.gz.sig" "$BUNDLE_DIR/Conflux.Home_${{ matrix.arch }}.app.tar.gz.sig"
+            echo "Renamed: Conflux Home.app.tar.gz -> Conflux.Home_${{ matrix.arch }}.app.tar.gz"
+          else
+            # Glob in case the filename differs slightly
+            for f in "$BUNDLE_DIR"/*.app.tar.gz; do
+              if [ -f "$f" ]; then
+                mv "$f" "$BUNDLE_DIR/Conflux.Home_${{ matrix.arch }}.app.tar.gz"
+                echo "Renamed: $f -> Conflux.Home_${{ matrix.arch }}.app.tar.gz"
+                break
+              fi
+            done
           fi
+          # Same for the .sig file
+          if [ -f "$BUNDLE_DIR/Conflux Home.app.tar.gz.sig" ]; then
+            mv "$BUNDLE_DIR/Conflux Home.app.tar.gz.sig" "$BUNDLE_DIR/Conflux.Home_${{ matrix.arch }}.app.tar.gz.sig"
+          else
+            for f in "$BUNDLE_DIR"/*.app.tar.gz.sig; do
+              if [ -f "$f" ]; then
+                mv "$f" "$BUNDLE_DIR/Conflux.Home_${{ matrix.arch }}.app.tar.gz.sig"
+                break
+              fi
+            done
+          fi
+          echo "=== After rename ==="
+          find "$BUNDLE_DIR" -type f 2>/dev/null | head -10
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
@@ -404,6 +430,9 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
           BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle/macos"
+          echo "=== Files in BUNDLE_DIR before upload ==="
+          find "$BUNDLE_DIR" -type f 2>/dev/null
+          echo "=========================================="
           aws s3 cp "$BUNDLE_DIR/Conflux.Home_${{ matrix.arch }}.app.tar.gz" s3://${{ secrets.R2_BUCKET }}/Conflux.Home_${{ matrix.arch }}.app.tar.gz --endpoint-url ${{ secrets.R2_ENDPOINT }}
 
 
