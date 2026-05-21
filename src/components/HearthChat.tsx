@@ -26,15 +26,11 @@ export default function HearthChat({ className = '' }: HearthChatProps) {
   const isFirstRender = useRef(true);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-    scrollToBottom();
+    // no-op: auto-scroll disabled
   }, [messages, suggestions]);
 
   // Boot greeting
