@@ -312,6 +312,7 @@ export default function SpeakToPulseTab() {
     setCurrentSessionId(null);
     setChatMessages([]);
     setView('sessions');
+    setStartingSession(false);  // reset so auto-start effect can fire
     handleViewChange('sessions');
   };
 
