@@ -1,7 +1,7 @@
 // Pulse Finance — Tauri Commands for Stocks, Portfolio & Investments
 // Phase 2: Fixed type bridges + LLM integration + Health Score
 
-use crate::engine::get_engine;
+use crate::engine::{get_engine, try_get_engine};
 use crate::engine::router::{self, OpenAIMessage};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
@@ -33,6 +33,59 @@ fn http_client() -> &'static Client {
             .build()
             .unwrap_or_else(|_| Client::new())
     })
+}
+
+/// Ensure pulse_sessions and pulse_messages tables exist.
+fn ensure_pulse_sessions_schema(conn: &rusqlite::Connection) {
+    let tables = ["pulse_sessions", "pulse_messages"];
+    for table in tables {
+        let exists: bool = conn
+            .prepare("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?")
+            .and_then(|mut s| s.query_row([table], |r| r.get::<_, i64>(0)))
+            .map(|c| c > 0)
+            .unwrap_or(false);
+        if !exists {
+            log::info!("[Pulse] Creating missing table: {}", table);
+        }
+    }
+
+    let _ = conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS pulse_sessions (
+            id              TEXT PRIMARY KEY,
+            started_at      TEXT NOT NULL,
+            ended_at        TEXT,
+            status          TEXT NOT NULL DEFAULT 'active',
+            message_count   INTEGER NOT NULL DEFAULT 0,
+            summary         TEXT,
+            created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        );
+        CREATE TABLE IF NOT EXISTS pulse_messages (
+            id              TEXT PRIMARY KEY,
+            session_id      TEXT NOT NULL,
+            role            TEXT NOT NULL,
+            content         TEXT NOT NULL,
+            timestamp       TEXT NOT NULL,
+            FOREIGN KEY (session_id) REFERENCES pulse_sessions(id) ON DELETE CASCADE
+        );
+        ",
+    );
+}
+
+
+/// Initialize Pulse tables. Safe to call on every startup — uses CREATE IF NOT EXISTS.
+pub fn init() -> Result<(), String> {
+    let engine = match try_get_engine() {
+        Some(e) => e,
+        None => {
+            log::warn!("[Pulse] Engine not available, skipping table init");
+            return Ok(());
+        }
+    };
+    let conn = engine.db.conn_blocking();
+    ensure_pulse_sessions_schema(&conn);
+    log::info!("[Pulse] Sessions tables initialized");
+    Ok(())
 }
 
 /// Ensure pulse_stocks has all required columns (handles legacy DBs).
