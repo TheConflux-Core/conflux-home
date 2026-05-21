@@ -46,6 +46,7 @@ export default function HearthNutritionistView() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audio = useAudioPlayer();
   const voice = useVoiceInput({ onTranscription: (text) => setVoiceText(text) });
+  const isFirstRender = useRef(true);
 
   // Merge voice into input
   useEffect(() => {
@@ -55,9 +56,15 @@ export default function HearthNutritionistView() {
     }
   }, [voiceText]);
 
-  // Scroll to bottom on new messages
+  // Scroll to bottom on new messages (skip on initial mount)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    if (messages.length > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   // ── Restore a stored session ─────────────────────────────────────
@@ -83,7 +90,7 @@ export default function HearthNutritionistView() {
   };
 
   // ── Start a new session ──────────────────────────────────────────
-  const handleStartSession = async () => {
+  const handleStartSession = useCallback(async () => {
     if (startingSession) return;
     setStartingSession(true);
     try {
@@ -91,18 +98,18 @@ export default function HearthNutritionistView() {
     } finally {
       setStartingSession(false);
     }
-  };
+  }, [startSession, startingSession]);
 
-  // ── Auto-start / restore session on mount ────────────────────────
+  // ── Auto-start / restore session when switching to Chat tab ───
   useEffect(() => {
+    if (view !== 'chat') return;
     const storedId = localStorage.getItem(STORAGE_KEY_ACTIVE_SESSION);
-    if (storedId) {
+    if (storedId && !currentSession && !startingSession) {
       handleRestoreSession(storedId);
-    } else if (!currentSession && !loading) {
+    } else if (!currentSession && !loading && !startingSession) {
       handleStartSession();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [view, currentSession, loading, startingSession, handleRestoreSession, handleStartSession]);
 
   // ── Persist active session ID ─────────────────────────────────────
   useEffect(() => {
@@ -133,7 +140,8 @@ export default function HearthNutritionistView() {
       console.error('[HearthNutritionist] endSession:', e);
     }
     localStorage.removeItem(STORAGE_KEY_ACTIVE_SESSION);
-    setView('sessions');
+    setCurrentSession(null);
+    setMessages([]);
     handleViewChange('sessions');
   };
 

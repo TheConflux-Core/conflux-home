@@ -23,12 +23,17 @@ export default function HearthChat({ className = '' }: HearthChatProps) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const isFirstRender = useRef(true);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     scrollToBottom();
   }, [messages, suggestions]);
 
