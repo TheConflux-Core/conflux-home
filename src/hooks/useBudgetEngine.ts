@@ -10,17 +10,18 @@ import type {
 } from '../types';
 import { useAuth } from './useAuth';
 
-export function useBudgetEngine() {
-  const { user } = useAuth();
+export function useBudgetEngine(explicitUserId?: string | null) {
+  const { user: authUser } = useAuth();
   const [settings, setSettings] = useState<BudgetSettings | null>(null);
   const [buckets, setBuckets] = useState<BudgetBucket[]>([]);
   const [allocations, setAllocations] = useState<BudgetAllocation[]>([]);
   const [transactions, setTransactions] = useState<BudgetTransaction[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Prefer explicit userId if provided, otherwise fall back to auth snapshot
   const resolvedMemberId = useMemo(
-    () => user ? user.id : null,
-    [user]
+    () => explicitUserId ?? (authUser ? authUser.id : null),
+    [explicitUserId, authUser]
   );
 
   // ── Fetchers ──
