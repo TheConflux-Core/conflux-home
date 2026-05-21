@@ -50,7 +50,7 @@ export default function BudgetTab({ preOnboarding = false }: BudgetTabProps) {
   const [editingCell, setEditingCell] = useState<{ id: string; period: 'p1' | 'p2' } | null>(null);
   const [editValue, setEditValue] = useState('');
 
-  // Listen for external budget changes (e.g. LLM-added entries)
+  // Listen for external budget changes (e.g. LLM-added entries, onboarding completion)
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     listen<{ action: string }>('conflux:budget-changed', () => {
@@ -58,6 +58,18 @@ export default function BudgetTab({ preOnboarding = false }: BudgetTabProps) {
     }).then(fn => { unlisten = fn; }).catch(() => {});
     return () => { if (unlisten) unlisten(); };
   }, [refreshData]);
+
+  // Reload when onboarding completes (onboardingComplete prop flips from false→true)
+  // This fires after PulseOnboarding saves settings+buckets and calls onComplete
+  const [prevPreOnboarding, setPrevPreOnboarding] = useState(preOnboarding);
+  useEffect(() => {
+    if (prevPreOnboarding && !preOnboarding) {
+      // preOnboarding just flipped from true → false: onboarding just finished, reload
+      console.log('[BudgetTab] Onboarding finished — reloading data');
+      refreshData();
+    }
+    setPrevPreOnboarding(preOnboarding);
+  }, [preOnboarding, prevPreOnboarding, refreshData]);
 
   // ── Derived ─────────────────────────────────────────────
   const totalIncome = settings?.income_amount || 0;

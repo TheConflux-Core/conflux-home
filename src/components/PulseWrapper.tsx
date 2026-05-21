@@ -95,9 +95,9 @@ export default function PulseWrapper() {
       {bootDone && showOnboarding && !onboardingComplete && (
         <PulseOnboarding
           onComplete={() => {
-            setOnboardingComplete(true);
             setShowOnboarding(false);
-            if (!hasTakenTour) setShowTour(true);
+            localStorage.setItem('pulse-boot-done', 'true');
+            localStorage.setItem('pulse-tour-completed', 'true');
           }}
         />
       )}
