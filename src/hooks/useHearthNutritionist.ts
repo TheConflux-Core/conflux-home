@@ -50,9 +50,14 @@ export function useHearthNutritionist() {
 
   // ── Send Message ──────────────────────────────────────────
   const sendMessage = useCallback(async (content: string) => {
-    if (!currentSession || sending) return;
-
-    const sessionId = currentSession.id;
+    let sessionId = currentSession?.id;
+    if (!sessionId) {
+      // Auto-start a session if needed
+      await startSession();
+      sessionId = currentSession?.id;
+      if (!sessionId) return; // still no session — bail
+    }
+    if (sending) return;
     setSending(true);
     try {
       // Add user message immediately (optimistic)

@@ -334,6 +334,32 @@ pub fn end_session(session_id: &str) -> Result<(), String> {
     Ok(())
 }
 
+pub fn get_sessions() -> Result<Vec<HearthNutritionistSession>, String> {
+    let engine = get_engine();
+    let conn = engine.db.conn_blocking();
+
+    let sessions: Vec<HearthNutritionistSession> = conn
+        .prepare(
+            "SELECT id, started_at, ended_at, status, message_count, created_at FROM hearth_nutritionist_sessions ORDER BY created_at DESC",
+        )
+        .map_err(to_string)?
+        .query_map([], |row| {
+            Ok(HearthNutritionistSession {
+                id: row.get(0)?,
+                started_at: row.get(1)?,
+                ended_at: row.get(2)?,
+                status: row.get(3)?,
+                message_count: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })
+        .map_err(to_string)?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(sessions)
+}
+
 // INIT
 
 pub fn init() -> Result<(), String> {
