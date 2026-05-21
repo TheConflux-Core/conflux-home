@@ -7,6 +7,7 @@ import { useState, useCallback, useEffect, useMemo, useTransition } from 'react'
 import { useMeals, useWeeklyPlan, useGroceryList } from '../hooks/useKitchen';
 import { useHomeMenu, useKitchenNudges, useKitchenDigest, useTonightsMenu } from '../hooks/useHearth';
 import { useFridgeScanner } from '../hooks/useFridgeScanner';
+import type { MealMatchResult } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import type { Meal, CookingStep } from '../types';
 import { MEAL_CATEGORIES, MEAL_CUISINES, MEAL_CATEGORY_EMOJI } from '../types';
@@ -82,6 +83,11 @@ export default function KitchenView() {
   const [tourComplete, setTourComplete] = useState(false);
   const [showAddPantryItem, setShowAddPantryItem] = useState(false);
   const [inventoryAddLocation, setInventoryAddLocation] = useState<string | null>(null);
+  const [showScanModal, setShowScanModal] = useState(false);
+  const [scanDescription, setScanDescription] = useState('');
+  const [whatCanIMake, setWhatCanIMake] = useState<MealMatchResult | null>(null);
+  const [shopForMealsItems, setShopForMealsItems] = useState<any[]>([]);
+  const { scan, whatCanIMake: fetchWhatCanIMake, expiringSoon } = useFridgeScanner();
   // const [showKrogerExporter, setShowKrogerExporter] = useState(false); // KROGER_DISABLED
 
   // Week-plan inline meal picker: which cell is currently open for selection
@@ -126,7 +132,9 @@ export default function KitchenView() {
     loadHomeMenu();
     loadNudges();
     loadDigest();
-  }, [loadTonightsMenu, loadHomeMenu, loadNudges, loadDigest]);
+    // Load "what can I make" results
+    fetchWhatCanIMake().then(setWhatCanIMake).catch(console.error);
+  }, [loadTonightsMenu, loadHomeMenu, loadNudges, loadDigest, fetchWhatCanIMake]);
 
 
   // Listen for heartbeat beat events → refresh Kitchen data
@@ -357,6 +365,33 @@ export default function KitchenView() {
 
               <KitchenNudges nudges={nudges} onAction={handleNudgeAction} />
 
+              {/* What Can I Make — based on current inventory */}
+              {whatCanIMake && whatCanIMake.matches.length > 0 && (
+                <div className="hearth-what-can-i-make">
+                  <div className="wcm-header">
+                    <span className="wcm-icon">🍽️</span>
+                    <span className="wcm-title">What Can I Make?</span>
+                    <span className="wcm-badge">{whatCanIMake.can_make_count} ready</span>
+                  </div>
+                  <div className="wcm-list">
+                    {whatCanIMake.matches.slice(0, 5).map(m => (
+                      <div key={m.meal_id} className={`wcm-item ${m.can_make ? 'wcm-ready' : 'wcm-missing'}`}
+                        onClick={() => {
+                          const meal = meals.find(me => me.id === m.meal_id);
+                          if (meal) { setSelectedMeal(meal); setTab('library'); }
+                        }}>
+                        <span className="wcm-meal-name">{m.meal_name}</span>
+                        {m.can_make ? (
+                          <span className="wcm-ready-badge">✓ Ready</span>
+                        ) : (
+                          <span className="wcm-missing-label">{m.missing_ingredients.slice(0, 2).join(', ')}{m.missing_ingredients.length > 2 ? ` +${m.missing_ingredients.length - 2}` : ''}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {digest && !digestLoading && (
                 <KitchenDigestCard digest={digest} />
               )}
@@ -553,15 +588,63 @@ export default function KitchenView() {
               <button className="btn-primary" onClick={generateGrocery}>
                 ✨ Generate from Plan
               </button>
+              <button className="btn-ghost" onClick={async () => {
+                try {
+                  const items = await invoke<any[]>('fridge_shopping_for_meals');
+                  setShopForMealsItems(items);
+                } catch (e) {
+                  console.error('Shopping for meals failed:', e);
+                }
+              }}>
+                🛒 Shop for Meals
+              </button>
             </div>
           </div>
 
-          {groceryItems.length === 0 ? (
+          {groceryItems.length === 0 && shopForMealsItems.length === 0 ? (
             <div className="kitchen-empty">
-              <p>No items yet. Plan some meals and click "Generate from Plan".</p>
+              <p>No items yet. Plan some meals or scan your fridge to get started.</p>
             </div>
           ) : (
-            <SmartGrocery items={groceryItems} onToggle={toggleItem} />
+            <>
+              {groceryItems.length > 0 && <SmartGrocery items={groceryItems} onToggle={toggleItem} />}
+              {shopForMealsItems.length > 0 && (
+                <div className="shop-for-meals-section">
+                  <div className="section-header">
+                    <span>🛒 Shop for Your Favorites</span>
+                    <span className="section-sub">{shopForMealsItems.length} items from your favorite &amp; frequent meals</span>
+                  </div>
+                  <div className="shop-for-meals-list">
+                    {shopForMealsItems.map((item: any) => (
+                      <div key={item.id} className="shop-for-meals-item"
+                        onClick={async () => {
+                          try {
+                            await invoke('kitchen_add_grocery_item', {
+                              name: item.name,
+                              quantity: item.quantity,
+                              unit: item.unit,
+                              category: item.category,
+                              estimated_cost: item.estimated_cost,
+                              week_start: weekStart,
+                              member_id: user?.id || null,
+                            });
+                            setShopForMealsItems(prev => prev.filter((i: any) => i.id !== item.id));
+                          } catch (e) {
+                            console.error('Failed to add to grocery:', e);
+                          }
+                        }}
+                      >
+                        <div className="sfm-info">
+                          <span className="sfm-name">{item.name}</span>
+                          <span className="sfm-meta">{item.quantity ?? ''} {item.unit ?? ''} · {item.category ?? ''}</span>
+                        </div>
+                        <span className="sfm-cost">{item.estimated_cost != null ? `$${item.estimated_cost.toFixed(2)}` : ''}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -569,6 +652,11 @@ export default function KitchenView() {
       {/* ── INVENTORY TAB ── */}
       {tab === 'inventory' && (
         <div className="kitchen-pantry">
+          <div className="inventory-header-actions">
+            <button className="btn-primary" onClick={() => setShowScanModal(true)}>
+              🧊 Scan My Fridge
+            </button>
+          </div>
           <InventoryHeatmap
             items={pantryItems}
             onAddItem={(location) => { setInventoryAddLocation(location); setShowAddPantryItem(true); }}
@@ -671,6 +759,70 @@ export default function KitchenView() {
                 <button type="submit" className="btn-primary">Add Item</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── SCAN FRIDGE MODAL ── */}
+      {showScanModal && (
+        <div className="hearth-modal-backdrop" onClick={() => setShowScanModal(false)}>
+          <div className="hearth-modal scan-modal" onClick={e => e.stopPropagation()}>
+            <div className="hearth-modal-header">
+              <h3 className="hearth-modal-title">🧊 Scan My Fridge</h3>
+              <button className="hearth-modal-close" onClick={() => setShowScanModal(false)}>✕</button>
+            </div>
+            <div className="scan-modal-body">
+              <p className="scan-description">Describe everything you see in your fridge, freezer, or pantry. Hearth will identify items and add them to your inventory.</p>
+              <textarea
+                className="scan-textarea"
+                placeholder="e.g. I have half a carton of eggs, some sliced cheese, a bottle of salsa, leftover rice in a container, and a few apples in the door..."
+                value={scanDescription}
+                onChange={e => setScanDescription(e.target.value)}
+                rows={5}
+              />
+              <div className="scan-actions">
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => { setShowScanModal(false); setScanDescription(''); }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  disabled={!scanDescription.trim()}
+                  onClick={async () => {
+                    if (!scanDescription.trim()) return;
+                    try {
+                      const result = await scan(scanDescription);
+                      // Reload inventory + what-can-i-make
+                      const inventory = await invoke<any[]>('kitchen_get_inventory', { location: null, member_id: user?.id || null });
+                      const today = new Date();
+                      const heatItems = inventory.map((item: any) => {
+                        let daysUntilExpiry: number | null = null;
+                        let freshness = 1.0;
+                        if (item.expiry_date) {
+                          const expiryDate = new Date(item.expiry_date);
+                          daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                          freshness = Math.max(0, Math.min(1, daysUntilExpiry / 30));
+                        }
+                        return { name: item.name, freshness, days_until_expiry: daysUntilExpiry, location: item.location || 'pantry' };
+                      });
+                      setPantryItems(heatItems);
+                      const wcm = await fetchWhatCanIMake();
+                      setWhatCanIMake(wcm);
+                      setShowScanModal(false);
+                      setScanDescription('');
+                    } catch (err) {
+                      console.error('[KitchenView] Scan failed:', err);
+                    }
+                  }}
+                >
+                  🧊 Scan &amp; Add
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
