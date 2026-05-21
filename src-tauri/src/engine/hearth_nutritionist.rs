@@ -235,6 +235,28 @@ pub async fn send_message(session_id: &str, content: &str) -> Result<HearthNutri
         tool_calls: None,
     }];
 
+    // Inject user's name into context if available
+    let user_name: Option<String> = {
+        let engine = get_engine();
+        engine.db.blocking_readonly(|conn| {
+            let mut stmt = match conn.prepare("SELECT value FROM config WHERE key = 'user_name'") {
+                Ok(s) => s,
+                Err(_) => return Ok(None::<String>),
+            };
+            Ok(stmt.query_row([], |row| row.get::<_, String>(0)).ok())
+        })
+    };
+    if let Some(name) = user_name {
+        if !name.is_empty() {
+            openai_messages.push(OpenAIMessage {
+                role: "system".to_string(),
+                content: Some(format!("The user's name is {}. Always address them by name when appropriate.", name)),
+                tool_call_id: None,
+                tool_calls: None,
+            });
+        }
+    }
+
     for msg in &messages {
         let role = match msg.role.as_str() {
             "counselor" => "assistant",

@@ -1323,12 +1323,41 @@ pub async fn pulse_chat(req: PulseChatRequest, member_id: Option<String>) -> Res
     };
 
     let context = build_pulse_context(&user_id, &budget_summary, &holdings, &goals);
+
+    // Inject user name if available
+    let user_name: Option<String> = {
+        let engine = get_engine();
+        engine.db.blocking_readonly(|conn| {
+            let mut stmt = match conn.prepare("SELECT value FROM config WHERE key = 'user_name'") {
+                Ok(s) => s,
+                Err(_) => return Ok(None::<String>),
+            };
+            Ok(stmt.query_row([], |row| row.get::<_, String>(0)).ok())
+        })
+    };
+    let user_name_hint = if let Some(name) = user_name {
+        if !name.is_empty() {
+            format!("The user's name is {}. Always address them by name when appropriate.
+
+", name)
+        } else {
+            String::new()
+        }
+    } else {
+        String::new()
+    };
     let system_prompt = format!(
         "You are Pulse, a warm and insightful financial advisor embedded in the Conflux Home desktop app. You have access to the user's complete financial picture. Be specific, empathetic, and actionable. Never give generic advice — always reference the user's actual numbers.
 
 {}",
         context
     );
+    // Prepend user name hint if available
+    let system_prompt = if !user_name_hint.is_empty() {
+        format!("{}{}", user_name_hint, system_prompt)
+    } else {
+        system_prompt
+    };
 
     // ── Call LLM ────────────────────────────────────────────────────
     let messages = vec![

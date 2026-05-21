@@ -6,6 +6,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useVoiceInput } from '../hooks/useVoiceInput';
 import { flushSync } from 'react-dom';
+import { useAudioPlayer } from '../hooks/useAudioPlayer';
+import { PULSE_VOICE_ID } from '../hooks/useAudioPlayer';
 import '../styles/pulse-tabs.css';
 
 // ─── LocalStorage keys ────────────────────────────────────────────────────────
@@ -197,6 +199,7 @@ export default function SpeakToPulseTab() {
   const [startingSession, setStartingSession] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const audio = useAudioPlayer();
   const voice = useVoiceInput({ onTranscription: (text) => setVoiceText(text) });
 
   // Update market status periodically
@@ -433,7 +436,7 @@ export default function SpeakToPulseTab() {
 
   // ── Tab Navigation ─────────────────────────────────────
   const tabs: { id: ViewMode; label: string; icon: string }[] = [
-    { id: 'session', label: 'Session', icon: '💬' },
+    { id: 'session', label: 'Advisor', icon: '💬' },
     { id: 'sessions', label: 'History', icon: '📚' },
   ];
 
@@ -504,6 +507,15 @@ export default function SpeakToPulseTab() {
                         </div>
                         <PulseReaction visible={!!(msg.hasReaction && msg.id === chatMessages[chatMessages.length - 1]?.id && showReaction)} />
                       </div>
+                      {msg.role === 'pulse' && (
+                        <button
+                          className={`pulse-msg-speak-btn ${audio.playingId === msg.id ? 'playing' : ''}`}
+                          onClick={() => audio.playingId === msg.id ? audio.stop() : audio.speak(msg.content, msg.id, PULSE_VOICE_ID)}
+                          title={audio.playingId === msg.id ? 'Stop playback' : 'Hear Pulse'}
+                        >
+                          {audio.playingId === msg.id ? '⏹' : '▶'}
+                        </button>
+                      )}
                     </div>
                   ))}
                   {sending && (
