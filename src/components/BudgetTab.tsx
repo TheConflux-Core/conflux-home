@@ -2,8 +2,9 @@
 // Zero-based budgeting matrix adapted as a Pulse tab.
 // Does NOT include boot/onboarding/tour — managed by PulseWrapper.
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
+import { useAuth } from '../hooks/useAuth';
 import { useBudget } from '../hooks/useBudget';
 import { useBudgetEngine } from '../hooks/useBudgetEngine';
 import PulseParticles from './PulseParticles';
@@ -21,6 +22,7 @@ interface BudgetTabProps {
 }
 
 export default function BudgetTab({ preOnboarding = false }: BudgetTabProps) {
+  const { user } = useAuth();
   const { period, prevPeriod, nextPeriod } = useBudget();
   const {
     settings,
@@ -34,7 +36,7 @@ export default function BudgetTab({ preOnboarding = false }: BudgetTabProps) {
     deleteTransaction,
     parseNatural,
     refreshData,
-  } = useBudgetEngine();
+  } = useBudgetEngine(user?.id ?? null);
 
   // ── State ────────────────────────────────────────────────
   const [activeBucket, setActiveBucket] = useState<string | null>(null);
@@ -49,13 +51,13 @@ export default function BudgetTab({ preOnboarding = false }: BudgetTabProps) {
   const [editValue, setEditValue] = useState('');
 
   // Listen for external budget changes (e.g. LLM-added entries)
-  useState(() => {
+  useEffect(() => {
     let unlisten: (() => void) | undefined;
     listen<{ action: string }>('conflux:budget-changed', () => {
       refreshData();
     }).then(fn => { unlisten = fn; }).catch(() => {});
     return () => { if (unlisten) unlisten(); };
-  });
+  }, [refreshData]);
 
   // ── Derived ─────────────────────────────────────────────
   const totalIncome = settings?.income_amount || 0;
