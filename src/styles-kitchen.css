@@ -2486,3 +2486,120 @@
     max-width: 88%;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   FRIDGE SCANNER — What Can I Make? + Scan Modal + Shop for Meals
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── What Can I Make ── */
+.hearth-what-can-i-make {
+  margin: 1rem 0;
+  background: rgba(251, 191, 36, 0.07);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
+}
+.wcm-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+.wcm-icon { font-size: 1.1rem; }
+.wcm-title { font-size: 0.95rem; font-weight: 700; color: #fbbf24; flex: 1; }
+.wcm-badge {
+  background: #22c55e;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+.wcm-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.wcm-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.45rem 0.7rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.15s;
+}
+.wcm-item:hover { background: rgba(251, 191, 36, 0.12); }
+.wcm-ready { background: rgba(34, 197, 94, 0.08); }
+.wcm-ready .wcm-meal-name { color: #86efac; }
+.wcm-missing { background: rgba(251, 191, 36, 0.05); }
+.wcm-missing .wcm-meal-name { color: #d1d5db; }
+.wcm-meal-name { font-weight: 600; }
+.wcm-ready-badge { color: #22c55e; font-size: 0.75rem; font-weight: 700; }
+.wcm-missing-label { color: #9ca3af; font-size: 0.75rem; }
+
+/* ── Inventory Header Actions ── */
+.inventory-header-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+/* ── Scan Fridge Modal ── */
+.scan-modal { max-width: 520px; }
+.scan-modal-body { padding: 0.5rem 0; }
+.scan-description {
+  color: #a8a29e;
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+}
+.scan-textarea {
+  width: 100%;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  color: #e7e3dc;
+  padding: 0.7rem;
+  font-size: 0.9rem;
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.scan-textarea:focus { outline: none; border-color: #fbbf24; }
+.scan-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+/* ── Shop for Meals ── */
+.shop-for-meals-section {
+  margin-top: 1.25rem;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding-top: 1rem;
+}
+.section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #fbbf24;
+  margin-bottom: 0.6rem;
+}
+.section-sub { font-size: 0.75rem; font-weight: 400; color: #78716c; }
+.shop-for-meals-list { display: flex; flex-direction: column; gap: 0.35rem; }
+.shop-for-meals-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.8rem;
+  background: rgba(255,255,255,0.04);
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.shop-for-meals-item:hover { background: rgba(251, 191, 36, 0.1); }
+.sfm-info { display: flex; flex-direction: column; gap: 0.1rem; }
+.sfm-name { font-weight: 600; font-size: 0.88rem; }
+.sfm-meta { font-size: 0.75rem; color: #78716c; }
+.sfm-cost { font-size: 0.82rem; color: #a8a29e; }

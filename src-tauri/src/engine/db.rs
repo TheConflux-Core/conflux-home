@@ -4435,6 +4435,36 @@ impl EngineDb {
         Ok(())
     }
 
+    pub async fn add_grocery_item(
+        &self,
+        id: &str,
+        name: &str,
+        quantity: Option<f64>,
+        unit: Option<&str>,
+        category: Option<&str>,
+        estimated_cost: Option<f64>,
+        week_start: &str,
+    ) -> Result<super::types::GroceryItem> {
+        let conn = self.conn_async().await;
+        conn.execute(
+            "INSERT INTO grocery_items (id, member_id, name, quantity, unit, category, estimated_cost, is_checked, source_meal_id, week_start, created_at)\n             VALUES (?1, NULL, ?2, ?3, ?4, ?5, ?6, 0, NULL, ?7, ?8)",
+            params![id, name, quantity, unit, category, estimated_cost, week_start, Self::now()],
+        )?;
+        Ok(super::types::GroceryItem {
+            id: id.to_string(),
+            member_id: None,
+            name: name.to_string(),
+            quantity,
+            unit: unit.map(String::from),
+            category: category.map(String::from),
+            estimated_cost,
+            is_checked: false,
+            source_meal_id: None,
+            week_start: Some(week_start.to_string()),
+            created_at: Self::now(),
+        })
+    }
+
     pub fn toggle_grocery_item_sync(&self, id: &str) -> Result<()> {
         let conn = self.conn_blocking();
         conn.execute(
