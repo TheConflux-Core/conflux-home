@@ -56,15 +56,9 @@ export default function HearthNutritionistView() {
     }
   }, [voiceText]);
 
-  // Scroll to bottom on new messages (skip on initial mount)
+  // Scroll to bottom on new messages — disabled
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-    if (messages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
+    // no-op: auto-scroll disabled
   }, [messages]);
 
   // ── Restore a stored session ─────────────────────────────────────
