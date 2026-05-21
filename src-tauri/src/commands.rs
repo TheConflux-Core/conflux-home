@@ -10131,6 +10131,12 @@ pub fn hearth_nutritionist_get_messages(
     super::engine::hearth_nutritionist::get_messages(&session_id).map_err(|e| e.to_string())
 }
 
+/// Get all Hearth Nutritionist sessions
+#[tauri::command(rename_all = "snake_case")]
+pub fn hearth_nutritionist_get_sessions() -> Result<Vec<HearthNutritionistSession>, String> {
+    super::engine::hearth_nutritionist::get_sessions().map_err(|e| e.to_string())
+}
+
 /// Send a message in a Hearth Nutritionist session
 #[tauri::command(rename_all = "snake_case")]
 pub async fn hearth_nutritionist_send_message(

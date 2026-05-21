@@ -697,6 +697,7 @@ pub fn run() {
             commands::echo_counselor_get_evening_reminder,
             // Hearth Nutritionist
             commands::hearth_nutritionist_start_session,
+            commands::hearth_nutritionist_get_sessions,
             commands::hearth_nutritionist_get_messages,
             commands::hearth_nutritionist_send_message,
             commands::hearth_nutritionist_end_session,
