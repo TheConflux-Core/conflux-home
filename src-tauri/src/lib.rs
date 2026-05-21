@@ -119,6 +119,12 @@ pub fn run() {
                     } else {
                         log::info!("[Setup] Hearth Nutritionist tables initialized");
                     }
+                    // Initialize Pulse tables
+                    if let Err(e) = engine::pulse::init() {
+                        log::error!("[Setup] Failed to initialize Pulse: {}", e);
+                    } else {
+                        log::info!("[Setup] Pulse tables initialized");
+                    }
                 }
                 Err(e) => log::error!("[Setup] Failed to initialize engine: {} — app will run without engine", e),
             }
