@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { invoke } from '@tauri-apps/api/core';
 import { useHearthNutritionist } from '../hooks/useHearthNutritionist';
 import { useVoiceInput } from '../hooks/useVoiceInput';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
@@ -11,6 +12,10 @@ import { playSuccess } from '../lib/sound';
 import { HEARTH_VOICE_ID } from '../hooks/useAudioPlayer';
 import '../styles/kitchen-hearth.css';
 
+// ─── LocalStorage keys ────────────────────────────────────────────────────────
+const STORAGE_KEY_ACTIVE_SESSION = 'hearth_nutritionist_active_session_id';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 type ViewMode = 'chat' | 'sessions';
 
 export default function HearthNutritionistView() {
@@ -25,6 +30,9 @@ export default function HearthNutritionistView() {
     endSession,
     resumeSession,
     loadPastMessages,
+    setCurrentSession,
+    setMessages,
+    setSessions,
   } = useHearthNutritionist();
 
   const [view, setView] = useState<ViewMode>('chat');
@@ -33,6 +41,7 @@ export default function HearthNutritionistView() {
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
   const [expandedSessionMsgs, setExpandedSessionMsgs] = useState<any[]>([]);
   const [loadingExpanded, setLoadingExpanded] = useState(false);
+  const [startingSession, setStartingSession] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audio = useAudioPlayer();
@@ -51,12 +60,56 @@ export default function HearthNutritionistView() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Auto-start session when chat view is first shown
-  useEffect(() => {
-    if (view === 'chat' && !currentSession && !loading) {
-      startSession();
+  // ── Restore a stored session ─────────────────────────────────────
+  const handleRestoreSession = async (sessionId: string) => {
+    setStartingSession(true);
+    try {
+      const allSessions: any[] = await invoke('hearth_nutritionist_get_sessions', {});
+      const existing = allSessions.find((s: any) => s.id === sessionId);
+      if (existing && existing.status === 'active') {
+        setCurrentSession(existing);
+        const msgs = await loadPastMessages(sessionId);
+        setMessages(msgs);
+      } else {
+        localStorage.removeItem(STORAGE_KEY_ACTIVE_SESSION);
+        handleStartSession();
+      }
+    } catch {
+      localStorage.removeItem(STORAGE_KEY_ACTIVE_SESSION);
+      handleStartSession();
+    } finally {
+      setStartingSession(false);
     }
-  }, [view]);
+  };
+
+  // ── Start a new session ──────────────────────────────────────────
+  const handleStartSession = async () => {
+    if (startingSession) return;
+    setStartingSession(true);
+    try {
+      await startSession();
+    } finally {
+      setStartingSession(false);
+    }
+  };
+
+  // ── Auto-start / restore session on mount ────────────────────────
+  useEffect(() => {
+    const storedId = localStorage.getItem(STORAGE_KEY_ACTIVE_SESSION);
+    if (storedId) {
+      handleRestoreSession(storedId);
+    } else if (!currentSession && !loading) {
+      handleStartSession();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Persist active session ID ─────────────────────────────────────
+  useEffect(() => {
+    if (currentSession?.id) {
+      localStorage.setItem(STORAGE_KEY_ACTIVE_SESSION, currentSession.id);
+    }
+  }, [currentSession?.id]);
 
   const handleSubmit = async () => {
     if (!input.trim() || sending) return;
@@ -72,8 +125,28 @@ export default function HearthNutritionistView() {
   };
 
   const handleEndSession = async () => {
-    await endSession();
-    await startSession();
+    if (!currentSession) return;
+    const sessionIdToEnd = currentSession.id;
+    try {
+      await endSession();
+    } catch (e) {
+      console.error('[HearthNutritionist] endSession:', e);
+    }
+    localStorage.removeItem(STORAGE_KEY_ACTIVE_SESSION);
+    setView('sessions');
+    handleViewChange('sessions');
+  };
+
+  const handleViewChange = async (mode: ViewMode) => {
+    setView(mode);
+    if (mode === 'sessions') {
+      try {
+        const allSessions: any[] = await invoke('hearth_nutritionist_get_sessions', {});
+        setSessions(allSessions);
+      } catch (e) {
+        console.error('[HearthNutritionist] loadSessions:', e);
+      }
+    }
   };
 
   const handleExpandSession = async (sessionId: string) => {
@@ -112,13 +185,13 @@ export default function HearthNutritionistView() {
         <div className="hearth-nutritionist-tabs">
           <button
             className={`hearth-nutritionist-tab ${view === 'chat' ? 'active' : ''}`}
-            onClick={() => setView('chat')}
+            onClick={() => handleViewChange('chat')}
           >
             💬 Chat
           </button>
           <button
             className={`hearth-nutritionist-tab ${view === 'sessions' ? 'active' : ''}`}
-            onClick={() => setView('sessions')}
+            onClick={() => handleViewChange('sessions')}
           >
             📚 Sessions
           </button>
@@ -146,7 +219,7 @@ export default function HearthNutritionistView() {
           <div className="hearth-nutritionist-chat-col">
             {/* Chat Messages */}
             <div className="hearth-nutritionist-chat-messages">
-              {loading ? (
+              {loading || startingSession ? (
                 <div className="hearth-nutritionist-loading">
                   <div className="hearth-spinner" />
                   <span>Starting session...</span>
@@ -157,34 +230,45 @@ export default function HearthNutritionistView() {
                   <p>Ask Hearth about nutrition, meal planning, or your health goals</p>
                 </div>
               ) : (
-                messages.map(msg => (
-                  <motion.div
-                    key={msg.id}
-                    className={`hearth-nutritionist-msg ${msg.role === 'user' ? 'user' : 'counselor'}`}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                  >
-                    <div className="hearth-msg-bubble">
-                      <div className="hearth-msg-content">
-                        {msg.content.split('\n').map((line, i) => (
-                          <span key={i}>{line}{i < msg.content.split('\n').length - 1 && <br />}</span>
-                        ))}
+                <>
+                  {messages.map(msg => (
+                    <motion.div
+                      key={msg.id}
+                      className={`hearth-nutritionist-msg ${msg.role === 'user' ? 'user' : 'counselor'}`}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                    >
+                      <div className="hearth-msg-bubble">
+                        <div className="hearth-msg-content">
+                          {msg.content.split('\n').map((line, i) => (
+                            <span key={i}>{line}{i < msg.content.split('\n').length - 1 && <br />}</span>
+                          ))}
+                        </div>
+                        <div className="hearth-msg-meta">
+                          {msg.role === 'user' ? 'You' : 'Hearth'} · {formatTime(msg.timestamp)}
+                        </div>
                       </div>
-                      <div className="hearth-msg-meta">
-                        {msg.role === 'user' ? 'You' : 'Hearth'} · {formatTime(msg.timestamp)}
+                      {msg.role === 'counselor' && (
+                        <button
+                          className={`hearth-msg-speak-btn ${audio.playingId === msg.id ? 'playing' : ''}`}
+                          onClick={() => audio.playingId === msg.id ? audio.stop() : audio.speak(msg.content, msg.id, HEARTH_VOICE_ID)}
+                          title={audio.playingId === msg.id ? 'Stop playback' : 'Hear Hearth'}
+                        >
+                          {audio.playingId === msg.id ? '⏹' : '▶'}
+                        </button>
+                      )}
+                    </motion.div>
+                  ))}
+                  {sending && (
+                    <div className="hearth-nutritionist-msg counselor">
+                      <div className="hearth-msg-bubble">
+                        <div className="typing-indicator">
+                          <span /><span /><span />
+                        </div>
                       </div>
                     </div>
-                    {msg.role === 'counselor' && (
-                      <button
-                        className={`hearth-msg-speak-btn ${audio.playingId === msg.id ? 'playing' : ''}`}
-                        onClick={() => audio.playingId === msg.id ? audio.stop() : audio.speak(msg.content, msg.id, HEARTH_VOICE_ID)}
-                        title={audio.playingId === msg.id ? 'Stop playback' : 'Hear Hearth'}
-                      >
-                        {audio.playingId === msg.id ? '⏹' : '▶'}
-                      </button>
-                    )}
-                  </motion.div>
-                ))
+                  )}
+                </>
               )}
               <div ref={messagesEndRef} />
             </div>
