@@ -494,3 +494,37 @@ pub async fn budget_delete_bucket(id: String) -> Result<(), String> {
     .map_err(|e| e.to_string())?;
     Ok(())
 }
+
+// ── Clear All Budget Data ──────────────────────────────────
+// Used for testing / full reset
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn budget_clear_all(member_id: Option<String>) -> Result<(), String> {
+    let user_id = member_id.unwrap_or_default();
+    if user_id.is_empty() {
+        return Err("No user ID provided".to_string());
+    }
+    let engine = engine::get_engine();
+    let conn = engine.db().conn_async().await;
+    conn.execute(
+        "DELETE FROM budget_transactions WHERE user_id = ?1",
+        rusqlite::params![&user_id],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "DELETE FROM budget_allocations WHERE user_id = ?1",
+        rusqlite::params![&user_id],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "DELETE FROM budget_buckets WHERE user_id = ?1",
+        rusqlite::params![&user_id],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "DELETE FROM budget_settings WHERE user_id = ?1",
+        rusqlite::params![&user_id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}

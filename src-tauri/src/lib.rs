@@ -561,6 +561,7 @@ pub fn run() {
             budget::budget_get_transactions,
             budget::budget_delete_transaction,
             budget::budget_delete_bucket,
+            budget::budget_clear_all,
             // Pulse Finance
             engine::pulse::pulse_add_stock,
             engine::pulse::pulse_get_stocks,
