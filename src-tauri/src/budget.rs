@@ -506,6 +506,7 @@ pub async fn budget_clear_all(member_id: Option<String>) -> Result<(), String> {
     }
     let engine = engine::get_engine();
     let conn = engine.db().conn_async().await;
+    // budget_transactions, budget_allocations, budget_buckets, budget_settings → user_id
     conn.execute(
         "DELETE FROM budget_transactions WHERE user_id = ?1",
         rusqlite::params![&user_id],
@@ -523,6 +524,17 @@ pub async fn budget_clear_all(member_id: Option<String>) -> Result<(), String> {
     .map_err(|e| e.to_string())?;
     conn.execute(
         "DELETE FROM budget_settings WHERE user_id = ?1",
+        rusqlite::params![&user_id],
+    )
+    .map_err(|e| e.to_string())?;
+    // budget_entries, budget_goals → member_id
+    conn.execute(
+        "DELETE FROM budget_entries WHERE member_id = ?1",
+        rusqlite::params![&user_id],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "DELETE FROM budget_goals WHERE member_id = ?1",
         rusqlite::params![&user_id],
     )
     .map_err(|e| e.to_string())?;
