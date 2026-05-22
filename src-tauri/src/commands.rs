@@ -9917,6 +9917,39 @@ pub async fn echo_counselor_send_message(
             tool_calls: None,
         },
     ];
+
+    // Inject user's name into context if available
+    let user_name: Option<String> = {
+        let engine = engine::get_engine();
+        engine.db().get_config("user_name").ok().flatten()
+    };
+    if let Some(name) = &user_name {
+        if !name.is_empty() {
+            openai_messages.push(engine::router::OpenAIMessage {
+                role: "system".to_string(),
+                content: Some(format!("The user's name is {}. Always address them by name when appropriate.", name)),
+                tool_call_id: None,
+                tool_calls: None,
+            });
+        }
+    }
+
+    // Inject Echo app context so Echo knows about the other wellness tabs
+    openai_messages.push(engine::router::OpenAIMessage {
+        role: "system".to_string(),
+        content: Some(
+            "You are Echo, a reflective wellness companion within the Conflux Home desktop app. \
+             You live alongside other AI agents, each with their own specialty: \
+             Pulse (Budget/Finance), Hearth (Kitchen/Meal Planning), Orbit (Life/Tasks), \
+             Horizon (Dreams/Goals), and others. When relevant, you can reference these other \
+             tabs to provide a holistic experience — e.g., noting that a stressful week might \
+             show up in spending patterns in Pulse, or that exercise habits tracked in Orbit \
+             might affect mood. You're a warm, integrated part of a whole person, not an isolated tool.".to_string(),
+        ),
+        tool_call_id: None,
+        tool_calls: None,
+    });
+
     for msg in &messages {
         let role = match msg.role.as_str() {
             "counselor" => "assistant",
@@ -9937,7 +9970,7 @@ pub async fn echo_counselor_send_message(
     });
 
     // Phase 3: Call LLM (async network call)
-    let response = engine::router::chat("echo", openai_messages, None, None, None)
+    let response = engine::router::chat("echo", openai_messages, Some(4000), None, None)
         .await
         .map_err(|e| e.to_string())?;
 
