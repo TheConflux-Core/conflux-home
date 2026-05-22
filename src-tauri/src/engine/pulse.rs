@@ -1342,13 +1342,25 @@ pub async fn pulse_chat(req: PulseChatRequest, member_id: Option<String>) -> Res
             let uid = user_id_for_task.clone();
             let engine = get_engine();
             let conn = engine.db.conn_blocking();
+            let income_total: f64 = match conn.prepare(
+                "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id=?1 AND entry_type = 'income'",
+            ) {
+                Ok(mut stmt) => stmt.query_row(params![&uid], |row| row.get::<_, f64>(0)).unwrap_or(0.0),
+                Err(_) => 0.0,
+            };
             let budget_summary: Vec<(String, f64)> = match conn.prepare(
-                "SELECT category, SUM(amount) as total FROM budget_entries WHERE member_id=?1 GROUP BY category ORDER BY total DESC",
+                "SELECT category, SUM(amount) as total FROM budget_entries WHERE member_id=?1 AND entry_type = 'expense' GROUP BY category ORDER BY total DESC",
             ) {
                 Ok(mut stmt) => stmt.query_map(params![&uid], |row| {
                     Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
                 }).ok().map(|r| r.filter_map(|x| x.ok()).collect()).unwrap_or_default(),
                 Err(_) => Vec::new(),
+            };
+            let savings_total: f64 = match conn.prepare(
+                "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id=?1 AND entry_type = 'savings'",
+            ) {
+                Ok(mut stmt) => stmt.query_row(params![&uid], |row| row.get::<_, f64>(0)).unwrap_or(0.0),
+                Err(_) => 0.0,
             };
             let holdings: Vec<(String, String, f64, f64)> = match conn.prepare(
                 "SELECT asset_name, asset_type, current_value, cost_basis FROM pulse_holdings WHERE user_id=?1",
@@ -1366,16 +1378,16 @@ pub async fn pulse_chat(req: PulseChatRequest, member_id: Option<String>) -> Res
                 }).ok().map(|r| r.filter_map(|x| x.ok()).collect()).unwrap_or_default(),
                 Err(_) => Vec::new(),
             };
-            (budget_summary, holdings, goals)
+            (income_total, budget_summary, savings_total, holdings, goals)
         }))
     }).await.map_err(|e| format!("task join error: {:?}", e))?;
 
-    let (budget_summary, holdings, goals) = match data_result {
+    let (income_total, budget_summary, savings_total, holdings, goals) = match data_result {
         Ok(v) => v,
         Err(e) => return Err(format!("panic in pulse_chat: {:?}", e)),
     };
 
-    let context = build_pulse_context(&user_id, &budget_summary, &holdings, &goals);
+    let context = build_pulse_context(&user_id, income_total, savings_total, &budget_summary, &holdings, &goals);
 
     // Inject user name if available
     let user_name: Option<String> = {
@@ -1422,7 +1434,7 @@ pub async fn pulse_chat(req: PulseChatRequest, member_id: Option<String>) -> Res
         Ok(response) => Ok(response.content),
         Err(e) => {
             log::warn!("[pulse_chat] LLM call failed, falling back: {}", e);
-            Ok(handle_pulse_fallback(&req_msg, &budget_summary, &holdings, &goals))
+            Ok(handle_pulse_fallback(&req_msg, income_total, savings_total, &budget_summary, &holdings, &goals))
         }
     }
 }
@@ -1431,20 +1443,37 @@ pub async fn pulse_chat(req: PulseChatRequest, member_id: Option<String>) -> Res
 /// Build a structured context string from the user's financial data.
 fn build_pulse_context(
     user_id: &str,
+    income_total: f64,
+    savings_total: f64,
     budget: &[(String, f64)],
     holdings: &[(String, String, f64, f64)],
     goals: &[(String, f64, f64, f64)],
 ) -> String {
     let mut ctx = format!("User ID: {}\n", user_id);
 
+    // Income
+    ctx.push_str(&format!("\n## Monthly Income\n  Total: ${:.2}\n", income_total));
+
+    // Budget (expenses)
     if !budget.is_empty() {
-        let total: f64 = budget.iter().map(|(_, amt)| *amt).sum();
-        ctx.push_str(&format!("\n## Budget Spending by Category (total: ${:.2})\n", total));
+        let total_expenses: f64 = budget.iter().map(|(_, amt)| *amt).sum();
+        ctx.push_str(&format!("\n## Budget Spending by Category (total expenses: ${:.2})\n", total_expenses));
         for (cat, amt) in budget.iter().take(10) {
             ctx.push_str(&format!("  - {}: ${:.2}\n", cat, amt));
         }
     } else {
-        ctx.push_str("\n## Budget: No entries recorded yet.\n");
+        ctx.push_str("\n## Budget: No expense entries recorded yet.\n");
+    }
+
+    // Savings
+    ctx.push_str(&format!("\n## Monthly Savings\n  Recorded savings: ${:.2}\n", savings_total));
+    if income_total > 0.0 && savings_total > 0.0 {
+        let savings_rate = (savings_total / income_total) * 100.0;
+        ctx.push_str(&format!("  Savings rate: {:.1}% of income\n", savings_rate));
+        let projected_annual = savings_total * 12.0;
+        ctx.push_str(&format!("  Projected annual savings: ${:.2}\n", projected_annual));
+    } else if income_total > 0.0 {
+        ctx.push_str(&format!("  To project annual savings, record your monthly savings entries.\n"));
     }
 
     if !holdings.is_empty() {
@@ -1487,11 +1516,27 @@ fn build_pulse_context(
 /// Deterministic fallback when LLM is unavailable.
 fn handle_pulse_fallback(
     message: &str,
+    income_total: f64,
+    savings_total: f64,
     budget: &[(String, f64)],
     holdings: &[(String, String, f64, f64)],
     goals: &[(String, f64, f64, f64)],
 ) -> String {
     let msg_lower = message.to_lowercase();
+
+    // Savings projection — only works if we have income data
+    if msg_lower.contains("save") && (msg_lower.contains("year") || msg_lower.contains("annual") || msg_lower.contains("end of")) {
+        if income_total > 0.0 {
+            let total_expenses: f64 = budget.iter().map(|(_, a)| *a).sum();
+            let monthly_savings = (income_total - total_expenses - savings_total).max(0.0);
+            let projected_annual = monthly_savings * 12.0;
+            return format!(
+                "Based on your current income of ${:.2}/month and recorded savings of ${:.2}/month, you could save approximately ${:.2} this year — assuming your spending stays consistent.\n\nWant me to dig deeper into where you could cut costs to boost that number?",
+                income_total, savings_total, projected_annual
+            );
+        }
+        return "I don't have your income data yet, so I can't project annual savings. Add your income in the Budget tab and I'll be able to give you a precise picture.".to_string();
+    }
 
     if msg_lower.contains("can i afford") || msg_lower.contains("afford a") {
         let total_budget: f64 = budget.iter().map(|(_, a)| *a).sum();
