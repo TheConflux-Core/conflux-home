@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conflux Home — Pitch Deck</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0B0B10;
+    --surface: #111118;
+    --surface2: #1A1A26;
+    --ink: #EAEAEF;
+    --ink-muted: #8B8B9E;
+    --purple: #7C3AED;
+    --purple-glow: rgba(124, 58, 237, 0.25);
+    --purple-dim: #5B21B6;
+    --amber: #F59E0B;
+    --amber-dim: #D97706;
+    --green: #10B981;
+    --blue: #3B82F6;
+    --red: #EF4444;
+    --border: rgba(124, 58, 237, 0.12);
+    --radius: 16px;
+    --slide-w: 1920px;
+    --slide-h: 1080px;
+  }
+
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  html, body {
+    width: 100%; height: 100%;
+    background: #06060A;
+    font-family: 'Inter', -apple-system, system-ui, sans-serif;
+    color: var(--ink);
+    overflow: hidden;
+    user-select: none;
+  }
+
+  .deck-container {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #06060A;
+    position: relative;
+  }
+
+  .slide-viewport {
+    width: min(100vw, calc(100vh * 16/9));
+    height: min(100vh, calc(100vw * 9/16));
+    position: relative;
+    overflow: hidden;
+    border-radius: 4px;
+    box-shadow: 0 0 80px rgba(124, 58, 237, 0.06);
+  }
+
+  .slides {
+    width: 100%; height: 100%;
+    position: relative;
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 80px 100px;
+    opacity: 0;
+    transition: opacity 0.5s ease, transform 0.5s ease;
+    transform: scale(0.97);
+    pointer-events: none;
+    background: var(--bg);
+    background-image:
+      radial-gradient(ellipse at 20% 50%, rgba(124, 58, 237, 0.04) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 20%, rgba(245, 158, 11, 0.03) 0%, transparent 50%);
+  }
+
+  .slide.active {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+    z-index: 10;
+  }
+
+  /* Slide background accents */
+  .slide::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, var(--purple), var(--amber), transparent);
+    opacity: 0.6;
+  }
+
+  /* Navigation */
+  .nav-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0; right: 0;
+    padding: 20px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 100;
+    background: linear-gradient(transparent, rgba(6,6,10,0.9));
+  }
+
+  .nav-dots {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .nav-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    padding: 0;
+  }
+  .nav-dot:hover { background: rgba(255,255,255,0.3); }
+  .nav-dot.active { background: var(--purple); box-shadow: 0 0 12px var(--purple-glow); width: 28px; border-radius: 4px; }
+
+  .nav-arrows {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .nav-count {
+    font-size: 13px;
+    color: var(--ink-muted);
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    margin-right: 8px;
+  }
+
+  .nav-btn {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.03);
+    color: var(--ink-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    font-size: 16px;
+  }
+  .nav-btn:hover { background: rgba(124,58,237,0.15); border-color: var(--purple); color: var(--ink); }
+  .nav-btn:disabled { opacity: 0.2; cursor: default; }
+  .nav-btn:disabled:hover { background: transparent; border-color: rgba(255,255,255,0.08); color: var(--ink-muted); }
+
+  /* Typography */
+  .tag {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--purple);
+    margin-bottom: 16px;
+  }
+
+  h1 {
+    font-size: 64px;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -1.5px;
+    margin-bottom: 20px;
+  }
+  h1 .highlight { background: linear-gradient(135deg, var(--purple), var(--amber)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  h1 .highlight-green { background: linear-gradient(135deg, var(--green), #34D399); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+  h2 {
+    font-size: 42px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.5px;
+    margin-bottom: 16px;
+  }
+
+  .subtitle {
+    font-size: 22px;
+    line-height: 1.5;
+    color: var(--ink-muted);
+    font-weight: 400;
+    max-width: 80%;
+  }
+
+  .body-text {
+    font-size: 18px;
+    line-height: 1.6;
+    color: var(--ink-muted);
+    font-weight: 400;
+  }
+
+  .body-text strong { color: var(--ink); font-weight: 500; }
+
+  /* Grid System */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; width: 100%; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; width: 100%; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 20px; width: 100%; }
+
+  .col-center { display: flex; flex-direction: column; justify-content: center; }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    transition: all 0.3s ease;
+  }
+  .card:hover { border-color: rgba(124,58,237,0.25); transform: translateY(-2px); box-shadow: 0 8px 30px rgba(124,58,237,0.06); }
+
+  .card-icon {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    margin-bottom: 14px;
+  }
+  .card h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+  .card p { font-size: 14px; color: var(--ink-muted); line-height: 1.5; }
+
+  /* Stat blocks */
+  .stat-row { display: flex; gap: 30px; margin-top: 12px; }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 28px;
+    text-align: center;
+    min-width: 120px;
+  }
+  .stat-num {
+    font-size: 36px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--purple), var(--amber));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .stat-label { font-size: 13px; color: var(--ink-muted); margin-top: 4px; font-weight: 500; }
+
+  /* Agent list */
+  .agent-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .agent-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .agent-chip .emoji { font-size: 18px; }
+
+  /* Comparison table */
+  .comp-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+  .comp-table th {
+    text-align: left;
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--ink-muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .comp-table td {
+    padding: 14px 16px;
+    font-size: 15px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .comp-table tr:last-child td { border-bottom: none; }
+  .comp-table .check { color: var(--green); font-weight: 700; }
+  .comp-table .cross { color: var(--red); }
+  .comp-table .highlight-row td { color: var(--ink); font-weight: 500; }
+
+  /* Glow ring - Pulse */
+  .pulse-ring-visual {
+    width: 180px; height: 180px;
+    border-radius: 50%;
+    border: 4px solid var(--green);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: pulse-soft 3s ease-in-out infinite;
+  }
+  .pulse-ring-visual .inner {
+    width: 100px; height: 100px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(16,185,129,0.15), transparent);
+    border: 2px solid rgba(16,185,129,0.3);
+  }
+  @keyframes pulse-soft {
+    0%, 100% { box-shadow: 0 0 20px rgba(16,185,129,0.1); }
+    50% { box-shadow: 0 0 60px rgba(16,185,129,0.25); }
+  }
+
+  /* Agent orbit visual */
+  .orbit-visual {
+    position: relative;
+    width: 200px; height: 200px;
+    margin: 0 auto;
+  }
+  .orbit-center {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: var(--purple);
+    box-shadow: 0 0 30px var(--purple-glow);
+  }
+  .orbit-dot {
+    position: absolute;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--amber);
+    box-shadow: 0 0 10px rgba(245,158,11,0.4);
+  }
+
+  /* Timeline line */
+  .timeline {
+    position: relative;
+    padding-left: 30px;
+    margin-top: 20px;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px; top: 0; bottom: 0;
+    width: 2px;
+    background: linear-gradient(var(--purple), var(--amber), transparent);
+  }
+  .timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+  }
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -26px; top: 6px;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--purple);
+    border: 2px solid var(--bg);
+  }
+  .timeline-item h4 { font-size: 16px; font-weight: 600; }
+  .timeline-item p { font-size: 13px; color: var(--ink-muted); margin-top: 2px; }
+
+  /* Pitch graphic - AOL parallel */
+  .aol-compare {
+    display: flex;
+    align-items: center;
+    gap: 30px;
+    margin-top: 20px;
+  }
+  .aol-box {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 30px;
+    text-align: center;
+  }
+  .aol-box .year { font-size: 14px; color: var(--ink-muted); font-weight: 500; }
+  .aol-box h3 { font-size: 24px; font-weight: 700; margin: 8px 0; }
+  .aol-box .arrow { font-size: 28px; color: var(--purple); margin: 0; }
+  .aol-box p { font-size: 14px; color: var(--ink-muted); line-height: 1.5; }
+
+  /* Use of funds */
+  .funds-bar { margin-top: 20px; }
+  .funds-item { margin-bottom: 16px; }
+  .funds-item .label { display: flex; justify-content: space-between; font-size: 15px; font-weight: 500; margin-bottom: 6px; }
+  .funds-item .label .pct { color: var(--purple); font-weight: 600; }
+  .funds-track { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+  .funds-fill { height: 100%; border-radius: 3px; transition: width 1s ease; }
+
+  /* Responsive scaling */
+  .slide-content {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  /* Special: title slide */
+  .slide-title { text-align: center; align-items: center; }
+  .slide-title h1 { font-size: 76px; margin-bottom: 24px; }
+  .slide-title .subtitle { max-width: 600px; margin: 0 auto; }
+  .slide-title .logo-line { margin-bottom: 30px; }
+  .slide-title .logo-line .logo-text {
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 4px;
+    color: var(--purple);
+  }
+
+  /* Slide-specific */
+  .slide-ask .ask-box {
+    background: linear-gradient(135deg, var(--surface), rgba(124,58,237,0.06));
+    border: 1px solid rgba(124,58,237,0.2);
+    border-radius: var(--radius);
+    padding: 40px;
+    text-align: center;
+    margin-top: 20px;
+  }
+  .slide-ask .ask-amount {
+    font-size: 52px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--purple), var(--amber));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .slide-ask .ask-label { font-size: 16px; color: var(--ink-muted); margin-top: 4px; }
+
+  /* Glitch text effect for title */
+  .glitch-text {
+    position: relative;
+    display: inline-block;
+  }
+
+  /* Animations */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .slide.active .anim-fade { animation: fadeUp 0.6s ease forwards; }
+  .slide.active .anim-fade-1 { animation: fadeUp 0.6s ease 0.1s forwards; opacity: 0; }
+  .slide.active .anim-fade-2 { animation: fadeUp 0.6s ease 0.2s forwards; opacity: 0; }
+  .slide.active .anim-fade-3 { animation: fadeUp 0.6s ease 0.3s forwards; opacity: 0; }
+  .slide.active .anim-fade-4 { animation: fadeUp 0.6s ease 0.4s forwards; opacity: 0; }
+
+  /* Orbiting animation */
+  @keyframes orbit {
+    from { transform: rotate(0deg) translateX(70px) rotate(0deg); }
+    to { transform: rotate(360deg) translateX(70px) rotate(-360deg); }
+  }
+  .o1 { animation: orbit 8s linear infinite; top: 50%; left: 50%; margin-top: -6px; margin-left: -6px; }
+  .o2 { animation: orbit 10s linear infinite reverse; top: 50%; left: 50%; margin-top: -6px; margin-left: -6px; }
+  .o3 { animation: orbit 12s linear infinite 2s; top: 50%; left: 50%; margin-top: -6px; margin-left: -6px; }
+  .o4 { animation: orbit 14s linear infinite 4s reverse; top: 50%; left: 50%; margin-top: -6px; margin-left: -6px; }
+
+  /* Agent glow dots */
+  .agent-dots {
+    display: flex;
+    gap: 4px;
+    margin-top: 10px;
+  }
+  .agent-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--purple);
+    opacity: 0.3;
+  }
+  .agent-dot.active { opacity: 1; box-shadow: 0 0 8px var(--purple-glow); }
+</style>
+</head>
+<body>
+<div class="deck-container" id="deck">
+  <div class="slide-viewport" id="viewport">
+    <div class="slides" id="slides">
+
+      <!-- SLIDE 1: Title -->
+      <div class="slide slide-title active" data-slide="0">
+        <div class="slide-content">
+          <div class="logo-line anim-fade">
+            <span class="logo-text">✦ Conflux Home</span>
+          </div>
+          <h1 class="anim-fade-1">
+            An Operating System<br>
+            <span class="highlight">for AI Relationships</span>
+          </h1>
+          <p class="subtitle anim-fade-2">The AOL + Windows play for the age of intelligent agents.<br>Where your AI family lives, works, and grows.</p>
+          <div style="margin-top:30px; display:flex; gap:16px; justify-content:center;" class="anim-fade-3">
+            <div class="stat" style="min-width:unset; padding:12px 24px;">
+              <div class="stat-num" style="font-size:28px;">v0.1.147</div>
+              <div class="stat-label">Active Build</div>
+            </div>
+            <div class="stat" style="min-width:unset; padding:12px 24px;">
+              <div class="stat-num" style="font-size:28px;">16</div>
+              <div class="stat-label">AI Agents</div>
+            </div>
+            <div class="stat" style="min-width:unset; padding:12px 24px;">
+              <div class="stat-num" style="font-size:28px;">47K</div>
+              <div class="stat-label">Lines of Rust</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 2: The Problem -->
+      <div class="slide" data-slide="1">
+        <div class="slide-content">
+          <div class="tag anim-fade">The Problem</div>
+          <h2 class="anim-fade-1">AI is a tool, not a relationship.</h2>
+          <p class="subtitle anim-fade-2" style="margin-bottom:30px;">Every AI app locks you into one provider. Every new model resets your context. Your agents don't remember you.</p>
+          <div class="grid-3 anim-fade-3">
+            <div class="card">
+              <div class="card-icon" style="background:rgba(239,68,68,0.1); color:var(--red);">×</div>
+              <h3>Model Lock-In</h3>
+              <p>12 new frontier models dropped in March 2026 alone. Switch providers and your memory, preferences, and context vanish.</p>
+            </div>
+            <div class="card">
+              <div class="card-icon" style="background:rgba(239,68,68,0.1); color:var(--red);">×</div>
+              <h3>No Persistence</h3>
+              <p>Chatbots don't remember you between sessions. Your kitchen agent doesn't know your dietary preferences from last week.</p>
+            </div>
+            <div class="card">
+              <div class="card-icon" style="background:rgba(239,68,68,0.1); color:var(--red);">×</div>
+              <h3>Complex Setup</h3>
+              <p>API keys, gateway config, model selection — most people can't or won't configure AI. It should just work.</p>
+            </div>
+          </div>
+          <p class="anim-fade-4" style="margin-top:20px; font-size:16px; color:var(--ink-muted); text-align:center;">The AI industry is shipping features. Nobody has shipped <strong style="color:var(--ink);">a home.</strong></p>
+        </div>
+      </div>
+
+      <!-- SLIDE 3: The Solution -->
+      <div class="slide" data-slide="2">
+        <div class="slide-content">
+          <div class="tag anim-fade">The Solution</div>
+          <h2 class="anim-fade-1">Your AI family.<br><span class="highlight-green">Pre-installed. Persistent. Alive.</span></h2>
+          <div class="grid-2" style="margin-top:20px;">
+            <div class="col-center anim-fade-2">
+              <div class="orbit-visual">
+                <div class="orbit-center"></div>
+                <div class="orbit-dot o1"></div>
+                <div class="orbit-dot o2"></div>
+                <div class="orbit-dot o3"></div>
+                <div class="orbit-dot o4"></div>
+              </div>
+            </div>
+            <div class="col-center anim-fade-3">
+              <div class="agent-grid">
+                <div class="agent-chip"><span class="emoji">🍳</span> Hearth</div>
+                <div class="agent-chip"><span class="emoji">💰</span> Pulse</div>
+                <div class="agent-chip"><span class="emoji">🧠</span> Orbit</div>
+                <div class="agent-chip"><span class="emoji">🎯</span> Horizon</div>
+                <div class="agent-chip"><span class="emoji">📡</span> Current</div>
+                <div class="agent-chip"><span class="emoji">🏠</span> Foundation</div>
+                <div class="agent-chip"><span class="emoji">💬</span> Echo</div>
+                <div class="agent-chip"><span class="emoji">🎨</span> Studio</div>
+                <div class="agent-chip"><span class="emoji">🎮</span> Games</div>
+                <div class="agent-chip"><span class="emoji">📁</span> Vault</div>
+                <div class="agent-chip" style="border-color:rgba(124,58,237,0.3);"><span class="emoji">✦</span> +5 more</div>
+              </div>
+              <p style="margin-top:16px; font-size:14px; color:var(--ink-muted);">16 agents. Each with a name, personality,<br>and persistent memory that survives model swaps.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 4: Product Demo / Visual -->
+      <div class="slide" data-slide="3">
+        <div class="slide-content">
+          <div class="tag anim-fade">Product Demo</div>
+          <h2 class="anim-fade-1">Natural language is the <span class="highlight">only interface.</span></h2>
+          <div class="grid-2" style="margin-top:24px; gap:30px;">
+            <div class="anim-fade-2 col-center">
+              <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:30px;">
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+                  <div class="pulse-ring-visual" style="width:60px; height:60px; border-width:2px; flex-shrink:0;">
+                    <div class="inner" style="width:30px; height:30px;"></div>
+                  </div>
+                  <div>
+                    <div style="font-size:14px; font-weight:600;">Pulse — Financial Heartbeat</div>
+                    <div style="font-size:12px; color:var(--ink-muted);">Your AI budget agent</div>
+                  </div>
+                </div>
+                <div style="background:var(--surface2); border-radius:8px; padding:14px 16px; font-size:15px; color:var(--ink-muted); margin-bottom:12px;">
+                  <span style="color:var(--green);">→</span> "I spent $47 at Costco"
+                </div>
+                <div style="background:linear-gradient(135deg, rgba(16,185,129,0.08), transparent); border:1px solid rgba(16,185,129,0.15); border-radius:8px; padding:14px 16px;">
+                  <div style="color:var(--green); font-size:12px; font-weight:600;">PULSE RESPONDS</div>
+                  <div style="font-size:14px; color:var(--ink); margin-top:4px;">✅ $47.00 — Groceries (Costco). You've spent 12% more on groceries this month. Want me to adjust your budget?</div>
+                </div>
+              </div>
+            </div>
+            <div class="anim-fade-3 col-center">
+              <div style="display:flex; flex-direction:column; gap:12px;">
+                <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px;">
+                  <div style="font-size:13px; font-weight:600; color:var(--purple);">✦ VOICE CHAT</div>
+                  <div style="font-size:14px; color:var(--ink-muted); margin-top:4px;">Real-time speech with state-driven fairy animation</div>
+                </div>
+                <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px;">
+                  <div style="font-size:13px; font-weight:600; color:var(--amber);">✦ MODEL-AGNOSTIC</div>
+                  <div style="font-size:14px; color:var(--ink-muted); margin-top:4px;">OpenAI, Anthropic, DeepSeek, Groq, or local models — switch anytime, keep all memory</div>
+                </div>
+                <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px;">
+                  <div style="font-size:13px; font-weight:600; color:var(--green);">✦ 32MB NATIVE APP</div>
+                  <div style="font-size:14px; color:var(--ink-muted); margin-top:4px;">Tauri + Rust + React. Not Electron. Cross-platform: Win/Mac/Linux</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 5: Traction -->
+      <div class="slide" data-slide="4">
+        <div class="slide-content">
+          <div class="tag anim-fade">Traction</div>
+          <h2 class="anim-fade-1">Built at <span class="highlight">barbell speed.</span></h2>
+          <p class="subtitle anim-fade-2" style="margin-bottom:24px;">v0.1 to v0.1.147 in under 60 days. 47,893 Rust LOC. 210+ React components. Right now, shipped.</p>
+          <div class="grid-3 anim-fade-3">
+            <div class="card" style="text-align:center;">
+              <div style="font-size:40px; font-weight:800; color:var(--purple);">147</div>
+              <div style="font-size:14px; color:var(--ink-muted);">Build Versions</div>
+            </div>
+            <div class="card" style="text-align:center;">
+              <div style="font-size:40px; font-weight:800; background:linear-gradient(135deg, var(--green), #34D399); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">47K</div>
+              <div style="font-size:14px; color:var(--ink-muted);">Lines of Rust</div>
+            </div>
+            <div class="card" style="text-align:center;">
+              <div style="font-size:40px; font-weight:800; background:linear-gradient(135deg, var(--amber), #F97316); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">210+</div>
+              <div style="font-size:14px; color:var(--ink-muted);">React Components</div>
+            </div>
+          </div>
+          <div class="grid-3 anim-fade-4" style="margin-top:16px;">
+            <div class="card" style="text-align:center;">
+              <div style="font-size:18px; font-weight:600; color:var(--ink);">Stripe Billing</div>
+              <div style="font-size:13px; color:var(--ink-muted);">Free / Power $25 / Pro $50</div>
+            </div>
+            <div class="card" style="text-align:center;">
+              <div style="font-size:18px; font-weight:600; color:var(--ink);">Auto-Updater</div>
+              <div style="font-size:13px; color:var(--ink-muted);">CI/CD + Code Signing</div>
+            </div>
+            <div class="card" style="text-align:center;">
+              <div style="font-size:18px; font-weight:600; color:var(--ink);">Model Agnostic</div>
+              <div style="font-size:13px; color:var(--ink-muted);">OpenRouter + 6 providers + local</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 6: Market / The AOL Play -->
+      <div class="slide" data-slide="5">
+        <div class="slide-content">
+          <div class="tag anim-fade">Market Strategy</div>
+          <h2 class="anim-fade-1">The <span class="highlight">AOL + Windows</span> Play for AI</h2>
+          <p class="subtitle anim-fade-2" style="margin-bottom:24px;">In 1995, AOL won by making the internet feel like home. Windows won by being pre-installed. Conflux Home does both for AI.</p>
+          <div class="aol-compare anim-fade-3">
+            <div class="aol-box">
+              <div class="year">1995</div>
+              <h3>AOL</h3>
+              <p>Made the internet feel like <strong>home.</strong> You had mail. You had rooms. You had a screen name. You were somewhere.</p>
+            </div>
+            <div style="font-size:28px; color:var(--purple); flex-shrink:0;">→</div>
+            <div class="aol-box" style="border-color:rgba(124,58,237,0.3);">
+              <div class="year">2026</div>
+              <h3 style="color:var(--purple);">Conflux Home</h3>
+              <p>Makes AI feel like <strong>family.</strong> Your agents have names, memory, and persistence. They're there when you wake up.</p>
+            </div>
+          </div>
+          <div class="grid-3 anim-fade-4" style="margin-top:20px;">
+            <div class="card" style="text-align:center;">
+              <div style="font-size:14px;">🚀</div>
+              <div style="font-size:13px; color:var(--ink-muted); margin-top:4px;">Download → Onboard → Team is Alive</div>
+            </div>
+            <div class="card" style="text-align:center;">
+              <div style="font-size:14px;">🏪</div>
+              <div style="font-size:13px; color:var(--ink-muted); margin-top:4px;">One-click Agent Marketplace (Coming)</div>
+            </div>
+            <div class="card" style="text-align:center;">
+              <div style="font-size:14px;">👨‍👩‍👧‍👦</div>
+              <div style="font-size:13px; color:var(--ink-muted); margin-top:4px;">Family Accounts (Coming)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 7: Business Model -->
+      <div class="slide" data-slide="6">
+        <div class="slide-content">
+          <div class="tag anim-fade">Business Model</div>
+          <h2 class="anim-fade-1">Free tier to grow.<br><span class="highlight-green">Premium to scale.</span></h2>
+          <div class="grid-2" style="margin-top:20px; gap:24px;">
+            <div class="col-center anim-fade-2">
+              <table class="comp-table">
+                <tr>
+                  <th style="width:30%;">Feature</th>
+                  <th style="width:23%;">Free</th>
+                  <th style="width:23%;">Power</th>
+                  <th style="width:23%;">Pro</th>
+                </tr>
+                <tr>
+                  <td>Price</td>
+                  <td style="font-weight:600;">$0/mo</td>
+                  <td style="font-weight:600;">$24.99/mo</td>
+                  <td style="font-weight:600;">$49.99/mo</td>
+                </tr>
+                <tr>
+                  <td>Credits</td>
+                  <td>500/mo</td>
+                  <td>10,000/mo</td>
+                  <td>30,000/mo</td>
+                </tr>
+                <tr>
+                  <td>Agents</td>
+                  <td>5</td>
+                  <td>Unlimited</td>
+                  <td>Unlimited + Premium</td>
+                </tr>
+                <tr>
+                  <td>Support</td>
+                  <td>Community</td>
+                  <td>Email</td>
+                  <td>Priority</td>
+                </tr>
+              </table>
+            </div>
+            <div class="col-center anim-fade-3">
+              <div style="display:flex; flex-direction:column; gap:14px;">
+                <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px;">
+                  <div style="font-size:13px; font-weight:600; color:var(--purple);">✦ REVENUE STREAMS</div>
+                  <div style="font-size:14px; color:var(--ink-muted); margin-top:6px;">
+                    <strong style="color:var(--ink);">Subscriptions</strong> — Free/Power/Pro tiers<br>
+                    <strong style="color:var(--ink);">Agent Marketplace</strong> — Platform cut (Coming)<br>
+                    <strong style="color:var(--ink);">BYOK</strong> — Bring-your-own-key, infra fee<br>
+                    <strong style="color:var(--ink);">Enterprise</strong> — Conflux Cloud (Future)
+                  </div>
+                </div>
+                <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px;">
+                  <div style="font-size:13px; font-weight:600; color:var(--amber);">✦ UNIT ECONOMICS</div>
+                  <div style="font-size:14px; color:var(--ink-muted); margin-top:6px;">
+                    Low marginal cost per credit via model-agnostic routing.<br>
+                    Switch to cheapest provider automatically.<br>
+                    Premium models = higher credit burn.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 8: Competition -->
+      <div class="slide" data-slide="7">
+        <div class="slide-content">
+          <div class="tag anim-fade">Competition</div>
+          <h2 class="anim-fade-1">Nobody has built <span class="highlight">the home.</span></h2>
+          <table class="comp-table anim-fade-2">
+            <tr>
+              <th style="width:22%;">Capability</th>
+              <th style="width:19%;">Conflux Home</th>
+              <th style="width:19%;">Claude Desktop</th>
+              <th style="width:19%;">ChatGPT App</th>
+              <th style="width:19%;">Character.AI</th>
+            </tr>
+            <tr>
+              <td>Multi-Agent Team</td>
+              <td class="check">✓ 16 agents</td>
+              <td class="cross">× Single</td>
+              <td class="cross">× Single</td>
+              <td class="cross">× Single</td>
+            </tr>
+            <tr>
+              <td>Persistent Memory</td>
+              <td class="check">✓ SQLite</td>
+              <td class="cross">× None</td>
+              <td class="cross">× Limited</td>
+              <td class="check">✓ Partial</td>
+            </tr>
+            <tr>
+              <td>Model Agnostic</td>
+              <td class="check">✓ 6+ providers</td>
+              <td class="cross">× Anthropic only</td>
+              <td class="cross">× OpenAI only</td>
+              <td class="cross">× Proprietary</td>
+            </tr>
+            <tr>
+              <td>Native Desktop</td>
+              <td class="check">✓ 32MB Tauri</td>
+              <td class="check">✓ Electron</td>
+              <td class="check">✓ Electron</td>
+              <td class="cross">× Web only</td>
+            </tr>
+            <tr>
+              <td>Offline Mode</td>
+              <td class="check">✓ Whisper + local LLM</td>
+              <td class="cross">× Online only</td>
+              <td class="cross">× Online only</td>
+              <td class="cross">× Online only</td>
+            </tr>
+            <tr>
+              <td>Agent Marketplace</td>
+              <td class="check">✓ Coming</td>
+              <td class="cross">× None</td>
+              <td class="cross">× GPTs (limited)</td>
+              <td class="cross">× None</td>
+            </tr>
+            <tr class="highlight-row">
+              <td>AI as Family, Not Tool</td>
+              <td class="check">✦ YES</td>
+              <td class="cross">× No</td>
+              <td class="cross">× No</td>
+              <td class="cross">× Characters only</td>
+            </tr>
+          </table>
+          <p class="anim-fade-3" style="margin-top:16px; font-size:14px; color:var(--ink-muted); text-align:center;">Everyone is building a smarter chatbot. <strong style="color:var(--ink);">We're building a place to live.</strong></p>
+        </div>
+      </div>
+
+      <!-- SLIDE 9: Team -->
+      <div class="slide" data-slide="8">
+        <div class="slide-content">
+          <div class="tag anim-fade">Team</div>
+          <h2 class="anim-fade-1">One founder, <span class="highlight">relentless execution.</span></h2>
+          <div class="grid-2" style="margin-top:24px; gap:30px;">
+            <div class="col-center anim-fade-2">
+              <div style="background:linear-gradient(135deg, var(--surface), rgba(124,58,237,0.05)); border:1px solid var(--border); border-radius:var(--radius); padding:30px;">
+                <div style="font-size:48px; margin-bottom:12px;">🧑‍💻</div>
+                <h3 style="font-size:22px; font-weight:700;">Don Ziglioni</h3>
+                <div style="font-size:14px; color:var(--purple); font-weight:500; margin-bottom:12px;">Founder & CEO — The Conflux AI, LLC</div>
+                <div style="font-size:14px; color:var(--ink-muted); line-height:1.6;">
+                  Built Conflux Home from zero to 47K Rust LOC solo.<br>
+                  Deep audio/voice background — unfair advantage for voice AI.<br>
+                  UAP investigation pipeline (92+ PDFs, 1.3GB).<br>
+                  Works 12-6AM MST. Ships at barbell speed.
+                </div>
+              </div>
+            </div>
+            <div class="col-center anim-fade-3">
+              <div class="timeline">
+                <div class="timeline-item">
+                  <h4>🚀 MVP Shipped</h4>
+                  <p>16 agents, persistent memory, cloud router, Stripe billing — all built solo</p>
+                </div>
+                <div class="timeline-item">
+                  <h4>⚡ 147 Versions in 60 Days</h4>
+                  <p>Continuous shipping. Voice chat, offline mode, 3D fairy animation, agent marketplace prep</p>
+                </div>
+                <div class="timeline-item">
+                  <h4>🔧 Open-Source Foundation</h4>
+                  <p>Built on OpenClaw (97M+ MCP installs) + Tauri + Supabase. Extensible by design.</p>
+                </div>
+                <div class="timeline-item">
+                  <h4>🌐 Cross-Platform</h4>
+                  <p>Windows, macOS, Linux. Auto-updater. Code-signed. Ready for prime time.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 10: The Ask -->
+      <div class="slide slide-ask" data-slide="9">
+        <div class="slide-content" style="text-align:center;">
+          <div class="tag anim-fade">The Ask</div>
+          <h2 class="anim-fade-1">Help us build the <span class="highlight">future of AI relationships.</span></h2>
+          <div class="ask-box anim-fade-2">
+            <div class="ask-label">Raising</div>
+            <div class="ask-amount">$500,000 – $2,000,000</div>
+            <div class="ask-label" style="margin-top:8px;">Pre-Seed / SAFE with Valuation Cap</div>
+          </div>
+          <div class="grid-2 anim-fade-3" style="margin-top:24px; gap:20px; text-align:left;">
+            <div class="card">
+              <div style="font-size:13px; font-weight:600; color:var(--purple); margin-bottom:8px;">🏗️ Use of Funds</div>
+              <div class="funds-bar">
+                <div class="funds-item">
+                  <div class="label"><span>Better Models & Infrastructure</span><span class="pct">35%</span></div>
+                  <div class="funds-track"><div class="funds-fill" style="width:35%; background:linear-gradient(90deg, var(--purple), #8B5CF6);"></div></div>
+                </div>
+                <div class="funds-item">
+                  <div class="label"><span>Marketing & Launch</span><span class="pct">25%</span></div>
+                  <div class="funds-track"><div class="funds-fill" style="width:25%; background:linear-gradient(90deg, #8B5CF6, var(--amber));"></div></div>
+                </div>
+                <div class="funds-item">
+                  <div class="label"><span>Talent (2-3 hires)</span><span class="pct">25%</span></div>
+                  <div class="funds-track"><div class="funds-fill" style="width:25%; background:linear-gradient(90deg, var(--amber), #F97316);"></div></div>
+                </div>
+                <div class="funds-item">
+                  <div class="label"><span>Operations & Runway</span><span class="pct">15%</span></div>
+                  <div class="funds-track"><div class="funds-fill" style="width:15%; background:linear-gradient(90deg, #F97316, var(--red));"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="card" style="display:flex; flex-direction:column; justify-content:center;">
+              <div style="font-size:13px; font-weight:600; color:var(--amber); margin-bottom:8px;">✦ THE BIGGER PICTURE</div>
+              <p style="font-size:14px; color:var(--ink-muted); line-height:1.6;">
+                Conflux Home is the <strong style="color:var(--ink);">flagship.</strong> The real play is the ecosystem:<br><br>
+                <strong style="color:var(--ink);">Conflux Cloud</strong> — Agent teams for businesses<br>
+                <strong style="color:var(--ink);">Conflux SDK</strong> — Developer platform<br>
+                <strong style="color:var(--ink);">Conflux Records</strong> — AI record label (audio background = unfair advantage)<br>
+                <strong style="color:var(--ink);">Agent Marketplace</strong> — Network effects → Platform dominance
+              </p>
+            </div>
+          </div>
+          <div class="anim-fade-4" style="margin-top:20px;">
+            <a href="https://theconflux.com" style="display:inline-block; padding:12px 32px; background:var(--purple); color:white; border-radius:8px; font-size:16px; font-weight:600; text-decoration:none; box-shadow:0 4px 20px rgba(124,58,237,0.3);">theconflux.com</a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Navigation -->
+    <div class="nav-bar">
+      <div class="nav-dots" id="dots"></div>
+      <div class="nav-arrows">
+        <span class="nav-count" id="count">01 / 10</span>
+        <button class="nav-btn" id="prevBtn" onclick="prevSlide()">‹</button>
+        <button class="nav-btn" id="nextBtn" onclick="nextSlide()">›</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let current = 0;
+
+  // Build dots
+  const dotsContainer = document.getElementById('dots');
+  for (let i = 0; i < total; i++) {
+    const dot = document.createElement('button');
+    dot.className = 'nav-dot' + (i === 0 ? ' active' : '');
+    dot.onclick = () => goTo(i);
+    dotsContainer.appendChild(dot);
+  }
+
+  function update() {
+    slides.forEach((s, i) => {
+      s.classList.toggle('active', i === current);
+    });
+    document.querySelectorAll('.nav-dot').forEach((d, i) => {
+      d.classList.toggle('active', i === current);
+    });
+    document.getElementById('count').textContent =
+      String(current + 1).padStart(2, '0') + ' / ' + String(total).padStart(2, '0');
+    document.getElementById('prevBtn').disabled = current === 0;
+    document.getElementById('nextBtn').disabled = current === total - 1;
+  }
+
+  function nextSlide() { if (current < total - 1) { current++; update(); } }
+  function prevSlide() { if (current > 0) { current--; update(); } }
+  function goTo(n) { current = n; update(); }
+
+  // Keyboard
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); nextSlide(); }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); prevSlide(); }
+    if (e.key === 'Home') { e.preventDefault(); goTo(0); }
+    if (e.key === 'End') { e.preventDefault(); goTo(total - 1); }
+  });
+
+  // Touch
+  let touchX = 0;
+  document.querySelector('.slide-viewport').addEventListener('touchstart', e => { touchX = e.changedTouches[0].screenX; });
+  document.querySelector('.slide-viewport').addEventListener('touchend', e => {
+    const diff = touchX - e.changedTouches[0].screenX;
+    if (Math.abs(diff) > 50) { diff > 0 ? nextSlide() : prevSlide(); }
+  });
+
+  // Restore from localStorage
+  try { const saved = localStorage.getItem('conflux-pitch-slide'); if (saved) { goTo(parseInt(saved)); } } catch(e) {}
+  setInterval(() => { try { localStorage.setItem('conflux-pitch-slide', current); } catch(e) {} }, 1000);
+</script>
+</body>
+</html>
