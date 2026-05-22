@@ -52,7 +52,7 @@ const CATEGORIES: CategoryDef[] = [
     color: '#f59e0b',
     desc: 'Browse & install',
     apps: [
-      { id: 'bazaar', icon: '🛒', label: 'Bazaar', preview: 'Browse & install agents' },
+      { id: 'marketplace', icon: '🛒', label: 'Bazaar', preview: 'Browse & install agents' },
       { id: 'family', icon: '🧩', label: 'Family', preview: 'Meet & manage your AI team' },
       { id: 'story', icon: '🎮', label: 'Story', preview: 'Play & learn' },
       { id: 'current', icon: '📡', label: 'Current', preview: 'Daily briefing & signals' },

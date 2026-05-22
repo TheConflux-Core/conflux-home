@@ -10,14 +10,14 @@ interface WidgetDef {
 
 const WIDGETS: WidgetDef[] = [
   { id: 'google', icon: '🔍', label: 'Google', preview: 'Calendar · Mail · Drive', color: '#4285f4' },
-  { id: 'budget', icon: '💰', label: 'Budget', preview: 'Weekly spend summary', color: '#10b981' },
-  { id: 'kitchen', icon: '🍳', label: 'Kitchen', preview: "Tonight's meal plan", color: '#f59e0b' },
-  { id: 'life', icon: '🧠', label: 'Life Autopilot', preview: 'Active reminders', color: '#6366f1' },
-  { id: 'dreams', icon: '🎯', label: 'Dreams', preview: 'Current milestones', color: '#8b5cf6' },
-  { id: 'agents', icon: '🧩', label: 'Agents', preview: 'Active agents', color: '#3b82f6' },
-  { id: 'games', icon: '🎮', label: 'Games', preview: 'Play and compete', color: '#f43f5e' },
+  { id: 'pulse', icon: '💰', label: 'Pulse', preview: 'Weekly spend summary', color: '#10b981' },
+  { id: 'hearth', icon: '🍳', label: 'Hearth', preview: "Tonight's meal plan", color: '#f59e0b' },
+  { id: 'orbit', icon: '🧠', label: 'Orbit', preview: 'Active reminders', color: '#6366f1' },
+  { id: 'horizon', icon: '🎯', label: 'Horizon', preview: 'Current milestones', color: '#8b5cf6' },
+  { id: 'family', icon: '🧩', label: 'Family', preview: 'Active agents', color: '#3b82f6' },
+  { id: 'story', icon: '🎮', label: 'Story', preview: 'Play and compete', color: '#f43f5e' },
 
-  { id: 'marketplace', icon: '🛒', label: 'Marketplace', preview: 'Browse agents', color: '#84cc16' },
+  { id: 'bazaar', icon: '🛒', label: 'Marketplace', preview: 'Browse agents', color: '#84cc16' },
   { id: 'settings', icon: '⚙️', label: 'Settings', preview: 'System config', color: '#64748b' },
 ];
 
