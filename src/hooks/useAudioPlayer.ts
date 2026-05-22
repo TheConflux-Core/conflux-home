@@ -9,7 +9,7 @@ let _activeSource: AudioBufferSourceNode | null = null;
 
 export const ECHO_VOICE_ID = 'EST9Ui6982FZPSi7gCHi';
 export const HEARTH_VOICE_ID = 'W7iR5kTNHozpIl2Jqq15';
-export const PULSE_VOICE_ID = 'auq43ws1oslv0tO4BDa7';
+export const PULSE_VOICE_ID = 'iLVmqjzCGGvqtMCk6vVQ';
 
 function getAudioCtx(): AudioContext {
   if (!_audioCtx) {
