@@ -87,16 +87,16 @@ import './styles/tour.css';
 
 // Background images for immersive views
 const VIEW_BACKGROUNDS: Record<string, string> = {
-  kitchen: '', // Transparent — Kitchen renders its own component backgrounds
-  budget: '/backgrounds/budget-bg.webp',
-  life: '/backgrounds/life-bg.webp',
-  home: '/backgrounds/home-bg.webp',
-  dreams: '/backgrounds/dreams-bg.webp',
-  agents: '/backgrounds/agents-bg.webp',
-  games: '/backgrounds/games-bg.webp',
-  feed: '/backgrounds/feed-bg.webp',
-  marketplace: '/backgrounds/marketplace-bg.webp',
-  echo: '/backgrounds/echo-bg.webp',
+  hearth: '', // Transparent — Hearth renders its own component backgrounds
+  pulse: '/backgrounds/budget-bg.webp',
+  orbit: '/backgrounds/life-bg.webp',
+  foundation: '/backgrounds/home-bg.webp',
+  horizon: '/backgrounds/dreams-bg.webp',
+  family: '/backgrounds/agents-bg.webp',
+  story: '/backgrounds/games-bg.webp',
+  current: '/backgrounds/feed-bg.webp',
+  bazaar: '/backgrounds/marketplace-bg.webp',
+  mirror: '/backgrounds/echo-bg.webp',
   vault: '/backgrounds/vault-bg.webp',
   studio: '/backgrounds/studio-bg.webp',
   settings: '/backgrounds/settings-bg.webp',
@@ -1081,9 +1081,9 @@ const [activeSnake, setActiveSnake] = useState(false);
       setImmersiveView(null);
       setChatOpen(false);
       setVoiceChatOpen(false);
-    } else if (v === 'marketplace') {
+    } else if (v === 'bazaar') {
       // Discover → open marketplace
-      setImmersiveView('marketplace');
+      setImmersiveView('bazaar');
     } else if (v === 'chat') {
       if (!selectedAgent) {
         // Default to last-used agent, then "Conflux", then first active
@@ -1262,20 +1262,20 @@ const [activeSnake, setActiveSnake] = useState(false);
           backgroundUrl={VIEW_BACKGROUNDS[immersiveView] || '/backgrounds/dashboard-bg.webp'}
           onClose={() => setImmersiveView(null)}
         >
-          {immersiveView === 'kitchen' && <KitchenView />}
-          {immersiveView === 'budget' && <PulseWrapper />}
-          {immersiveView === 'feed' && <FeedView />}
-          {immersiveView === 'life' && <LifeAutopilotView />}
-          {immersiveView === 'home' && <HomeHealthView />}
-          {immersiveView === 'dreams' && <DreamBuilderView />}
+          {immersiveView === 'hearth' && <KitchenView />}
+          {immersiveView === 'pulse' && <PulseWrapper />}
+          {immersiveView === 'current' && <FeedView />}
+          {immersiveView === 'orbit' && <LifeAutopilotView />}
+          {immersiveView === 'foundation' && <HomeHealthView />}
+          {immersiveView === 'horizon' && <DreamBuilderView />}
           {immersiveView === 'google' && <GoogleView />}
-          {(immersiveView === 'marketplace' || anyGameActive) && (
+          {(immersiveView === 'bazaar' || anyGameActive) && (
             <div style={anyGameActive ? { display: 'none' } : undefined}>
               <Marketplace />
             </div>
           )}
-          {immersiveView === 'agents' && <AgentsView />}
-          {immersiveView === 'echo' && <EchoView />}
+          {immersiveView === 'family' && <AgentsView />}
+          {immersiveView === 'mirror' && <EchoView />}
           {immersiveView === 'vault' && <VaultView />}
           {immersiveView === 'studio' && <StudioView />}
           {immersiveView === 'settings' && skillPromptDraft && (
@@ -1333,22 +1333,22 @@ const [activeSnake, setActiveSnake] = useState(false);
               </div>
             </div>
           )}
-          {immersiveView === 'games' && activeMinesweeper && (
+          {immersiveView === 'story' && activeMinesweeper && (
             <MinesweeperGame onBack={closeGame} />
           )}
-          {immersiveView === 'games' && activeSnake && !activeMinesweeper && (
+          {immersiveView === 'story' && activeSnake && !activeMinesweeper && (
             <SnakeGame onBack={closeGame} />
           )}
-          {immersiveView === 'games' && activePacman && !activeMinesweeper && !activeSnake && (
+          {immersiveView === 'story' && activePacman && !activeMinesweeper && !activeSnake && (
             <PacmanGame onBack={closeGame} />
           )}
-          {immersiveView === 'games' && activeSolitaire && !activeMinesweeper && !activeSnake && !activePacman && (
+          {immersiveView === 'story' && activeSolitaire && !activeMinesweeper && !activeSnake && !activePacman && (
             <SolitaireGame onBack={closeGame} />
           )}
-          {immersiveView === 'games' && activeNaniSolitaire && !activeMinesweeper && !activeSnake && !activePacman && !activeSolitaire && (
+          {immersiveView === 'story' && activeNaniSolitaire && !activeMinesweeper && !activeSnake && !activePacman && !activeSolitaire && (
             <NaniSolitaireGame onBack={closeGame} />
           )}
-          {immersiveView === 'games' && activeJohnnySolitaire && !activeMinesweeper && !activeSnake && !activePacman && !activeSolitaire && !activeNaniSolitaire && (
+          {immersiveView === 'story' && activeJohnnySolitaire && !activeMinesweeper && !activeSnake && !activePacman && !activeSolitaire && !activeNaniSolitaire && (
             <JohnnySolitaireGame onBack={closeGame} />
           )}
         </ImmersiveView>
@@ -1444,14 +1444,14 @@ const [activeSnake, setActiveSnake] = useState(false);
         <ConfluxBarV2
           currentView={view}
           agents={agents}
-          pinnedApps={['chat', 'kitchen', 'budget', 'settings']}
+          pinnedApps={['chat', 'hearth', 'pulse', 'settings']}
           onNavigate={handleNavigate}
         />
       ) : (
         <ConfluxBar
           currentView={view}
           agents={agents}
-          pinnedApps={['chat', 'kitchen', 'budget', 'settings']}
+          pinnedApps={['chat', 'hearth', 'pulse', 'settings']}
           onNavigate={handleNavigate}
         />
       )}
@@ -1466,11 +1466,11 @@ const [activeSnake, setActiveSnake] = useState(false);
           onClose={() => setShowStatusPanel(false)}
           onOpenApp={(agentId) => {
             const viewMap: Record<string, View> = {
-              hearth: 'kitchen',
-              pulse: 'budget',
-              orbit: 'life',
-              horizon: 'dreams',
-              current: 'feed',
+              hearth: 'hearth',
+              pulse: 'pulse',
+              orbit: 'orbit',
+              horizon: 'horizon',
+              current: 'current',
             };
             setShowStatusPanel(false);
             if (viewMap[agentId]) setImmersiveView(viewMap[agentId]);

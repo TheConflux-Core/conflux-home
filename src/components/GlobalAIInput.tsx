@@ -152,12 +152,12 @@ export default function GlobalAIInput({ userId, onRoute, onOpenChat }: GlobalAII
                  'Conflux'}
               </span>
               <span className="intent-type-label">
-                {intent.type === 'budget' ? 'Budget question' :
-                 intent.type === 'kitchen' ? 'Kitchen/M meal' :
-                 intent.type === 'dreams' ? 'Goal planning' :
-                 intent.type === 'life' ? 'Life/task management' :
-                 intent.type === 'home' ? 'Home maintenance' :
-                 intent.type === 'feed' ? 'News/briefing' :
+                {intent.type === 'pulse' ? 'Budget question' :
+                 intent.type === 'hearth' ? 'Kitchen/meal' :
+                 intent.type === 'horizon' ? 'Goal planning' :
+                 intent.type === 'orbit' ? 'Life/task management' :
+                 intent.type === 'foundation' ? 'Home maintenance' :
+                 intent.type === 'current' ? 'News/briefing' :
                  'General chat'}
               </span>
               {Math.round(intent.confidence * 100) > 50 && (

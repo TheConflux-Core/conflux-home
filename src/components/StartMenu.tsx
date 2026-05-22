@@ -18,21 +18,21 @@ interface AppItem {
 
 const ALL_APPS: AppItem[] = [
   // Page 1 — Primary apps
-  { id: 'chat', icon: '💬', label: 'Chat', category: 'work', description: 'Talk with your AI agents', page: 1 },
-  { id: 'agents', icon: '🧩', label: 'Agent Library', category: 'work', description: 'Browse and install agents', page: 1 },
-  { id: 'life', icon: '🧠', label: 'Life Autopilot', category: 'life', description: 'Document AI & smart reminders', page: 1 },
-  { id: 'dreams', icon: '🎯', label: 'Dream Builder', category: 'life', description: 'Goals into daily actions', page: 1 },
-  { id: 'kitchen', icon: '🍳', label: 'Kitchen', category: 'life', description: 'Smart meal planning & fridge', page: 1 },
-  { id: 'budget', icon: '💰', label: 'Budget', category: 'work', description: 'Expense tracking', page: 1 },
-  { id: 'marketplace', icon: '🛒', label: 'Discover', category: 'system', description: 'Apps, games, and agents', page: 1 },
+  { id: 'chat', icon: '💬', label: 'Chat', category: 'work', description: 'Talk with your AI team', page: 1 },
+  { id: 'family', icon: '🧩', label: 'Family', category: 'work', description: 'Meet & manage your AI family', page: 1 },
+  { id: 'orbit', icon: '🧠', label: 'Orbit', category: 'life', description: 'Proactive tasks, habits & smart nudges', page: 1 },
+  { id: 'horizon', icon: '🎯', label: 'Horizon', category: 'life', description: 'AI goal decomposition & milestone visualization', page: 1 },
+  { id: 'hearth', icon: '🍳', label: 'Hearth', category: 'life', description: 'Smart meal planning, fridge & grocery intelligence', page: 1 },
+  { id: 'pulse', icon: '💰', label: 'Pulse', category: 'work', description: 'Your financial heartbeat — budget, tracks & insights', page: 1 },
+  { id: 'bazaar', icon: '🛒', label: 'Bazaar', category: 'system', description: 'Discover agents, apps & games', page: 1 },
   { id: 'security-hub', icon: '🛡️', label: 'Security', category: 'system', description: 'AI agent security suite — audit, scan, defend', page: 1 },
   { id: 'settings', icon: '⚙️', label: 'Settings', category: 'system', description: 'Configure your experience', page: 1 },
 
   // Page 2 — More apps
-  { id: 'games', icon: '🎮', label: 'Games', category: 'fun', description: 'Minesweeper, Snake, Pac-Man & more', page: 2 },
-{ id: 'echo', icon: '🪞', label: 'Echo', category: 'life', description: 'The notebook that listens', page: 2 },
+  { id: 'story', icon: '📖', label: 'Story', category: 'fun', description: 'Interactive fiction & adaptive narrative games', page: 2 },
+{ id: 'mirror', icon: '🪞', label: 'Mirror', category: 'life', description: 'AI journal — prompts, mood & memory', page: 2 },
   { id: 'vault', icon: '🔐', label: 'Vault', category: 'system', description: 'Encrypted password & credential manager', page: 2 },
-  { id: 'studio', icon: '✨', label: 'Studio', category: 'work', description: 'AI creator — images, video, music, voice', page: 2 },
+  { id: 'studio', icon: '✨', label: 'Studio', category: 'work', description: 'AI creator — images, video, music, voice, web, design', page: 2 },
   { id: 'api-dashboard', icon: '📊', label: 'API Dashboard', category: 'work', description: 'Manage your API usage and credits', page: 2 },
 ];
 

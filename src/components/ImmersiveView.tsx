@@ -37,11 +37,11 @@ export default function ImmersiveView({ view, backgroundUrl, onClose, children }
   useEffect(() => {
     let stop: (() => void) | undefined;
     switch (view) {
-      case 'budget':  stop = startPulseAmbient(); break;
-      // case 'kitchen':  stop = startHearthAmbient(); break;
-      case 'life':     /* stop = startOrbitAmbient(); */ break;
-      case 'echo':     stop = startEchoAmbient(); break;
-      // horizon (dreams) and other apps — no ambient (could add later)
+      case 'pulse':  stop = startPulseAmbient(); break;
+      // case 'hearth':  stop = startHearthAmbient(); break;
+      case 'orbit':     /* stop = startOrbitAmbient(); */ break;
+      case 'mirror':     stop = startEchoAmbient(); break;
+      // horizon and other apps — no ambient (could add later)
     }
     return () => { stop?.(); };
   }, [view]);
