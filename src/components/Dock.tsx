@@ -11,16 +11,16 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   dashboard: { icon: '🏠', label: 'Home' },
   chat: { icon: '💬', label: 'Chat' },
   google: { icon: '🔍', label: 'Google' },
-  agents: { icon: '🧩', label: 'Agents' },
-  kitchen: { icon: '🍳', label: 'Kitchen' },
-  budget: { icon: '💰', label: 'Budget' },
-  life: { icon: '🧠', label: 'Life' },
-  home: { icon: '🔧', label: 'Home Health' },  // hidden from dock — marketplace coming-soon
-  dreams: { icon: '🎯', label: 'Dreams' },
-  feed: { icon: '📰', label: 'Feed' },
-  games: { icon: '📖', label: 'Stories' },
-  marketplace: { icon: '🛒', label: 'Market' },
-  echo: { icon: '🪞', label: 'Echo' },
+  family: { icon: '🧩', label: 'Family' },
+  hearth: { icon: '🍳', label: 'Hearth' },
+  pulse: { icon: '💰', label: 'Pulse' },
+  orbit: { icon: '🧠', label: 'Orbit' },
+  foundation: { icon: '🔧', label: 'Foundation' },
+  horizon: { icon: '🎯', label: 'Horizon' },
+  current: { icon: '📰', label: 'Current' },
+  story: { icon: '📖', label: 'Story' },
+  bazaar: { icon: '🛒', label: 'Bazaar' },
+  mirror: { icon: '🪞', label: 'Mirror' },
   vault: { icon: '🔐', label: 'Vault' },
   studio: { icon: '✨', label: 'Studio' },
   'api-dashboard': { icon: '📊', label: 'API Dashboard' },
@@ -34,7 +34,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   onboarding: { icon: '👋', label: 'Onboarding' },
 };
 
-const DEFAULT_PINNED: View[] = ['chat', 'agents', 'kitchen', 'budget', 'settings'];
+const DEFAULT_PINNED: View[] = ['chat', 'family', 'hearth', 'pulse', 'settings'];
 
 export default function Dock({ currentView, pinnedApps, onNavigate, onOpenStartMenu }: DockProps) {
   const pins = pinnedApps.length > 0 ? pinnedApps : DEFAULT_PINNED;

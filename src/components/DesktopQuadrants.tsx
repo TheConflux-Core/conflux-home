@@ -37,11 +37,11 @@ const CATEGORIES: CategoryDef[] = [
     color: '#10b981',
     desc: '6 daily apps',
     apps: [
-      { id: 'kitchen', icon: '🍳', label: 'Kitchen', preview: 'Meal planning & recipes' },
-      { id: 'budget', icon: '💰', label: 'Budget', preview: 'Track spending & goals' },
-      { id: 'life', icon: '🧠', label: 'Life Autopilot', preview: 'Tasks, habits & reminders' },
-      { id: 'dreams', icon: '🎯', label: 'Dreams', preview: 'Goal tracking & milestones' },
-      { id: 'echo', icon: '📝', label: 'Echo', preview: 'Journal & reflection' },
+      { id: 'hearth', icon: '🍳', label: 'Hearth', preview: 'Meal planning & recipes' },
+      { id: 'pulse', icon: '💰', label: 'Pulse', preview: 'Track spending & goals' },
+      { id: 'orbit', icon: '🧠', label: 'Orbit', preview: 'Tasks, habits & reminders' },
+      { id: 'horizon', icon: '🎯', label: 'Horizon', preview: 'Goal tracking & milestones' },
+      { id: 'mirror', icon: '📝', label: 'Mirror', preview: 'Journal & reflection' },
       { id: 'security-hub', icon: '🛡️', label: 'Security', preview: 'Shield & monitor your home' },
     ],
   },
@@ -52,10 +52,10 @@ const CATEGORIES: CategoryDef[] = [
     color: '#f59e0b',
     desc: 'Browse & install',
     apps: [
-      { id: 'marketplace', icon: '🛒', label: 'Marketplace', preview: 'Browse & install agents' },
-      { id: 'agents', icon: '🧩', label: 'Agents', preview: 'Manage your AI team' },
-      { id: 'games', icon: '🎮', label: 'Games', preview: 'Play & learn' },
-      { id: 'news-intelligence', icon: '📡', label: 'News & Intelligence', preview: 'Daily briefing & signals' },
+      { id: 'bazaar', icon: '🛒', label: 'Bazaar', preview: 'Browse & install agents' },
+      { id: 'family', icon: '🧩', label: 'Family', preview: 'Meet & manage your AI team' },
+      { id: 'story', icon: '🎮', label: 'Story', preview: 'Play & learn' },
+      { id: 'current', icon: '📡', label: 'Current', preview: 'Daily briefing & signals' },
     ],
   },
   {
@@ -467,11 +467,11 @@ function ExpandedView({ category, onBack, onNavigate }: ExpandedViewProps) {
               className={`desktop-widget ${item.status === 'coming-soon' ? 'folder-item-locked' : ''}`}
               onClick={() => {
                 if (item.status === 'available') {
-                  onNavigate('games');
+                  onNavigate('story');
                   // Small delay to ensure immersiveView is set before game dispatch
                   setTimeout(() => {
                     window.dispatchEvent(new CustomEvent('conflux:navigate', {
-                      detail: { viewId: 'games', gameId: item.id },
+                      detail: { viewId: 'story', gameId: item.id },
                     }));
                   }, 0);
                 }
