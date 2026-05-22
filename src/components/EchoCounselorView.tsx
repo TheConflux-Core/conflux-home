@@ -94,6 +94,12 @@ export default function EchoCounselorView() {
     startSession();
   }, [bootDone, showOnboarding, loading, state, startSession]);
 
+  // Load messages when an existing session is restored from DB on mount
+  useEffect(() => {
+    if (!state?.current_session?.id) return;
+    loadMessages(state.current_session.id);
+  }, [state?.current_session?.id, loadMessages]);
+
   // Keep sessionsList in sync whenever state.recent_sessions changes
   useEffect(() => {
     if (view === 'sessions' && state?.recent_sessions) {
