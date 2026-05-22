@@ -1114,8 +1114,8 @@ const [activeSnake, setActiveSnake] = useState(false);
       setImmersiveView('settings');
       setChatOpen(false);
     } else {
-      // All other apps — close any immersive game/marketplace overlay
-      setImmersiveView(null);
+      // All other apps — hearth, pulse, orbit, horizon, foundation, radar, agents, echo, vault, studio, etc.
+      setImmersiveView(v);
       setChatOpen(false);
     }
   }, [agents, selectedAgent]);
