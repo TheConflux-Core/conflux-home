@@ -290,6 +290,7 @@ pub async fn send_message(session_id: &str, content: &str) -> Result<HearthNutri
     let should_inject_meal_context = meal_keywords.iter().any(|kw| content_lower.contains(kw));
 
     if should_inject_meal_context {
+        log::info!("[hearth] Injecting meal context for: {}", content_str);
         let meal_context = tokio::task::spawn_blocking(|| -> String {
             let engine = get_engine();
             let conn = engine.db.conn_blocking();
@@ -301,19 +302,27 @@ pub async fn send_message(session_id: &str, content: &str) -> Result<HearthNutri
 
             let mut ctx = String::new();
 
-            // Weekly meal plan
+            // Weekly meal plan — query directly via raw SQL to avoid nested lock acquisition
             let mut plan_shown = false;
-            if let Ok(plan) = engine.db.get_weekly_plan_sync(&week_start) {
-                if plan.meal_count > 0 {
-                    ctx.push_str("\n## This Week's Meal Plan\n");
-                    for day in &plan.days {
-                        for slot in &day.slots {
-                            if let Some(ref meal) = slot.meal {
-                                ctx.push_str(&format!("  {} ({}): {}\n", day.day_name, slot.meal_slot, meal.name));
-                            }
+            {
+                let week_start_for_query = week_start.clone();
+                let query = "SELECT p.day_of_week, p.meal_slot, m.name FROM meal_plans_v2 p \
+                     JOIN meals m ON p.meal_id = m.id \
+                     WHERE p.week_start = ?1 \
+                     ORDER BY p.day_of_week, CASE p.meal_slot WHEN 'breakfast' THEN 1 WHEN 'lunch' THEN 2 WHEN 'snack' THEN 3 WHEN 'dinner' THEN 4 END";
+                if let Ok(mut stmt) = conn.prepare(query) {
+                    let day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+                    let rows: Vec<(i64, String, String)> = stmt.query_map(params![&week_start_for_query], |row| {
+                        Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+                    }).ok().map(|r| r.filter_map(|x| x.ok()).collect()).unwrap_or_default();
+                    if !rows.is_empty() {
+                        ctx.push_str("\n## This Week's Meal Plan\n");
+                        for (dow, slot, name) in &rows {
+                            let dn = day_names.get(*dow as usize).unwrap_or(&"?");
+                            ctx.push_str(&format!("  {} ({}): {}\n", dn, slot, name));
                         }
+                        plan_shown = true;
                     }
-                    plan_shown = true;
                 }
             }
             // If no current-week plan, check if today's meal exists directly in DB
@@ -384,9 +393,11 @@ pub async fn send_message(session_id: &str, content: &str) -> Result<HearthNutri
     }
 
     // Phase 3: Call LLM (async)
+    log::info!("[hearth] Sending to LLM, {} messages", openai_messages.len());
     let response = router::chat("hearth", openai_messages, None, None, None)
         .await
         .map_err(|e| e.to_string())?;
+    log::info!("[hearth] LLM response received: {} chars", response.content.len());
 
     // Phase 4: Insert counselor response (blocking)
     let response_content = response.content.clone();
