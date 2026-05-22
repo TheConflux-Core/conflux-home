@@ -131,7 +131,11 @@ pub async fn pulse_get_stock_candles(
     from: i64,
     to: i64,
 ) -> Result<Vec<Vec<f64>>, String> {
-    let finnhub_key = std::env::var("FINNHUB_API_KEY").unwrap_or_default();
+    let finnhub_key = std::env::var("FINNHUB_API_KEY")
+        .ok()
+        .filter(|k| !k.is_empty())
+        .or_else(|| option_env!("FINNHUB_API_KEY").map(|s| s.to_string()))
+        .unwrap_or_default();
     if finnhub_key.is_empty() {
         return Err("FINNHUB_API_KEY not configured".to_string());
     }
@@ -280,8 +284,16 @@ pub async fn pulse_search_stocks(query: String) -> Result<Vec<StockSearchResult>
         return Ok(vec![]);
     }
 
-    let finnhub_key = std::env::var("FINNHUB_API_KEY").unwrap_or_default();
-    let alpha_key = std::env::var("ALPHA_VANTAGE_KEY").unwrap_or_default();
+    let finnhub_key = std::env::var("FINNHUB_API_KEY")
+        .ok()
+        .filter(|k| !k.is_empty())
+        .or_else(|| option_env!("FINNHUB_API_KEY").map(|s| s.to_string()))
+        .unwrap_or_default();
+    let alpha_key = std::env::var("ALPHA_VANTAGE_KEY")
+        .ok()
+        .filter(|k| !k.is_empty())
+        .or_else(|| option_env!("ALPHA_VANTAGE_KEY").map(|s| s.to_string()))
+        .unwrap_or_default();
     let client = http_client();
 
     // ── 1. Finnhub symbol search ─────────────────────────────────────────────
@@ -495,8 +507,16 @@ pub async fn pulse_search_stocks(query: String) -> Result<Vec<StockSearchResult>
 /// Tries Finnhub first, then Alpha Vantage, then Yahoo — returns as soon as one succeeds.
 #[tauri::command(rename_all = "snake_case")]
 pub async fn pulse_fetch_price(symbol: String) -> Result<PriceResult, String> {
-    let finnhub_key = std::env::var("FINNHUB_API_KEY").unwrap_or_default();
-    let alpha_key = std::env::var("ALPHA_VANTAGE_KEY").unwrap_or_default();
+    let finnhub_key = std::env::var("FINNHUB_API_KEY")
+        .ok()
+        .filter(|k| !k.is_empty())
+        .or_else(|| option_env!("FINNHUB_API_KEY").map(|s| s.to_string()))
+        .unwrap_or_default();
+    let alpha_key = std::env::var("ALPHA_VANTAGE_KEY")
+        .ok()
+        .filter(|k| !k.is_empty())
+        .or_else(|| option_env!("ALPHA_VANTAGE_KEY").map(|s| s.to_string()))
+        .unwrap_or_default();
 
     // ── 1. Finnhub (best: 60 req/min, real-time, no quota exhaustion) ──────────
     if !finnhub_key.is_empty() {
