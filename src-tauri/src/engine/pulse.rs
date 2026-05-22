@@ -1342,26 +1342,42 @@ pub async fn pulse_chat(req: PulseChatRequest, member_id: Option<String>) -> Res
             let uid = user_id_for_task.clone();
             let engine = get_engine();
             let conn = engine.db.conn_blocking();
-            let income_total: f64 = match conn.prepare(
+            let income_from_entries: f64 = match conn.prepare(
                 "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id=?1 AND entry_type = 'income'",
             ) {
                 Ok(mut stmt) => stmt.query_row(params![&uid], |row| row.get::<_, f64>(0)).unwrap_or(0.0),
                 Err(_) => 0.0,
             };
-            let budget_summary: Vec<(String, f64)> = match conn.prepare(
-                "SELECT category, SUM(amount) as total FROM budget_entries WHERE member_id=?1 AND entry_type = 'expense' GROUP BY category ORDER BY total DESC",
+            // Budget buckets (monthly goals by category — from the zero-based budgeting system)
+            let budget_buckets: Vec<(String, f64)> = match conn.prepare(
+                "SELECT name, monthly_goal FROM budget_buckets WHERE user_id=?1 AND is_active = 1 ORDER BY monthly_goal DESC",
             ) {
                 Ok(mut stmt) => stmt.query_map(params![&uid], |row| {
                     Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
                 }).ok().map(|r| r.filter_map(|x| x.ok()).collect()).unwrap_or_default(),
                 Err(_) => Vec::new(),
             };
+            // Budget settings (income from the user's budget config)
+            let budget_income: f64 = match conn.prepare(
+                "SELECT income_amount FROM budget_settings WHERE user_id=?1",
+            ) {
+                Ok(mut stmt) => stmt.query_row(params![&uid], |row| row.get::<_, f64>(0)).unwrap_or(0.0),
+                Err(_) => 0.0,
+            };
+            // Use the configured income if no entries recorded; fall back to entry-based income
+            let income_total = if budget_income > 0.0 { budget_income } else { income_from_entries };
+            // Monthly savings goal from the Savings bucket
+            let savings_from_buckets: f64 = budget_buckets.iter()
+                .filter(|(name, _)| name.to_lowercase().contains("saving"))
+                .map(|(_, amt)| *amt)
+                .sum();
             let savings_total: f64 = match conn.prepare(
                 "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id=?1 AND entry_type = 'savings'",
             ) {
                 Ok(mut stmt) => stmt.query_row(params![&uid], |row| row.get::<_, f64>(0)).unwrap_or(0.0),
                 Err(_) => 0.0,
             };
+            let savings_total = if savings_total > 0.0 { savings_total } else { savings_from_buckets };
             let holdings: Vec<(String, String, f64, f64)> = match conn.prepare(
                 "SELECT asset_name, asset_type, current_value, cost_basis FROM pulse_holdings WHERE user_id=?1",
             ) {
@@ -1378,16 +1394,16 @@ pub async fn pulse_chat(req: PulseChatRequest, member_id: Option<String>) -> Res
                 }).ok().map(|r| r.filter_map(|x| x.ok()).collect()).unwrap_or_default(),
                 Err(_) => Vec::new(),
             };
-            (income_total, budget_summary, savings_total, holdings, goals)
+            (income_total, budget_buckets, savings_total, holdings, goals)
         }))
     }).await.map_err(|e| format!("task join error: {:?}", e))?;
 
-    let (income_total, budget_summary, savings_total, holdings, goals) = match data_result {
+    let (income_total, budget_buckets, savings_total, holdings, goals) = match data_result {
         Ok(v) => v,
         Err(e) => return Err(format!("panic in pulse_chat: {:?}", e)),
     };
 
-    let context = build_pulse_context(&user_id, income_total, savings_total, &budget_summary, &holdings, &goals);
+    let context = build_pulse_context(&user_id, income_total, savings_total, &budget_buckets, &holdings, &goals);
 
     // Inject user name if available
     let user_name: Option<String> = {
@@ -1434,7 +1450,7 @@ pub async fn pulse_chat(req: PulseChatRequest, member_id: Option<String>) -> Res
         Ok(response) => Ok(response.content),
         Err(e) => {
             log::warn!("[pulse_chat] LLM call failed, falling back: {}", e);
-            Ok(handle_pulse_fallback(&req_msg, income_total, savings_total, &budget_summary, &holdings, &goals))
+            Ok(handle_pulse_fallback(&req_msg, income_total, savings_total, &budget_buckets, &holdings, &goals))
         }
     }
 }
