@@ -4,12 +4,11 @@ import { playClick, playNavSwish } from '../lib/sound';
 
 // ── Agent-to-View mapping (canonical) ──
 const AGENT_TO_VIEW: Record<string, View> = {
-  hearth: 'kitchen',
-  pulse: 'budget',
-  orbit: 'life',
-  horizon: 'dreams',
-
-  foundation: 'home',
+  hearth: 'hearth',
+  pulse: 'pulse',
+  orbit: 'orbit',
+  horizon: 'horizon',
+  foundation: 'foundation',
 };
 
 
@@ -40,16 +39,16 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   dashboard: { icon: '🏠', label: 'Home' },
   chat: { icon: '💬', label: 'Chat' },
   google: { icon: '🔍', label: 'Google' },
-  agents: { icon: '🧩', label: 'Agents' },
-  kitchen: { icon: '🍳', label: 'Kitchen' },
-  budget: { icon: '💰', label: 'Budget' },
-  life: { icon: '🧠', label: 'Life' },
-  home: { icon: '🔧', label: 'Home Health' },  // hidden from dock — marketplace coming-soon
-  dreams: { icon: '🎯', label: 'Dreams' },
-  feed: { icon: '📰', label: 'Feed' },
-  games: { icon: '📖', label: 'Stories' },
-  marketplace: { icon: '🛒', label: 'Market' },
-  echo: { icon: '🪞', label: 'Echo' },
+  family: { icon: '🧩', label: 'Family' },
+  hearth: { icon: '🍳', label: 'Hearth' },
+  pulse: { icon: '💰', label: 'Pulse' },
+  orbit: { icon: '🧠', label: 'Orbit' },
+  foundation: { icon: '🔧', label: 'Foundation' },  // hidden from dock — marketplace coming-soon
+  horizon: { icon: '🎯', label: 'Horizon' },
+  current: { icon: '📰', label: 'Current' },
+  story: { icon: '📖', label: 'Story' },
+  bazaar: { icon: '🛒', label: 'Bazaar' },
+  mirror: { icon: '🪞', label: 'Mirror' },
   vault: { icon: '🔐', label: 'Vault' },
   studio: { icon: '✨', label: 'Studio' },
   settings: { icon: '⚙️', label: 'Settings' },
@@ -66,16 +65,15 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
 const ALL_APPS: AppItem[] = [
   { id: 'chat', icon: '💬', label: 'Chat', category: 'work', description: 'Talk with your AI agents' },
   { id: 'google', icon: '🔍', label: 'Google', category: 'work', description: 'Calendar, Mail & Drive' },
-  { id: 'life', icon: '🧠', label: 'Life Autopilot', category: 'life', description: 'Document AI & smart reminders' },
-
-  { id: 'dreams', icon: '🎯', label: 'Dream Builder', category: 'life', description: 'Goals into daily actions' },
-  { id: 'kitchen', icon: '🍳', label: 'Kitchen', category: 'life', description: 'Smart meal planning & fridge' },
-  { id: 'budget', icon: '💰', label: 'Budget', category: 'work', description: 'Expense tracking' },
-{ id: 'marketplace', icon: '🛒', label: 'Discover', category: 'system', description: 'Apps, games, and agents' },
-  { id: 'agents', icon: '🧩', label: 'Agents', category: 'system', description: 'Manage your AI family' },
-  { id: 'echo', icon: '🪞', label: 'Echo', category: 'life', description: 'The notebook that listens' },
+  { id: 'orbit', icon: '🧠', label: 'Orbit', category: 'life', description: 'Proactive tasks, habits & smart nudges' },
+  { id: 'horizon', icon: '🎯', label: 'Horizon', category: 'life', description: 'AI goal decomposition & milestone visualization' },
+  { id: 'hearth', icon: '🍳', label: 'Hearth', category: 'life', description: 'Smart meal planning, fridge & grocery intelligence' },
+  { id: 'pulse', icon: '💰', label: 'Pulse', category: 'work', description: 'Your financial heartbeat — budget, tracks & insights' },
+{ id: 'bazaar', icon: '🛒', label: 'Bazaar', category: 'system', description: 'Discover agents, apps & games' },
+  { id: 'family', icon: '🧩', label: 'Family', category: 'system', description: 'Meet & manage your AI family' },
+  { id: 'mirror', icon: '🪞', label: 'Mirror', category: 'life', description: 'AI journal — prompts, mood & memory' },
   { id: 'vault', icon: '🔐', label: 'Vault', category: 'system', description: 'Encrypted password & credential manager' },
-  { id: 'studio', icon: '✨', label: 'Studio', category: 'work', description: 'AI creator workspace — images, video, music, voice, web, design' },
+  { id: 'studio', icon: '✨', label: 'Studio', category: 'work', description: 'AI creator — images, video, music, voice, web, design' },
   { id: 'api-dashboard', icon: '📊', label: 'API Dashboard', category: 'work', description: 'Manage your API usage and credits' },
   { id: 'security-hub', icon: '🛡️', label: 'Security', category: 'system', description: 'AI agent security suite — audit, scan, defend' },
   { id: 'settings', icon: '⚙️', label: 'Settings', category: 'system', description: 'Configure your experience' },

@@ -2,12 +2,12 @@
 // Classifies natural language input and routes to the correct agent/app.
 
 export type IntentType =
-  | 'budget'
-  | 'kitchen'
-  | 'dreams'
-  | 'life'
-  | 'home'
-  | 'feed'
+  | 'pulse'
+  | 'hearth'
+  | 'horizon'
+  | 'orbit'
+  | 'foundation'
+  | 'current'
   | 'chat'
   | 'general';
 
@@ -30,8 +30,8 @@ const INTENT_RULES: Array<{ keywords: string[]; type: IntentType; view: string; 
       'pay', 'payment', 'categorize', 'transaction', 'dollar', 'dollars',
       'financial', 'finances', 'how much', 'can i buy', 'can i get',
     ],
-    type: 'budget',
-    view: 'budget',
+    type: 'pulse',
+    view: 'pulse',
     agentId: 'pulse',
   },
   {
@@ -42,8 +42,8 @@ const INTENT_RULES: Array<{ keywords: string[]; type: IntentType; view: string; 
       'what should i eat', 'what to eat', 'meal plan', 'ingredients',
       'hungry', 'cook tonight', 'dinner tonight', 'dinner tonight', 'tonight', 'meal prep',
     ],
-    type: 'kitchen',
-    view: 'kitchen',
+    type: 'hearth',
+    view: 'hearth',
     agentId: 'hearth',
   },
   {
@@ -54,8 +54,8 @@ const INTENT_RULES: Array<{ keywords: string[]; type: IntentType; view: string; 
       'learn guitar', 'learn piano', 'learn music', 'get fit', 'lose weight',
       'marathon', 'fitness', 'start a business', 'side hustle',
     ],
-    type: 'dreams',
-    view: 'dreams',
+    type: 'horizon',
+    view: 'horizon',
     agentId: 'horizon',
   },
   {
@@ -66,8 +66,8 @@ const INTENT_RULES: Array<{ keywords: string[]; type: IntentType; view: string; 
       'life', 'autopilot', 'reschedule', 'due', 'deadline',
       'keep me on track', "keeping me up", 'stressed', 'stress',
     ],
-    type: 'life',
-    view: 'life',
+    type: 'orbit',
+    view: 'orbit',
     agentId: 'orbit',
   },
   {
@@ -76,8 +76,8 @@ const INTENT_RULES: Array<{ keywords: string[]; type: IntentType; view: string; 
       'bill due', 'utility', 'water', 'electricity', 'insurance',
       'house', 'property', 'leak', 'broken',
     ],
-    type: 'home',
-    view: 'home',
+    type: 'foundation',
+    view: 'foundation',
     agentId: 'foundation',
   },
   {
@@ -86,8 +86,8 @@ const INTENT_RULES: Array<{ keywords: string[]; type: IntentType; view: string; 
       'what', 'news today', 'daily brief', 'morning brief',
       'what is going on', 'summarize', 'summary',
     ],
-    type: 'feed',
-    view: 'feed',
+    type: 'current',
+    view: 'current',
     agentId: 'current',
   },
 ];
@@ -118,17 +118,17 @@ function scoreIntent(input: string, keywords: string[]): number {
 
 function buildPrompt(input: string, type: IntentType): string {
   switch (type) {
-    case 'budget':
+    case 'pulse':
       return `The user asked: "${input}". Help them with their budget question. If they're asking about affordability, check their spending and give a clear answer. Be concise and warm.`;
-    case 'kitchen':
+    case 'hearth':
       return `The user asked: "${input}". Help them with their kitchen/meal question. Suggest recipes from what they might have, or help them plan.`;
-    case 'dreams':
+    case 'horizon':
       return `The user asked: "${input}". Help them break this down into actionable steps. Create milestones and tasks if you can.`;
-    case 'life':
+    case 'orbit':
       return `The user asked: "${input}". Help them organize their day, prioritize tasks, or manage their schedule.`;
-    case 'home':
+    case 'foundation':
       return `The user asked: "${input}". Help them with their home maintenance, bills, or appliance tracking.`;
-    case 'feed':
+    case 'current':
       return `The user asked: "${input}". Give them a helpful summary or briefing about what's relevant.`;
     default:
       return input;
