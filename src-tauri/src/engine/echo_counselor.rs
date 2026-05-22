@@ -565,7 +565,7 @@ pub async fn send_message(session_id: &str, content: &str) -> Result<EchoCounsel
         ).map_err(|e| e.to_string())?;
 
         // Get conversation history for context
-        let messages = get_messages_with_conn(conn, &session_id)?;
+        let messages = get_messages_with_conn(&*conn, &session_id)?;
 
         // Build message array for LLM
         let mut openai_messages: Vec<OpenAIMessage> = Vec::new();
@@ -745,9 +745,9 @@ pub fn end_session(session_id: &str) -> Result<(), String> {
     let user_name: Option<String> = {
         let mut stmt = match conn.prepare("SELECT value FROM config WHERE key = 'user_name'") {
             Ok(s) => s,
-            Err(_) => return Ok(None::<String>),
+            Err(_) => return Err("failed to query config".to_string()),
         };
-        Ok(stmt.query_row([], |row| row.get::<_, String>(0)).ok())
+        stmt.query_row([], |row| row.get::<_, String>(0)).ok()
     };
     let name_injection = user_name
         .map(|n| format!("The person's name is {}. ", n))
@@ -1002,7 +1002,7 @@ pub async fn generate_weekly_letter() -> Result<EchoWeeklyLetter, String> {
     use tokio::task;
 
     // Collect data in a blocking context first
-    let week_data = task::spawn_blocking(|| {
+    let week_data: (Vec<EchoCounselorSession>, Vec<String>, i64, Option<String>) = task::spawn_blocking(|| {
         let engine = get_engine();
         let conn = engine.db.conn_blocking();
 
@@ -1039,7 +1039,7 @@ pub async fn generate_weekly_letter() -> Result<EchoWeeklyLetter, String> {
             )
             .map_err(to_string)?
             .query_map([week_start.to_rfc3339(), week_end.to_rfc3339()], |row| {
-                Ok(row.get::<usize, String>(0)?)
+                row.get::<usize, String>(0)
             })
             .map_err(to_string)?
             .filter_map(|r| r.ok())
@@ -1051,9 +1051,9 @@ pub async fn generate_weekly_letter() -> Result<EchoWeeklyLetter, String> {
         let user_name: Option<String> = {
             let mut stmt = match conn.prepare("SELECT value FROM config WHERE key = 'user_name'") {
                 Ok(s) => s,
-                Err(_) => return Ok(None::<String>),
+                Err(_) => return Err("config query failed".to_string()),
             };
-            Ok(stmt.query_row([], |row| row.get::<_, String>(0)).ok())
+            stmt.query_row([], |row| row.get::<_, String>(0)).ok()
         };
 
         Ok::<_, String>((sessions, gratitude_entries, streak, user_name))
