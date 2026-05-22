@@ -42,7 +42,7 @@ const CATEGORIES: CategoryDef[] = [
       { id: 'orbit', icon: '🧠', label: 'Orbit', preview: 'Tasks, habits & reminders' },
       { id: 'horizon', icon: '🎯', label: 'Horizon', preview: 'Goal tracking & milestones' },
       { id: 'mirror', icon: '📝', label: 'Mirror', preview: 'Journal & reflection' },
-      { id: 'security-hub', icon: '🛡️', label: 'Security', preview: 'Shield & monitor your home' },
+      { id: 'security', icon: '🛡️', label: 'Security', preview: 'Shield & monitor your home' },
     ],
   },
   {
@@ -52,8 +52,8 @@ const CATEGORIES: CategoryDef[] = [
     color: '#f59e0b',
     desc: 'Browse & install',
     apps: [
-      { id: 'marketplace', icon: '🛒', label: 'Bazaar', preview: 'Browse & install agents' },
-      { id: 'family', icon: '🧩', label: 'Family', preview: 'Meet & manage your AI team' },
+      { id: 'bazaar', icon: '🛒', label: 'Bazaar', preview: 'Browse & install agents' },
+      { id: 'agents', icon: '🧩', label: 'Agents', preview: 'Meet & manage your AI team' },
       { id: 'story', icon: '🎮', label: 'Story', preview: 'Play & learn' },
       { id: 'current', icon: '📡', label: 'Current', preview: 'Daily briefing & signals' },
     ],
@@ -414,7 +414,7 @@ const FOLDER_APPS: Record<string, { title: string; icon: string; items: FolderIt
     title: 'News & Intelligence',
     icon: '📡',
     items: [
-      { id: 'feed', name: 'Feed', icon: '📰', subtitle: 'Daily briefing & signal radar', status: 'coming-soon' },
+      { id: 'radar', name: 'Radar', icon: '📰', subtitle: 'Daily briefing & signal radar', status: 'available' },
     ],
   },
 };
