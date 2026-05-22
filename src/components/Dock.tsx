@@ -28,10 +28,15 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   'security-hub': { icon: '🛡️', label: 'Security' },
   aegis: { icon: '🛡️', label: 'Aegis' },
   viper: { icon: '🐍', label: 'Viper' },
-  'agent-audit': { icon: '⚔️', label: 'Agent Audit' },
+  'agent-audit': { icon: '⚔️', label: 'Audit' },
   siem: { icon: '🛡️', label: 'SIEM' },
   settings: { icon: '⚙️', label: 'Settings' },
   onboarding: { icon: '👋', label: 'Onboarding' },
+  bazaar: { icon: '🛒', label: 'Bazaar' },
+  agents: { icon: '🧩', label: 'Agents' },
+  echo: { icon: '🪞', label: 'Echo' },
+  api: { icon: '📊', label: 'API' },
+  radar: { icon: '📡', label: 'Radar' },
 };
 
 const DEFAULT_PINNED: View[] = ['chat', 'family', 'hearth', 'pulse', 'settings'];

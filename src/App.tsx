@@ -1081,9 +1081,21 @@ const [activeSnake, setActiveSnake] = useState(false);
       setImmersiveView(null);
       setChatOpen(false);
       setVoiceChatOpen(false);
-    } else if (v === 'marketplace') {
+    } else if (v === 'marketplace' || v === 'bazaar') {
       // Discover → open marketplace
       setImmersiveView('marketplace');
+    } else if (v === 'security' || v === 'security-hub') {
+      setImmersiveView('security');
+    } else if (v === 'family' || v === 'agents') {
+      setImmersiveView('family');
+    } else if (v === 'mirror' || v === 'echo') {
+      setImmersiveView('mirror');
+    } else if (v === 'api' || v === 'api-dashboard') {
+      setImmersiveView('api-dashboard');
+    } else if (v === 'current' || v === 'radar') {
+      setImmersiveView('current');
+    } else if (v === 'aegis' || v === 'viper' || v === 'agent-audit' || v === 'siem') {
+      setImmersiveView(v);
     } else if (v === 'chat') {
       if (!selectedAgent) {
         // Default to last-used agent, then "Conflux", then first active
