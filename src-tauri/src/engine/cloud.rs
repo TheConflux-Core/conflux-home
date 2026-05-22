@@ -693,7 +693,10 @@ async fn call_minimax(request_body: serde_json::Value) -> Result<ModelResponse> 
         None => anyhow::bail!("MINIMAX_API_KEY not configured at runtime — use cloud router"),
     };
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| anyhow::anyhow!("Failed to build reqwest client: {}", e))?;
 
     // MiniMax requires explicit model field in request body
     let mut body = request_body;
@@ -943,7 +946,10 @@ pub async fn cloud_chat(
     log::info!("[cloud_chat] Trying cloud router (Groq fallback)...");
     let request_body = build_chat_request_body(&messages, false, task_type, max_tokens, temperature, tools.clone());
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| anyhow::anyhow!("Failed to build reqwest client: {}", e))?;
     let response = client
         .post(CLOUD_ROUTER_URL)
         .header("Authorization", format!("Bearer {}", token))
