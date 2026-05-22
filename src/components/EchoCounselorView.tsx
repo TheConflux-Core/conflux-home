@@ -191,7 +191,7 @@ export default function EchoCounselorView() {
   }
 
   return (
-    <div className="echo-counselor-view" style={{ paddingTop: '50px', paddingBottom: '150px', paddingLeft: '121px', paddingRight: '121px' }}>
+    <div className="echo-counselor-view" style={{ paddingTop: '50px', paddingBottom: '125px', paddingLeft: '121px', paddingRight: '121px' }}>
       {/* Crisis Alert Banner */}
       <AnimatePresence>
         {crisisAlert && (

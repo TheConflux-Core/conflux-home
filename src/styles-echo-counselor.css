@@ -53,8 +53,10 @@
   min-height: 100vh;
   min-height: 100dvh;
   background: url('/wallpapers/echo-counselor-wallpaper.png') center/cover no-repeat;
-  padding: 0 24px 56px;
+  padding: 0 24px 125px;
+  overflow-x: hidden;
   overflow-y: auto;
+  box-sizing: border-box;
   position: relative;
 }
 
@@ -188,8 +190,6 @@
   width: 100%;
   min-height: 0;
   flex: 1;
-  /* fixed height so chat doesn't grow unbounded */
-  height: calc(100vh - 240px);
   overflow: hidden;
 }
 
@@ -269,13 +269,15 @@
 /* ════ CHAT WINDOW FRAME ════ */
 .echo-counselor-chat {
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  height: calc(100vh - 360px);
-  min-height: 240px;
-  max-height: calc(100vh - 360px);
+  /* Let chat take its natural height within the view's scroll */
+  flex: 0 0 500px;
+  min-height: 0;
+  max-height: none;
   position: relative;
 
   /* Glass card frame for chat */
@@ -341,6 +343,7 @@
   display: flex;
   flex-direction: column;
   max-width: 82%;
+  overflow-wrap: break-word;
   animation: msgAppear 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -368,6 +371,7 @@
   line-height: 1.6;
   white-space: pre-wrap;
   word-wrap: break-word;
+  overflow-wrap: break-word;
   font-size: 0.95rem;
   transition: box-shadow var(--transition-slow);
 }
