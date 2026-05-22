@@ -167,13 +167,13 @@ function suggestApps(answer: string): string[] {
   const lower = answer.toLowerCase();
   const picks: string[] = [];
 
-  if (/money|budget|save|spend|financ|income|expense|invest|debt|bill|pay/.test(lower)) picks.push('budget');
-  if (/cook|food|meal|recipe|kitchen|diet|eat|grocer|pantry|nutrit/.test(lower)) picks.push('kitchen');
-  if (/goal|dream|learn|want|aspir|plan|build|start|achieve/.test(lower)) picks.push('dreams');
-  if (/habit|routine|organiz|task|daily|schedul|time|focus/.test(lower)) picks.push('life');
+  if (/money|budget|save|spend|financ|income|expense|invest|debt|bill|pay/.test(lower)) picks.push('pulse');
+  if (/cook|food|meal|recipe|kitchen|diet|eat|grocer|pantry|nutrit/.test(lower)) picks.push('hearth');
+  if (/goal|dream|learn|want|aspir|plan|build|start|achieve/.test(lower)) picks.push('horizon');
+  if (/habit|routine|organiz|task|daily|schedul|time|focus/.test(lower)) picks.push('orbit');
 
   // Default: if nothing matched, suggest budget + kitchen + dreams
-  if (picks.length === 0) return ['budget', 'kitchen', 'dreams'];
+  if (picks.length === 0) return ['pulse', 'hearth', 'horizon'];
   return picks.slice(0, 3);
 }
 

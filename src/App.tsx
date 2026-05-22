@@ -95,7 +95,7 @@ const VIEW_BACKGROUNDS: Record<string, string> = {
   family: '/backgrounds/agents-bg.webp',
   story: '/backgrounds/games-bg.webp',
   current: '/backgrounds/feed-bg.webp',
-  bazaar: '/backgrounds/marketplace-bg.webp',
+  marketplace: '/backgrounds/marketplace-bg.webp',
   mirror: '/backgrounds/echo-bg.webp',
   vault: '/backgrounds/vault-bg.webp',
   studio: '/backgrounds/studio-bg.webp',
@@ -1081,9 +1081,9 @@ const [activeSnake, setActiveSnake] = useState(false);
       setImmersiveView(null);
       setChatOpen(false);
       setVoiceChatOpen(false);
-    } else if (v === 'bazaar') {
+    } else if (v === 'marketplace') {
       // Discover → open marketplace
-      setImmersiveView('bazaar');
+      setImmersiveView('marketplace');
     } else if (v === 'chat') {
       if (!selectedAgent) {
         // Default to last-used agent, then "Conflux", then first active
@@ -1242,13 +1242,13 @@ const [activeSnake, setActiveSnake] = useState(false);
           <DesktopV2
             agents={agents}
             wallpaper={wallpaper || undefined}
-            onNavigate={(v) => setImmersiveView(v)}
+            onNavigate={(v) => handleNavigate(v)}
           />
         ) : (
           <Desktop
             agents={selectedAgentIds.length > 0 ? filteredAgents : agents}
             wallpaper={wallpaper || undefined}
-            onNavigate={(v) => setImmersiveView(v)}
+            onNavigate={(v) => handleNavigate(v)}
           />
         )
       )}
@@ -1269,7 +1269,7 @@ const [activeSnake, setActiveSnake] = useState(false);
           {immersiveView === 'foundation' && <HomeHealthView />}
           {immersiveView === 'horizon' && <DreamBuilderView />}
           {immersiveView === 'google' && <GoogleView />}
-          {(immersiveView === 'bazaar' || anyGameActive) && (
+          {(immersiveView === 'marketplace' || anyGameActive) && (
             <div style={anyGameActive ? { display: 'none' } : undefined}>
               <Marketplace />
             </div>
