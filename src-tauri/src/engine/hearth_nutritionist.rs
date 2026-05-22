@@ -277,6 +277,87 @@ pub async fn send_message(session_id: &str, content: &str) -> Result<HearthNutri
         tool_calls: None,
     });
 
+    // ── Conditional context injection: meal plan + fridge awareness ──────────
+    let content_lower = content_str.to_lowercase();
+    let meal_keywords = [
+        "meal plan", "tonight", "what's for", "what is for",
+        "dinner", "lunch", "breakfast", "cook", "recipe",
+        "grocery", "shopping", "fridge", "kitchen",
+        "what can i make", "what should i eat", "eat tonight",
+        "weekly plan", "tonight's", "tonights",
+    ];
+    let should_inject_meal_context = meal_keywords.iter().any(|kw| content_lower.contains(kw));
+
+    if should_inject_meal_context {
+        let meal_context = tokio::task::spawn_blocking(|| -> String {
+            let engine = get_engine();
+            let conn = engine.db.conn_blocking();
+
+            // Get current week's date (Monday)
+            let now = chrono::Utc::now().date_naive();
+            let day_of_week: i64 = now.format("%u").to_string().parse().unwrap_or(1);
+            let week_start = (now - chrono::Duration::days(day_of_week - 1)).format("%Y-%m-%d").to_string();
+
+            let mut ctx = String::new();
+
+            // Weekly meal plan
+            if let Ok(plan) = engine.db.get_weekly_plan_sync(&week_start) {
+                if plan.meal_count > 0 {
+                    ctx.push_str("\n## This Week's Meal Plan\n");
+                    for day in &plan.days {
+                        for slot in &day.slots {
+                            if let Some(ref meal) = slot.meal {
+                                ctx.push_str(&format!("  {} ({}): {}\n", day.day_name, slot.meal_slot, meal.name));
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Fridge inventory (top 15 items)
+            let inv_rows: Vec<(String, Option<f64>, Option<String>)> = {
+                let mut stmt = match conn.prepare(
+                    "SELECT name, quantity, category FROM kitchen_inventory ORDER BY name LIMIT 15",
+                ) {
+                    Ok(s) => s,
+                    Err(_) => return ctx,
+                };
+                stmt.query_map([], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+                }).ok().map(|r| r.filter_map(|x| x.ok()).collect()).unwrap_or_default()
+            };
+            if !inv_rows.is_empty() {
+                ctx.push_str("\n## Items in Your Fridge\n");
+                for (name, qty, cat) in inv_rows {
+                    let qty_str = qty.map_or(String::new(), |q| format!(" x{}", q));
+                    let cat_str = cat.map_or(String::new(), |c| format!(" ({})", c));
+                    ctx.push_str(&format!("  - {}{}{}\n", name, qty_str, cat_str));
+                }
+            }
+
+            ctx
+        }).await;
+
+        if let Ok(extra_ctx) = meal_context {
+            if !extra_ctx.is_empty() {
+                // Inject meal context as a system message just before the user turn
+                let last_idx = openai_messages.len() - 1;
+                openai_messages.insert(
+                    last_idx,
+                    OpenAIMessage {
+                        role: "system".to_string(),
+                        content: Some(format!(
+                            "Meal & Kitchen Context (the user is asking about meals — use this):\n{}",
+                            extra_ctx
+                        )),
+                        tool_call_id: None,
+                        tool_calls: None,
+                    },
+                );
+            }
+        }
+    }
+
     // Phase 3: Call LLM (async)
     let response = router::chat("hearth", openai_messages, None, None, None)
         .await
