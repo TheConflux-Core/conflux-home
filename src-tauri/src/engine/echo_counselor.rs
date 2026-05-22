@@ -498,10 +498,7 @@ pub fn start_session(req: EchoStartSessionRequest) -> Result<EchoCounselorSessio
     })
 }
 
-pub fn get_messages(session_id: &str) -> Result<Vec<EchoCounselorMessage>, String> {
-    let engine = get_engine();
-    let conn = engine.db.conn_blocking();
-
+pub fn get_messages_with_conn(conn: &rusqlite::Connection, session_id: &str) -> Result<Vec<EchoCounselorMessage>, String> {
     println!("[DEBUG] get_messages called with session_id: {}", session_id);
 
     let messages: Vec<EchoCounselorMessage> = conn
@@ -526,6 +523,12 @@ pub fn get_messages(session_id: &str) -> Result<Vec<EchoCounselorMessage>, Strin
 
     println!("[DEBUG] get_messages returning {} messages", messages.len());
     Ok(messages)
+}
+
+pub fn get_messages(session_id: &str) -> Result<Vec<EchoCounselorMessage>, String> {
+    let engine = get_engine();
+    let conn = engine.db.conn_blocking();
+    get_messages_with_conn(&conn, session_id)
 }
 
 pub async fn send_message(session_id: &str, content: &str) -> Result<EchoCounselorMessage, String> {
@@ -562,7 +565,7 @@ pub async fn send_message(session_id: &str, content: &str) -> Result<EchoCounsel
         ).map_err(|e| e.to_string())?;
 
         // Get conversation history for context
-        let messages = get_messages(&session_id)?;
+        let messages = get_messages_with_conn(conn, &session_id)?;
 
         // Build message array for LLM
         let mut openai_messages: Vec<OpenAIMessage> = Vec::new();
@@ -740,13 +743,11 @@ pub fn end_session(session_id: &str) -> Result<(), String> {
 
     // Inject user name + tab context into reflection prompt
     let user_name: Option<String> = {
-        engine.db().blocking_readonly(|conn| {
-            let mut stmt = match conn.prepare("SELECT value FROM config WHERE key = 'user_name'") {
-                Ok(s) => s,
-                Err(_) => return Ok(None::<String>),
-            };
-            Ok(stmt.query_row([], |row| row.get::<_, String>(0)).ok())
-        })
+        let mut stmt = match conn.prepare("SELECT value FROM config WHERE key = 'user_name'") {
+            Ok(s) => s,
+            Err(_) => return Ok(None::<String>),
+        };
+        Ok(stmt.query_row([], |row| row.get::<_, String>(0)).ok())
     };
     let name_injection = user_name
         .map(|n| format!("The person's name is {}. ", n))
@@ -760,18 +761,34 @@ pub fn end_session(session_id: &str) -> Result<(), String> {
     );
 
     // Spawn a blocking task to generate the reflection asynchronously
+    // (reflection generation runs in a dedicated thread to avoid blocking the DB mutex)
     let sid = session_id.to_string();
+    let now_for_status = now.clone();
     std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let reflection_text_opt = rt.block_on(async {
             let response = crate::engine::router::chat(
                 "echo",
-                vec![crate::engine::router::OpenAIMessage {
-                    role: "user".to_string(),
-                    content: Some(reflection_prompt),
-                    tool_call_id: None,
-                    tool_calls: None,
-                }],
+                vec![
+                    crate::engine::router::OpenAIMessage {
+                        role: "system".to_string(),
+                        content: Some(crate::engine::echo_counselor::ECHO_SYSTEM_PROMPT.to_string()),
+                        tool_call_id: None,
+                        tool_calls: None,
+                    },
+                    crate::engine::router::OpenAIMessage {
+                        role: "system".to_string(),
+                        content: Some(format!("{}{}", "", tab_context)),
+                        tool_call_id: None,
+                        tool_calls: None,
+                    },
+                    crate::engine::router::OpenAIMessage {
+                        role: "user".to_string(),
+                        content: Some(reflection_prompt),
+                        tool_call_id: None,
+                        tool_calls: None,
+                    },
+                ],
                 None,
                 None,
                 None,
@@ -793,7 +810,7 @@ pub fn end_session(session_id: &str) -> Result<(), String> {
     // Mark session as completed immediately (reflection writes async)
     conn.execute(
         "UPDATE echo_counselor_sessions SET status = 'completed', ended_at = ? WHERE id = ?",
-        [&now, session_id],
+        [&now_for_status, session_id],
     )
     .map_err(|e| e.to_string())?;
 
@@ -1030,12 +1047,21 @@ pub async fn generate_weekly_letter() -> Result<EchoWeeklyLetter, String> {
 
         let streak = calculate_streak(&conn, "current").unwrap_or(0);
 
-        Ok::<_, String>((sessions, gratitude_entries, streak))
+        // Also fetch user's name while we have the conn
+        let user_name: Option<String> = {
+            let mut stmt = match conn.prepare("SELECT value FROM config WHERE key = 'user_name'") {
+                Ok(s) => s,
+                Err(_) => return Ok(None::<String>),
+            };
+            Ok(stmt.query_row([], |row| row.get::<_, String>(0)).ok())
+        };
+
+        Ok::<_, String>((sessions, gratitude_entries, streak, user_name))
     })
     .await
     .map_err(|e| e.to_string())??;
 
-    let (sessions, gratitude_entries, streak) = week_data;
+    let (sessions, gratitude_entries, streak, user_name) = week_data;
     let session_count = sessions.len() as i64;
     let total_messages: i64 = sessions.iter().map(|s| s.message_count).sum();
 
@@ -1071,17 +1097,7 @@ pub async fn generate_weekly_letter() -> Result<EchoWeeklyLetter, String> {
     let context = context_parts.join("\n");
 
     // Call the LLM to generate the letter (run in thread pool, not blocking the thread)
-    // First, inject user name + tab context
-    let user_name: Option<String> = {
-        let engine = get_engine();
-        engine.db().blocking_readonly(|conn| {
-            let mut stmt = match conn.prepare("SELECT value FROM config WHERE key = 'user_name'") {
-                Ok(s) => s,
-                Err(_) => return Ok(None::<String>),
-            };
-            Ok(stmt.query_row([], |row| row.get::<_, String>(0)).ok())
-        })
-    };
+    // User name was fetched in spawn_blocking scope alongside other data
     let name_injection = user_name
         .map(|n| format!("The user's name is {}. ", n))
         .unwrap_or_default();
