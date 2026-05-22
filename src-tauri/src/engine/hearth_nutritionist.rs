@@ -5,6 +5,7 @@ use crate::engine::router::OpenAIMessage;
 use crate::engine::{get_engine, try_get_engine, router};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use rusqlite::params;
 use uuid::Uuid;
 
 fn to_string(err: rusqlite::Error) -> String {
@@ -301,6 +302,7 @@ pub async fn send_message(session_id: &str, content: &str) -> Result<HearthNutri
             let mut ctx = String::new();
 
             // Weekly meal plan
+            let mut plan_shown = false;
             if let Ok(plan) = engine.db.get_weekly_plan_sync(&week_start) {
                 if plan.meal_count > 0 {
                     ctx.push_str("\n## This Week's Meal Plan\n");
@@ -311,6 +313,29 @@ pub async fn send_message(session_id: &str, content: &str) -> Result<HearthNutri
                             }
                         }
                     }
+                    plan_shown = true;
+                }
+            }
+            // If no current-week plan, check if today's meal exists directly in DB
+            if !plan_shown {
+                let today = chrono::Utc::now().date_naive();
+                let today_dow: i64 = now.format("%u").to_string().parse().unwrap_or(1) - 1;
+                let today_slot: Option<(String, String)> = {
+                    let mut stmt = match conn.prepare(
+                        "SELECT p.meal_slot, m.name FROM meal_plans_v2 p \
+                         JOIN meals m ON p.meal_id = m.id \
+                         WHERE p.week_start = ?1 AND p.day_of_week = ?2",
+                    ) {
+                        Ok(s) => s,
+                        Err(_) => return ctx,
+                    };
+                    stmt.query_row(params![&week_start, today_dow], |row| {
+                        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                    }).ok()
+                };
+                if let Some((slot, meal_name)) = today_slot {
+                    let day_name = now.format("%A").to_string();
+                    ctx.push_str(&format!("\n## Tonight's Dinner ({})\n  {} ({})\n", day_name, meal_name, slot));
                 }
             }
 
