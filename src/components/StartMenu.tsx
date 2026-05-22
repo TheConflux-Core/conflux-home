@@ -24,7 +24,7 @@ const ALL_APPS: AppItem[] = [
   { id: 'horizon', icon: '🎯', label: 'Horizon', category: 'life', description: 'AI goal decomposition & milestone visualization', page: 1 },
   { id: 'hearth', icon: '🍳', label: 'Hearth', category: 'life', description: 'Smart meal planning, fridge & grocery intelligence', page: 1 },
   { id: 'pulse', icon: '💰', label: 'Pulse', category: 'work', description: 'Your financial heartbeat — budget, tracks & insights', page: 1 },
-  { id: 'bazaar', icon: '🛒', label: 'Bazaar', category: 'system', description: 'Discover agents, apps & games', page: 1 },
+  { id: 'marketplace', icon: '🛒', label: 'Bazaar', category: 'system', description: 'Discover agents, apps & games', page: 1 },
   { id: 'security-hub', icon: '🛡️', label: 'Security', category: 'system', description: 'AI agent security suite — audit, scan, defend', page: 1 },
   { id: 'settings', icon: '⚙️', label: 'Settings', category: 'system', description: 'Configure your experience', page: 1 },
 

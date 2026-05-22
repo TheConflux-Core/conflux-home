@@ -3,7 +3,7 @@
  * Registers global keydown handlers for navigation and actions.
  */
 
-export type View = 'dashboard' | 'chat' | 'bazaar' | 'settings';
+export type View = 'dashboard' | 'chat' | 'marketplace' | 'settings';
 
 interface ShortcutHandlers {
   onNavigate: (view: View) => void;
@@ -58,9 +58,9 @@ export function registerShortcuts(handlers: ShortcutHandlers): () => void {
         break;
 
       case '3':
-        // Cmd/Ctrl + 3 → Bazaar
+        // Cmd/Ctrl + 3 → Marketplace
         e.preventDefault();
-        handlers.onNavigate('bazaar');
+        handlers.onNavigate('marketplace');
         break;
 
       case '4':
@@ -70,9 +70,9 @@ export function registerShortcuts(handlers: ShortcutHandlers): () => void {
         break;
 
       case 'k':
-        // Cmd/Ctrl + K → Focus search / open Bazaar
+        // Cmd/Ctrl + K → Focus search / open Marketplace
         e.preventDefault();
-        handlers.onNavigate('bazaar');
+        handlers.onNavigate('marketplace');
         // Small delay to let view render before focusing
         setTimeout(() => handlers.onFocusSearch(), 100);
         break;
