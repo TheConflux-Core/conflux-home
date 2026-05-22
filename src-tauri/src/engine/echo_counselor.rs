@@ -738,8 +738,24 @@ pub fn end_session(session_id: &str) -> Result<(), String> {
         .collect::<Vec<_>>()
         .join("\n");
 
+    // Inject user name + tab context into reflection prompt
+    let user_name: Option<String> = {
+        engine.db().blocking_readonly(|conn| {
+            let mut stmt = match conn.prepare("SELECT value FROM config WHERE key = 'user_name'") {
+                Ok(s) => s,
+                Err(_) => return Ok(None::<String>),
+            };
+            Ok(stmt.query_row([], |row| row.get::<_, String>(0)).ok())
+        })
+    };
+    let name_injection = user_name
+        .map(|n| format!("The person's name is {}. ", n))
+        .unwrap_or_default();
+    let tab_context = "You are Echo, a reflective wellness companion within the Conflux Home desktop app. You live alongside other AI agents: Pulse (Budget/Finance), Hearth (Kitchen), Orbit (Life/Tasks), Horizon (Dreams/Goals), and more. When relevant, you can reference connections across these areas. ";
+
     let reflection_prompt = format!(
-        "You are Echo, a reflective wellness companion. A session just ended. Write a private journal reflection (2-4 sentences) capturing the key themes, emotional patterns, and anything worth revisiting next time. Write only the reflection — no preamble.\n\nSession transcript:\n{}",
+        "You are Echo, a reflective wellness companion. A session just ended. Write a private journal reflection (2-4 sentences) capturing the key themes, emotional patterns, and anything worth revisiting next time. Write only the reflection — no preamble.\n\n{}\n\nSession transcript:\n{}",
+        format!("{}{}", name_injection, tab_context),
         conversation_summary
     );
 
@@ -1055,12 +1071,33 @@ pub async fn generate_weekly_letter() -> Result<EchoWeeklyLetter, String> {
     let context = context_parts.join("\n");
 
     // Call the LLM to generate the letter (run in thread pool, not blocking the thread)
+    // First, inject user name + tab context
+    let user_name: Option<String> = {
+        let engine = get_engine();
+        engine.db().blocking_readonly(|conn| {
+            let mut stmt = match conn.prepare("SELECT value FROM config WHERE key = 'user_name'") {
+                Ok(s) => s,
+                Err(_) => return Ok(None::<String>),
+            };
+            Ok(stmt.query_row([], |row| row.get::<_, String>(0)).ok())
+        })
+    };
+    let name_injection = user_name
+        .map(|n| format!("The user's name is {}. ", n))
+        .unwrap_or_default();
+    let tab_context = "You are Echo, a reflective wellness companion within the Conflux Home desktop app. You live alongside other AI agents: Pulse (Budget/Finance), Hearth (Kitchen), Orbit (Life/Tasks), Horizon (Dreams/Goals), and more. When relevant, you can reference connections across these areas. ";
     let letter_content = router::chat(
         "echo",
         vec![
             router::OpenAIMessage {
                 role: "system".to_string(),
                 content: Some(WEEKLY_ECHO_PROMPT.to_string()),
+                tool_call_id: None,
+                tool_calls: None,
+            },
+            router::OpenAIMessage {
+                role: "system".to_string(),
+                content: Some(format!("{}{}", name_injection, tab_context)),
                 tool_call_id: None,
                 tool_calls: None,
             },
