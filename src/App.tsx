@@ -68,9 +68,7 @@ import './styles-agent-introductions.css';
 import './styles-global-ai-input.css';
 import './styles-agent-boot-cards.css';
 import './styles-agent-status.css';
-import MorningBrief from './components/MorningBrief';
 import AgentBootCards from './components/AgentBootCards';
-import './styles/morning-brief.css';
 import './styles-agent-boot-cards.css';
 import { shouldAutoStartTour } from './hooks/useTourState';import { useEngine } from './hooks/useEngine';
 import { useToast } from './hooks/useToast';
@@ -715,16 +713,7 @@ export default function App() {
   useEffect(() => {
     localStorage.removeItem('conflux-boot-cards-seen-this-session');
   }, []);
-  const [showBrief, setShowBrief] = useState(() => {
-    const today = new Date().toISOString().split('T')[0];
-    const lastBrief = localStorage.getItem('conflux-last-brief-date');
-    return lastBrief !== today;
-  });
-  const handleBriefDismiss = useCallback(() => {
-    const today = new Date().toISOString().split('T')[0];
-    localStorage.setItem('conflux-last-brief-date', today);
-    setShowBrief(false);
-  }, []);
+
   const [userName, setUserName] = useState(() => localStorage.getItem('conflux-name') || 'there');
   // Keep in sync with AgentsView DEFAULT_ACTIVE_AGENTS
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>(() => {
@@ -1227,7 +1216,6 @@ const [activeSnake, setActiveSnake] = useState(false);
           }}
         />
       )}
-      {showBrief && <MorningBrief onDismiss={handleBriefDismiss} />}
       {showTour && <GuidedTour onComplete={() => setShowTour(false)} />}
       <TopBar
         selectedAgent={selectedAgent}
