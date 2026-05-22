@@ -24,6 +24,8 @@ interface ConfluxOrbitProps {
   isPushToTalkActive: boolean;
   wizardMode?: boolean;
   wizardSequence?: WizardSequenceStep[];
+  /** Hides the entire orbit (fairy + container) — used when an app view is open */
+  hidden?: boolean;
 }
 
 // Magnetic Zones: target coordinates for each app view
@@ -68,7 +70,11 @@ const APP_LOBE_MAP: Record<string, string> = {
 
 const EMPTY_SEQ: never[] = [];
 
-export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatOpen, isPushToTalkActive, wizardMode = false, wizardSequence = EMPTY_SEQ }: ConfluxOrbitProps) {
+export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatOpen, isPushToTalkActive, wizardMode = false, wizardSequence = EMPTY_SEQ, hidden = false }: ConfluxOrbitProps) {
+  // Hide fairy entirely when any app is open (prevents interference with app content)
+  // Must be at the top — before any hook calls — to avoid "fewer hooks" React error
+  if (hidden) return null;
+
   // Global click sound — fired from ConfluxOrbit (always mounted desktop shell)
   useGlobalClickSound();
 

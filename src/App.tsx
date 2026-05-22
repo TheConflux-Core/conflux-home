@@ -536,6 +536,9 @@ export default function App() {
       // Ignore if typing in an input field
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
+      // Only allow push-to-talk on the home screen (not when apps are open)
+      if (immersiveView) return;
+
       // Spacebar triggers push-to-talk
       if (e.code === 'Space' && !isPushToTalkActive) {
         e.preventDefault();
@@ -1441,13 +1444,14 @@ const [activeSnake, setActiveSnake] = useState(false);
         />
       )}
 
-      {/* Conflux Neural Brain — The "Zelda Fairy" */}
+      {/* Conflux Neural Brain — The "Zelda Fairy" — hidden when apps are open */}
       <ConfluxOrbit 
         view={view}
         immersiveView={immersiveView}
         chatOpen={chatOpen}
         voiceChatOpen={voiceChatOpen}
         isPushToTalkActive={isPushToTalkActive}
+        hidden={!!immersiveView}
       />
 
       {/* Global AI Input removed from desktop — chat panel handles AI input */}
