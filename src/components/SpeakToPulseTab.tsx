@@ -232,13 +232,14 @@ export default function SpeakToPulseTab() {
   // ── Auto-start / restore session ────────────────────────
   useEffect(() => {
     const storedId = localStorage.getItem(STORAGE_KEY_ACTIVE_SESSION);
-    if (storedId && !currentSessionId && !startingSession) {
-      handleRestoreSession(storedId);
-    } else if (!storedId && !currentSessionId && !startingSession) {
-      handleStartSession();
+    if (!currentSessionId && !startingSession) {
+      if (storedId) {
+        handleRestoreSession(storedId);
+      } else {
+        handleStartSession();
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [startingSession, currentSessionId]);
 
   // ── Restore a stored session ───────────────────────────
   const handleRestoreSession = async (sessionId: string) => {
@@ -312,8 +313,7 @@ export default function SpeakToPulseTab() {
     setCurrentSessionId(null);
     setChatMessages([]);
     setView('sessions');
-    setStartingSession(false);  // reset so auto-start effect can fire
-    handleViewChange('sessions');
+    setStartingSession(false);  // triggers auto-start effect to create fresh session
   };
 
   // ── Submit message ────────────────────────────────────
