@@ -24,7 +24,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   hearth: { icon: '🍳', label: 'Hearth' },
   pulse: { icon: '💰', label: 'Pulse' },
   orbit: { icon: '🧠', label: 'Orbit' },
-  foundation: { icon: '🔧', label: 'Foundation' },  // hidden from dock — marketplace coming-soon
+  foundation: { icon: '🔧', label: 'Foundation' },
   horizon: { icon: '🎯', label: 'Horizon' },
   current: { icon: '📰', label: 'Current' },
   story: { icon: '📖', label: 'Story' },
@@ -32,16 +32,22 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   mirror: { icon: '🪞', label: 'Mirror' },
   vault: { icon: '🔐', label: 'Vault' },
   studio: { icon: '✨', label: 'Studio' },
-  'api-dashboard': { icon: '📊', label: 'API Dashboard' },
+  'api-dashboard': { icon: '📊', label: 'API' },
   security: { icon: '🛡️', label: 'Security' },
   'security-hub': { icon: '🛡️', label: 'Security' },
   aegis: { icon: '🛡️', label: 'Aegis' },
   viper: { icon: '🐍', label: 'Viper' },
-  'agent-audit': { icon: '⚔️', label: 'Agent Audit' },
+  'agent-audit': { icon: '⚔️', label: 'Audit' },
   siem: { icon: '🛡️', label: 'SIEM' },
   settings: { icon: '⚙️', label: 'Settings' },
   onboarding: { icon: '👋', label: 'Onboarding' },
+  bazaar: { icon: '🛒', label: 'Bazaar' },
+  agents: { icon: '🧩', label: 'Agents' },
+  echo: { icon: '🪞', label: 'Echo' },
+  api: { icon: '📊', label: 'API' },
+  radar: { icon: '📡', label: 'Radar' },
 };
+
 
 const ALL_APPS: AppItem[] = [
   { id: 'chat', icon: '💬', label: 'Chat', category: 'work', description: 'Talk with your AI agents' },
@@ -50,11 +56,11 @@ const ALL_APPS: AppItem[] = [
   { id: 'horizon', icon: '🎯', label: 'Horizon', category: 'life', description: 'AI goal decomposition & milestone visualization' },
   { id: 'hearth', icon: '🍳', label: 'Hearth', category: 'life', description: 'Smart meal planning, fridge & grocery intelligence' },
   { id: 'pulse', icon: '💰', label: 'Pulse', category: 'work', description: 'Your financial heartbeat — budget, tracks & insights' },
-{ id: 'marketplace', icon: '🛒', label: 'Bazaar', category: 'system', description: 'Discover agents, apps & games' },
-  { id: 'family', icon: '🧩', label: 'Family', category: 'system', description: 'Meet & manage your AI family' },
+  { id: 'bazaar', icon: '🛒', label: 'Bazaar', category: 'system', description: 'Discover agents, apps & games' },
+  { id: 'agents', icon: '🧩', label: 'Agents', category: 'system', description: 'Meet & manage your AI family' },
   { id: 'mirror', icon: '🪞', label: 'Mirror', category: 'life', description: 'AI journal — prompts, mood & memory' },
   { id: 'vault', icon: '🔐', label: 'Vault', category: 'system', description: 'Encrypted password & credential manager' },
-  { id: 'security-hub', icon: '🛡️', label: 'Security', category: 'system', description: 'AI agent security suite — audit, scan, defend' },
+  { id: 'security', icon: '🛡️', label: 'Security', category: 'system', description: 'AI agent security suite — audit, scan, defend' },
   { id: 'studio', icon: '✨', label: 'Studio', category: 'work', description: 'AI creator — images, video, music, voice, web, design' },
   { id: 'settings', icon: '⚙️', label: 'Settings', category: 'system', description: 'Configure your experience' },
 ];
