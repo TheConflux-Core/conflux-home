@@ -33,7 +33,7 @@ Build a 10-slide pitch deck targeting Denver/Boulder angels, Techstars, and regi
 
 ---
 
-## Phase 2: The Demo Video
+## Phase 2: The Demo Video ⬅️ **IN PROGRESS** (Don storyboarding + livestream prep)
 
 90-second screen recording showing:
 1. Install + onboard in 10 seconds
