@@ -873,6 +873,11 @@ const [activeSnake, setActiveSnake] = useState(false);
       else if (gameId === 'nani-solitaire') { setImmersiveView(viewId as View); setActiveNaniSolitaire(true); }
       else if (gameId === 'johnny-solitaire') { setImmersiveView(viewId as View); setActiveJohnnySolitaire(true); }
       else if (gameId === 'stories') { setImmersiveView(viewId as View); setActiveGameId(null); }
+      else if (gameId === 'games') {
+        // Back to Games — expand Discover category and open Games sub-folder
+        setImmersiveView(null);
+        window.dispatchEvent(new CustomEvent('conflux:games-back', { detail: { viewId, gameId } }));
+      }
       else setImmersiveView(viewId as View);
     };
     window.addEventListener('conflux:navigate', handler as EventListener);
@@ -1123,7 +1128,7 @@ const [activeSnake, setActiveSnake] = useState(false);
     }
   }, [agents, selectedAgent]);
 
-  // Close game and return to the Marketplace games listing
+  // Close game and return to Desktop → Discover → Games
   const closeGame = useCallback(() => {
     setActiveMinesweeper(false);
     setActiveSnake(false);
@@ -1132,8 +1137,12 @@ const [activeSnake, setActiveSnake] = useState(false);
     setActiveNaniSolitaire(false);
     setActiveJohnnySolitaire(false);
     setActiveGameId(null);
-    // Return to Marketplace (games tab) — keeps Marketplace mounted and visible
-    setImmersiveView('marketplace');
+    // Navigate to Desktop, expanded to Discover → Games
+    setImmersiveView(null);
+    setView('dashboard');
+    window.dispatchEvent(new CustomEvent('conflux:navigate', {
+      detail: { viewId: 'discover', gameId: 'games' },
+    }));
   }, []);
 
   // Check if any game is active
