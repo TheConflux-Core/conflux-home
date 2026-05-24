@@ -640,19 +640,30 @@ export default function SnakeGame({ onBack }: SnakeGameProps) {
   const config = DIFFICULTY_CONFIG[difficulty];
 
   return (
-    <div className="minesweeper-container">
+    <div className="game-sub-container snake-sub">
+      <style>{`.snake-sub::before{background:radial-gradient(circle at 25% 35%,rgba(52,211,153,0.045) 0%,transparent 45%),radial-gradient(circle at 75% 65%,rgba(52,211,153,0.025) 0%,transparent 50%),radial-gradient(circle at 50% 80%,rgba(251,191,36,0.015) 0%,transparent 40%);animation-duration:18s;}.snake-sub .game-sub-hero{background:linear-gradient(135deg,rgba(52,211,153,0.1),rgba(16,185,129,0.05));border:1px solid rgba(52,211,153,0.2);}.snake-sub .game-sub-hero-glow{background:radial-gradient(circle at 80% 20%,rgba(52,211,153,0.2),transparent 60%);}.snake-sub .game-diff-tile:hover{border-color:#10b981;box-shadow:0 8px 24px rgba(52,211,153,0.15),0 0 0 1px rgba(52,211,153,0.1);}.snake-sub .game-diff-tile:hover::after{background:radial-gradient(circle at 50% 120%,rgba(52,211,153,0.08),transparent 70%);opacity:1;}.snake-sub .game-sub-canvas-wrap{border-color:rgba(52,211,153,0.25);box-shadow:0 0 20px rgba(52,211,153,0.08),0 0 60px rgba(52,211,153,0.04),inset 0 0 30px rgba(0,0,0,0.15);}.snake-sub .game-sub-canvas-wrap:hover{box-shadow:0 0 28px rgba(52,211,153,0.12),0 0 80px rgba(52,211,153,0.06),inset 0 0 30px rgba(0,0,0,0.15);}.snake-sub .game-sub-overlay-card{background:var(--bg-card);border:1px solid rgba(52,211,153,0.2);}.snake-sub .game-sub-overlay-title{color:#10b981;}.snake-sub .game-sub-overlay-score{color:#10b981;text-shadow:0 0 20px rgba(52,211,153,0.3);}.snake-sub .game-sub-overlay-newbest{background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.3);color:#10b981;}.snake-sub .game-sub-overlay-btn.primary{background:#10b981;box-shadow:0 4px 12px rgba(52,211,153,0.3);}.snake-sub .game-sub-overlay-btn.primary:hover{box-shadow:0 6px 20px rgba(52,211,153,0.4);}.snake-sub .game-sub-dpad-btn{border-color:rgba(52,211,153,0.2);color:#10b981;}.snake-sub .game-sub-dpad-btn:active{background:rgba(52,211,153,0.2);}`}</style>
+
+      {/* Hero Section */}
+      <div className="game-sub-hero">
+        <div className="game-sub-hero-icon">🐍</div>
+        <div className="game-sub-hero-info">
+          <h2 className="game-sub-hero-title">Snake</h2>
+          <p className="game-sub-hero-subtitle">Classic arcade · Eat, grow, survive</p>
+        </div>
+        {bestScores[difficulty] > 0 && (
+          <div className="game-sub-best" style={{background:'rgba(52,211,153,0.12)',border:'1px solid rgba(52,211,153,0.25)',color:'#10b981'}}>🏆 {bestScores[difficulty]}</div>
+        )}
+        <div className="game-sub-hero-glow" />
+      </div>
+
       {/* Difficulty Selector */}
       {status === 'idle' && (
-        <div className="snake-difficulty">
+        <div className="game-sub-difficulty cols-4">
           {(Object.keys(DIFFICULTY_CONFIG) as SnakeDifficulty[]).map(diff => (
-            <button
-              key={diff}
-              className="difficulty-tile"
-              onClick={() => startGame(diff)}
-            >
-              <span className="diff-icon">{DIFFICULTY_CONFIG[diff].icon}</span>
-              <span className="diff-label">{DIFFICULTY_CONFIG[diff].label}</span>
-              <span className="diff-meta">{DIFFICULTY_CONFIG[diff].meta}</span>
+            <button key={diff} className="game-diff-tile" onClick={() => startGame(diff)}>
+              <span className="game-diff-icon">{DIFFICULTY_CONFIG[diff].icon}</span>
+              <span className="game-diff-label">{DIFFICULTY_CONFIG[diff].label}</span>
+              <span className="game-diff-meta">{DIFFICULTY_CONFIG[diff].meta}</span>
             </button>
           ))}
         </div>
@@ -661,13 +672,21 @@ export default function SnakeGame({ onBack }: SnakeGameProps) {
       {/* HUD + Canvas */}
       {status !== 'idle' && (
         <>
-          <div className="snake-hud">
-            <span className="snake-hud-score">🍎 {score}</span>
-            <span className="snake-hud-label">{config.label}</span>
-            <span className="snake-hud-best">🏆 {bestScores[difficulty] || 0}</span>
+          <div className="game-sub-hud">
+            <div className="game-sub-hud-left">
+              <span className="game-sub-hud-label">Score</span>
+              <span className="game-sub-hud-value" style={{color:'#10b981'}}>🍎 {score}</span>
+            </div>
+            <div className="game-sub-hud-center">
+              <span className="game-sub-hud-value" style={{fontSize:'16px',color:'#10b981'}}>{config.label}</span>
+            </div>
+            <div className="game-sub-hud-right">
+              <span className="game-sub-hud-label">Best</span>
+              <span className="game-sub-hud-value" style={{color:'#fbbf24',fontSize:'16px'}}>🏆 {bestScores[difficulty] || 0}</span>
+            </div>
           </div>
 
-          <div className="snake-canvas-wrapper"
+          <div className="game-sub-canvas-wrap"
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
           >
@@ -681,53 +700,49 @@ export default function SnakeGame({ onBack }: SnakeGameProps) {
 
             {/* Game Over Overlay */}
             {status === 'dead' && (
-              <div className="snake-game-over">
-                <div className="snake-go-title">Game Over</div>
-                <div className="snake-go-score">{score}</div>
-                {isNewBest && <div className="snake-go-newbest">🎉 New Best!</div>}
-                <div className="snake-go-actions">
-                  <button className="difficulty-tile" onClick={() => startGame(difficulty)}>
-                    <span className="diff-label">Play Again</span>
-                  </button>
-                  <button className="difficulty-tile" onClick={resetGame}>
-                    <span className="diff-label">Back to Modes</span>
-                  </button>
+              <div className="game-sub-overlay">
+                <div className="game-sub-overlay-card">
+                  <div style={{fontSize:'48px'}}>💀</div>
+                  <div className="game-sub-overlay-title">Game Over</div>
+                  <div className="game-sub-overlay-score">{score}</div>
+                  {isNewBest && <div className="game-sub-overlay-newbest">🎉 New Best!</div>}
+                  <div className="game-sub-overlay-actions">
+                    <button className="game-sub-overlay-btn primary" onClick={() => startGame(difficulty)}>Play Again</button>
+                    <button className="game-sub-overlay-btn secondary" onClick={resetGame}>Change Mode</button>
+                  </div>
                 </div>
               </div>
             )}
 
             {/* Paused Overlay */}
             {status === 'paused' && (
-              <div className="snake-game-over">
-                <div className="snake-go-title">Paused</div>
-                <div className="snake-go-actions">
-                  <button className="difficulty-tile" onClick={() => setStatus('playing')}>
-                    <span className="diff-label">Resume</span>
-                  </button>
-                  <button className="difficulty-tile" onClick={resetGame}>
-                    <span className="diff-label">Quit</span>
-                  </button>
+              <div className="game-sub-overlay">
+                <div className="game-sub-overlay-card">
+                  <div style={{fontSize:'48px'}}>⏸</div>
+                  <div className="game-sub-overlay-title">Paused</div>
+                  <div className="game-sub-overlay-actions">
+                    <button className="game-sub-overlay-btn primary" onClick={() => setStatus('playing')}>Resume</button>
+                    <button className="game-sub-overlay-btn secondary" onClick={resetGame}>Quit</button>
+                  </div>
                 </div>
               </div>
             )}
           </div>
 
           {/* Controls Hint */}
-          <div className="snake-controls">
-            Arrow keys / WASD / Swipe
-          </div>
+          <div className="game-sub-controls">Arrow keys / WASD / Swipe</div>
 
           {/* D-pad for mobile */}
-          <div className="snake-dpad">
-            <button className="snake-dpad-btn snake-dpad-up" onClick={() => handleDpad('up')}>▲</button>
-            <button className="snake-dpad-btn snake-dpad-left" onClick={() => handleDpad('left')}>◀</button>
-            <button className="snake-dpad-btn snake-dpad-right" onClick={() => handleDpad('right')}>▶</button>
-            <button className="snake-dpad-btn snake-dpad-down" onClick={() => handleDpad('down')}>▼</button>
+          <div className="game-sub-dpad">
+            <button className="game-sub-dpad-btn game-sub-dpad-up" onClick={() => handleDpad('up')}>▲</button>
+            <button className="game-sub-dpad-btn game-sub-dpad-left" onClick={() => handleDpad('left')}>◀</button>
+            <button className="game-sub-dpad-btn game-sub-dpad-right" onClick={() => handleDpad('right')}>▶</button>
+            <button className="game-sub-dpad-btn game-sub-dpad-down" onClick={() => handleDpad('down')}>▼</button>
           </div>
         </>
       )}
 
-      <button className="back-to-hub" onClick={onBack}>← Back to Games</button>
+      <button className="game-sub-back" onClick={onBack}>← Back to Games</button>
     </div>
   );
 }

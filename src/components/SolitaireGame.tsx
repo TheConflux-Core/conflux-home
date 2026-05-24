@@ -1072,49 +1072,52 @@ export default function SolitaireGame({ onBack }: SolitaireGameProps) {
   // ── Render JSX ─────────────────────────────────────────────────────────────
 
   return (
-    <div className="solitaire-container">
+    <div className="game-sub-container solitaire-sub">
+      <style>{`.solitaire-sub::before{background:radial-gradient(circle at 30% 40%,rgba(251,191,36,0.04) 0%,transparent 45%),radial-gradient(circle at 70% 60%,rgba(220,38,38,0.02) 0%,transparent 50%),radial-gradient(circle at 50% 80%,rgba(251,191,36,0.015) 0%,transparent 40%);animation-duration:22s;}.solitaire-sub .game-sub-hero{background:linear-gradient(135deg,rgba(251,191,36,0.08),rgba(245,158,11,0.05));border:1px solid rgba(251,191,36,0.15);}.solitaire-sub .game-sub-hero-glow{background:radial-gradient(circle at 80% 20%,rgba(251,191,36,0.2),transparent 60%);}.solitaire-sub .game-sub-canvas-wrap{border-color:rgba(251,191,36,0.2);box-shadow:0 0 20px rgba(251,191,36,0.08),0 0 60px rgba(251,191,36,0.03),inset 0 0 40px rgba(0,0,0,0.1);}.solitaire-sub .game-sub-canvas-wrap:hover{box-shadow:0 0 28px rgba(251,191,36,0.12),0 0 80px rgba(251,191,36,0.05),inset 0 0 40px rgba(0,0,0,0.1);}.solitaire-sub .game-sub-overlay-card{background:var(--bg-card);border:1px solid rgba(251,191,36,0.25);}.solitaire-sub .game-sub-overlay-title{color:#fbbf24;}.solitaire-sub .game-sub-overlay-score{color:#fbbf24;text-shadow:0 0 20px rgba(251,191,36,0.4);}.solitaire-sub .game-sub-overlay-newbest{background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3);color:#fbbf24;}.solitaire-sub .game-sub-overlay-btn.primary{background:#fbbf24;color:#1a1a0a;box-shadow:0 4px 12px rgba(251,191,36,0.3);}.solitaire-sub .game-sub-overlay-btn.primary:hover{box-shadow:0 6px 20px rgba(251,191,36,0.4);}.solitaire-sub .game-sub-best{background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.25);color:#fbbf24;}`}</style>
+
+      {/* Hero Section */}
+      <div className="game-sub-hero">
+        <div className="game-sub-hero-icon">🃏</div>
+        <div className="game-sub-hero-info">
+          <h2 className="game-sub-hero-title">Solitaire</h2>
+          <p className="game-sub-hero-subtitle">Classic Klondike · Drag to place cards</p>
+        </div>
+        {bestScores.time != null && bestScores.time < Infinity && (
+          <div className="game-sub-best">🏆 {formatTime(bestScores.time)}</div>
+        )}
+        <div className="game-sub-hero-glow" />
+      </div>
+
       {status === 'idle' && (
-        <div className="solitaire-start" style={{ textAlign: 'center', padding: '60px 20px' }}>
-          <div style={{ fontSize: 56, marginBottom: 16 }}>🃏</div>
-          <h2 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 8px' }}>Solitaire</h2>
-          <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: '0 0 24px' }}>Classic Klondike · Drag & Drop</p>
-          <button className="difficulty-tile" onClick={startGame} style={{ display: 'inline-flex', flexDirection: 'column', padding: '20px 40px' }}>
-            <span className="diff-icon">🃏</span>
-            <span className="diff-label">New Game</span>
-            <span className="diff-meta">Classic Klondike</span>
+        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <button className="game-diff-tile" onClick={startGame} style={{ display: 'inline-flex', flexDirection: 'column', padding: '24px 48px', marginBottom: 16 }}>
+            <span className="game-diff-icon">🃏</span>
+            <span className="game-diff-label">New Game</span>
+            <span className="game-diff-meta">Classic Klondike</span>
           </button>
-          {bestScores.time != null && bestScores.time < Infinity && (
-            <div style={{ marginTop: 16, fontSize: 13, color: '#fbbf24', fontWeight: 600 }}>
-              🏆 Best: {formatTime(bestScores.time)} · {bestScores.time} moves
-            </div>
-          )}
         </div>
       )}
 
       {status !== 'idle' && (
         <>
           {/* HUD */}
-          <div className="solitaire-hud">
-            <div className="solitaire-hud-section">
-              <span className="solitaire-hud-label">Score</span>
-              <span className="solitaire-hud-value gold">{score}</span>
+          <div className="game-sub-hud">
+            <div className="game-sub-hud-left">
+              <span className="game-sub-hud-label">Score</span>
+              <span className="game-sub-hud-value gold">{score}</span>
             </div>
-            <div className="solitaire-hud-section center">
-              <span className="solitaire-hud-label">Time</span>
-              <span className="solitaire-hud-value">{formatTime(timer)}</span>
+            <div className="game-sub-hud-center">
+              <span className="game-sub-hud-label">Time</span>
+              <span className="game-sub-hud-value">{formatTime(timer)}</span>
             </div>
-            <div className="solitaire-hud-section right">
-              <span className="solitaire-hud-label">Moves</span>
-              <span className="solitaire-hud-value">{moves}</span>
-            </div>
-            <div className="solitaire-hud-actions">
-              <button className="solitaire-hud-btn" onClick={startGame} title="New Game">🔄</button>
-              <button className="solitaire-hud-btn" onClick={resetGame} title="Menu">☰</button>
+            <div className="game-sub-hud-right">
+              <span className="game-sub-hud-label">Moves</span>
+              <span className="game-sub-hud-value">{moves}</span>
             </div>
           </div>
 
           {/* Board */}
-          <div className="solitaire-board">
+          <div className="game-sub-canvas-wrap solitaire-board">
             <canvas
               ref={canvasRef}
               className="solitaire-canvas"
@@ -1132,28 +1135,15 @@ export default function SolitaireGame({ onBack }: SolitaireGameProps) {
 
             {/* Win overlay */}
             {status === 'won' && (
-              <div className="solitaire-win-overlay">
-                <div className="solitaire-win-card">
-                  <div className="solitaire-win-icon">🏆</div>
-                  <div className="solitaire-win-title">You Win!</div>
-                  <div className="solitaire-win-stats">
-                    <div className="solitaire-win-stat">
-                      <span className="solitaire-win-stat-value">{formatTime(timer)}</span>
-                      <span className="solitaire-win-stat-label">Time</span>
-                    </div>
-                    <div className="solitaire-win-stat">
-                      <span className="solitaire-win-stat-value">{score}</span>
-                      <span className="solitaire-win-stat-label">Score</span>
-                    </div>
-                    <div className="solitaire-win-stat">
-                      <span className="solitaire-win-stat-value">{moves}</span>
-                      <span className="solitaire-win-stat-label">Moves</span>
-                    </div>
-                  </div>
-                  {isNewBest && <div className="solitaire-win-newbest">🎉 New Best Time!</div>}
-                  <div className="solitaire-win-actions">
-                    <button className="solitaire-btn primary" onClick={startGame}>Play Again</button>
-                    <button className="solitaire-btn secondary" onClick={resetGame}>Menu</button>
+              <div className="game-sub-overlay">
+                <div className="game-sub-overlay-card">
+                  <div style={{fontSize:'48px'}}>🏆</div>
+                  <div className="game-sub-overlay-title">You Win!</div>
+                  <div className="game-sub-overlay-sub" style={{color:'var(--text-muted)'}}>Time: {formatTime(timer)} · Score: {score} · Moves: {moves}</div>
+                  {isNewBest && <div className="game-sub-overlay-newbest">🎉 New Best Time!</div>}
+                  <div className="game-sub-overlay-actions">
+                    <button className="game-sub-overlay-btn primary" onClick={startGame}>Play Again</button>
+                    <button className="game-sub-overlay-btn secondary" onClick={resetGame}>Menu</button>
                   </div>
                 </div>
               </div>
@@ -1161,13 +1151,13 @@ export default function SolitaireGame({ onBack }: SolitaireGameProps) {
           </div>
 
           {/* Controls */}
-          <div className="solitaire-controls">
+          <div className="game-sub-controls">
             Click stock to draw · Double-click to auto-move · Drag cards to place
           </div>
         </>
       )}
 
-      <button className="back-to-hub" onClick={onBack}>← Back to Games</button>
+      <button className="game-sub-back" onClick={onBack}>← Back to Games</button>
     </div>
   );
 }
