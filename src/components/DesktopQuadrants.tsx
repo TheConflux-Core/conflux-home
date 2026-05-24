@@ -430,6 +430,18 @@ interface ExpandedViewProps {
 function ExpandedView({ category, onBack, onNavigate }: ExpandedViewProps) {
   const [subFolder, setSubFolder] = useState<string | null>(null);
 
+  // Handle "Back to Games" — open Games sub-folder when event fires
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.gameId === 'games') {
+        setSubFolder('games');
+      }
+    };
+    window.addEventListener('conflux:games-back', handler as EventListener);
+    return () => window.removeEventListener('conflux:games-back', handler as EventListener);
+  }, []);
+
   // If inside a sub-folder (like Games), show its items as a grid
   if (subFolder) {
     const folder = FOLDER_APPS[subFolder];
@@ -571,6 +583,18 @@ export default function DesktopQuadrants({ onNavigate, agents }: DesktopQuadrant
     };
     window.addEventListener('conflux:navigate', handler as EventListener);
     return () => window.removeEventListener('conflux:navigate', handler as EventListener);
+  }, []);
+
+  // Handle "Back to Games" — expand Discover category
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.gameId === 'games') {
+        setExpandedCategory('discover');
+      }
+    };
+    window.addEventListener('conflux:games-back', handler as EventListener);
+    return () => window.removeEventListener('conflux:games-back', handler as EventListener);
   }, []);
 
   // Also reset on keyboard shortcut (Escape is handled in ImmersiveView, but for desktop we need this)
