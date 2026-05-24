@@ -22,6 +22,7 @@ import './styles/horizon-hopes.css'
 import './styles/horizon-stellar.css'
 import './styles-current.css'
 import './styles-games.css'
+import './styles-games-sub.css'
 import './styles-snake.css'
 import './styles-pacman.css';
 import './styles-solitaire.css';

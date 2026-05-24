@@ -1002,19 +1002,30 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
   // ── Render JSX ─────────────────────────────────────────────────────────────
 
   return (
-    <div className="pacman-container">
+    <div className="game-sub-container pacman-sub">
+      <style>{`.pacman-sub::before{background:radial-gradient(circle at 40% 35%,rgba(251,191,36,0.12) 0%,transparent 55%);animation-duration:24s;}.pacman-sub .game-sub-hero{background:linear-gradient(135deg,rgba(251,191,36,0.12),rgba(245,158,11,0.06));border:1px solid rgba(251,191,36,0.2);}.pacman-sub .game-sub-hero-glow{background:radial-gradient(circle at 80% 20%,rgba(251,191,36,0.25),transparent 60%);}.pacman-sub .game-diff-tile:hover{border-color:#fbbf24;box-shadow:0 8px 24px rgba(251,191,36,0.15),0 0 0 1px rgba(251,191,36,0.1);}.pacman-sub .game-diff-tile:hover::after{background:radial-gradient(circle at 50% 120%,rgba(251,191,36,0.08),transparent 70%);opacity:1;}.pacman-sub .game-sub-canvas-wrap{border-color:rgba(251,191,36,0.25);box-shadow:0 0 20px rgba(251,191,36,0.08),0 0 60px rgba(251,191,36,0.04);}.pacman-sub .game-sub-canvas-wrap:hover{box-shadow:0 0 28px rgba(251,191,36,0.12),0 0 72px rgba(251,191,36,0.06);}.pacman-sub .game-sub-overlay-card{background:var(--bg-card);border:1px solid rgba(251,191,36,0.25);}.pacman-sub .game-sub-overlay-title{color:#fbbf24;}.pacman-sub .game-sub-overlay-score{color:#fbbf24;text-shadow:0 0 24px rgba(251,191,36,0.4);}.pacman-sub .game-sub-overlay-newbest{background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3);color:#fbbf24;}.pacman-sub .game-sub-overlay-btn.primary{background:#fbbf24;color:#1a1a0a;box-shadow:0 4px 12px rgba(251,191,36,0.3);}.pacman-sub .game-sub-overlay-btn.primary:hover{box-shadow:0 6px 20px rgba(251,191,36,0.4);}.pacman-sub .game-sub-dpad-btn{border-color:rgba(251,191,36,0.2);color:#fbbf24;}.pacman-sub .game-sub-dpad-btn:active{background:rgba(251,191,36,0.15);}.pacman-sub .game-sub-hud-value{color:#fbbf24;}`}</style>
+
+      {/* Hero Section */}
+      <div className="game-sub-hero">
+        <div className="game-sub-hero-icon">🟡</div>
+        <div className="game-sub-hero-info">
+          <h2 className="game-sub-hero-title">Pac-Man</h2>
+          <p className="game-sub-hero-subtitle">Arcade classic · Eat pellets, avoid ghosts</p>
+        </div>
+        {bestScores[difficulty] > 0 && (
+          <div className="game-sub-best" style={{background:'rgba(251,191,36,0.12)',border:'1px solid rgba(251,191,36,0.25)',color:'#fbbf24'}}>🏆 {bestScores[difficulty]}</div>
+        )}
+        <div className="game-sub-hero-glow" />
+      </div>
+
       {/* Difficulty Selector */}
       {status === 'idle' && (
-        <div className="pacman-difficulty">
+        <div className="game-sub-difficulty cols-3">
           {(Object.keys(DIFFICULTY) as PacDifficulty[]).map(diff => (
-            <button
-              key={diff}
-              className="difficulty-tile"
-              onClick={() => startGame(diff)}
-            >
-              <span className="diff-icon">{DIFFICULTY[diff].icon}</span>
-              <span className="diff-label">{DIFFICULTY[diff].label}</span>
-              <span className="diff-meta">{DIFFICULTY[diff].meta}</span>
+            <button key={diff} className="game-diff-tile" onClick={() => startGame(diff)}>
+              <span className="game-diff-icon">{DIFFICULTY[diff].icon}</span>
+              <span className="game-diff-label">{DIFFICULTY[diff].label}</span>
+              <span className="game-diff-meta">{DIFFICULTY[diff].meta}</span>
             </button>
           ))}
         </div>
@@ -1023,22 +1034,22 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
       {/* HUD + Canvas */}
       {status !== 'idle' && (
         <>
-          <div className="pacman-hud">
-            <div className="pacman-hud-score">
-              <span className="pacman-hud-label">Score</span>
-              <span className="pacman-hud-value">{score}</span>
+          <div className="game-sub-hud">
+            <div className="game-sub-hud-left">
+              <span className="game-sub-hud-label">Score</span>
+              <span className="game-sub-hud-value">{score}</span>
             </div>
-            <div className="pacman-hud-level">
-              <span className="pacman-hud-label">Level</span>
-              <span className="pacman-hud-value">{level}</span>
+            <div className="game-sub-hud-center">
+              <span className="game-sub-hud-label">Level</span>
+              <span className="game-sub-hud-value">{level}</span>
             </div>
-            <div className="pacman-hud-lives">
-              <span className="pacman-hud-label">Lives</span>
-              <span className="pacman-hud-value">{'💛'.repeat(Math.max(0, lives))}</span>
+            <div className="game-sub-hud-right">
+              <span className="game-sub-hud-label">Lives</span>
+              <span className="game-sub-hud-value">{'💛'.repeat(Math.max(0, lives))}</span>
             </div>
           </div>
 
-          <div className="pacman-canvas-wrapper"
+          <div className="game-sub-canvas-wrap"
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
           >
@@ -1052,19 +1063,16 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
 
             {/* Game Over */}
             {status === 'dead' && (
-              <div className="pacman-game-over">
-                <div className="pacman-go-card">
-                  <div className="pacman-go-title">Game Over</div>
-                  <div className="pacman-go-score">{score}</div>
-                  <div className="pacman-go-level">Level {level}</div>
-                  {isNewBest && <div className="pacman-go-newbest">🎉 New Best!</div>}
-                  <div className="pacman-go-actions">
-                    <button className="difficulty-tile" onClick={() => startGame(difficulty)}>
-                      <span className="diff-label">Play Again</span>
-                    </button>
-                    <button className="difficulty-tile" onClick={resetGame}>
-                      <span className="diff-label">Back to Modes</span>
-                    </button>
+              <div className="game-sub-overlay">
+                <div className="game-sub-overlay-card">
+                  <div style={{fontSize:'48px'}}>💀</div>
+                  <div className="game-sub-overlay-title">Game Over</div>
+                  <div className="game-sub-overlay-score">{score}</div>
+                  <div className="game-sub-overlay-sub" style={{color:'var(--text-muted)'}}>Level {level}</div>
+                  {isNewBest && <div className="game-sub-overlay-newbest">🎉 New Best!</div>}
+                  <div className="game-sub-overlay-actions">
+                    <button className="game-sub-overlay-btn primary" onClick={() => startGame(difficulty)}>Play Again</button>
+                    <button className="game-sub-overlay-btn secondary" onClick={resetGame}>Change Mode</button>
                   </div>
                 </div>
               </div>
@@ -1072,16 +1080,13 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
 
             {/* Paused */}
             {status === 'paused' && (
-              <div className="pacman-game-over">
-                <div className="pacman-go-card">
-                  <div className="pacman-go-title">Paused</div>
-                  <div className="pacman-go-actions">
-                    <button className="difficulty-tile" onClick={() => setStatus('playing')}>
-                      <span className="diff-label">Resume</span>
-                    </button>
-                    <button className="difficulty-tile" onClick={resetGame}>
-                      <span className="diff-label">Quit</span>
-                    </button>
+              <div className="game-sub-overlay">
+                <div className="game-sub-overlay-card">
+                  <div style={{fontSize:'48px'}}>⏸</div>
+                  <div className="game-sub-overlay-title">Paused</div>
+                  <div className="game-sub-overlay-actions">
+                    <button className="game-sub-overlay-btn primary" onClick={() => setStatus('playing')}>Resume</button>
+                    <button className="game-sub-overlay-btn secondary" onClick={resetGame}>Quit</button>
                   </div>
                 </div>
               </div>
@@ -1089,19 +1094,19 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
           </div>
 
           {/* Controls */}
-          <div className="pacman-controls">Arrow keys / WASD / Swipe</div>
+          <div className="game-sub-controls">Arrow keys / WASD / Swipe</div>
 
           {/* D-pad */}
-          <div className="pacman-dpad">
-            <button className="pacman-dpad-btn pacman-dpad-up" onClick={() => handleDpad('up')}>▲</button>
-            <button className="pacman-dpad-btn pacman-dpad-left" onClick={() => handleDpad('left')}>◀</button>
-            <button className="pacman-dpad-btn pacman-dpad-right" onClick={() => handleDpad('right')}>▶</button>
-            <button className="pacman-dpad-btn pacman-dpad-down" onClick={() => handleDpad('down')}>▼</button>
+          <div className="game-sub-dpad">
+            <button className="game-sub-dpad-btn game-sub-dpad-up" onClick={() => handleDpad('up')}>▲</button>
+            <button className="game-sub-dpad-btn game-sub-dpad-left" onClick={() => handleDpad('left')}>◀</button>
+            <button className="game-sub-dpad-btn game-sub-dpad-right" onClick={() => handleDpad('right')}>▶</button>
+            <button className="game-sub-dpad-btn game-sub-dpad-down" onClick={() => handleDpad('down')}>▼</button>
           </div>
         </>
       )}
 
-      <button className="back-to-hub" onClick={onBack}>← Back to Games</button>
+      <button className="game-sub-back" onClick={onBack}>← Back to Games</button>
     </div>
   );
 }
