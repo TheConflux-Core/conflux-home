@@ -1123,7 +1123,7 @@ const [activeSnake, setActiveSnake] = useState(false);
     }
   }, [agents, selectedAgent]);
 
-  // Close game and return to Marketplace (games tab) — keeps Marketplace mounted
+  // Close game and return to the Marketplace games listing
   const closeGame = useCallback(() => {
     setActiveMinesweeper(false);
     setActiveSnake(false);
@@ -1132,8 +1132,8 @@ const [activeSnake, setActiveSnake] = useState(false);
     setActiveNaniSolitaire(false);
     setActiveJohnnySolitaire(false);
     setActiveGameId(null);
-    // Return to desktop — user goes to Discover → Games to pick another
-    setImmersiveView(null);
+    // Return to Marketplace (games tab) — keeps Marketplace mounted and visible
+    setImmersiveView('marketplace');
   }, []);
 
   // Check if any game is active
