@@ -163,7 +163,7 @@ function formatTime(seconds: number): string {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
-  const [gameState, setGameState] = useState<GameState>('idle');
+  const [gameState, setGameState] = useState<GameState>('playing');
   const [difficulty, setDifficulty] = useState<Difficulty>('beginner');
   const [board, setBoard] = useState<Tile[][]>([]);
   const [mineCount, setMineCount] = useState(0);
@@ -237,7 +237,7 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
 
   const resetGame = useCallback(() => {
     stopTimer();
-    setGameState('idle');
+    setGameState('playing');
     setBoard([]);
     setTimer(0);
     setFlagCount(0);
@@ -414,110 +414,123 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
   const config = DIFFICULTY_CONFIG[difficulty];
   const showOverlay = gameState === 'won' || gameState === 'lost';
 
-  // ── Difficulty Pills ─────────────────────────────────────────────────────
-
-  const difficultyPills = (
-    <div style={{
-      display: 'flex',
-      gap: '8px',
-      justifyContent: 'center',
-      flexWrap: 'wrap',
-    }}>
-      {(Object.keys(DIFFICULTY_CONFIG) as Difficulty[]).map(diff => (
-        <button
-          key={diff}
-          onClick={() => startGame(diff)}
-          style={{
-            background: diff === difficulty ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.06)',
-            border: `1px solid ${diff === difficulty ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.1)'}`,
-            borderRadius: '20px',
-            padding: '6px 14px',
-            fontSize: '12px',
-            fontWeight: diff === difficulty ? 600 : 400,
-            color: diff === difficulty ? '#ef4444' : 'var(--text-secondary)',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {DIFFICULTY_CONFIG[diff].label}
-        </button>
-      ))}
-    </div>
-  );
+  // Initialize game on mount
+  useEffect(() => {
+    startGame('beginner');
+  }, []);
 
   return (
-    <div className="minesweeper-container">
-      {gameState === 'idle' && (
-        <div className="difficulty-selector">
-          {(Object.keys(DIFFICULTY_CONFIG) as Difficulty[]).map(diff => (
-            <button
-              key={diff}
-              className="difficulty-tile"
-              onClick={() => startGame(diff)}
-            >
-              <span className="diff-icon">💣</span>
-              <span className="diff-label">{DIFFICULTY_CONFIG[diff].label}</span>
-              <span className="diff-meta">{DIFFICULTY_CONFIG[diff].meta}</span>
-            </button>
-          ))}
+    <div className="game-sub-container minesweeper-sub">
+      <style>{`.minesweeper-sub::before{background:radial-gradient(circle at 25% 35%,rgba(239,68,68,0.045) 0%,transparent 45%),radial-gradient(circle at 75% 65%,rgba(239,68,68,0.025) 0%,transparent 50%),radial-gradient(circle at 50% 80%,rgba(251,191,36,0.015) 0%,transparent 40%);animation-duration:18s;}.minesweeper-sub .game-sub-hero{background:linear-gradient(135deg,rgba(239,68,68,0.1),rgba(185,28,28,0.05));border:1px solid rgba(239,68,68,0.2);}.minesweeper-sub .game-sub-hero-glow{background:radial-gradient(circle at 80% 20%,rgba(239,68,68,0.2),transparent 60%);}.minesweeper-sub .game-diff-tile:hover{border-color:#ef4444;box-shadow:0 8px 24px rgba(239,68,68,0.15),0 0 0 1px rgba(239,68,68,0.1);}.minesweeper-sub .game-diff-tile:hover::after{background:radial-gradient(circle at 50% 120%,rgba(239,68,68,0.08),transparent 70%);opacity:1;}.minesweeper-sub .game-sub-canvas-wrap{border-color:rgba(239,68,68,0.25);box-shadow:0 0 20px rgba(239,68,68,0.08),0 0 60px rgba(239,68,68,0.04),inset 0 0 30px rgba(0,0,0,0.15);}.minesweeper-sub .game-sub-canvas-wrap:hover{box-shadow:0 0 28px rgba(239,68,68,0.12),0 0 80px rgba(239,68,68,0.06),inset 0 0 30px rgba(0,0,0,0.15);}.minesweeper-sub .game-sub-overlay-card{background:var(--bg-card);border:1px solid rgba(239,68,68,0.2);}.minesweeper-sub .game-sub-overlay-title{color:#ef4444;}.minesweeper-sub .game-sub-overlay-score{color:#ef4444;text-shadow:0 0 20px rgba(239,68,68,0.3);}.minesweeper-sub .game-sub-overlay-newbest{background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444;}.minesweeper-sub .game-sub-overlay-btn.primary{background:#ef4444;box-shadow:0 4px 12px rgba(239,68,68,0.3);}.minesweeper-sub .game-sub-overlay-btn.primary:hover{box-shadow:0 6px 20px rgba(239,68,68,0.4);}.minesweeper-sub .game-sub-dpad-btn{border-color:rgba(239,68,68,0.2);color:#ef4444;}.minesweeper-sub .game-sub-dpad-btn:active{background:rgba(239,68,68,0.2);}`}</style>
+
+      {/* Hero Section */}
+      <div className="game-sub-hero">
+        <div className="game-sub-hero-icon">💣</div>
+        <div className="game-sub-hero-info">
+          <h2 className="game-sub-hero-title">Minesweeper</h2>
+          <p className="game-sub-hero-subtitle">Classic puzzle · Find the mines</p>
         </div>
-      )}
+        {bestTimes[difficulty] > 0 && (
+          <div className="game-sub-best" style={{background:'rgba(239,68,68,0.12)',border:'1px solid rgba(239,68,68,0.25)',color:'#ef4444'}}>🏆 {formatTime(bestTimes[difficulty])}</div>
+        )}
+        <div className="game-sub-hero-glow" />
+      </div>
 
-      {gameState !== 'idle' && (
+      {/* Difficulty Pills */}
+      <div style={{display:'flex',gap:'8px',justifyContent:'center',flexWrap:'wrap',marginBottom:'8px'}}>
+        {(Object.keys(DIFFICULTY_CONFIG) as Difficulty[]).map(diff => (
+          <button key={diff} onClick={() => startGame(diff)} style={{padding:'6px 14px',borderRadius:'20px',border: diff === difficulty ? '1px solid #ef4444' : '1px solid rgba(239,68,68,0.25)',background: diff === difficulty ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.05)',color: diff === difficulty ? '#ef4444' : 'var(--text-muted)',cursor:'pointer',fontSize:'13px',fontWeight: diff === difficulty ? 600 : 400,transition:'all 0.2s'}}>
+            {DIFFICULTY_CONFIG[diff].label}
+          </button>
+        ))}
+      </div>
+
+      {/* HUD + Board */}
+      {(
         <>
-          <div className="minesweeper-header">
-            <div className="mine-counter">💣 {mineCount - flagCount}</div>
-            <button className="new-game-btn" onClick={resetGame}>New Game</button>
-            <div className="mine-timer">⏱ {formatTime(timer)}</div>
-            <button className="sound-toggle" onClick={() => setMuted(!muted)}>
-              {muted ? '🔇' : '🔊'}
-            </button>
+          <div className="game-sub-hud">
+            <div className="game-sub-hud-left">
+              <span className="game-sub-hud-label">Mines</span>
+              <span className="game-sub-hud-value" style={{color:'#ef4444'}}>💣 {mineCount - flagCount}</span>
+            </div>
+            <div className="game-sub-hud-center">
+              <span className="game-sub-hud-value" style={{fontSize:'16px',color:'#ef4444'}}>{config.label}</span>
+            </div>
+            <div className="game-sub-hud-right">
+              <span className="game-sub-hud-label">Time</span>
+              <span className="game-sub-hud-value" style={{color:'#fbbf24',fontSize:'16px'}}>⏱ {formatTime(timer)}</span>
+            </div>
           </div>
 
-          <div className={`minesweeper-board ${gameState}`}>
-            {board.map((row, ri) => (
-              <div key={ri} className="minesweeper-row">
-                {row.map((tile, ci) => (
-                  <button
-                    key={`${ri}-${ci}`}
-                    data-row={ri}
-                    data-col={ci}
-                    className={getTileClass(tile)}
-                    style={
-                      tile.isRevealed && tile.adjacentMines === 0 && !tile.isMine
-                        ? { animationDelay: `${tile.cascadeDelay || 0}ms` }
-                        : {}
-                    }
-                    onClick={() => handleLeftClick(ri, ci)}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      handleRightClick(ri, ci);
-                    }}
-                    onMouseDown={handleMouseDown}
-                    onMouseUp={handleMouseUp}
-                    onMouseLeave={handleMouseUp}
-                  >
-                    {getTileContent(tile)}
-                  </button>
-                ))}
+          <div className="game-sub-canvas-wrap">
+            <div className={`minesweeper-board ${gameState}`} style={{padding:'12px'}}>
+              {board.map((row, ri) => (
+                <div key={ri} className="minesweeper-row">
+                  {row.map((tile, ci) => (
+                    <button
+                      key={`${ri}-${ci}`}
+                      data-row={ri}
+                      data-col={ci}
+                      className={getTileClass(tile)}
+                      style={
+                        tile.isRevealed && tile.adjacentMines === 0 && !tile.isMine
+                          ? { animationDelay: `${tile.cascadeDelay || 0}ms` }
+                          : {}
+                      }
+                      onClick={() => handleLeftClick(ri, ci)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        handleRightClick(ri, ci);
+                      }}
+                      onMouseDown={handleMouseDown}
+                      onMouseUp={handleMouseUp}
+                      onMouseLeave={handleMouseUp}
+                    >
+                      {getTileContent(tile)}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+
+            {/* Game Over Overlay */}
+            {gameState === 'lost' && (
+              <div className="game-sub-overlay">
+                <div className="game-sub-overlay-card">
+                  <div style={{fontSize:'48px'}}>💥</div>
+                  <div className="game-sub-overlay-title">Boom!</div>
+                  <div className="game-sub-overlay-score">{timer}s</div>
+                  <div className="game-sub-overlay-actions">
+                    <button className="game-sub-overlay-btn primary" onClick={() => startGame(difficulty)}>Play Again</button>
+                  </div>
+                </div>
               </div>
-            ))}
+            )}
+
+            {/* Win Overlay */}
+            {gameState === 'won' && (
+              <div className="game-sub-overlay">
+                <div className="game-sub-overlay-card">
+                  <div style={{fontSize:'48px'}}>🎉</div>
+                  <div className="game-sub-overlay-title">Cleared!</div>
+                  <div className="game-sub-overlay-score">{timer}s</div>
+                  {bestTimes[difficulty] === timer && (
+                    <div className="game-sub-overlay-newbest">🏆 New Best!</div>
+                  )}
+                  <div className="game-sub-overlay-actions">
+                    <button className="game-sub-overlay-btn primary" onClick={() => startGame(difficulty)}>Play Again</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          {gameState === 'won' && (
-            <div className="win-banner">🎉 You cleared the field!</div>
-          )}
-          {gameState === 'lost' && (
-            <div className="lose-banner">💥 Better luck next time!</div>
-          )}
-          {bestTimes[difficulty] && (
-            <div className="best-times">🏆 Best: {formatTime(bestTimes[difficulty])}</div>
-          )}
+          {/* Controls Hint */}
+          <div className="game-sub-controls">Left-click to reveal · Right-click to flag</div>
         </>
       )}
 
-      <button className="back-to-hub" onClick={onBack}>← Back to Games</button>
+      <button className="game-sub-back" onClick={onBack}>← Games Hub</button>
     </div>
   );
 }
