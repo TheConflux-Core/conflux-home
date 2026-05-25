@@ -421,6 +421,32 @@ export default function NaniSolitaireGame({ onBack }: NaniSolitaireGameProps) {
           playSolitaireInvalid();
         }, 500);
       }
+    } else {
+      // Auto-deal: grid not full, deck has cards — draw next card immediately
+      setTimeout(() => {
+        const newDeck = [...deck];
+        const drawn = newDeck.pop()!;
+        setDeck(newDeck);
+        setCurrentCard(drawn);
+
+        // Auto-discard if it's a 10
+        if (drawn.rank === '10') {
+          setTimeout(() => {
+            setDiscardPile(prev => [...prev, drawn]);
+            setCurrentCard(null);
+            playSolitaireInvalid();
+          }, 400);
+          return;
+        }
+
+        // Check if any valid placement exists
+        if (!hasValidPlacement(drawn, newSlots)) {
+          setTimeout(() => {
+            setPhase('gameover');
+            playSolitaireInvalid();
+          }, 600);
+        }
+      }, 300);
     }
   }, [phase, slots, currentCard, discardPile, deck, fireParticles]);
 
