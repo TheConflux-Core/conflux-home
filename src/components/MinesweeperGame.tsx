@@ -464,45 +464,61 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
   background: linear-gradient(135deg, rgba(239,68,68,0.14) 0%, rgba(127,29,29,0.08) 50%, rgba(251,191,36,0.04) 100%);
   border: 1px solid rgba(239,68,68,0.28);
   box-shadow:
-    0 8px 32px rgba(0,0,0,0.3),
-    0 0 60px rgba(239,68,68,0.05),
+    0 4px 16px rgba(0,0,0,0.3),
+    0 0 40px rgba(239,68,68,0.05),
     inset 0 1px 0 rgba(255,255,255,0.04);
   animation: minesweeper-hero-breathe 6s ease-in-out infinite;
-}
-@keyframes minesweeper-hero-breathe {
-  0%, 100% { box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 60px rgba(239,68,68,0.05), inset 0 1px 0 rgba(255,255,255,0.04); }
-  50% { box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 90px rgba(239,68,68,0.1), inset 0 1px 0 rgba(255,255,255,0.06); }
+  padding: 16px 20px;
+  margin-bottom: 10px;
+  min-height: unset;
+  gap: 12px;
 }
 .minesweeper-sub .game-sub-hero-glow {
-  background:
-    radial-gradient(circle at 80% 20%, rgba(239,68,68,0.22) 0%, transparent 50%),
-    radial-gradient(circle at 20% 80%, rgba(185,28,28,0.08) 0%, transparent 40%),
-    radial-gradient(circle at 50% 50%, rgba(251,191,36,0.04) 0%, transparent 60%);
-  animation: minesweeper-hero-glow-pulse 8s ease-in-out infinite;
-}
-@keyframes minesweeper-hero-glow-pulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+  display: none;
 }
 .minesweeper-sub .game-sub-hero-icon {
-  filter: drop-shadow(0 0 18px rgba(239,68,68,0.5)) drop-shadow(0 4px 12px rgba(0,0,0,0.4));
+  filter: drop-shadow(0 0 12px rgba(239,68,68,0.5)) drop-shadow(0 4px 8px rgba(0,0,0,0.4));
+  font-size: 28px;
 }
 .minesweeper-sub .game-sub-hero-title {
   background: linear-gradient(135deg, #fbbf24 0%, #ef4444 40%, #dc2626 70%, #b91c1c 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  font-size: 20px;
+}
+.minesweeper-sub .game-sub-hero-subtitle {
+  font-size: 11px;
+  margin: 0;
 }
 .minesweeper-sub .game-sub-best {
+  font-size: 12px;
+  padding: 4px 10px;
   animation: minesweeper-best-pulse 3s ease-in-out infinite;
 }
-@keyframes minesweeper-best-pulse {
-  0%, 100% { box-shadow: 0 0 6px rgba(239,68,68,0.3); }
-  50% { box-shadow: 0 0 24px rgba(239,68,68,0.6), 0 0 48px rgba(239,68,68,0.2); }
+.minesweeper-sub .game-sub-back {
+  margin: 0;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 20px;
+  border: 1.5px solid rgba(239,68,68,0.6);
+  background: rgba(239,68,68,0.2);
+  color: #ef4444;
+  display: inline-block;
+  letter-spacing: 0.5px;
+}
+.minesweeper-sub .game-sub-back:hover {
+  border-color: rgba(239,68,68,0.9);
+  background: rgba(239,68,68,0.3);
+  transform: scale(1.05);
 }
 
 /* ── Canvas Wrap: Minefield Border ── */
 .minesweeper-sub .game-sub-canvas-wrap {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
   border-color: rgba(239,68,68,0.3);
   border-width: 2px;
   box-shadow:
@@ -739,7 +755,9 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
 `}</style>
 
       {/* Hero Section */}
+      {/* Hero Section */}
       <div className="game-sub-hero">
+        <button className="game-sub-back" onClick={onBack}>← Hub</button>
         <div className="game-sub-hero-icon">💣</div>
         <div className="game-sub-hero-info">
           <h2 className="game-sub-hero-title">Minesweeper</h2>
@@ -748,7 +766,6 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
         {bestTimes[difficulty] > 0 && (
           <div className="game-sub-best" style={{background:'rgba(239,68,68,0.12)',border:'1px solid rgba(239,68,68,0.25)',color:'#ef4444'}}>🏆 {formatTime(bestTimes[difficulty])}</div>
         )}
-        <div className="game-sub-hero-glow" />
       </div>
 
       {/* Difficulty Pills: Carved Stone Buttons */}
@@ -847,7 +864,7 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
         </>
       )}
 
-      <button className="game-sub-back" onClick={onBack}>← Games Hub</button>
+      <button className="game-sub-back" onClick={onBack} style={{display:'none'}}>← Games Hub</button>
     </div>
   );
 }
