@@ -63,6 +63,8 @@ const DIFFICULTY_CONFIG: Record<SnakeDifficulty, SnakeGameConfig> = {
 };
 
 const CANVAS_SIZE = DIFFICULTY_CONFIG.classic.gridSize * DIFFICULTY_CONFIG.classic.cellSize; // 400
+// Scale up to fill container better (container is 680px max)
+const CANVAS_MAX = 480;
 
 const OPPOSITE: Record<Direction, Direction> = { up: 'down', down: 'up', left: 'right', right: 'left' };
 const DELTA: Record<Direction, Position> = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
@@ -709,24 +711,26 @@ export default function SnakeGame({ onBack }: SnakeGameProps) {
 }
 .snake-sub .game-sub-back {
   margin: 0;
-  padding: 6px 14px;
-  font-size: 12px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 700;
   border-radius: 20px;
-  border: 1px solid rgba(16,185,129,0.25);
-  background: rgba(16,185,129,0.08);
-  color: var(--text-muted);
+  border: 1.5px solid rgba(16,185,129,0.6);
+  background: rgba(16,185,129,0.2);
+  color: #10b981;
   display: inline-block;
+  letter-spacing: 0.5px;
 }
 .snake-sub .game-sub-back:hover {
-  border-color: rgba(16,185,129,0.5);
-  color: #10b981;
-  transform: none;
+  border-color: rgba(16,185,129,0.9);
+  background: rgba(16,185,129,0.3);
+  transform: scale(1.05);
 }
 
 /* ── Canvas Wrap: Ancient Terminal Screen ── */
 .snake-sub .game-sub-canvas-wrap {
   width: 100%;
-  max-width: 400px;
+  max-width: 480px;
   margin: 0 auto;
   border-color: rgba(16,185,129,0.3);
   border-width: 2px;
@@ -924,7 +928,7 @@ export default function SnakeGame({ onBack }: SnakeGameProps) {
               className="snake-canvas"
               width={CANVAS_SIZE}
               height={CANVAS_SIZE}
-              style={{ width: '100%', maxWidth: CANVAS_SIZE, aspectRatio: '1' }}
+              style={{ width: '100%', maxWidth: CANVAS_MAX, aspectRatio: '1' }}
             />
 
             {/* Game Over Overlay */}
