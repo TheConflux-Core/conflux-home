@@ -209,10 +209,10 @@ function makeGhosts(): Ghost[] {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function PacmanGame({ onBack }: PacmanGameProps) {
-  const [status, setStatus] = useState<GameStatus>('idle');
+  const [status, setStatus] = useState<GameStatus>('playing');
   const [difficulty, setDifficulty] = useState<PacDifficulty>('classic');
   const [score, setScore] = useState(0);
-  const [lives, setLives] = useState(3);
+  const [lives, setLives] = useState(DIFFICULTY.classic.lives);
   const [level, setLevel] = useState(1);
   const [bestScores, setBestScores] = useState<Record<string, number>>(loadBestScores);
   const [isNewBest, setIsNewBest] = useState(false);
@@ -227,10 +227,10 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
   const ghostsRef = useRef<Ghost[]>(makeGhosts());
   const pelletsRef = useRef<number>(0);
   const scoreRef = useRef<number>(0);
-  const livesRef = useRef<number>(3);
+  const livesRef = useRef<number>(DIFFICULTY.classic.lives);
   const levelRef = useRef<number>(1);
-  const gameStatusRef = useRef<GameStatus>('idle');
-  const speedRef = useRef<number>(140);
+  const gameStatusRef = useRef<GameStatus>('playing');
+  const speedRef = useRef<number>(DIFFICULTY.classic.speed);
   const scaredTimerRef = useRef<number>(0);
   const ghostEatComboRef = useRef<number>(0);
   const modeTimerRef = useRef<number>(0);
@@ -244,6 +244,7 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
   const deathPauseRef = useRef<number>(0);
   const levelClearRef = useRef<number>(0);
   const flashRef = useRef<number>(0);
+  const autoStartRef = useRef<boolean>(true);
 
   useEffect(() => { gameStatusRef.current = status; }, [status]);
 
@@ -368,15 +369,15 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
   const resetGame = useCallback(() => {
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     setStatus('idle');
-    setScore(0); setLives(3); setLevel(1);
+    setScore(0); setLives(DIFFICULTY[difficulty].lives); setLevel(1);
     setIsNewBest(false);
-    scoreRef.current = 0; livesRef.current = 3; levelRef.current = 1;
+    scoreRef.current = 0; livesRef.current = DIFFICULTY[difficulty].lives; levelRef.current = 1;
     mazeRef.current = deepMaze();
     pelletsRef.current = countPellets(mazeRef.current);
     particlesRef.current = [];
     scorePopupsRef.current = [];
     resetPositions();
-  }, [resetPositions]);
+  }, [resetPositions, difficulty]);
 
   // ── Start ──────────────────────────────────────────────────────────────────
 
@@ -1018,21 +1019,17 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
         <div className="game-sub-hero-glow" />
       </div>
 
-      {/* Difficulty Selector */}
-      {status === 'idle' && (
-        <div className="game-sub-difficulty cols-3">
-          {(Object.keys(DIFFICULTY) as PacDifficulty[]).map(diff => (
-            <button key={diff} className="game-diff-tile" onClick={() => startGame(diff)}>
-              <span className="game-diff-icon">{DIFFICULTY[diff].icon}</span>
-              <span className="game-diff-label">{DIFFICULTY[diff].label}</span>
-              <span className="game-diff-meta">{DIFFICULTY[diff].meta}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Mode Pills */}
+      <div style={{display:'flex',gap:'8px',justifyContent:'center',flexWrap:'wrap',marginBottom:'8px'}}>
+        {(Object.keys(DIFFICULTY) as PacDifficulty[]).map(diff => (
+          <button key={diff} onClick={() => startGame(diff)} style={{padding:'6px 14px',borderRadius:'20px',border: diff === difficulty ? '1px solid #fbbf24' : '1px solid rgba(251,191,36,0.25)',background: diff === difficulty ? 'rgba(251,191,36,0.15)' : 'rgba(251,191,36,0.05)',color: diff === difficulty ? '#fbbf24' : 'var(--text-muted)',cursor:'pointer',fontSize:'13px',fontWeight: diff === difficulty ? 600 : 400,transition:'all 0.2s'}}>
+            {DIFFICULTY[diff].icon} {DIFFICULTY[diff].label}
+          </button>
+        ))}
+      </div>
 
       {/* HUD + Canvas */}
-      {status !== 'idle' && (
+      {(
         <>
           <div className="game-sub-hud">
             <div className="game-sub-hud-left">
@@ -1072,7 +1069,6 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
                   {isNewBest && <div className="game-sub-overlay-newbest">🎉 New Best!</div>}
                   <div className="game-sub-overlay-actions">
                     <button className="game-sub-overlay-btn primary" onClick={() => startGame(difficulty)}>Play Again</button>
-                    <button className="game-sub-overlay-btn secondary" onClick={resetGame}>Change Mode</button>
                   </div>
                 </div>
               </div>
@@ -1106,7 +1102,7 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
         </>
       )}
 
-      <button className="game-sub-back" onClick={onBack}>← Back to Games</button>
+      <button className="game-sub-back" onClick={onBack}>← Games Hub</button>
     </div>
   );
 }
