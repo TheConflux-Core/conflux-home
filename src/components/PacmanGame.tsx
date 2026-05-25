@@ -1067,24 +1067,26 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
 }
 .pacman-sub .game-sub-back {
   margin: 0;
-  padding: 6px 14px;
-  font-size: 12px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 700;
   border-radius: 20px;
-  border: 1px solid rgba(251,191,36,0.25);
-  background: rgba(251,191,36,0.08);
-  color: var(--text-muted);
+  border: 1.5px solid rgba(251,191,36,0.6);
+  background: rgba(251,191,36,0.2);
+  color: #fbbf24;
   display: inline-block;
+  letter-spacing: 0.5px;
 }
 .pacman-sub .game-sub-back:hover {
-  border-color: rgba(251,191,36,0.5);
-  color: #fbbf24;
-  transform: none;
+  border-color: rgba(251,191,36,0.9);
+  background: rgba(251,191,36,0.3);
+  transform: scale(1.05);
 }
 
 /* ── Canvas Wrap: Arcade Screen ── */
 .pacman-sub .game-sub-canvas-wrap {
   width: 100%;
-  max-width: 400px;
+  max-width: 480px;
   margin: 0 auto;
   border-color: rgba(251,191,36,0.3);
   border-width: 2px;
@@ -1297,7 +1299,7 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
               className="pacman-canvas"
               width={CANVAS_W}
               height={CANVAS_H}
-              style={{ width: '100%', maxWidth: CANVAS_W, aspectRatio: `${CANVAS_W}/${CANVAS_H}` }}
+              style={{ width: '100%', maxWidth: 480, aspectRatio: `${CANVAS_W}/${CANVAS_H}` }}
             />
 
             {/* Game Over */}
