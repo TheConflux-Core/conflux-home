@@ -183,6 +183,8 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTargetRef = useRef<{ row: number; col: number } | null>(null);
+  const [showFlash, setShowFlash] = useState(false);
+  const [isShaking, setIsShaking] = useState(false);
 
   // ── Timer Management ─────────────────────────────────────────────────────
 
@@ -242,6 +244,8 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
     setTimer(0);
     setFlagCount(0);
     setFirstClick(true);
+    setShowFlash(false);
+    setIsShaking(false);
   }, [stopTimer]);
 
   const startGame = useCallback((diff: Difficulty) => {
@@ -254,6 +258,8 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
     setTimer(0);
     setFirstClick(true);
     setGameState('playing');
+    setShowFlash(false);
+    setIsShaking(false);
     stopTimer();
   }, [stopTimer]);
 
@@ -277,6 +283,10 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
         newBoard.forEach(r => r.forEach(t => { if (t.isMine) t.isRevealed = true; }));
         setBoard(newBoard);
         setGameState('lost');
+        setIsShaking(true);
+        setShowFlash(true);
+        setTimeout(() => setIsShaking(false), 400);
+        setTimeout(() => setShowFlash(false), 500);
         stopTimer();
         playSound('explode');
         return;
@@ -312,6 +322,10 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
       newBoard.forEach(r => r.forEach(t => { if (t.isMine) t.isRevealed = true; }));
       setBoard(newBoard);
       setGameState('lost');
+      setIsShaking(true);
+      setShowFlash(true);
+      setTimeout(() => setIsShaking(false), 400);
+      setTimeout(() => setShowFlash(false), 500);
       stopTimer();
       playSound('explode');
       return;
@@ -421,7 +435,308 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
 
   return (
     <div className="game-sub-container minesweeper-sub">
-      <style>{`.minesweeper-sub::before{background:radial-gradient(circle at 25% 35%,rgba(239,68,68,0.045) 0%,transparent 45%),radial-gradient(circle at 75% 65%,rgba(239,68,68,0.025) 0%,transparent 50%),radial-gradient(circle at 50% 80%,rgba(251,191,36,0.015) 0%,transparent 40%);animation-duration:18s;}.minesweeper-sub .game-sub-hero{background:linear-gradient(135deg,rgba(239,68,68,0.1),rgba(185,28,28,0.05));border:1px solid rgba(239,68,68,0.2);}.minesweeper-sub .game-sub-hero-glow{background:radial-gradient(circle at 80% 20%,rgba(239,68,68,0.2),transparent 60%);}.minesweeper-sub .game-diff-tile:hover{border-color:#ef4444;box-shadow:0 8px 24px rgba(239,68,68,0.15),0 0 0 1px rgba(239,68,68,0.1);}.minesweeper-sub .game-diff-tile:hover::after{background:radial-gradient(circle at 50% 120%,rgba(239,68,68,0.08),transparent 70%);opacity:1;}.minesweeper-sub .game-sub-canvas-wrap{border-color:rgba(239,68,68,0.25);box-shadow:0 0 20px rgba(239,68,68,0.08),0 0 60px rgba(239,68,68,0.04),inset 0 0 30px rgba(0,0,0,0.15);}.minesweeper-sub .game-sub-canvas-wrap:hover{box-shadow:0 0 28px rgba(239,68,68,0.12),0 0 80px rgba(239,68,68,0.06),inset 0 0 30px rgba(0,0,0,0.15);}.minesweeper-sub .game-sub-overlay-card{background:var(--bg-card);border:1px solid rgba(239,68,68,0.2);}.minesweeper-sub .game-sub-overlay-title{color:#ef4444;}.minesweeper-sub .game-sub-overlay-score{color:#ef4444;text-shadow:0 0 20px rgba(239,68,68,0.3);}.minesweeper-sub .game-sub-overlay-newbest{background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444;}.minesweeper-sub .game-sub-overlay-btn.primary{background:#ef4444;box-shadow:0 4px 12px rgba(239,68,68,0.3);}.minesweeper-sub .game-sub-overlay-btn.primary:hover{box-shadow:0 6px 20px rgba(239,68,68,0.4);}.minesweeper-sub .game-sub-dpad-btn{border-color:rgba(239,68,68,0.2);color:#ef4444;}.minesweeper-sub .game-sub-dpad-btn:active{background:rgba(239,68,68,0.2);}`}</style>
+      <style>{`
+/* ═══════════════════════════════════════════════════════════
+   MINESWEEPER — Deep Design Pass
+   The Conflux · Cinematic War Room Experience
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Ambient Background: War Room Atmosphere ── */
+.minesweeper-sub {
+  padding: 28px 24px 120px;
+}
+.minesweeper-sub::before {
+  background:
+    radial-gradient(circle at 25% 35%, rgba(239,68,68,0.07) 0%, transparent 45%),
+    radial-gradient(circle at 75% 65%, rgba(185,28,28,0.045) 0%, transparent 50%),
+    radial-gradient(circle at 50% 80%, rgba(251,191,36,0.025) 0%, transparent 40%),
+    radial-gradient(circle at 10% 90%, rgba(239,68,68,0.03) 0%, transparent 35%);
+  animation: minesweeper-ambient-drift 20s ease-in-out infinite;
+}
+@keyframes minesweeper-ambient-drift {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  33% { transform: translate(2%, -1.5%) rotate(0.8deg); }
+  66% { transform: translate(-1.5%, 2%) rotate(-0.6deg); }
+}
+
+/* ── Hero: War Room Command Center ── */
+.minesweeper-sub .game-sub-hero {
+  background: linear-gradient(135deg, rgba(239,68,68,0.14) 0%, rgba(127,29,29,0.08) 50%, rgba(251,191,36,0.04) 100%);
+  border: 1px solid rgba(239,68,68,0.28);
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.3),
+    0 0 60px rgba(239,68,68,0.05),
+    inset 0 1px 0 rgba(255,255,255,0.04);
+  animation: minesweeper-hero-breathe 6s ease-in-out infinite;
+}
+@keyframes minesweeper-hero-breathe {
+  0%, 100% { box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 60px rgba(239,68,68,0.05), inset 0 1px 0 rgba(255,255,255,0.04); }
+  50% { box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 90px rgba(239,68,68,0.1), inset 0 1px 0 rgba(255,255,255,0.06); }
+}
+.minesweeper-sub .game-sub-hero-glow {
+  background:
+    radial-gradient(circle at 80% 20%, rgba(239,68,68,0.22) 0%, transparent 50%),
+    radial-gradient(circle at 20% 80%, rgba(185,28,28,0.08) 0%, transparent 40%),
+    radial-gradient(circle at 50% 50%, rgba(251,191,36,0.04) 0%, transparent 60%);
+  animation: minesweeper-hero-glow-pulse 8s ease-in-out infinite;
+}
+@keyframes minesweeper-hero-glow-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+.minesweeper-sub .game-sub-hero-icon {
+  filter: drop-shadow(0 0 18px rgba(239,68,68,0.5)) drop-shadow(0 4px 12px rgba(0,0,0,0.4));
+}
+.minesweeper-sub .game-sub-hero-title {
+  background: linear-gradient(135deg, #fbbf24 0%, #ef4444 40%, #dc2626 70%, #b91c1c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.minesweeper-sub .game-sub-best {
+  animation: minesweeper-best-pulse 3s ease-in-out infinite;
+}
+@keyframes minesweeper-best-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(239,68,68,0.3); }
+  50% { box-shadow: 0 0 24px rgba(239,68,68,0.6), 0 0 48px rgba(239,68,68,0.2); }
+}
+
+/* ── Canvas Wrap: Minefield Border ── */
+.minesweeper-sub .game-sub-canvas-wrap {
+  border-color: rgba(239,68,68,0.3);
+  border-width: 2px;
+  box-shadow:
+    0 0 24px rgba(239,68,68,0.1),
+    0 0 72px rgba(239,68,68,0.05),
+    0 0 120px rgba(239,68,68,0.02),
+    inset 0 0 40px rgba(0,0,0,0.2);
+  transition: box-shadow 0.5s ease, border-color 0.5s ease;
+}
+.minesweeper-sub .game-sub-canvas-wrap:hover {
+  border-color: rgba(239,68,68,0.45);
+  box-shadow:
+    0 0 36px rgba(239,68,68,0.15),
+    0 0 100px rgba(239,68,68,0.08),
+    0 0 160px rgba(239,68,68,0.03),
+    inset 0 0 40px rgba(0,0,0,0.15);
+}
+
+/* ── HUD: Brass War Gauges ── */
+.minesweeper-sub .game-sub-hud {
+  background: linear-gradient(135deg, rgba(30,20,10,0.7), rgba(20,15,8,0.8));
+  border: 1px solid rgba(251,191,36,0.15);
+  box-shadow:
+    0 4px 20px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    inset 0 -1px 0 rgba(0,0,0,0.2);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+}
+.minesweeper-sub .game-sub-hud-label {
+  color: rgba(251,191,36,0.5);
+  font-size: 10px;
+  letter-spacing: 2px;
+}
+.minesweeper-sub .game-sub-hud-value {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+
+/* ── Difficulty Pills: Carved Stone Buttons ── */
+.minesweeper-sub .game-sub-diff-pill {
+  position: relative;
+  box-shadow:
+    0 2px 8px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    inset 0 -2px 0 rgba(0,0,0,0.15);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.minesweeper-sub .game-sub-diff-pill:hover {
+  border-color: rgba(239,68,68,0.5);
+  background: rgba(239,68,68,0.12);
+  box-shadow:
+    0 4px 16px rgba(239,68,68,0.15),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+  transform: translateY(-2px);
+}
+.minesweeper-sub .game-sub-diff-pill:active {
+  transform: scale(0.95);
+  box-shadow:
+    0 1px 4px rgba(0,0,0,0.3),
+    inset 0 2px 4px rgba(0,0,0,0.3);
+}
+.minesweeper-sub .game-sub-diff-pill.active {
+  border-color: #ef4444;
+  background: rgba(239,68,68,0.18);
+  box-shadow:
+    0 0 12px rgba(239,68,68,0.2),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+/* ── Overlay: Cinema Screen Reveal ── */
+.minesweeper-sub .game-sub-overlay {
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(16px) saturate(0.8);
+  -webkit-backdrop-filter: blur(16px) saturate(0.8);
+  animation: minesweeper-overlay-in 0.6s ease forwards;
+}
+@keyframes minesweeper-overlay-in {
+  0% { opacity: 0; }
+  40% { opacity: 1; }
+}
+.minesweeper-sub .game-sub-overlay-card {
+  background: linear-gradient(160deg, rgba(15,10,10,0.96), rgba(10,5,5,0.98));
+  border: 1px solid rgba(239,68,68,0.25);
+  box-shadow:
+    0 32px 80px rgba(0,0,0,0.7),
+    0 0 60px rgba(239,68,68,0.06),
+    inset 0 1px 0 rgba(255,255,255,0.05);
+  animation: minesweeper-card-dramatic 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes minesweeper-card-dramatic {
+  0% { opacity: 0; transform: scale(0.7) translateY(30px); filter: blur(8px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
+}
+.minesweeper-sub .game-sub-overlay-title {
+  background: linear-gradient(135deg, #fbbf24, #ef4444);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.minesweeper-sub .game-sub-overlay-title.loss {
+  background: linear-gradient(135deg, #ef4444, #991b1b);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.minesweeper-sub .game-sub-overlay-score {
+  color: #ef4444;
+  text-shadow:
+    0 0 20px rgba(239,68,68,0.4),
+    0 0 60px rgba(239,68,68,0.15);
+  animation: minesweeper-score-glow 2s ease-in-out infinite;
+}
+@keyframes minesweeper-score-glow {
+  0%, 100% { text-shadow: 0 0 20px rgba(239,68,68,0.4), 0 0 60px rgba(239,68,68,0.15); }
+  50% { text-shadow: 0 0 30px rgba(239,68,68,0.6), 0 0 80px rgba(239,68,68,0.25); }
+}
+.minesweeper-sub .game-sub-overlay-win-score {
+  color: #fbbf24;
+  text-shadow:
+    0 0 20px rgba(251,191,36,0.4),
+    0 0 60px rgba(251,191,36,0.15);
+  animation: minesweeper-win-score-glow 2s ease-in-out infinite;
+}
+@keyframes minesweeper-win-score-glow {
+  0%, 100% { text-shadow: 0 0 20px rgba(251,191,36,0.4), 0 0 60px rgba(251,191,36,0.15); }
+  50% { text-shadow: 0 0 30px rgba(251,191,36,0.6), 0 0 80px rgba(251,191,36,0.25); }
+}
+.minesweeper-sub .game-sub-overlay-newbest {
+  background: rgba(251,191,36,0.12);
+  border: 1px solid rgba(251,191,36,0.35);
+  color: #fbbf24;
+  box-shadow: 0 0 20px rgba(251,191,36,0.15);
+  animation: minesweeper-newbest-burst 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards, minesweeper-newbest-glow 2s ease-in-out 0.7s infinite;
+}
+@keyframes minesweeper-newbest-burst {
+  0% { opacity: 0; transform: scale(0.3) rotate(-10deg); }
+  60% { transform: scale(1.15) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+@keyframes minesweeper-newbest-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(251,191,36,0.15); }
+  50% { box-shadow: 0 0 32px rgba(251,191,36,0.35), 0 0 60px rgba(251,191,36,0.1); }
+}
+.minesweeper-sub .game-sub-overlay-btn.primary {
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  color: #fff;
+  box-shadow:
+    0 6px 20px rgba(239,68,68,0.35),
+    0 0 40px rgba(239,68,68,0.1),
+    inset 0 1px 0 rgba(255,255,255,0.15);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.minesweeper-sub .game-sub-overlay-btn.primary:hover {
+  background: linear-gradient(135deg, #f87171, #ef4444);
+  box-shadow:
+    0 8px 28px rgba(239,68,68,0.45),
+    0 0 60px rgba(239,68,68,0.15),
+    inset 0 1px 0 rgba(255,255,255,0.2);
+  transform: scale(1.07) translateY(-2px);
+}
+.minesweeper-sub .game-sub-overlay-btn.primary:active {
+  transform: scale(0.97);
+  box-shadow: 0 2px 8px rgba(239,68,68,0.3);
+}
+
+/* ── Screen Shake on Loss ── */
+.minesweeper-sub .minesweeper-board.shake {
+  animation: minesweeper-screen-shake 0.4s ease-out;
+}
+@keyframes minesweeper-screen-shake {
+  0%, 100% { transform: translate(0, 0); }
+  10% { transform: translate(-4px, 2px); }
+  20% { transform: translate(4px, -2px); }
+  30% { transform: translate(-3px, 1px); }
+  40% { transform: translate(3px, -1px); }
+  50% { transform: translate(-2px, 1px); }
+  60% { transform: translate(2px, 0); }
+}
+
+/* ── Red Flash on Loss ── */
+.minesweeper-sub .minesweeper-flash-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(239,68,68,0.3);
+  z-index: 5;
+  pointer-events: none;
+  border-radius: 20px;
+  animation: minesweeper-red-flash 0.5s ease-out forwards;
+}
+@keyframes minesweeper-red-flash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ── D-Pad: Tactile Buttons ── */
+.minesweeper-sub .game-sub-dpad-btn {
+  border-color: rgba(239,68,68,0.2);
+  color: #ef4444;
+  background: rgba(239,68,68,0.06);
+  box-shadow:
+    0 2px 8px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    inset 0 -2px 0 rgba(0,0,0,0.15);
+  transition: all 0.1s ease;
+}
+.minesweeper-sub .game-sub-dpad-btn:active {
+  background: rgba(239,68,68,0.2);
+  box-shadow:
+    0 0 4px rgba(0,0,0,0.3),
+    inset 0 2px 4px rgba(0,0,0,0.3);
+  transform: scale(0.92);
+}
+
+/* ── Controls Hint ── */
+.minesweeper-sub .game-sub-controls {
+  color: rgba(239,68,68,0.35);
+  letter-spacing: 1.5px;
+  font-size: 12px;
+}
+
+/* ── Back Button ── */
+.minesweeper-sub .game-sub-back {
+  border-color: rgba(239,68,68,0.15);
+  color: rgba(239,68,68,0.6);
+  transition: all 0.25s ease;
+}
+.minesweeper-sub .game-sub-back:hover {
+  border-color: rgba(239,68,68,0.35);
+  color: #ef4444;
+  box-shadow: 0 4px 16px rgba(239,68,68,0.1);
+}
+`}</style>
 
       {/* Hero Section */}
       <div className="game-sub-hero">
@@ -436,10 +751,10 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
         <div className="game-sub-hero-glow" />
       </div>
 
-      {/* Difficulty Pills */}
+      {/* Difficulty Pills: Carved Stone Buttons */}
       <div style={{display:'flex',gap:'8px',justifyContent:'center',flexWrap:'wrap',marginBottom:'8px'}}>
         {(Object.keys(DIFFICULTY_CONFIG) as Difficulty[]).map(diff => (
-          <button key={diff} onClick={() => startGame(diff)} style={{padding:'6px 14px',borderRadius:'20px',border: diff === difficulty ? '1px solid #ef4444' : '1px solid rgba(239,68,68,0.25)',background: diff === difficulty ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.05)',color: diff === difficulty ? '#ef4444' : 'var(--text-muted)',cursor:'pointer',fontSize:'13px',fontWeight: diff === difficulty ? 600 : 400,transition:'all 0.2s'}}>
+          <button key={diff} onClick={() => startGame(diff)} className={`game-sub-diff-pill${diff === difficulty ? ' active' : ''}`} style={{padding:'7px 16px',borderRadius:'20px',border: diff === difficulty ? '1px solid #ef4444' : '1px solid rgba(239,68,68,0.25)',background: diff === difficulty ? 'rgba(239,68,68,0.18)' : 'rgba(239,68,68,0.05)',color: diff === difficulty ? '#ef4444' : 'var(--text-muted)',cursor:'pointer',fontSize:'13px',fontWeight: diff === difficulty ? 700 : 500,letterSpacing:'0.3px'}}>
             {DIFFICULTY_CONFIG[diff].label}
           </button>
         ))}
@@ -463,7 +778,8 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
           </div>
 
           <div className="game-sub-canvas-wrap">
-            <div className={`minesweeper-board ${gameState}`} style={{padding:'12px'}}>
+            <div className={`minesweeper-board ${gameState}${isShaking ? ' shake' : ''}`} style={{padding:'12px'}}>
+              {showFlash && <div className="minesweeper-flash-overlay" />}
               {board.map((row, ri) => (
                 <div key={ri} className="minesweeper-row">
                   {row.map((tile, ci) => (
@@ -497,11 +813,12 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
             {gameState === 'lost' && (
               <div className="game-sub-overlay">
                 <div className="game-sub-overlay-card">
-                  <div style={{fontSize:'48px'}}>💥</div>
-                  <div className="game-sub-overlay-title">Boom!</div>
+                  <div style={{fontSize:'48px',animation:'minesweeper-score-glow 2s ease-in-out infinite'}}>💥</div>
+                  <div className="game-sub-overlay-title loss">Game Over</div>
                   <div className="game-sub-overlay-score">{timer}s</div>
+                  <div className="game-sub-overlay-sub" style={{color:'var(--text-muted)',fontSize:'14px'}}>Better luck next time, soldier</div>
                   <div className="game-sub-overlay-actions">
-                    <button className="game-sub-overlay-btn primary" onClick={() => startGame(difficulty)}>Play Again</button>
+                    <button className="game-sub-overlay-btn primary" onClick={() => startGame(difficulty)}>Try Again</button>
                   </div>
                 </div>
               </div>
@@ -511,11 +828,11 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
             {gameState === 'won' && (
               <div className="game-sub-overlay">
                 <div className="game-sub-overlay-card">
-                  <div style={{fontSize:'48px'}}>🎉</div>
-                  <div className="game-sub-overlay-title">Cleared!</div>
-                  <div className="game-sub-overlay-score">{timer}s</div>
+                  <div style={{fontSize:'48px',animation:'minesweeper-win-score-glow 2s ease-in-out infinite'}}>🎉</div>
+                  <div className="game-sub-overlay-title">Field Cleared!</div>
+                  <div className="game-sub-overlay-win-score" style={{fontSize:'64px',fontWeight:950,fontVariantNumeric:'tabular-nums',lineHeight:1,letterSpacing:'-1px'}}>{timer}s</div>
                   {bestTimes[difficulty] === timer && (
-                    <div className="game-sub-overlay-newbest">🏆 New Best!</div>
+                    <div className="game-sub-overlay-newbest">🏆 New Best Time!</div>
                   )}
                   <div className="game-sub-overlay-actions">
                     <button className="game-sub-overlay-btn primary" onClick={() => startGame(difficulty)}>Play Again</button>
