@@ -832,8 +832,7 @@
   border: 1px solid var(--border);
   border-radius: 16px;
   transition: filter 0.5s;
-  width: 100%;
-  max-width: 480px;
+  width: fit-content;
   margin: 0 auto;
 }
 
