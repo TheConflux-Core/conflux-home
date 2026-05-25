@@ -1371,7 +1371,10 @@ const [activeSnake, setActiveSnake] = useState(false);
               </div>
             </div>
           )}
-          {immersiveView === 'games' && <GamesPage onBack={() => setImmersiveView(null)} />}
+          {immersiveView === 'games' && <GamesPage onBack={() => {
+            window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: 'dashboard' }));
+            setImmersiveView(null);
+          }} />}
           {immersiveView === 'story' && activeMinesweeper && (
             <MinesweeperGame onBack={closeGame} />
           )}
