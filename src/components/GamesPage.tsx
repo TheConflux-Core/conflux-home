@@ -246,7 +246,7 @@ const HERO_CTA_STYLE = {
 const GRID_STYLE_CSS = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-  gap: '24px',
+  gap: '12px',
   marginBottom: '48px',
 };
 
@@ -431,6 +431,7 @@ export default function GamesPage({
                 style={{
                   position: 'relative' as const,
                   borderRadius: '20px',
+                  minHeight: '150px',
                   padding: '32px 24px',
                   background: accent.gradient,
                   border: `1px solid ${isHovered ? accent.border.replace('0.3', '0.6') : accent.border}`,
