@@ -30,7 +30,9 @@
 
 /* ── Root Container ── */
 .games-page {
-  position: relative;
+  position: fixed;
+  inset: 0;
+  z-index: 1;
   min-height: 100vh;
   width: 100%;
   overflow: hidden;
@@ -39,6 +41,14 @@
   background: linear-gradient(160deg, var(--games-bg-deep) 0%, var(--games-bg-warm) 100%);
   font-family: 'system-ui', -apple-system, sans-serif;
   color: var(--games-text);
+
+  /* Force dark background — override any light-mode globals */
+  --bg-primary: #0d0d12;
+  --bg-secondary: #161020;
+  --bg-card: #161020;
+  --text-primary: #fff8f0;
+  --text-secondary: #8a7a6a;
+  --border: rgba(255, 255, 255, 0.07);
 }
 
 /* ── Ember Particle System ── */
