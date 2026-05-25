@@ -596,7 +596,7 @@ export default function NaniSolitaireGame({ onBack }: NaniSolitaireGameProps) {
               <span className="nani-card-suit">{currentCard.suit}</span>
             </div>
           ) : (
-            <span className="nani-discard-placeholder">
+            <span className="nani-discard-placeholder" style={{ color: '#3b1f1b' }}>
               {phase === 'pairing' ? 'Pairing…' : 'Draw'}
             </span>
           )}
@@ -610,7 +610,7 @@ export default function NaniSolitaireGame({ onBack }: NaniSolitaireGameProps) {
               <span className="nani-card-suit">{discardPile[discardPile.length - 1].suit}</span>
             </div>
           ) : (
-            <span className="nani-discard-placeholder">Empty</span>
+            <span className="nani-discard-placeholder" style={{ color: '#3b1f1b' }}>Empty</span>
           )}
           <span className="nani-pile-label">Discard</span>
         </div>
