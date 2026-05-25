@@ -374,6 +374,11 @@ export default function JohnnySolitaireGame({ onBack }: JohnnySolitaireGameProps
                       <div className="johnny-card-back-pattern" />
                     </div>
                   )}
+                  {rowIdx < col.length - 1 && (
+                    <span className={`johnny-card-suit-edge ${card.isRed ? 'red' : 'black'}`}>
+                      {card.suit}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
