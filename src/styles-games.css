@@ -925,9 +925,7 @@
 }
 
 .tile-flagged::after {
-  content: '🚩';
-  font-size: 16px;
-  animation: flag-wave 2s ease-in-out infinite, flag-place 0.3s ease-out;
+  display: none;
 }
 
 @keyframes flag-wave {
