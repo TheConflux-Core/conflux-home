@@ -95,6 +95,7 @@ const VIEW_BACKGROUNDS: Record<string, string> = {
   horizon: '/backgrounds/dreams-bg.webp',
   family: '/backgrounds/agents-bg.webp',
   story: '/backgrounds/games-bg.webp',
+  games: '/backgrounds/games-bg.webp',
   current: '/backgrounds/feed-bg.webp',
   marketplace: '/backgrounds/marketplace-bg.webp',
   mirror: '/backgrounds/echo-bg.webp',

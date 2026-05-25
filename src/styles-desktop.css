@@ -108,6 +108,8 @@
   animation: immersive-enter 0.3s ease-out forwards;
   overflow-y: auto;
   overflow-x: hidden;
+  /* Fallback background if no image provided */
+  background: #0a0a12;
 }
 
 .immersive-overlay.immersive-exiting {
@@ -121,6 +123,8 @@
   background-position: center;
   background-repeat: no-repeat;
   z-index: 0;
+  /* Fallback if image fails to load */
+  background-color: #0a0a12;
 }
 
 .immersive-gradient {
