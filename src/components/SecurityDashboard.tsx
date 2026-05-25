@@ -11,6 +11,9 @@ import SecurityWelcome from './SecurityWelcome';
 import SecurityTour from './SecurityTour';
 import { hasCompletedSecurityWelcome } from './SecurityWelcome';
 import { hasCompletedSecurityTour } from './SecurityTour';
+import type { QuarantineStatus, QuarantineEvent } from '../gateway-client/security';
+import { getAllQuarantined, getQuarantineHistory, quarantineEscalate, quarantineRelease, networkScan, networkGetDevices, networkGetMap, networkRenameDevice, networkMarkKnown, networkDeleteDevice, networkGetEvents } from '../gateway-client/security';
+import type { NetworkDevice, NetworkScanResult, NetworkMapData, NetworkEvent } from '../gateway-client/security';
 
 // ── Timeout wrapper ──────────────────────────────────────────────
 function invokeTimeout<T>(cmd: string, args?: Record<string, unknown>, ms = 6000): Promise<T> {
@@ -304,7 +307,7 @@ function MiniRing({ score, size = 60, color, label }: {
 }
 
 // ── Tab Type ─────────────────────────────────────────────────────
-type TabKey = 'overview' | 'aegis' | 'viper' | 'watchtower' | 'activity' | 'permissions' | 'pending';
+type TabKey = 'overview' | 'aegis' | 'viper' | 'watchtower' | 'sentinel' | 'network' | 'activity' | 'permissions' | 'pending';
 
 // ── Main Component ───────────────────────────────────────────────
 export default function SecurityDashboard() {
@@ -328,6 +331,16 @@ export default function SecurityDashboard() {
   const [viperScans, setViperScans] = useState<VulnScan[]>([]);
   const [viperFindings, setViperFindings] = useState<VulnFinding[]>([]);
   const [alerts, setAlerts] = useState<SiemAlert[]>([]);
+  const [quarantined, setQuarantined] = useState<QuarantineStatus[]>([]);
+  const [quarantineHistory, setQuarantineHistory] = useState<QuarantineEvent[]>([]);
+
+  // ── Network Discovery (Phase 9) ──
+  const [networkDevices, setNetworkDevices] = useState<NetworkDevice[]>([]);
+  const [networkMap, setNetworkMap] = useState<NetworkMapData | null>(null);
+  const [networkEvents, setNetworkEvents] = useState<NetworkEvent[]>([]);
+  const [networkScanning, setNetworkScanning] = useState(false);
+  const [networkEditing, setNetworkEditing] = useState<string | null>(null);
+  const [networkNickname, setNetworkNickname] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -346,13 +359,18 @@ export default function SecurityDashboard() {
   // ── Load All Data ──
   const load = useCallback(async () => {
     try {
-      const [ev, pr, ov, aRuns, vScans, aAlerts] = await Promise.all([
+      const [ev, pr, ov, aRuns, vScans, aAlerts, qAll, qHistory, netDevices, netMap, netEvents] = await Promise.all([
         invokeTimeout<SecurityEvent[]>('security_get_events', { limit: 30 }).catch(() => [] as SecurityEvent[]),
         invokeTimeout<PermissionPrompt[]>('security_get_pending_prompts', {}).catch(() => [] as PermissionPrompt[]),
         invokeTimeout<RiskOverview>('siem_get_risk_overview').catch(() => null as RiskOverview | null),
         invokeTimeout<AuditRun[]>('aegis_get_runs', { limit: 10 }).catch(() => [] as AuditRun[]),
         invokeTimeout<VulnScan[]>('viper_get_scans', { limit: 10 }).catch(() => [] as VulnScan[]),
         invokeTimeout<SiemAlert[]>('siem_get_alerts', { status: null, limit: 30 }).catch(() => [] as SiemAlert[]),
+        getAllQuarantined().catch(() => [] as QuarantineStatus[]),
+        getQuarantineHistory(undefined, 50).catch(() => [] as QuarantineEvent[]),
+        networkGetDevices().catch(() => [] as NetworkDevice[]),
+        networkGetMap().catch(() => null as NetworkMapData | null),
+        networkGetEvents(30).catch(() => [] as NetworkEvent[]),
       ]);
 
       setEvents(ev);
@@ -361,6 +379,11 @@ export default function SecurityDashboard() {
       setAegisRuns(aRuns);
       setViperScans(vScans);
       setAlerts(aAlerts);
+      setQuarantined(qAll);
+      setQuarantineHistory(qHistory);
+      setNetworkDevices(netDevices);
+      setNetworkMap(netMap);
+      setNetworkEvents(netEvents);
 
       // Auto-select latest run/scan
       if (aRuns.length > 0 && !selectedAegisRun) setSelectedAegisRun(aRuns[0]);
@@ -694,6 +717,8 @@ export default function SecurityDashboard() {
             { key: 'aegis', label: '🛡️ Aegis', count: latestAegis?.overall_score ?? null },
             { key: 'viper', label: '🐍 Viper', count: latestViper?.risk_score ?? null },
             { key: 'watchtower', label: '👁️ Watchtower', count: activeAlerts.length },
+            { key: 'sentinel', label: '⚔️ Sentinel', count: quarantined.length },
+            { key: 'network', label: '🌐 Network', count: networkDevices.filter(d => d.is_online).length },
             { key: 'activity', label: '📋 Activity', count: events.length },
             { key: 'permissions', label: '🔐 Permissions', count: Object.keys(profiles).length },
             { key: 'pending', label: '🔔 Pending', count: pendingCount },
@@ -772,6 +797,96 @@ export default function SecurityDashboard() {
                   const freshAlerts = await invokeTimeout<SiemAlert[]>('siem_get_alerts', { status: null, limit: 30 });
                   setAlerts(freshAlerts);
                 } catch (err) { console.error('[SIEM] Correlation failed:', err); }
+              }}
+            />
+          )}
+
+          {/* ══ Sentinel Tab ══ */}
+          {activeTab === 'sentinel' && (
+            <SentinelTab
+              quarantined={quarantined}
+              history={quarantineHistory}
+              onEscalate={async (agentId, level, reason) => {
+                await quarantineEscalate(agentId, level, reason);
+                const [qAll, qHist] = await Promise.all([
+                  getAllQuarantined().catch(() => []),
+                  getQuarantineHistory(undefined, 50).catch(() => []),
+                ]);
+                setQuarantined(qAll);
+                setQuarantineHistory(qHist);
+              }}
+              onRelease={async (agentId) => {
+                await quarantineRelease(agentId);
+                const [qAll, qHist] = await Promise.all([
+                  getAllQuarantined().catch(() => []),
+                  getQuarantineHistory(undefined, 50).catch(() => []),
+                ]);
+                setQuarantined(qAll);
+                setQuarantineHistory(qHist);
+              }}
+              onRunAutoEscalation={async () => {
+                await invokeTimeout('quarantine_run_auto_escalation');
+                const [qAll, qHist] = await Promise.all([
+                  getAllQuarantined().catch(() => []),
+                  getQuarantineHistory(undefined, 50).catch(() => []),
+                ]);
+                setQuarantined(qAll);
+                setQuarantineHistory(qHist);
+              }}
+            />
+          )}
+
+          {/* ══ Network Map Tab ══ */}
+          {activeTab === 'network' && (
+            <NetworkMapTab
+              devices={networkDevices}
+              networkMap={networkMap}
+              events={networkEvents}
+              scanning={networkScanning}
+              editingId={networkEditing}
+              nickname={networkNickname}
+              onScan={async () => {
+                setNetworkScanning(true);
+                try {
+                  const [result, devs, nMap, nEv] = await Promise.all([
+                    networkScan().catch(() => null),
+                    networkGetDevices().catch(() => [] as NetworkDevice[]),
+                    networkGetMap().catch(() => null),
+                    networkGetEvents(30).catch(() => [] as NetworkEvent[]),
+                  ]);
+                  setNetworkDevices(devs);
+                  setNetworkMap(nMap);
+                  setNetworkEvents(nEv);
+                } finally {
+                  setNetworkScanning(false);
+                }
+              }}
+              onRename={(deviceId: string) => {
+                setNetworkEditing(deviceId);
+                const dev = networkDevices.find(d => d.id === deviceId);
+                setNetworkNickname(dev?.nickname || '');
+              }}
+              onRenameSave={async (deviceId: string) => {
+                await networkRenameDevice(deviceId, networkNickname);
+                const devs = await networkGetDevices().catch(() => [] as NetworkDevice[]);
+                setNetworkDevices(devs);
+                setNetworkEditing(null);
+                setNetworkNickname('');
+              }}
+              onRenameCancel={() => {
+                setNetworkEditing(null);
+                setNetworkNickname('');
+              }}
+              onNicknameChange={setNetworkNickname}
+              onMarkKnown={async (deviceId: string) => {
+                await networkMarkKnown(deviceId);
+                const devs = await networkGetDevices().catch(() => [] as NetworkDevice[]);
+                setNetworkDevices(devs);
+              }}
+              onDelete={async (deviceId: string) => {
+                await networkDeleteDevice(deviceId);
+                const devs = await networkGetDevices().catch(() => [] as NetworkDevice[]);
+                setNetworkDevices(devs);
               }}
             />
           )}
@@ -1257,66 +1372,547 @@ function WatchtowerTab({ alerts, onAlertAction, onRunCorrelation }: {
   onAlertAction: (id: string, action: 'acknowledge' | 'resolve' | 'dismiss') => void;
   onRunCorrelation: () => void;
 }) {
-  const activeAlerts = alerts.filter(a => a.status !== 'dismissed' && a.status !== 'resolved');
+  const [status, setStatus] = useState<any>(null);
+  const [events, setEvents] = useState<any[]>([]);
+  const [processes, setProcesses] = useState<any[]>([]);
+  const [connections, setConnections] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [scanResult, setScanResult] = useState<string | null>(null);
+  const [panel, setPanel] = useState<'files' | 'processes' | 'network'>('files');
+  const [filterSuspicious, setFilterSuspicious] = useState(false);
+
+  const loadStatus = useCallback(async () => {
+    try {
+      const s = await invokeTimeout<any>('watchtower_get_status');
+      setStatus(s);
+    } catch (err) { console.error('[Watchtower] status failed:', err); }
+  }, []);
+
+  const loadEvents = useCallback(async () => {
+    try {
+      const evts = await invokeTimeout<any[]>('watchtower_get_events', { severity: null, limit: 50, offset: 0 });
+      setEvents(evts);
+    } catch (err) { console.error('[Watchtower] events failed:', err); }
+  }, []);
+
+  const loadProcesses = useCallback(async () => {
+    try {
+      const procs = await invokeTimeout<any[]>('watchtower_get_processes', { suspicious_only: filterSuspicious });
+      setProcesses(procs);
+    } catch (err) { console.error('[Watchtower] processes failed:', err); }
+  }, [filterSuspicious]);
+
+  const loadConnections = useCallback(async () => {
+    try {
+      const conns = await invokeTimeout<any[]>('watchtower_get_connections', { suspicious_only: filterSuspicious });
+      setConnections(conns);
+    } catch (err) { console.error('[Watchtower] connections failed:', err); }
+  }, [filterSuspicious]);
+
+  useEffect(() => {
+    loadStatus();
+    loadEvents();
+    loadProcesses();
+    loadConnections();
+  }, [loadStatus, loadEvents, loadProcesses, loadConnections]);
+
+  const handleFullScan = async () => {
+    setLoading(true);
+    setScanResult(null);
+    try {
+      const result = await invokeTimeout<any>('watchtower_scan');
+      setScanResult(`Scanned ${result.files_scanned} files, ${result.processes_snapshotted} processes, ${result.connections_tracked} connections`);
+      await loadStatus();
+      await loadEvents();
+      await loadProcesses();
+      await loadConnections();
+    } catch (err) {
+      setScanResult(`Scan failed: ${err}`);
+    }
+    setLoading(false);
+  };
+
+  const handleKillProcess = async (pid: number, name: string) => {
+    if (!confirm(`Kill process "${name}" (PID ${pid})? This cannot be undone.`)) return;
+    try {
+      await invokeTimeout<boolean>('watchtower_kill_process', { pid });
+      await loadProcesses();
+    } catch (err) { console.error('[Watchtower] kill failed:', err); }
+  };
+
+  const threatColor = status?.threat_level === 'critical' ? '#ef4444'
+    : status?.threat_level === 'warning' ? '#f59e0b'
+    : status?.threat_level === 'elevated' ? '#3b82f6' : '#22c55e';
+
+  return (
+    <div>
+      {/* ── Hero Status Bar ── */}
+      <div className="sec-section" style={{
+        background: 'linear-gradient(135deg, #0a1628 0%, #0f1d32 100%)',
+        border: `1px solid ${threatColor}30`,
+        padding: 20,
+        marginBottom: 16,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {/* Live Pulse Indicator */}
+            <div style={{ position: 'relative', width: 14, height: 14 }}>
+              <div style={{
+                position: 'absolute', inset: 0, borderRadius: '50%',
+                background: threatColor,
+                animation: 'pulse 2s ease-in-out infinite',
+              }} />
+              <div style={{
+                position: 'absolute', inset: -4, borderRadius: '50%',
+                background: `${threatColor}30`,
+                animation: 'pulse 2s ease-in-out infinite',
+              }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#f1f5f9', letterSpacing: '0.02em' }}>
+                👁️ Watchtower — Continuous Monitoring
+              </div>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                Threat Level: <span style={{ color: threatColor, fontWeight: 700, textTransform: 'uppercase' }}>
+                  {status?.threat_level || 'unknown'}
+                </span>
+                {status && (
+                  <span style={{ marginLeft: 16 }}>
+                    {status.event_count_24h} events (24h) · {status.baseline_count} baselines · {status.process_count} processes · {status.connection_count} connections
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="sec-btn" onClick={handleFullScan} disabled={loading} style={{
+              background: loading ? '#1e293b' : '#3b82f620',
+              border: `1px solid ${loading ? '#334155' : '#3b82f640'}`,
+              color: loading ? '#64748b' : '#3b82f6',
+            }}>
+              {loading ? '⏳ Scanning...' : '🔄 Full Scan'}
+            </button>
+            <button className="sec-btn" onClick={onRunCorrelation} style={{
+              background: '#6366f120',
+              border: '1px solid #6366f140',
+              color: '#6366f1',
+            }}>
+              🔗 Correlate
+            </button>
+          </div>
+        </div>
+        {scanResult && (
+          <div style={{
+            marginTop: 12, padding: '8px 12px', borderRadius: 6,
+            background: '#22c55e10', border: '1px solid #22c55e30',
+            fontSize: 12, color: '#22c55e',
+          }}>
+            ✅ {scanResult}
+          </div>
+        )}
+      </div>
+
+      {/* ── Panel Selector ── */}
+      <div className="sec-section" style={{ padding: 0, marginBottom: 16 }}>
+        <div style={{ display: 'flex', borderBottom: '1px solid #1e293b' }}>
+          {[
+            { key: 'files' as const, label: '📁 File System', count: events.length },
+            { key: 'processes' as const, label: '⚡ Processes', count: processes.length },
+            { key: 'network' as const, label: '🌐 Network', count: connections.length },
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setPanel(tab.key)}
+              style={{
+                flex: 1, padding: '12px 16px', border: 'none', cursor: 'pointer',
+                background: panel === tab.key ? '#1e293b' : 'transparent',
+                borderBottom: panel === tab.key ? '2px solid #3b82f6' : '2px solid transparent',
+                color: panel === tab.key ? '#f1f5f9' : '#64748b',
+                fontSize: 13, fontWeight: 600, transition: 'all 0.15s',
+              }}
+            >
+              {tab.label}
+              <span style={{
+                marginLeft: 8, fontSize: 11, padding: '1px 6px', borderRadius: 10,
+                background: panel === tab.key ? '#3b82f620' : '#1e293b',
+                color: panel === tab.key ? '#3b82f6' : '#64748b',
+              }}>{tab.count}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Suspicious filter toggle */}
+        <div style={{ padding: '8px 16px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: '#94a3b8' }}>
+            <input type="checkbox" checked={filterSuspicious}
+              onChange={(e) => {
+                setFilterSuspicious(e.target.checked);
+                if (panel === 'processes') loadProcesses();
+                if (panel === 'network') loadConnections();
+              }}
+              style={{ accentColor: '#ef4444' }}
+            />
+            ⚠️ Suspicious only
+          </label>
+        </div>
+
+        {/* ── File System Panel ── */}
+        {panel === 'files' && (
+          <div style={{ padding: 16 }}>
+            {events.length === 0 ? (
+              <div className="sec-empty">
+                <span className="sec-empty-icon">📁</span>
+                <h3 className="sec-empty-title">No File Events</h3>
+                <p className="sec-empty-text">Run a scan to build baselines and detect file changes.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {events.map(evt => {
+                  const sevColor = evt.severity === 'critical' ? '#ef4444' : evt.severity === 'warning' ? '#f59e0b' : '#3b82f6';
+                  const sevBg = evt.severity === 'critical' ? '#ef444415' : evt.severity === 'warning' ? '#f59e0b15' : '#3b82f615';
+                  const typeIcon = evt.event_type === 'created' ? '📄' : evt.event_type === 'modified' ? '✏️' : evt.event_type === 'deleted' ? '🗑️' : '🔧';
+                  return (
+                    <div key={evt.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                      borderRadius: 6, background: sevBg, border: `1px solid ${sevColor}20`,
+                      fontSize: 12,
+                    }}>
+                      <span style={{ fontSize: 14 }}>{typeIcon}</span>
+                      <span style={{
+                        padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700,
+                        background: `${sevColor}20`, color: sevColor, textTransform: 'uppercase',
+                      }}>{evt.severity}</span>
+                      <span style={{ color: '#f1f5f9', fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                        {evt.file_path}
+                      </span>
+                      <span style={{ color: '#64748b', fontSize: 11, whiteSpace: 'nowrap' as const }}>
+                        {formatAge(evt.created_at)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Processes Panel ── */}
+        {panel === 'processes' && (
+          <div style={{ padding: 16 }}>
+            {processes.length === 0 ? (
+              <div className="sec-empty">
+                <span className="sec-empty-icon">⚡</span>
+                <h3 className="sec-empty-title">No Process Data</h3>
+                <p className="sec-empty-text">Run a scan to snapshot your running processes.</p>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #1e293b' }}>
+                      <th style={{ textAlign: 'left', padding: '8px 6px', color: '#64748b', fontWeight: 600 }}>Process</th>
+                      <th style={{ textAlign: 'left', padding: '8px 6px', color: '#64748b', fontWeight: 600 }}>PID</th>
+                      <th style={{ textAlign: 'right', padding: '8px 6px', color: '#64748b', fontWeight: 600 }}>CPU %</th>
+                      <th style={{ textAlign: 'right', padding: '8px 6px', color: '#64748b', fontWeight: 600 }}>Mem MB</th>
+                      <th style={{ textAlign: 'left', padding: '8px 6px', color: '#64748b', fontWeight: 600 }}>Path</th>
+                      <th style={{ textAlign: 'center', padding: '8px 6px', color: '#64748b', fontWeight: 600 }}>Risk</th>
+                      <th style={{ padding: '8px 6px' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {processes.map(proc => (
+                      <tr key={proc.id} style={{
+                        borderBottom: '1px solid #1e293b',
+                        background: proc.is_suspicious ? '#ef444410' : 'transparent',
+                      }}>
+                        <td style={{ padding: '6px', color: '#f1f5f9', fontWeight: 600 }}>{proc.name}</td>
+                        <td style={{ padding: '6px', color: '#94a3b8', fontFamily: 'monospace' }}>{proc.pid}</td>
+                        <td style={{ padding: '6px', textAlign: 'right', color: proc.cpu_percent > 50 ? '#f59e0b' : '#94a3b8', fontFamily: 'monospace' }}>
+                          {proc.cpu_percent?.toFixed(1)}
+                        </td>
+                        <td style={{ padding: '6px', textAlign: 'right', color: '#94a3b8', fontFamily: 'monospace' }}>
+                          {proc.memory_mb?.toFixed(1)}
+                        </td>
+                        <td style={{ padding: '6px', color: '#64748b', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                          {proc.exe_path || '—'}
+                        </td>
+                        <td style={{ padding: '6px', textAlign: 'center' }}>
+                          {proc.is_suspicious ? (
+                            <span style={{
+                              padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700,
+                              background: '#ef444420', color: '#ef4444',
+                            }} title={proc.suspicion_reason}>⚠️ SUS</span>
+                          ) : (
+                            <span style={{ color: '#22c55e', fontSize: 14 }}>✓</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '6px' }}>
+                          {proc.is_suspicious && (
+                            <button
+                              onClick={() => handleKillProcess(proc.pid, proc.name)}
+                              style={{
+                                padding: '2px 8px', borderRadius: 4, border: '1px solid #ef444440',
+                                background: '#ef444415', color: '#ef4444', fontSize: 11,
+                                cursor: 'pointer', fontWeight: 600,
+                              }}
+                            >
+                              Kill
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Network Panel ── */}
+        {panel === 'network' && (
+          <div style={{ padding: 16 }}>
+            {connections.length === 0 ? (
+              <div className="sec-empty">
+                <span className="sec-empty-icon">🌐</span>
+                <h3 className="sec-empty-title">No Connection Data</h3>
+                <p className="sec-empty-text">Run a scan to snapshot active network connections.</p>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #1e293b' }}>
+                      <th style={{ textAlign: 'left', padding: '8px 6px', color: '#64748b', fontWeight: 600 }}>Local</th>
+                      <th style={{ textAlign: 'left', padding: '8px 6px', color: '#64748b', fontWeight: 600 }}>Remote</th>
+                      <th style={{ textAlign: 'left', padding: '8px 6px', color: '#64748b', fontWeight: 600 }}>Protocol</th>
+                      <th style={{ textAlign: 'left', padding: '8px 6px', color: '#64748b', fontWeight: 600 }}>Process</th>
+                      <th style={{ textAlign: 'center', padding: '8px 6px', color: '#64748b', fontWeight: 600 }}>Risk</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {connections.map(conn => (
+                      <tr key={conn.id} style={{
+                        borderBottom: '1px solid #1e293b',
+                        background: conn.is_suspicious ? '#ef444410' : 'transparent',
+                      }}>
+                        <td style={{ padding: '6px', color: '#94a3b8', fontFamily: 'monospace' }}>
+                          {conn.local_addr}:{conn.local_port}
+                        </td>
+                        <td style={{ padding: '6px', color: '#f1f5f9', fontFamily: 'monospace' }}>
+                          {conn.remote_addr && conn.remote_addr !== '0.0.0.0'
+                            ? `${conn.remote_addr}:${conn.remote_port}`
+                            : '— (listening)'}
+                        </td>
+                        <td style={{ padding: '6px', color: '#94a3b8', textTransform: 'uppercase' as const, fontSize: 11 }}>
+                          {conn.protocol}
+                        </td>
+                        <td style={{ padding: '6px', color: '#94a3b8' }}>
+                          {conn.process_name || `PID ${conn.pid || '?'}`}
+                        </td>
+                        <td style={{ padding: '6px', textAlign: 'center' }}>
+                          {conn.is_suspicious ? (
+                            <span style={{
+                              padding: '2px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700,
+                              background: '#ef444420', color: '#ef4444',
+                            }} title={conn.suspicion_reason}>⚠️ SUS</span>
+                          ) : (
+                            <span style={{ color: '#22c55e', fontSize: 14 }}>✓</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── SIEM Alerts (existing) ── */}
+      <div className="sec-section">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h3 className="sec-section-title" style={{ marginBottom: 2 }}>🔗 SIEM Correlated Alerts</h3>
+            <p className="sec-section-sub">Cross-system pattern detection</p>
+          </div>
+        </div>
+        {alerts.filter(a => a.status !== 'dismissed' && a.status !== 'resolved').length === 0 ? (
+          <div className="sec-empty">
+            <span className="sec-empty-icon">✨</span>
+            <h3 className="sec-empty-title">No Active Alerts</h3>
+            <p className="sec-empty-text">Correlation engine is watching. Alerts appear when cross-system patterns are detected.</p>
+          </div>
+        ) : (
+          <div>
+            {alerts.filter(a => a.status !== 'dismissed' && a.status !== 'resolved').map(alert => {
+              const sm = severityMeta(alert.severity);
+              return (
+                <div key={alert.id} className="sec-alert-card" style={{ borderLeftColor: sm.color, opacity: alert.status === 'acknowledged' ? 0.7 : 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <span style={{ fontSize: 20 }}>{sm.icon}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' as const }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9' }}>{alert.title}</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: sm.bg, color: sm.color, textTransform: 'uppercase' }}>
+                          {alert.severity}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6, lineHeight: 1.5 }}>
+                        {truncate(alert.description, 200)}
+                      </div>
+                    </div>
+                    <div className="sec-alert-actions">
+                      {alert.status === 'active' && (
+                        <button className="sec-alert-btn" onClick={() => onAlertAction(alert.id, 'acknowledge')}>👁️ Ack</button>
+                      )}
+                      <button className="sec-alert-btn sec-alert-btn--resolve" onClick={() => onAlertAction(alert.id, 'resolve')}>✅ Resolve</button>
+                      <button className="sec-alert-btn sec-alert-btn--dismiss" onClick={() => onAlertAction(alert.id, 'dismiss')}>✕</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Security Cron Jobs ── */}
+      <SecurityCronsSection />
+    </div>
+  );
+}
+
+// ── Security Crons Section ──────────────────────────────────────
+function SecurityCronsSection() {
+  const [crons, setCrons] = useState<any[]>([]);
+  const [running, setRunning] = useState<string | null>(null);
+
+  const loadCrons = useCallback(async () => {
+    try {
+      const all = await invokeTimeout<any[]>('engine_get_crons', { enabled_only: false });
+      setCrons(all.filter((c: any) => c.name.startsWith('sec-')));
+    } catch (err) { console.error('[SecurityCrons] load failed:', err); }
+  }, []);
+
+  useEffect(() => { loadCrons(); }, [loadCrons]);
+
+  const handleToggle = async (id: string, enabled: boolean) => {
+    try {
+      await invokeTimeout('engine_toggle_cron', { id, enabled });
+      await loadCrons();
+    } catch (err) { console.error('[SecurityCrons] toggle failed:', err); }
+  };
+
+  const handleRunNow = async (id: string, name: string) => {
+    setRunning(id);
+    try {
+      await invokeTimeout('engine_run_cron_now', { id });
+      await invokeTimeout('engine_tick_cron');
+      await loadCrons();
+    } catch (err) { console.error('[SecurityCrons] run now failed:', err); }
+    setRunning(null);
+  };
+
+  const cronMeta: Record<string, { icon: string; label: string; color: string }> = {
+    'sec-quick-aegis': { icon: '🛡️', label: 'Quick Aegis Audit', color: '#22c55e' },
+    'sec-full-aegis': { icon: '🛡️', label: 'Full Aegis Audit', color: '#22c55e' },
+    'sec-viper-scan': { icon: '🐍', label: 'Viper Vuln Scan', color: '#ef4444' },
+    'sec-watchtower': { icon: '👁️', label: 'Watchtower Check', color: '#3b82f6' },
+    'sec-siem-correlate': { icon: '🔗', label: 'SIEM Correlation', color: '#6366f1' },
+    'sec-agent-audit': { icon: '🤖', label: 'Agent Security Audit', color: '#f59e0b' },
+    'sec-weekly-report': { icon: '📊', label: 'Weekly Report', color: '#8b5cf6' },
+    'sec-baseline-refresh': { icon: '📁', label: 'Baseline Refresh', color: '#06b6d4' },
+  };
+
+  if (crons.length === 0) return null;
 
   return (
     <div className="sec-section">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div>
-          <h3 className="sec-section-title" style={{ marginBottom: 2 }}>👁️ Watchtower — SIEM Alerts</h3>
-          <p className="sec-section-sub">Cross-correlation engine — detects patterns across all security systems</p>
+          <h3 className="sec-section-title" style={{ marginBottom: 2 }}>⏰ Scheduled Security Scans</h3>
+          <p className="sec-section-sub">Automated scans run on schedule via agent heartbeats</p>
         </div>
-        <button className="sec-btn" onClick={onRunCorrelation}>
-          🔗 Run Correlation
+        <button className="sec-btn" onClick={loadCrons} style={{
+          background: '#1e293b', border: '1px solid #334155', color: '#94a3b8',
+        }}>
+          🔄 Refresh
         </button>
       </div>
-
-      {activeAlerts.length === 0 ? (
-        <div className="sec-empty">
-          <span className="sec-empty-icon">✨</span>
-          <h3 className="sec-empty-title">No Active Alerts</h3>
-          <p className="sec-empty-text">Watchtower is monitoring. Alerts will appear here when cross-system patterns are detected.</p>
-        </div>
-      ) : (
-        <div>
-          {activeAlerts.map(alert => {
-            const sm = severityMeta(alert.severity);
-            return (
-              <div key={alert.id} className="sec-alert-card" style={{ borderLeftColor: sm.color, opacity: alert.status === 'acknowledged' ? 0.7 : 1 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                  <span style={{ fontSize: 20 }}>{sm.icon}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' as const }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9' }}>{alert.title}</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: sm.bg, color: sm.color, textTransform: 'uppercase' }}>
-                        {alert.severity}
-                      </span>
-                      {alert.status === 'acknowledged' && (
-                        <span style={{ fontSize: 10, color: '#3b82f6', fontWeight: 600 }}>ACKNOWLEDGED</span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6, lineHeight: 1.5 }}>
-                      {truncate(alert.description, 200)}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' as const }}>
-                      <span style={{ fontSize: 11, color: '#475569' }}>Source: {alert.source}</span>
-                      {alert.agent_id && <span style={{ fontSize: 11, color: '#6366f1' }}>Agent: {alert.agent_id}</span>}
-                      <span style={{ fontSize: 11, color: '#475569' }}>{formatAge(alert.created_at)}</span>
-                    </div>
-                  </div>
-                  <div className="sec-alert-actions">
-                    {alert.status === 'active' && (
-                      <button className="sec-alert-btn" onClick={() => onAlertAction(alert.id, 'acknowledge')}>👁️ Ack</button>
-                    )}
-                    <button className="sec-alert-btn sec-alert-btn--resolve" onClick={() => onAlertAction(alert.id, 'resolve')}>✅ Resolve</button>
-                    <button className="sec-alert-btn sec-alert-btn--dismiss" onClick={() => onAlertAction(alert.id, 'dismiss')}>✕</button>
-                  </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {crons.map(cron => {
+          const meta = cronMeta[cron.name] || { icon: '⚙️', label: cron.name, color: '#64748b' };
+          const isRunning = running === cron.id;
+          return (
+            <div key={cron.id} style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+              borderRadius: 8, background: cron.is_enabled ? '#0f1d3200' : '#0f1d3250',
+              border: `1px solid ${cron.is_enabled ? '#1e293b' : '#1e293b80'}`,
+              opacity: cron.is_enabled ? 1 : 0.5,
+            }}>
+              <span style={{ fontSize: 18 }}>{meta.icon}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9' }}>{meta.label}</span>
+                  <span style={{
+                    fontSize: 10, padding: '1px 6px', borderRadius: 4,
+                    background: `${meta.color}15`, color: meta.color, fontWeight: 600,
+                  }}>
+                    {cron.schedule_description || cron.schedule}
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
+                  {cron.last_run_at
+                    ? `Last run: ${formatAge(cron.last_run_at)} · ${cron.run_count} total runs`
+                    : 'Never run'}
+                  {cron.next_run_at && (
+                    <span style={{ marginLeft: 12 }}>Next: {formatAge(cron.next_run_at)}</span>
+                  )}
+                  {cron.error_count > 0 && (
+                    <span style={{ marginLeft: 12, color: '#ef4444' }}>{cron.error_count} errors</span>
+                  )}
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <button
+                  onClick={() => handleRunNow(cron.id, cron.name)}
+                  disabled={isRunning}
+                  style={{
+                    padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                    border: `1px solid ${isRunning ? '#334155' : '#3b82f640'}`,
+                    background: isRunning ? '#1e293b' : '#3b82f615',
+                    color: isRunning ? '#64748b' : '#3b82f6',
+                    cursor: isRunning ? 'wait' : 'pointer',
+                  }}
+                >
+                  {isRunning ? '⏳ Running...' : '▶️ Run Now'}
+                </button>
+                <label style={{ position: 'relative', display: 'inline-block', width: 36, height: 20, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={cron.is_enabled}
+                    onChange={(e) => handleToggle(cron.id, e.target.checked)}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
+                  <span style={{
+                    position: 'absolute', inset: 0, borderRadius: 10,
+                    background: cron.is_enabled ? '#3b82f6' : '#334155',
+                    transition: 'background 0.2s',
+                  }}>
+                    <span style={{
+                      position: 'absolute', top: 2, left: cron.is_enabled ? 18 : 2,
+                      width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                      transition: 'left 0.2s',
+                    }} />
+                  </span>
+                </label>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1473,6 +2069,585 @@ function PendingTab({ prompts, onPrompt }: {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── Sentinel Tab (Quarantine) ─────────────────────────────────────
+const QUARANTINE_LEVELS = [
+  { level: 0, name: 'Normal', emoji: '🟢', color: '#22c55e', desc: 'Full access per security profile' },
+  { level: 1, name: 'Watched', emoji: '🟡', color: '#f59e0b', desc: 'Increased logging, lower anomaly threshold' },
+  { level: 2, name: 'Restricted', emoji: '🟠', color: '#f97316', desc: 'Read-only files, no exec, no network' },
+  { level: 3, name: 'Suspended', emoji: '🔴', color: '#ef4444', desc: 'Agent not responding to messages' },
+  { level: 4, name: 'Frozen', emoji: '⛔', color: '#dc2626', desc: 'Agent process paused, all resources held' },
+];
+
+// ── Device Type Icons ──────────────────────────────────────────
+function deviceTypeIcon(type: string): string {
+  const icons: Record<string, string> = {
+    phone: '📱', laptop: '💻', desktop: '🖥️', tablet: '📱',
+    printer: '🖨️', router: '📡', server: '🖥️', iot: '🔌',
+    tv: '📺', camera: '📷', unknown: '❓',
+  };
+  return icons[type] || '❓';
+}
+
+function deviceTypeColor(type: string): string {
+  const colors: Record<string, string> = {
+    phone: '#3b82f6', laptop: '#8b5cf6', desktop: '#6366f1',
+    printer: '#f59e0b', router: '#22c55e', server: '#06b6d4',
+    iot: '#ec4899', tv: '#8b5cf6', camera: '#f97316', unknown: '#64748b',
+  };
+  return colors[type] || '#64748b';
+}
+
+function portLabel(port: number): string {
+  const labels: Record<number, string> = {
+    22: 'SSH', 80: 'HTTP', 443: 'HTTPS', 445: 'SMB',
+    515: 'LPD', 631: 'IPP', 8080: 'HTTP-Alt', 8443: 'HTTPS-Alt',
+    9100: 'Print', 5353: 'mDNS', 548: 'AFP', 5900: 'VNC',
+    3389: 'RDP', 139: 'NetBIOS', 1883: 'MQTT',
+  };
+  return labels[port] || String(port);
+}
+
+// ── Network Map Tab ────────────────────────────────────────────
+function NetworkMapTab({ devices, networkMap, events, scanning, editingId, nickname,
+  onScan, onRename, onRenameSave, onRenameCancel, onNicknameChange, onMarkKnown, onDelete }: {
+  devices: NetworkDevice[];
+  networkMap: NetworkMapData | null;
+  events: NetworkEvent[];
+  scanning: boolean;
+  editingId: string | null;
+  nickname: string;
+  onScan: () => void;
+  onRename: (id: string) => void;
+  onRenameSave: (id: string) => void;
+  onRenameCancel: () => void;
+  onNicknameChange: (v: string) => void;
+  onMarkKnown: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const onlineDevices = devices.filter(d => d.is_online);
+  const offlineDevices = devices.filter(d => !d.is_online);
+  const unknownDevices = devices.filter(d => d.is_online && !d.is_known);
+
+  // Group by type for the visual map
+  const byType: Record<string, NetworkDevice[]> = {};
+  onlineDevices.forEach(d => {
+    const t = d.device_type || 'unknown';
+    if (!byType[t]) byType[t] = [];
+    byType[t].push(d);
+  });
+
+  const deviceTypes = Object.entries(byType).sort((a, b) => b[1].length - a[1].length);
+
+  return (
+    <div style={{ padding: 16 }}>
+      {/* ── Hero: Network Map ── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0a1628 0%, #0f172a 50%, #1e1b4b 100%)',
+        borderRadius: 16, padding: 24, marginBottom: 16,
+        border: '1px solid #1e293b', position: 'relative', overflow: 'hidden',
+        minHeight: 200,
+      }}>
+        {/* Grid overlay */}
+        <div style={{
+          position: 'absolute', inset: 0, opacity: 0.05,
+          backgroundImage: 'linear-gradient(#3b82f6 1px, transparent 1px), linear-gradient(90deg, #3b82f6 1px, transparent 1px)',
+          backgroundSize: '40px 40px',
+        }} />
+
+        {/* Network Info Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, position: 'relative' }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 28 }}>🌐</span>
+              Home Network Map
+            </div>
+            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
+              {networkMap ? `Your computer: ${networkMap.local_ip} · Subnet: ${networkMap.subnet}` : 'Network info unavailable'}
+            </div>
+          </div>
+          <button
+            onClick={onScan}
+            disabled={scanning}
+            style={{
+              background: scanning ? '#475569' : '#3b82f6',
+              color: 'white', border: 'none', borderRadius: 8,
+              padding: '10px 20px', fontSize: 14, fontWeight: 600,
+              cursor: scanning ? 'wait' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: 8,
+              transition: 'all 0.2s',
+            }}
+          >
+            {scanning ? (
+              <><span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>🔄</span> Scanning...</>
+            ) : (
+              <><span>🔍</span> Scan Network</>
+            )}
+          </button>
+        </div>
+
+        {/* Device Type Rings */}
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center', position: 'relative' }}>
+          {deviceTypes.length === 0 ? (
+            <div style={{ color: '#64748b', fontSize: 14, padding: 40 }}>
+              {scanning ? 'Scanning your network...' : 'Click "Scan Network" to discover devices on your WiFi'}
+            </div>
+          ) : (
+            deviceTypes.map(([type, devs]) => {
+              const color = deviceTypeColor(type);
+              return (
+                <div key={type} style={{
+                  background: '#0f172a', borderRadius: 12, padding: '12px 16px',
+                  border: `1px solid ${color}33`, textAlign: 'center', minWidth: 80,
+                }}>
+                  <div style={{ fontSize: 24, marginBottom: 4 }}>{deviceTypeIcon(type)}</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color }}>{devs.length}</div>
+                  <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'capitalize' }}>{type}</div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Scan Results */}
+        {networkMap?.scan_result && (
+          <div style={{
+            marginTop: 16, padding: '8px 16px', borderRadius: 8,
+            background: '#1e293b', fontSize: 12, color: '#94a3b8',
+            display: 'flex', gap: 20, justifyContent: 'center', position: 'relative',
+          }}>
+            <span>{onlineDevices.length} devices online</span>
+            {unknownDevices.length > 0 && <span style={{ color: '#f59e0b' }}>⚠️ {unknownDevices.length} unknown</span>}
+            <span>Scan: {networkMap.scan_result.scan_duration_ms}ms</span>
+          </div>
+        )}
+      </div>
+
+      {/* ── Unknown Devices Alert ── */}
+      {unknownDevices.length > 0 && (
+        <div style={{
+          background: '#7f1d1d', border: '1px solid #ef4444', borderRadius: 12,
+          padding: 16, marginBottom: 16,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <span style={{ fontSize: 20 }}>⚠️</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: '#fecaca' }}>
+              {unknownDevices.length} Unknown Device{unknownDevices.length > 1 ? 's' : ''} Detected
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {unknownDevices.map(d => (
+              <div key={d.id} style={{
+                background: '#450a0a', borderRadius: 8, padding: '8px 12px',
+                display: 'flex', alignItems: 'center', gap: 8, fontSize: 12,
+              }}>
+                <span>{deviceTypeIcon(d.device_type)}</span>
+                <span style={{ color: '#fca5a5' }}>{d.hostname || d.ip_address}</span>
+                <span style={{ color: '#7f1d1d' }}>|</span>
+                <span style={{ color: '#94a3b8' }}>{d.manufacturer || 'Unknown'}</span>
+                <button
+                  onClick={() => onMarkKnown(d.id)}
+                  style={{
+                    background: '#16a34a', color: 'white', border: 'none',
+                    borderRadius: 4, padding: '2px 8px', fontSize: 11, cursor: 'pointer',
+                  }}
+                >
+                  ✓ Trust
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Device Cards Grid ── */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+        gap: 12, marginBottom: 16,
+      }}>
+        {onlineDevices.map(d => {
+          const color = deviceTypeColor(d.device_type);
+          const displayName = d.nickname || d.hostname || d.ip_address;
+          const isEditing = editingId === d.id;
+
+          return (
+            <div key={d.id} style={{
+              background: '#0f172a', borderRadius: 12, padding: 16,
+              border: `1px solid ${d.is_known ? '#1e293b' : '#7f1d1d'}`,
+              transition: 'border-color 0.2s',
+            }}>
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: '50%', background: `${color}22`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 18,
+                  }}>
+                    {deviceTypeIcon(d.device_type)}
+                  </div>
+                  <div>
+                    {isEditing ? (
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <input
+                          type="text"
+                          value={nickname}
+                          onChange={e => onNicknameChange(e.target.value)}
+                          placeholder="Enter nickname..."
+                          style={{
+                            background: '#1e293b', border: '1px solid #3b82f6',
+                            borderRadius: 4, padding: '2px 6px', fontSize: 13, color: 'white', width: 120,
+                          }}
+                          autoFocus
+                        />
+                        <button onClick={() => onRenameSave(d.id)} style={{ background: '#22c55e', color: 'white', border: 'none', borderRadius: 4, padding: '2px 6px', fontSize: 11, cursor: 'pointer' }}>Save</button>
+                        <button onClick={onRenameCancel} style={{ background: '#475569', color: 'white', border: 'none', borderRadius: 4, padding: '2px 6px', fontSize: 11, cursor: 'pointer' }}>✕</button>
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: '#e2e8f0' }}>{displayName}</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                          {d.manufacturer || 'Unknown manufacturer'}
+                          {d.is_known && <span style={{ color: '#22c55e', marginLeft: 6 }}>✓ Known</span>}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button onClick={() => onRename(d.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: 2 }} title="Rename">✏️</button>
+                  {!d.is_known && (
+                    <button onClick={() => onMarkKnown(d.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: 2 }} title="Mark as known">✅</button>
+                  )}
+                  <button onClick={() => onDelete(d.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: 2 }} title="Remove">🗑️</button>
+                </div>
+              </div>
+
+              {/* Details */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', fontSize: 12 }}>
+                <div>
+                  <span style={{ color: '#64748b' }}>IP</span>
+                  <div style={{ color: '#e2e8f0', fontFamily: 'monospace' }}>{d.ip_address}</div>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b' }}>MAC</span>
+                  <div style={{ color: '#e2e8f0', fontFamily: 'monospace', fontSize: 11 }}>{d.mac_address || '—'}</div>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b' }}>Type</span>
+                  <div style={{ color, textTransform: 'capitalize' }}>{d.device_type}</div>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b' }}>Last seen</span>
+                  <div style={{ color: '#e2e8f0' }}>{formatAge(d.last_seen)}</div>
+                </div>
+              </div>
+
+              {/* Open Ports */}
+              {d.open_ports.length > 0 && (
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #1e293b' }}>
+                  <span style={{ fontSize: 11, color: '#64748b' }}>Open Ports</span>
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                    {d.open_ports.map(p => (
+                      <span key={p} style={{
+                        background: '#1e293b', borderRadius: 4, padding: '2px 6px',
+                        fontSize: 11, color: '#94a3b8', fontFamily: 'monospace',
+                      }}>
+                        {p} <span style={{ color: '#475569' }}>({portLabel(p)})</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Offline Devices ── */}
+      {offlineDevices.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8, fontWeight: 600 }}>
+            📴 Offline ({offlineDevices.length})
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {offlineDevices.map(d => (
+              <div key={d.id} style={{
+                background: '#0f172a', borderRadius: 8, padding: '8px 12px',
+                border: '1px solid #1e293b', fontSize: 12, opacity: 0.6,
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                <span>{deviceTypeIcon(d.device_type)}</span>
+                <span style={{ color: '#94a3b8' }}>{d.nickname || d.hostname || d.ip_address}</span>
+                <span style={{ color: '#475569' }}>{formatAge(d.last_seen)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Recent Network Events ── */}
+      {events.length > 0 && (
+        <div style={{
+          background: '#0f172a', borderRadius: 12, padding: 16, border: '1px solid #1e293b',
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0', marginBottom: 12 }}>
+            📋 Recent Network Events
+          </div>
+          <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+            {events.slice(0, 15).map(ev => {
+              const icon = ev.event_type === 'device_joined' ? '🟢' :
+                ev.event_type === 'device_left' ? '🔴' :
+                ev.event_type === 'ip_changed' ? '🔄' : '📋';
+              return (
+                <div key={ev.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '6px 0', borderBottom: '1px solid #1e293b',
+                  fontSize: 12,
+                }}>
+                  <span>{icon}</span>
+                  <span style={{ color: '#e2e8f0' }}>{ev.description}</span>
+                  <span style={{ color: '#475569', marginLeft: 'auto' }}>{formatAge(ev.created_at)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SentinelTab({ quarantined, history, onEscalate, onRelease, onRunAutoEscalation }: {
+  quarantined: QuarantineStatus[];
+  history: QuarantineEvent[];
+  onEscalate: (agentId: string, level: number, reason: string) => Promise<void>;
+  onRelease: (agentId: string) => Promise<void>;
+  onRunAutoEscalation: () => Promise<void>;
+}) {
+  const [escalateAgent, setEscalateAgent] = useState<string | null>(null);
+  const [escalateLevel, setEscalateLevel] = useState(2);
+  const [escalateReason, setEscalateReason] = useState('');
+  const [releasing, setReleasing] = useState<string | null>(null);
+  const [autoRunning, setAutoRunning] = useState(false);
+
+  const handleEscalate = async () => {
+    if (!escalateAgent || !escalateReason.trim()) return;
+    await onEscalate(escalateAgent, escalateLevel, escalateReason.trim());
+    setEscalateAgent(null);
+    setEscalateReason('');
+  };
+
+  const handleRelease = async (agentId: string) => {
+    setReleasing(agentId);
+    try {
+      await onRelease(agentId);
+    } finally {
+      setReleasing(null);
+    }
+  };
+
+  const handleAutoEscalation = async () => {
+    setAutoRunning(true);
+    try {
+      await onRunAutoEscalation();
+    } finally {
+      setAutoRunning(false);
+    }
+  };
+
+  return (
+    <div>
+      {/* Header + Auto-Escalation Button */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div>
+          <p style={{ fontSize: 14, color: '#64748b', margin: 0, lineHeight: 1.5 }}>
+            Agent isolation and quarantine — the unique differentiator. When an agent misbehaves, Sentinel isolates it.
+          </p>
+        </div>
+        <button
+          className="sec-scan-btn"
+          onClick={handleAutoEscalation}
+          disabled={autoRunning}
+          style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', flexShrink: 0 }}
+        >
+          {autoRunning ? '⏳ Scanning...' : '⚡ Run Auto-Escalation'}
+        </button>
+      </div>
+
+      {/* Quarantine Levels Legend */}
+      <div className="sec-section" style={{ marginBottom: 16 }}>
+        <h3 className="sec-section-title">🎖️ Quarantine Levels</h3>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {QUARANTINE_LEVELS.map(lvl => (
+            <div key={lvl.level} style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px',
+              background: `${lvl.color}15`, borderRadius: 8, border: `1px solid ${lvl.color}30`,
+              fontSize: 12, color: '#e2e8f0'
+            }}>
+              <span>{lvl.emoji}</span>
+              <span style={{ fontWeight: 600 }}>{lvl.name}</span>
+              <span style={{ color: '#94a3b8' }}>— {lvl.desc}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Currently Quarantined Agents */}
+      <div className="sec-section">
+        <h3 className="sec-section-title">
+          🚨 Quarantined Agents
+          {quarantined.length > 0 && <span className="sec-tab-count" style={{ marginLeft: 8 }}>{quarantined.length}</span>}
+        </h3>
+        {quarantined.length === 0 ? (
+          <div className="sec-empty">
+            <span className="sec-empty-icon">✅</span>
+            <h3 className="sec-empty-title">All Clear</h3>
+            <p className="sec-empty-text">No agents are currently quarantined. All agents are operating normally.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {quarantined.map(q => {
+              const lvl = QUARANTINE_LEVELS[q.level] ?? QUARANTINE_LEVELS[0];
+              return (
+                <div key={q.agent_id} className="sec-event-row" style={{
+                  borderLeft: `3px solid ${lvl.color}`,
+                  background: `${lvl.color}08`,
+                  padding: 12, borderRadius: 8,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+                    <span style={{ fontSize: 24 }}>{lvl.emoji}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontWeight: 600, color: '#e2e8f0' }}>{q.agent_id}</span>
+                        <span style={{
+                          padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                          background: `${lvl.color}20`, color: lvl.color, border: `1px solid ${lvl.color}40`,
+                        }}>{lvl.name}</span>
+                        {q.auto_escalated && (
+                          <span style={{ fontSize: 10, color: '#f59e0b', fontWeight: 500 }}>⚡ AUTO</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>{q.reason}</div>
+                      <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{formatAge(q.created_at)}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {q.level < 4 && (
+                        <button
+                          className="sec-prompt-btn"
+                          style={{ background: '#f59e0b', fontSize: 11, padding: '4px 10px' }}
+                          onClick={() => {
+                            setEscalateAgent(q.agent_id);
+                            setEscalateLevel(Math.min(q.level + 1, 4));
+                          }}
+                        >⬆️ Escalate</button>
+                      )}
+                      <button
+                        className="sec-prompt-btn"
+                        style={{ background: '#22c55e', fontSize: 11, padding: '4px 10px' }}
+                        onClick={() => handleRelease(q.agent_id)}
+                        disabled={releasing === q.agent_id}
+                      >{releasing === q.agent_id ? '⏳' : '🔓 Release'}</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Escalate Modal */}
+      {escalateAgent && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', zIndex: 1000,
+        }} onClick={() => setEscalateAgent(null)}>
+          <div style={{
+            background: '#1e1e2e', borderRadius: 12, padding: 24, maxWidth: 420, width: '90%',
+            border: '1px solid #f59e0b40',
+          }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 16px', color: '#f59e0b' }}>⬆️ Escalate Quarantine</h3>
+            <p style={{ color: '#94a3b8', fontSize: 13, margin: '0 0 12px' }}>Agent: <strong style={{ color: '#e2e8f0' }}>{escalateAgent}</strong></p>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', color: '#94a3b8', fontSize: 12, marginBottom: 4 }}>Target Level</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {QUARANTINE_LEVELS.slice(1).map(lvl => (
+                  <button key={lvl.level} onClick={() => setEscalateLevel(lvl.level)} style={{
+                    padding: '6px 10px', borderRadius: 6, border: `1px solid ${escalateLevel === lvl.level ? lvl.color : '#334155'}`,
+                    background: escalateLevel === lvl.level ? `${lvl.color}20` : 'transparent',
+                    color: escalateLevel === lvl.level ? lvl.color : '#94a3b8',
+                    cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                  }}>
+                    {lvl.emoji} {lvl.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', color: '#94a3b8', fontSize: 12, marginBottom: 4 }}>Reason</label>
+              <input
+                type="text"
+                value={escalateReason}
+                onChange={e => setEscalateReason(e.target.value)}
+                placeholder="Why is this agent being escalated?"
+                style={{
+                  width: '100%', padding: '8px 12px', background: '#0f0f1a', border: '1px solid #334155',
+                  borderRadius: 6, color: '#e2e8f0', fontSize: 13, outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="sec-prompt-btn" style={{ background: '#475569' }} onClick={() => setEscalateAgent(null)}>Cancel</button>
+              <button
+                className="sec-prompt-btn"
+                style={{ background: '#f59e0b' }}
+                onClick={handleEscalate}
+                disabled={!escalateReason.trim()}
+              >⬆️ Escalate to {QUARANTINE_LEVELS[escalateLevel]?.name}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quarantine History */}
+      <div className="sec-section" style={{ marginTop: 16 }}>
+        <h3 className="sec-section-title">📜 Quarantine History</h3>
+        {history.length === 0 ? (
+          <div className="sec-empty">
+            <span className="sec-empty-icon">📋</span>
+            <h3 className="sec-empty-title">No History</h3>
+            <p className="sec-empty-text">Quarantine events will appear here as they occur.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {history.map(h => {
+              const lvl = QUARANTINE_LEVELS[h.level] ?? QUARANTINE_LEVELS[0];
+              return (
+                <div key={h.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                  background: h.is_active ? `${lvl.color}08` : 'transparent',
+                  borderRadius: 6, fontSize: 12, borderBottom: '1px solid #1e293b',
+                }}>
+                  <span>{lvl.emoji}</span>
+                  <span style={{ fontWeight: 600, color: '#e2e8f0', minWidth: 80 }}>{lvl.name}</span>
+                  <span style={{ color: '#94a3b8', flex: 1 }}>{h.reason}</span>
+                  {h.auto_escalated && <span style={{ fontSize: 10, color: '#f59e0b' }}>AUTO</span>}
+                  {h.released_by && <span style={{ fontSize: 10, color: '#22c55e' }}>🔓 {h.released_by}</span>}
+                  <span style={{ color: '#64748b', minWidth: 60, textAlign: 'right' }}>{formatAge(h.created_at)}</span>
+                  {h.is_active && (
+                    <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: `${lvl.color}30`, color: lvl.color }}>ACTIVE</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
