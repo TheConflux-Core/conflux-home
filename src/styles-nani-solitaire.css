@@ -23,7 +23,9 @@
   --nani-paper-aged: #e5d0b0;
   --nani-red-suit: #a02020;
   --nani-red-suit-light: #c43030;
-  --nani-black-suit: #2a1a10;
+  --nani-black-suit: #1a1a1a;
+  --nani-text-on-dark: #f5e6d0;
+  --nani-text-on-light: #2a1a10;
   --nani-shadow: rgba(20, 8, 4, 0.5);
   --nani-shadow-warm: rgba(100, 50, 20, 0.3);
 
@@ -36,8 +38,8 @@
   --accent-primary: var(--nani-terracotta);
 
   max-width: 560px;
-  margin: 40px auto 150px;
-  padding: 20px;
+  margin: 20px auto 60px;
+  padding: 16px;
   min-height: calc(100vh - 100px);
   display: flex;
   flex-direction: column;
@@ -80,8 +82,8 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  margin-bottom: 18px;
-  padding: 14px 18px;
+  margin-bottom: 10px;
+  padding: 10px 14px;
   background: linear-gradient(135deg, rgba(92, 58, 40, 0.4), rgba(107, 29, 42, 0.2));
   border: 1px solid var(--nani-brown-warm);
   border-radius: 14px;
@@ -121,9 +123,10 @@
 
 .nani-subtitle {
   font-size: 12px;
-  color: var(--nani-terracotta-light);
+  color: var(--nani-text-on-dark);
   margin: 2px 0 0 0;
   font-style: italic;
+  font-weight: 600;
   font-family: Georgia, 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
   letter-spacing: 0.3px;
 }
@@ -148,10 +151,11 @@
 
 .nani-stat-label {
   font-size: 9px;
-  color: var(--nani-terracotta-light);
+  color: var(--nani-text-on-dark);
   text-transform: uppercase;
   letter-spacing: 1px;
   font-family: Georgia, serif;
+  font-weight: 700;
 }
 
 /* ── Info Bar ── */
@@ -159,8 +163,8 @@
 .nani-info-bar {
   width: 100%;
   text-align: center;
-  margin-bottom: 14px;
-  padding: 9px 16px;
+  margin-bottom: 8px;
+  padding: 7px 14px;
   background: linear-gradient(135deg, rgba(212, 164, 76, 0.08), rgba(196, 112, 75, 0.06));
   border: 1px solid rgba(212, 164, 76, 0.2);
   border-radius: 10px;
@@ -201,11 +205,11 @@
 .nani-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  max-width: 440px;
-  margin-bottom: 24px;
-  padding: 16px;
+  max-width: 520px;
+  margin-bottom: 12px;
+  padding: 12px;
   background:
     radial-gradient(ellipse at center, rgba(244, 230, 208, 0.03), transparent 70%),
     linear-gradient(135deg, rgba(92, 58, 40, 0.2), rgba(107, 29, 42, 0.1));
@@ -218,9 +222,9 @@
 
 @media (max-width: 480px) {
   .nani-grid {
-    gap: 7px;
+    gap: 6px;
     max-width: 360px;
-    padding: 12px;
+    padding: 10px;
   }
 }
 
@@ -274,12 +278,12 @@
 
 /* Empty slot labels */
 .nani-slot-type {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--nani-brown-light);
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--nani-text-on-dark);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  opacity: 0.5;
+  opacity: 0.8;
   font-family: Georgia, serif;
 }
 
@@ -314,14 +318,14 @@
 }
 
 .nani-card-rank {
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 900;
   line-height: 1;
   font-family: Georgia, 'Palatino Linotype', serif;
 }
 
 .nani-card-suit {
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1;
   margin-top: 2px;
 }
@@ -329,13 +333,13 @@
 .nani-card.red .nani-card-rank,
 .nani-card.red .nani-card-suit {
   color: var(--nani-red-suit);
-  text-shadow: 0 1px 2px rgba(160, 32, 32, 0.2);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
 }
 
 .nani-card.black .nani-card-rank,
 .nani-card.black .nani-card-suit {
   color: var(--nani-black-suit);
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
 }
 
 /* ── Pairing Mode ── */
@@ -404,10 +408,10 @@
 
 .nani-piles {
   display: flex;
-  gap: 24px;
+  gap: 20px;
   align-items: center;
   justify-content: center;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
 .nani-pile {
@@ -425,13 +429,14 @@
 
 .nani-pile-label {
   font-size: 9px;
-  color: var(--nani-terracotta-light);
+  color: var(--nani-text-on-dark);
   text-transform: uppercase;
   letter-spacing: 1px;
   margin-top: 6px;
   position: absolute;
-  bottom: -20px;
+  bottom: -18px;
   font-family: Georgia, serif;
+  font-weight: 700;
 }
 
 .nani-draw-pile {
@@ -501,11 +506,11 @@
 }
 
 .nani-current-card .nani-card-rank {
-  font-size: 28px;
+  font-size: 30px;
 }
 
 .nani-current-card .nani-card-suit {
-  font-size: 24px;
+  font-size: 26px;
 }
 
 .nani-discard-pile {
@@ -516,8 +521,8 @@
 
 .nani-discard-placeholder {
   font-size: 10px;
-  color: var(--nani-brown-light);
-  opacity: 0.5;
+  color: var(--nani-text-on-dark);
+  opacity: 0.6;
   text-align: center;
   font-family: Georgia, serif;
   font-style: italic;
@@ -527,15 +532,15 @@
 
 .nani-actions {
   display: flex;
-  gap: 12px;
-  margin-top: 8px;
+  gap: 10px;
+  margin-top: 6px;
   width: 100%;
-  max-width: 440px;
+  max-width: 520px;
 }
 
 .nani-new-game-btn {
   flex: 1;
-  padding: 12px 24px;
+  padding: 10px 20px;
   background: linear-gradient(135deg, var(--nani-terracotta), var(--nani-burgundy));
   color: var(--nani-cream);
   border: 1px solid var(--nani-gold-dim);
@@ -562,7 +567,7 @@
 
 .nani-back-btn {
   flex: 1;
-  padding: 12px 24px;
+  padding: 10px 20px;
   background: linear-gradient(135deg, rgba(92, 58, 40, 0.4), rgba(60, 30, 18, 0.5));
   color: var(--nani-cream-dark);
   border: 1px solid var(--nani-brown-warm);
@@ -621,7 +626,8 @@
 
 .nani-gameover-sub {
   font-size: 16px;
-  color: var(--nani-terracotta-light);
+  color: var(--nani-cream-dark);
+  font-weight: 600;
   margin-bottom: 24px;
   font-family: Georgia, serif;
   font-style: italic;
@@ -690,7 +696,8 @@
 
 .nani-win-sub {
   font-size: 16px;
-  color: var(--nani-gold-light);
+  color: var(--nani-cream);
+  font-weight: 600;
   margin-bottom: 24px;
   font-family: Georgia, serif;
   font-style: italic;
@@ -915,13 +922,13 @@
 
 @media (max-width: 480px) {
   .nani-solitaire {
-    margin: 24px auto 150px;
-    padding: 12px;
+    margin: 12px auto 60px;
+    padding: 10px;
   }
 
   .nani-header {
-    padding: 10px 14px;
-    margin-bottom: 14px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
   }
 
   .nani-title {
