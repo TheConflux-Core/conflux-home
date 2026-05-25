@@ -1159,9 +1159,6 @@ const [activeSnake, setActiveSnake] = useState(false);
     }));
   }, []);
 
-  // Check if any game is active
-  const anyGameActive = activeMinesweeper || activeSnake || activePacman || activeSolitaire || activeNaniSolitaire || activeJohnnySolitaire;
-
   // ── Keyboard shortcuts (FIX 10) ──
   useEffect(() => {
     if (!isOnboarded || showWelcome) return;
@@ -1307,10 +1304,8 @@ const [activeSnake, setActiveSnake] = useState(false);
           {immersiveView === 'foundation' && <HomeHealthView />}
           {immersiveView === 'horizon' && <DreamBuilderView />}
           {immersiveView === 'google' && <GoogleView />}
-          {(immersiveView === 'marketplace' || anyGameActive) && (
-            <div style={immersiveView === 'games' ? { display: 'none' } : undefined}>
-              <Marketplace />
-            </div>
+          {immersiveView === 'marketplace' && (
+            <Marketplace />
           )}
           {immersiveView === 'family' && <AgentsView />}
           {immersiveView === 'mirror' && <EchoView />}
