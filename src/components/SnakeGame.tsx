@@ -713,6 +713,9 @@ export default function SnakeGame({ onBack }: SnakeGameProps) {
 
 /* ── Canvas Wrap: Ancient Terminal Screen ── */
 .snake-sub .game-sub-canvas-wrap {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
   border-color: rgba(16,185,129,0.3);
   border-width: 2px;
   box-shadow:
