@@ -46,8 +46,9 @@
   --text-secondary: var(--j-text-dim);
   --accent-primary: var(--j-burgundy-accent);
 
-  max-width: 960px;
-  margin: 0 auto;
+  max-width: none;
+  width: 100%;
+  margin: 0;
   padding: 16px 20px 150px;
   min-height: 0;
   height: auto !important;
