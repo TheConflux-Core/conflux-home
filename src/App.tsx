@@ -1371,7 +1371,7 @@ const [activeSnake, setActiveSnake] = useState(false);
               </div>
             </div>
           )}
-          {immersiveView === 'games' && <GamesPage />}
+          {immersiveView === 'games' && <GamesPage onBack={() => setImmersiveView(null)} />}
           {immersiveView === 'story' && activeMinesweeper && (
             <MinesweeperGame onBack={closeGame} />
           )}
