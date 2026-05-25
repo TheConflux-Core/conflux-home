@@ -45,7 +45,7 @@ export interface PipelineStatus {
   uptime: string;
 }
 
-export type View = 'dashboard' | 'chat' | 'google' | 'marketplace' | 'settings' | 'onboarding' | 'story' | 'family' | 'hearth' | 'pulse' | 'orbit' | 'current' | 'foundation' | 'horizon' | 'mirror' | 'vault' | 'studio' | 'api-dashboard' | 'security' | 'security-hub' | 'aegis' | 'viper' | 'agent-audit' | 'siem' | 'bazaar' | 'agents' | 'echo' | 'api' | 'radar';
+export type View = 'dashboard' | 'chat' | 'google' | 'marketplace' | 'settings' | 'onboarding' | 'story' | 'family' | 'hearth' | 'pulse' | 'orbit' | 'current' | 'foundation' | 'horizon' | 'mirror' | 'vault' | 'studio' | 'api-dashboard' | 'security' | 'security-hub' | 'aegis' | 'viper' | 'agent-audit' | 'siem' | 'bazaar' | 'agents' | 'echo' | 'api' | 'radar' | 'games';
 
 // Agent accent colors for avatar rendering
 export const AGENT_COLORS: Record<string, string> = {

@@ -1,27 +1,28 @@
-import { useState, useEffect } from 'react';
+// Conflux Home — GamesHub
+// Canonical games hub: widget-grid layout (same as DesktopQuadrants sub-folder),
+// with its own themed background and identity.
+// Used by direct navigation and the Discover → Games sub-folder.
 
-interface GamesHubProps {
-  onOpenGame: (gameId: string) => void;
-  onBack?: () => void;
-}
+import { useState, useCallback } from 'react';
+import '../styles-games-hub.css';
 
-interface GameDef {
+export interface GameItem {
   id: string;
   name: string;
   icon: string;
   subtitle: string;
   status: 'available' | 'coming-soon';
-  size: 'large' | 'normal' | 'wide';
 }
 
-const GAMES: GameDef[] = [
+// ── Built-in games (ship with the app) ─────────────────────────────────────
+
+const BUILT_IN_GAMES: GameItem[] = [
   {
     id: 'minesweeper',
     name: 'Minesweeper',
     icon: '💣',
-    subtitle: 'Classic · 9×9',
+    subtitle: 'Classic · 9×9 Grid',
     status: 'available',
-    size: 'large',
   },
   {
     id: 'solitaire',
@@ -29,7 +30,6 @@ const GAMES: GameDef[] = [
     icon: '🃏',
     subtitle: 'Classic Card Game',
     status: 'available',
-    size: 'normal',
   },
   {
     id: 'pacman',
@@ -37,23 +37,6 @@ const GAMES: GameDef[] = [
     icon: '🟡',
     subtitle: 'Arcade Classic',
     status: 'available',
-    size: 'normal',
-  },
-  {
-    id: 'nani-solitaire',
-    name: 'Nani Solitaire',
-    icon: '🎴',
-    subtitle: 'Family Tradition · Unique',
-    status: 'available',
-    size: 'normal',
-  },
-  {
-    id: 'johnny-solitaire',
-    name: "Johnny C's Solitaire",
-    icon: '🀄',
-    subtitle: 'FreeCell Variant · 8 Columns',
-    status: 'available',
-    size: 'normal',
   },
   {
     id: 'snake',
@@ -61,7 +44,20 @@ const GAMES: GameDef[] = [
     icon: '🐍',
     subtitle: 'Arcade Classic',
     status: 'available',
-    size: 'normal',
+  },
+  {
+    id: 'nani-solitaire',
+    name: "Nani Solitaire",
+    icon: '🎴',
+    subtitle: 'Family Tradition · 4×4 Grid',
+    status: 'available',
+  },
+  {
+    id: 'johnny-solitaire',
+    name: "Johnny C's Solitaire",
+    icon: '🀄',
+    subtitle: 'FreeCell · 8 Columns',
+    status: 'available',
   },
   {
     id: 'stories',
@@ -69,120 +65,128 @@ const GAMES: GameDef[] = [
     icon: '📖',
     subtitle: 'Interactive Fiction',
     status: 'coming-soon',
-    size: 'wide',
   },
 ];
 
-export function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, '0')}`;
+// ── Props ─────────────────────────────────────────────────────────────────────
+
+interface GamesHubProps {
+  /** Pass additional games (e.g. from marketplace downloads) to append */
+  extraGames?: GameItem[];
+  /** Called when a game is selected */
+  onSelectGame: (gameId: string) => void;
+  /** Called when the user wants to go back */
+  onBack?: () => void;
+  /** What to show in the back button label */
+  backLabel?: string;
+  /** Accent color for this instance */
+  accentColor?: string;
 }
 
-export default function GamesHub({ onOpenGame, onBack }: GamesHubProps) {
-  const [bestTimes, setBestTimes] = useState<Record<string, number>>({});
+// ── Component ────────────────────────────────────────────────────────────────
+
+export default function GamesHub({
+  extraGames = [],
+  onSelectGame,
+  onBack,
+  backLabel = 'Discover',
+  accentColor = '#f59e0b',
+}: GamesHubProps) {
   const [soundEnabled, setSoundEnabled] = useState(() => {
-    try {
-      return localStorage.getItem('conflux_sound_enabled') !== 'false';
-    } catch {
-      return true;
-    }
+    try { return localStorage.getItem('conflux_sound_enabled') !== 'false'; }
+    catch { return true; }
   });
 
-  // Load best times from localStorage
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('conflux_minesweeper_best');
-      if (saved) setBestTimes(JSON.parse(saved));
-    } catch {
-      // ignore parse errors
-    }
+  const allGames = [...BUILT_IN_GAMES, ...extraGames];
+
+  const handleToggleSound = useCallback(() => {
+    setSoundEnabled(prev => {
+      const next = !prev;
+      localStorage.setItem('conflux_sound_enabled', String(next));
+      return next;
+    });
   }, []);
 
-  // Persist sound preference
-  useEffect(() => {
-    try {
-      localStorage.setItem('conflux_sound_enabled', String(soundEnabled));
-    } catch {
-      // ignore storage errors
-    }
-  }, [soundEnabled]);
-
   return (
-    <div className="games-hub">
-      {/* Header */}
-      <div className="games-hub-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {onBack && (
+    <div className="games-hub-root" style={{ '--hub-accent': accentColor } as React.CSSProperties}>
+      {/* Ambient background */}
+      <div className="games-hub-bg" />
+      <div className="games-hub-bg-gradient" />
+
+      <div className="games-hub-inner">
+        {/* ── Header ── */}
+        <div className="games-hub-header">
+          <div className="games-hub-header-left">
+            {onBack && (
+              <button className="games-hub-back-btn" onClick={onBack}>
+                ← {backLabel}
+              </button>
+            )}
+            <div className="games-hub-title-row">
+              <span className="games-hub-icon">🎮</span>
+              <div>
+                <h1 className="games-hub-title">Games</h1>
+                <p className="games-hub-subtitle">Play, compete, and unwind</p>
+              </div>
+            </div>
+          </div>
+          <div className="games-hub-header-actions">
             <button
-              onClick={onBack}
-              style={{
-                background: 'rgba(255,255,255,0.08)',
-                border: '1px solid rgba(255,255,255,0.15)',
-                color: '#aaa',
-                padding: '6px 12px',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '13px',
+              className="games-hub-sound-btn"
+              onClick={handleToggleSound}
+              title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
+            >
+              {soundEnabled ? '🔊' : '🔇'}
+            </button>
+          </div>
+        </div>
+
+        {/* ── Widget Grid ── */}
+        <div className="games-hub-grid">
+          {allGames.map((game) => (
+            <div
+              key={game.id}
+              className={`games-hub-widget ${game.status === 'coming-soon' ? 'games-hub-widget-locked' : ''}`}
+              onClick={() => {
+                if (game.status === 'available') {
+                  onSelectGame(game.id);
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  if (game.status === 'available') onSelectGame(game.id);
+                }
               }}
             >
-              ← Discover
-            </button>
-          )}
-          <div>
-            <h2 className="games-hub-title">🎮 Games</h2>
-            <p className="games-hub-subtitle">Play, compete, and unwind</p>
-          </div>
-        </div>
-        <div className="games-header-actions">
-          <button
-            className="sound-toggle-global"
-            onClick={() => setSoundEnabled(!soundEnabled)}
-            title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
-          >
-            {soundEnabled ? '🔊' : '🔇'}
-          </button>
-        </div>
-      </div>
+              {/* Accent bar */}
+              <div className="games-hub-widget-accent" />
 
-      {/* Game Grid — Bento Layout */}
-      <div className="games-grid">
-        {GAMES.map((game) => (
-          <div
-            key={game.id}
-            className={`game-card game-card-${game.size} ${game.status === 'coming-soon' ? 'game-card-locked' : ''}`}
-            onClick={() => game.status === 'available' && onOpenGame(game.id)}
-          >
-            {/* Coming Soon Badge */}
-            {game.status === 'coming-soon' && (
-              <div className="coming-soon-badge">Coming Soon</div>
-            )}
+              {/* Locked badge */}
+              {game.status === 'coming-soon' && (
+                <div className="games-hub-widget-badge">Coming Soon</div>
+              )}
 
-            {/* Icon */}
-            <div className="game-card-icon">{game.icon}</div>
+              {/* Breathing glow for locked */}
+              {game.status === 'coming-soon' && (
+                <div className="games-hub-widget-glow" />
+              )}
 
-            {/* Info */}
-            <div className="game-card-info">
-              <h3 className="game-card-name">{game.name}</h3>
-              <p className="game-card-subtitle">{game.subtitle}</p>
-            </div>
-
-            {/* Play button (only for available games) */}
-            {game.status === 'available' && (
-              <button className="game-play-btn">▶ Play Now</button>
-            )}
-
-            {/* Best time (only for minesweeper) */}
-            {game.id === 'minesweeper' && bestTimes.beginner != null && (
-              <div className="game-best-time">
-                🏆 Best: {formatTime(bestTimes.beginner)}
+              {/* Widget body */}
+              <div className="games-hub-widget-body">
+                <span className="games-hub-widget-icon">{game.icon}</span>
+                <span className="games-hub-widget-name">{game.name}</span>
+                <span className="games-hub-widget-subtitle">{game.subtitle}</span>
               </div>
-            )}
 
-            {/* Breathing animation for coming soon cards */}
-            {game.status === 'coming-soon' && <div className="coming-soon-glow" />}
-          </div>
-        ))}
+              {/* Play CTA (available only) */}
+              {game.status === 'available' && (
+                <div className="games-hub-widget-cta">▶ Play</div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
