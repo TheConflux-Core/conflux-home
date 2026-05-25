@@ -296,7 +296,7 @@ export default function GamesPage({
   }, []);
 
   const handleSelectGame = useCallback((gameId: string) => {
-    window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: gameId }));
+    window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: { viewId: 'games', gameId } }));
   }, []);
 
   const handleBack = useCallback(() => {
