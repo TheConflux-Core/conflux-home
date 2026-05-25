@@ -1071,6 +1071,9 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
 
 /* ── Canvas Wrap: Arcade Screen ── */
 .pacman-sub .game-sub-canvas-wrap {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
   border-color: rgba(251,191,36,0.3);
   border-width: 2px;
   box-shadow:
