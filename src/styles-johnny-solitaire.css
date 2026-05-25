@@ -276,22 +276,24 @@
 .johnny-table {
   width: 100%;
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   justify-content: center;
   padding: 0;
   position: relative;
   z-index: 1;
+  flex: 1;
+  min-height: 0;
 }
 
 /* Dark felt surface */
 .johnny-columns {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   justify-content: center;
   align-items: flex-start;
   width: 100%;
-  max-width: 600px;
-  padding: 18px 16px;
+  max-width: 800px;
+  padding: 24px 20px;
   background:
     radial-gradient(ellipse at 50% 0%, rgba(201, 168, 76, 0.04) 0%, transparent 50%),
     radial-gradient(ellipse at 50% 100%, rgba(90, 21, 32, 0.06) 0%, transparent 50%),
@@ -302,6 +304,7 @@
     0 4px 24px rgba(0, 0, 0, 0.4),
     inset 0 2px 8px rgba(0, 0, 0, 0.2),
     inset 0 0 40px rgba(0, 0, 0, 0.15);
+  flex: 1;
 }
 
 /* Subtle felt texture */
@@ -316,12 +319,12 @@
 
 .johnny-column {
   flex: 1;
-  min-width: 70px;
-  max-width: 90px;
+  min-width: 90px;
+  max-width: 110px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-height: 110px;
+  min-height: 140px;
   position: relative;
   cursor: pointer;
 }
@@ -329,8 +332,8 @@
 /* ── Empty Slot ── */
 
 .johnny-empty-slot {
-  width: 70px;
-  height: 98px;
+  width: 90px;
+  height: 126px;
   border: 2px dashed rgba(201, 168, 76, 0.12);
   border-radius: 10px;
   display: flex;
@@ -361,7 +364,7 @@
 
 .johnny-empty-label {
   color: var(--j-gold-muted);
-  font-size: 26px;
+  font-size: 32px;
   font-weight: 700;
   font-family: Georgia, serif;
   opacity: 0.6;
@@ -370,12 +373,12 @@
 /* ── Card Wrapper (stacking) ── */
 
 .johnny-card-wrapper {
-  width: 70px;
-  height: 98px;
+  width: 90px;
+  height: 126px;
   border-radius: 8px;
   cursor: pointer;
   position: relative;
-  margin-top: -74px;
+  margin-top: -100px;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
   z-index: 1;
   flex-shrink: 0;
@@ -481,27 +484,27 @@
 }
 
 .johnny-card-tl {
-  top: 5px;
-  left: 6px;
+  top: 6px;
+  left: 7px;
 }
 
 .johnny-card-br {
-  bottom: 5px;
-  right: 6px;
+  bottom: 6px;
+  right: 7px;
   transform: rotate(180deg);
 }
 
 .johnny-card-rank {
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 900;
   line-height: 1;
   font-family: Georgia, 'Palatino Linotype', serif;
 }
 
 .johnny-card-suit {
-  font-size: 13px;
+  font-size: 16px;
   line-height: 1;
-  margin-top: 2px;
+  margin-top: 3px;
 }
 
 /* Center suit */
@@ -514,7 +517,7 @@
 }
 
 .johnny-card-big-suit {
-  font-size: 32px;
+  font-size: 42px;
 }
 
 /* ── Card Back ── */
