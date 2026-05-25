@@ -116,7 +116,7 @@ function generateObstacles(count: number, gridSize: number, snake: Position[], e
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function SnakeGame({ onBack }: SnakeGameProps) {
-  const [status, setStatus] = useState<GameStatus>('idle');
+  const [status, setStatus] = useState<GameStatus>('playing');
   const [difficulty, setDifficulty] = useState<SnakeDifficulty>('classic');
   const [score, setScore] = useState(0);
   const [bestScores, setBestScores] = useState<Record<string, number>>(loadBestScores);
@@ -128,17 +128,22 @@ export default function SnakeGame({ onBack }: SnakeGameProps) {
   const animFrameRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
   const tickAccumRef = useRef<number>(0);
-  const snakeRef = useRef<Position[]>([]);
-  const foodRef = useRef<Position>({ x: 0, y: 0 });
+  const initMid = Math.floor(DIFFICULTY_CONFIG.classic.gridSize / 2);
+  const snakeRef = useRef<Position[]>([
+    { x: initMid, y: initMid },
+    { x: initMid - 1, y: initMid },
+    { x: initMid - 2, y: initMid },
+  ]);
+  const foodRef = useRef<Position>({ x: initMid + 3, y: initMid });
   const dirRef = useRef<Direction>('right');
   const dirQueueRef = useRef<Direction[]>([]);
   const obstaclesRef = useRef<Position[]>([]);
   const scoreRef = useRef<number>(0);
-  const speedRef = useRef<number>(150);
-  const gameStatusRef = useRef<GameStatus>('idle');
+  const speedRef = useRef<number>(DIFFICULTY_CONFIG.classic.baseSpeed);
+  const gameStatusRef = useRef<GameStatus>('playing');
   const particlesRef = useRef<Particle[]>([]);
   const trailsRef = useRef<TrailSegment[]>([]);
-  const foodSpawnTimeRef = useRef<number>(0);
+  const foodSpawnTimeRef = useRef<number>(performance.now());
   const touchStartRef = useRef<Position | null>(null);
   const dyingRef = useRef(false);
 
@@ -656,21 +661,17 @@ export default function SnakeGame({ onBack }: SnakeGameProps) {
         <div className="game-sub-hero-glow" />
       </div>
 
-      {/* Difficulty Selector */}
-      {status === 'idle' && (
-        <div className="game-sub-difficulty cols-4">
-          {(Object.keys(DIFFICULTY_CONFIG) as SnakeDifficulty[]).map(diff => (
-            <button key={diff} className="game-diff-tile" onClick={() => startGame(diff)}>
-              <span className="game-diff-icon">{DIFFICULTY_CONFIG[diff].icon}</span>
-              <span className="game-diff-label">{DIFFICULTY_CONFIG[diff].label}</span>
-              <span className="game-diff-meta">{DIFFICULTY_CONFIG[diff].meta}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Mode Pills */}
+      <div style={{display:'flex',gap:'8px',justifyContent:'center',flexWrap:'wrap',marginBottom:'8px'}}>
+        {(Object.keys(DIFFICULTY_CONFIG) as SnakeDifficulty[]).map(diff => (
+          <button key={diff} onClick={() => startGame(diff)} style={{padding:'6px 14px',borderRadius:'20px',border: diff === difficulty ? '1px solid #10b981' : '1px solid rgba(52,211,153,0.25)',background: diff === difficulty ? 'rgba(52,211,153,0.15)' : 'rgba(52,211,153,0.05)',color: diff === difficulty ? '#10b981' : 'var(--text-muted)',cursor:'pointer',fontSize:'13px',fontWeight: diff === difficulty ? 600 : 400,transition:'all 0.2s'}}>
+            {DIFFICULTY_CONFIG[diff].icon} {DIFFICULTY_CONFIG[diff].label}
+          </button>
+        ))}
+      </div>
 
       {/* HUD + Canvas */}
-      {status !== 'idle' && (
+      {(
         <>
           <div className="game-sub-hud">
             <div className="game-sub-hud-left">
@@ -708,7 +709,6 @@ export default function SnakeGame({ onBack }: SnakeGameProps) {
                   {isNewBest && <div className="game-sub-overlay-newbest">🎉 New Best!</div>}
                   <div className="game-sub-overlay-actions">
                     <button className="game-sub-overlay-btn primary" onClick={() => startGame(difficulty)}>Play Again</button>
-                    <button className="game-sub-overlay-btn secondary" onClick={resetGame}>Change Mode</button>
                   </div>
                 </div>
               </div>
@@ -742,7 +742,7 @@ export default function SnakeGame({ onBack }: SnakeGameProps) {
         </>
       )}
 
-      <button className="game-sub-back" onClick={onBack}>← Back to Games</button>
+      <button className="game-sub-back" onClick={onBack}>← Games Hub</button>
     </div>
   );
 }
