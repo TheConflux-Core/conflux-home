@@ -406,6 +406,28 @@
     0 0 30px rgba(201, 168, 76, 0.1);
 }
 
+/* ── Suit Edge Indicator ── */
+
+.johnny-card-suit-edge {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  opacity: 0.35;
+  pointer-events: none;
+  z-index: 3;
+  line-height: 1;
+}
+
+.johnny-card-suit-edge.red {
+  color: var(--j-red-suit);
+}
+
+.johnny-card-suit-edge.black {
+  color: var(--j-black-suit);
+}
+
 /* ── Card Face ── */
 
 .johnny-card-face {
