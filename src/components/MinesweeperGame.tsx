@@ -382,6 +382,14 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
     }, 300);
   }, [handleRightClick]);
 
+  const handleMouseUp = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    longPressTargetRef.current = null;
+  }, []);
+
   useEffect(() => {
     return () => {
       if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
