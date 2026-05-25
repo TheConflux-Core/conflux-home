@@ -36,7 +36,7 @@
   --accent-primary: var(--nani-terracotta);
 
   max-width: 560px;
-  margin: 40px auto 60px;
+  margin: 40px auto 150px;
   padding: 20px;
   min-height: calc(100vh - 100px);
   display: flex;
@@ -47,6 +47,11 @@
     radial-gradient(ellipse at 50% 30%, rgba(212, 164, 76, 0.06) 0%, transparent 60%),
     radial-gradient(ellipse at 50% 80%, rgba(107, 29, 42, 0.08) 0%, transparent 50%),
     linear-gradient(180deg, var(--nani-bg) 0%, var(--nani-bg-warm) 100%);
+  background-image:
+    url('/backgrounds/nani-solitaire-bg.webp');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   border-radius: 20px;
   box-shadow:
     0 8px 40px var(--nani-shadow),
@@ -914,7 +919,7 @@
 
 @media (max-width: 480px) {
   .nani-solitaire {
-    margin: 24px auto 40px;
+    margin: 24px auto 150px;
     padding: 12px;
   }
 
