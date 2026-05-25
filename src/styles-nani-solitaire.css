@@ -39,7 +39,8 @@
   margin: 16px auto 150px;
   padding: 20px;
   padding-bottom: 80px;
-  min-height: auto;
+  min-height: 0;
+  height: auto !important;
   display: flex;
   flex-direction: column;
   align-items: center;
