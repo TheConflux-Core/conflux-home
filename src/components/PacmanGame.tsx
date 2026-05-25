@@ -1028,45 +1028,57 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
   66% { transform: translate(-1.5%, 2%) rotate(-0.6deg); }
 }
 
-/* ── Hero: Arcade Cabinet Header ── */
+/* ── Hero: Arcade Cabinet Header (compact) ── */
 .pacman-sub .game-sub-hero {
   background: linear-gradient(135deg, rgba(251,191,36,0.14) 0%, rgba(245,158,11,0.07) 50%, rgba(252,211,77,0.04) 100%);
   border: 1px solid rgba(251,191,36,0.25);
   box-shadow:
-    0 8px 32px rgba(0,0,0,0.3),
-    0 0 60px rgba(251,191,36,0.04),
+    0 4px 16px rgba(0,0,0,0.3),
+    0 0 40px rgba(251,191,36,0.04),
     inset 0 1px 0 rgba(255,255,255,0.04);
   animation: pacman-hero-breathe 6s ease-in-out infinite;
-}
-@keyframes pacman-hero-breathe {
-  0%, 100% { box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 60px rgba(251,191,36,0.04), inset 0 1px 0 rgba(255,255,255,0.04); }
-  50% { box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 80px rgba(251,191,36,0.08), inset 0 1px 0 rgba(255,255,255,0.06); }
+  padding: 16px 20px;
+  margin-bottom: 10px;
+  min-height: unset;
+  gap: 12px;
 }
 .pacman-sub .game-sub-hero-glow {
-  background:
-    radial-gradient(circle at 80% 20%, rgba(251,191,36,0.25) 0%, transparent 50%),
-    radial-gradient(circle at 20% 80%, rgba(245,158,11,0.08) 0%, transparent 40%);
-  animation: pacman-hero-glow-pulse 8s ease-in-out infinite;
-}
-@keyframes pacman-hero-glow-pulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
+  display: none;
 }
 .pacman-sub .game-sub-hero-icon {
-  filter: drop-shadow(0 0 16px rgba(251,191,36,0.5)) drop-shadow(0 4px 12px rgba(0,0,0,0.4));
+  filter: drop-shadow(0 0 12px rgba(251,191,36,0.5)) drop-shadow(0 4px 8px rgba(0,0,0,0.4));
+  font-size: 28px;
 }
 .pacman-sub .game-sub-hero-title {
   background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #fcd34d 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  font-size: 20px;
+}
+.pacman-sub .game-sub-hero-subtitle {
+  font-size: 11px;
+  margin: 0;
 }
 .pacman-sub .game-sub-best {
+  font-size: 12px;
+  padding: 4px 10px;
   animation: pacman-best-pulse 3s ease-in-out infinite;
 }
-@keyframes pacman-best-pulse {
-  0%, 100% { box-shadow: 0 0 6px rgba(251,191,36,0.3); }
-  50% { box-shadow: 0 0 24px rgba(251,191,36,0.6), 0 0 48px rgba(251,191,36,0.2); }
+.pacman-sub .game-sub-back {
+  margin: 0;
+  padding: 6px 14px;
+  font-size: 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(251,191,36,0.25);
+  background: rgba(251,191,36,0.08);
+  color: var(--text-muted);
+  display: inline-block;
+}
+.pacman-sub .game-sub-back:hover {
+  border-color: rgba(251,191,36,0.5);
+  color: #fbbf24;
+  transform: none;
 }
 
 /* ── Canvas Wrap: Arcade Screen ── */
@@ -1238,6 +1250,7 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
 
       {/* Hero Section */}
       <div className="game-sub-hero">
+        <button className="game-sub-back" onClick={onBack}>← Hub</button>
         <div className="game-sub-hero-icon">👻</div>
         <div className="game-sub-hero-info">
           <h2 className="game-sub-hero-title">Pac-Man</h2>
@@ -1246,11 +1259,10 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
         {bestScores[difficulty] > 0 && (
           <div className="game-sub-best" style={{background:'rgba(251,191,36,0.12)',border:'1px solid rgba(251,191,36,0.25)',color:'#fbbf24'}}>🏆 {bestScores[difficulty]}</div>
         )}
-        <div className="game-sub-hero-glow" />
       </div>
 
       {/* Mode Pills */}
-      <div style={{display:'flex',gap:'8px',justifyContent:'center',flexWrap:'wrap',marginBottom:'8px'}}>
+      <div style={{display:'flex',gap:'6px',justifyContent:'center',flexWrap:'wrap',marginBottom:'6px'}}>
         {(Object.keys(DIFFICULTY) as PacDifficulty[]).map(diff => (
           <button key={diff} onClick={() => startGame(diff)} style={{padding:'6px 14px',borderRadius:'20px',border: diff === difficulty ? '1px solid #fbbf24' : '1px solid rgba(251,191,36,0.25)',background: diff === difficulty ? 'rgba(251,191,36,0.15)' : 'rgba(251,191,36,0.05)',color: diff === difficulty ? '#fbbf24' : 'var(--text-muted)',cursor:'pointer',fontSize:'13px',fontWeight: diff === difficulty ? 600 : 400,transition:'all 0.2s'}}>
             {DIFFICULTY[diff].icon} {DIFFICULTY[diff].label}
@@ -1332,7 +1344,7 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
         </>
       )}
 
-      <button className="game-sub-back" onClick={onBack}>← Games Hub</button>
+      <button className="game-sub-back" onClick={onBack} style={{display:'none'}}>← Games Hub</button>
     </div>
   );
 }
