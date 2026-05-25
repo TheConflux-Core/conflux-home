@@ -670,45 +670,57 @@ export default function SnakeGame({ onBack }: SnakeGameProps) {
   66% { transform: translate(-1.5%, 2%) rotate(-0.6deg); }
 }
 
-/* ── Hero: Ancient Terminal Header ── */
+/* ── Hero: Ancient Terminal Header (compact) ── */
 .snake-sub .game-sub-hero {
   background: linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(6,78,59,0.08) 50%, rgba(251,191,36,0.04) 100%);
   border: 1px solid rgba(16,185,129,0.25);
   box-shadow:
-    0 8px 32px rgba(0,0,0,0.3),
-    0 0 60px rgba(16,185,129,0.04),
+    0 4px 16px rgba(0,0,0,0.3),
+    0 0 40px rgba(16,185,129,0.04),
     inset 0 1px 0 rgba(255,255,255,0.04);
   animation: snake-hero-breathe 6s ease-in-out infinite;
-}
-@keyframes snake-hero-breathe {
-  0%, 100% { box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 60px rgba(16,185,129,0.04), inset 0 1px 0 rgba(255,255,255,0.04); }
-  50% { box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 80px rgba(16,185,129,0.08), inset 0 1px 0 rgba(255,255,255,0.06); }
+  padding: 16px 20px;
+  margin-bottom: 10px;
+  min-height: unset;
+  gap: 12px;
 }
 .snake-sub .game-sub-hero-glow {
-  background:
-    radial-gradient(circle at 80% 20%, rgba(16,185,129,0.2) 0%, transparent 50%),
-    radial-gradient(circle at 20% 80%, rgba(251,191,36,0.06) 0%, transparent 40%);
-  animation: snake-hero-glow-pulse 8s ease-in-out infinite;
-}
-@keyframes snake-hero-glow-pulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
+  display: none;
 }
 .snake-sub .game-sub-hero-icon {
-  filter: drop-shadow(0 0 16px rgba(16,185,129,0.5)) drop-shadow(0 4px 12px rgba(0,0,0,0.4));
+  filter: drop-shadow(0 0 12px rgba(16,185,129,0.5)) drop-shadow(0 4px 8px rgba(0,0,0,0.4));
+  font-size: 28px;
 }
 .snake-sub .game-sub-hero-title {
   background: linear-gradient(135deg, #10b981 0%, #34d399 50%, #6ee7b7 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  font-size: 20px;
+}
+.snake-sub .game-sub-hero-subtitle {
+  font-size: 11px;
+  margin: 0;
 }
 .snake-sub .game-sub-best {
+  font-size: 12px;
+  padding: 4px 10px;
   animation: snake-best-pulse 3s ease-in-out infinite;
 }
-@keyframes snake-best-pulse {
-  0%, 100% { box-shadow: 0 0 6px rgba(251,191,36,0.3); }
-  50% { box-shadow: 0 0 24px rgba(251,191,36,0.6), 0 0 48px rgba(251,191,36,0.2); }
+.snake-sub .game-sub-back {
+  margin: 0;
+  padding: 6px 14px;
+  font-size: 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(16,185,129,0.25);
+  background: rgba(16,185,129,0.08);
+  color: var(--text-muted);
+  display: inline-block;
+}
+.snake-sub .game-sub-back:hover {
+  border-color: rgba(16,185,129,0.5);
+  color: #10b981;
+  transform: none;
 }
 
 /* ── Canvas Wrap: Ancient Terminal Screen ── */
@@ -862,22 +874,11 @@ export default function SnakeGame({ onBack }: SnakeGameProps) {
   letter-spacing: 1.5px;
   font-size: 12px;
 }
-
-/* ── Back Button ── */
-.snake-sub .game-sub-back {
-  border-color: rgba(16,185,129,0.15);
-  color: rgba(16,185,129,0.6);
-  transition: all 0.25s ease;
-}
-.snake-sub .game-sub-back:hover {
-  border-color: rgba(16,185,129,0.35);
-  color: #10b981;
-  box-shadow: 0 4px 16px rgba(16,185,129,0.1);
-}
 `}</style>
 
       {/* Hero Section */}
       <div className="game-sub-hero">
+        <button className="game-sub-back" onClick={onBack}>← Hub</button>
         <div className="game-sub-hero-icon">🐍</div>
         <div className="game-sub-hero-info">
           <h2 className="game-sub-hero-title">Snake</h2>
@@ -886,11 +887,10 @@ export default function SnakeGame({ onBack }: SnakeGameProps) {
         {bestScores[difficulty] > 0 && (
           <div className="game-sub-best" style={{background:'rgba(52,211,153,0.12)',border:'1px solid rgba(52,211,153,0.25)',color:'#10b981'}}>🏆 {bestScores[difficulty]}</div>
         )}
-        <div className="game-sub-hero-glow" />
       </div>
 
       {/* Mode Pills */}
-      <div style={{display:'flex',gap:'8px',justifyContent:'center',flexWrap:'wrap',marginBottom:'8px'}}>
+      <div style={{display:'flex',gap:'6px',justifyContent:'center',flexWrap:'wrap',marginBottom:'6px'}}>
         {(Object.keys(DIFFICULTY_CONFIG) as SnakeDifficulty[]).map(diff => (
           <button key={diff} onClick={() => startGame(diff)} style={{padding:'6px 14px',borderRadius:'20px',border: diff === difficulty ? '1px solid #10b981' : '1px solid rgba(52,211,153,0.25)',background: diff === difficulty ? 'rgba(52,211,153,0.15)' : 'rgba(52,211,153,0.05)',color: diff === difficulty ? '#10b981' : 'var(--text-muted)',cursor:'pointer',fontSize:'13px',fontWeight: diff === difficulty ? 600 : 400,transition:'all 0.2s'}}>
             {DIFFICULTY_CONFIG[diff].icon} {DIFFICULTY_CONFIG[diff].label}
@@ -970,7 +970,7 @@ export default function SnakeGame({ onBack }: SnakeGameProps) {
         </>
       )}
 
-      <button className="game-sub-back" onClick={onBack}>← Games Hub</button>
+      <button className="game-sub-back" onClick={onBack} style={{display:'none'}}>← Games Hub</button>
     </div>
   );
 }
