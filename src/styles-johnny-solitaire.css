@@ -410,13 +410,12 @@
 
 .johnny-card-suit-edge {
   position: absolute;
-  right: 5px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 16px;
-  opacity: 0.35;
-  pointer-events: none;
-  z-index: 3;
+  right: 2px;
+  top: 4px;
+  transform: none;
+  font-size: 11px;
+  opacity: 0.5;
+  font-family: Georgia, serif;
   line-height: 1;
 }
 
