@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   playMinesweeperReveal,
   playMinesweeperFlag,
@@ -33,6 +33,18 @@ const DIFFICULTY_CONFIG: Record<Difficulty, { rows: number; cols: number; mines:
   beginner:     { rows: 9,  cols: 9,  mines: 10, label: 'Beginner',     meta: '9×9 · 10 mines' },
   intermediate: { rows: 16, cols: 16, mines: 40, label: 'Intermediate', meta: '16×16 · 40 mines' },
   expert:       { rows: 16, cols: 30, mines: 99, label: 'Expert',       meta: '16×30 · 99 mines' },
+};
+
+// Number colors — warm candlelight palette
+const NUMBER_COLORS: Record<number, string> = {
+  1: '#e8c86a',  // antique gold
+  2: '#d4956a',  // warm copper
+  3: '#e07858',  // ember
+  4: '#c86878',  // rose
+  5: '#a85860',  // deep rose
+  6: '#8890a8',  // steel
+  7: '#687898',  // slate
+  8: '#888078',  // ash
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -70,13 +82,11 @@ function placeMines(board: Tile[][], safeRow: number, safeCol: number, mineCount
   const cols = board[0].length;
   const safeZone = new Set<string>();
 
-  // Exclude clicked cell and its neighbors
   safeZone.add(`${safeRow},${safeCol}`);
   for (const [nr, nc] of getNeighbors(safeRow, safeCol, rows, cols)) {
     safeZone.add(`${nr},${nc}`);
   }
 
-  // Collect valid positions
   const positions: [number, number][] = [];
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -86,7 +96,6 @@ function placeMines(board: Tile[][], safeRow: number, safeCol: number, mineCount
     }
   }
 
-  // Shuffle and pick mine positions
   for (let i = positions.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [positions[i], positions[j]] = [positions[j], positions[i]];
@@ -100,7 +109,6 @@ function placeMines(board: Tile[][], safeRow: number, safeCol: number, mineCount
     newBoard[r][c].isMine = true;
   }
 
-  // Calculate adjacent mine counts
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       if (newBoard[r][c].isMine) continue;
@@ -129,7 +137,7 @@ function floodReveal(board: Tile[][], row: number, col: number): Tile[][] {
     const tile = newBoard[r][c];
     if (tile.isRevealed || tile.isFlagged) continue;
     tile.isRevealed = true;
-    tile.cascadeDelay = dist * 30;
+    tile.cascadeDelay = dist * 25;
 
     if (tile.adjacentMines === 0 && !tile.isMine) {
       for (const [nr, nc] of getNeighbors(r, c, rows, cols)) {
@@ -170,8 +178,7 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
   const [flagCount, setFlagCount] = useState(0);
   const [timer, setTimer] = useState(0);
   const [firstClick, setFirstClick] = useState(true);
-  const [muted, setMuted] = useState(false);
-  const [bestTimes, setBestTimes] = useState<Record<string, number>>(() => {
+  const [bestTimes] = useState<Record<string, number>>(() => {
     try {
       const saved = localStorage.getItem('conflux_minesweeper_best');
       return saved ? JSON.parse(saved) : {};
@@ -180,48 +187,12 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
     }
   });
 
-  const boardWrapRef = useRef<HTMLDivElement>(null);
-
-  // Compute cell size when board dimensions or container change
-  useEffect(() => {
-    if (!boardWrapRef.current) return;
-    const container = boardWrapRef.current;
-    const updateCellSize = () => {
-      const computed = getComputedStyle(container).getPropertyValue('--cell-size').trim();
-      if (!computed) return;
-    };
-
-    const observer = new ResizeObserver(() => {
-      if (!boardWrapRef.current) return;
-      const wrapEl = boardWrapRef.current.closest('.game-sub-canvas-wrap') as HTMLElement | null;
-      if (!wrapEl) return;
-      const config2 = DIFFICULTY_CONFIG[difficulty];
-      const wrapWidth = wrapEl.clientWidth;
-      const GAP = 0;
-      const availWidth = wrapWidth - GAP;
-      const computedCellSize = Math.floor(availWidth / config2.cols);
-      boardWrapRef.current.style.setProperty('--cell-size', `${computedCellSize}px`);
-    });
-
-    observer.observe(boardWrapRef.current);
-    // Trigger once
-    const wrapEl = boardWrapRef.current.closest('.game-sub-canvas-wrap') as HTMLElement | null;
-    if (wrapEl) {
-      const config2 = DIFFICULTY_CONFIG[difficulty];
-      const wrapWidth = wrapEl.clientWidth;
-      boardWrapRef.current.style.setProperty('--cell-size', `${Math.floor(wrapWidth / config2.cols)}px`);
-    }
-
-    return () => observer.disconnect();
-  }, [difficulty, board.length]);
+  const [isShaking, setIsShaking] = useState(false);
+  const [flashOverlay, setFlashOverlay] = useState<'none' | 'explode' | 'win'>('none');
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressTargetRef = useRef<{ row: number; col: number } | null>(null);
-  const [showFlash, setShowFlash] = useState(false);
-  const [isShaking, setIsShaking] = useState(false);
 
-  // ── Timer Management ─────────────────────────────────────────────────────
+  // ── Timer ───────────────────────────────────────────────────────────────
 
   const startTimer = useCallback(() => {
     if (timerRef.current) return;
@@ -243,34 +214,19 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
     };
   }, []);
 
-  // ── Sound Effects ────────────────────────────────────────────────────────
-
-  const playSound = useCallback((type: 'reveal' | 'flag' | 'explode' | 'win' | 'cascade') => {
-    if (muted) return;
-    switch (type) {
-      case 'reveal': playMinesweeperReveal(); break;
-      case 'flag': playMinesweeperFlag(); break;
-      case 'explode': playMinesweeperExplode(); break;
-      case 'cascade': playMinesweeperCascade(); break;
-      case 'win': playMinesweeperWin(); break;
-    }
-  }, [muted]);
-
-  // ── Save Best Time ───────────────────────────────────────────────────────
+  // ── Save Best Time ─────────────────────────────────────────────────────
 
   const saveBestTime = useCallback((diff: string, time: number) => {
-    setBestTimes(prev => {
-      const current = prev[diff];
-      if (!current || time < current) {
-        const updated = { ...prev, [diff]: time };
-        localStorage.setItem('conflux_minesweeper_best', JSON.stringify(updated));
-        return updated;
+    try {
+      const saved = localStorage.getItem('conflux_minesweeper_best');
+      const current: Record<string, number> = saved ? JSON.parse(saved) : {};
+      if (!current[diff] || time < current[diff]) {
+        localStorage.setItem('conflux_minesweeper_best', JSON.stringify({ ...current, [diff]: time }));
       }
-      return prev;
-    });
+    } catch { /* ignore */ }
   }, []);
 
-  // ── Game Actions ─────────────────────────────────────────────────────────
+  // ── Game Actions ───────────────────────────────────────────────────────
 
   const resetGame = useCallback(() => {
     stopTimer();
@@ -279,7 +235,7 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
     setTimer(0);
     setFlagCount(0);
     setFirstClick(true);
-    setShowFlash(false);
+    setFlashOverlay('none');
     setIsShaking(false);
   }, [stopTimer]);
 
@@ -293,9 +249,24 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
     setTimer(0);
     setFirstClick(true);
     setGameState('playing');
-    setShowFlash(false);
+    setFlashOverlay('none');
     setIsShaking(false);
     stopTimer();
+  }, [stopTimer]);
+
+  const handleLoss = useCallback((row: number, col: number, currentBoard: Tile[][]) => {
+    const newBoard = currentBoard.map(r => r.map(t => ({ ...t })));
+    newBoard[row][col].isRevealed = true;
+    newBoard[row][col].isExploded = true;
+    newBoard.forEach(r => r.forEach(t => { if (t.isMine) t.isRevealed = true; }));
+    setBoard(newBoard);
+    setGameState('lost');
+    setIsShaking(true);
+    setFlashOverlay('explode');
+    setTimeout(() => setIsShaking(false), 400);
+    setTimeout(() => setFlashOverlay('none'), 600);
+    stopTimer();
+    playMinesweeperExplode();
   }, [stopTimer]);
 
   const handleLeftClick = useCallback((row: number, col: number) => {
@@ -303,38 +274,26 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
     const tile = board[row]?.[col];
     if (!tile || tile.isRevealed || tile.isFlagged) return;
 
-    // First click: place mines, ensure safe
     if (firstClick) {
       const config = DIFFICULTY_CONFIG[difficulty];
       const newBoard = placeMines(board, row, col, config.mines);
       setFirstClick(false);
       startTimer();
 
-      // Reveal the clicked tile on the new board
       const clickedTile = newBoard[row][col];
       if (clickedTile.isMine) {
-        // Shouldn't happen with safe zone, but just in case
-        clickedTile.isExploded = true;
-        newBoard.forEach(r => r.forEach(t => { if (t.isMine) t.isRevealed = true; }));
-        setBoard(newBoard);
-        setGameState('lost');
-        setIsShaking(true);
-        setShowFlash(true);
-        setTimeout(() => setIsShaking(false), 400);
-        setTimeout(() => setShowFlash(false), 500);
-        stopTimer();
-        playSound('explode');
+        handleLoss(row, col, newBoard);
         return;
       }
 
       let revealedBoard: Tile[][];
       if (clickedTile.adjacentMines === 0) {
         revealedBoard = floodReveal(newBoard, row, col);
-        playSound('cascade');
+        playMinesweeperCascade();
       } else {
         revealedBoard = newBoard.map(r => r.map(t => ({ ...t })));
         revealedBoard[row][col].isRevealed = true;
-        playSound('reveal');
+        playMinesweeperReveal();
       }
 
       setBoard(revealedBoard);
@@ -342,38 +301,27 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
       if (checkWin(revealedBoard)) {
         setGameState('won');
         stopTimer();
-        playSound('win');
+        playMinesweeperWin();
+        setFlashOverlay('win');
+        setTimeout(() => setFlashOverlay('none'), 800);
         saveBestTime(difficulty, 0);
       }
       return;
     }
 
-    // Normal click
     if (tile.isMine) {
-      const newBoard = board.map(r => r.map(t => ({ ...t })));
-      newBoard[row][col].isRevealed = true;
-      newBoard[row][col].isExploded = true;
-      // Reveal all mines
-      newBoard.forEach(r => r.forEach(t => { if (t.isMine) t.isRevealed = true; }));
-      setBoard(newBoard);
-      setGameState('lost');
-      setIsShaking(true);
-      setShowFlash(true);
-      setTimeout(() => setIsShaking(false), 400);
-      setTimeout(() => setShowFlash(false), 500);
-      stopTimer();
-      playSound('explode');
+      handleLoss(row, col, board);
       return;
     }
 
     let newBoard: Tile[][];
     if (tile.adjacentMines === 0) {
       newBoard = floodReveal(board, row, col);
-      playSound('cascade');
+      playMinesweeperCascade();
     } else {
       newBoard = board.map(r => r.map(t => ({ ...t })));
       newBoard[row][col].isRevealed = true;
-      playSound('reveal');
+      playMinesweeperReveal();
     }
 
     setBoard(newBoard);
@@ -381,10 +329,12 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
     if (checkWin(newBoard)) {
       setGameState('won');
       stopTimer();
-      playSound('win');
+      playMinesweeperWin();
+      setFlashOverlay('win');
+      setTimeout(() => setFlashOverlay('none'), 800);
       saveBestTime(difficulty, timer);
     }
-  }, [gameState, board, firstClick, difficulty, timer, startTimer, stopTimer, playSound, saveBestTime]);
+  }, [gameState, board, firstClick, difficulty, timer, startTimer, stopTimer, handleLoss, saveBestTime]);
 
   const handleRightClick = useCallback((row: number, col: number) => {
     if (gameState !== 'playing') return;
@@ -397,58 +347,10 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
 
     const newFlagCount = newBoard.flat().filter(t => t.isFlagged).length;
     setFlagCount(newFlagCount);
-    playSound('flag');
-  }, [gameState, board, playSound]);
+    playMinesweeperFlag();
+  }, [gameState, board]);
 
-  // ── Long-press to flag ───────────────────────────────────────────────────
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0) return; // left click only
-    const target = e.currentTarget as HTMLElement;
-    const row = parseInt(target.dataset.row ?? '-1', 10);
-    const col = parseInt(target.dataset.col ?? '-1', 10);
-    if (row < 0 || col < 0) return;
-
-    longPressTargetRef.current = { row, col };
-    longPressTimerRef.current = setTimeout(() => {
-      // Long press triggered — flag the tile
-      handleRightClick(row, col);
-      longPressTargetRef.current = null;
-    }, 300);
-  }, [handleRightClick]);
-
-  const handleMouseUp = useCallback(() => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-    longPressTargetRef.current = null;
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-    };
-  }, []);
-
-  // ── Tile Rendering ───────────────────────────────────────────────────────
-
-  const getTileClass = useCallback((tile: Tile): string => {
-    const classes = ['minesweeper-tile'];
-    if (tile.isFlagged && !tile.isRevealed) {
-      classes.push('tile-flagged');
-    } else if (!tile.isRevealed) {
-      classes.push('tile-hidden');
-    } else if (tile.isMine) {
-      classes.push(tile.isExploded ? 'tile-mine-exploded' : 'tile-mine');
-    } else {
-      classes.push('tile-revealed');
-      if (tile.adjacentMines > 0) {
-        classes.push(`tile-num-${tile.adjacentMines}`);
-      }
-    }
-    return classes.join(' ');
-  }, []);
+  // ── Tile content ───────────────────────────────────────────────────────
 
   const getTileContent = useCallback((tile: Tile): string => {
     if (tile.isFlagged && !tile.isRevealed) return '🚩';
@@ -458,470 +360,729 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
     return '';
   }, []);
 
-  // ── Render ───────────────────────────────────────────────────────────────
+  // ── Init ───────────────────────────────────────────────────────────────
 
-  const config = DIFFICULTY_CONFIG[difficulty];
-  const showOverlay = gameState === 'won' || gameState === 'lost';
-
-  // Initialize game on mount
   useEffect(() => {
     startGame('beginner');
   }, []);
 
+  // ── Render ─────────────────────────────────────────────────────────────
+
+  const config = DIFFICULTY_CONFIG[difficulty];
+  const remainingMines = mineCount - flagCount;
+  const faceEmoji = gameState === 'lost' ? '💥' : gameState === 'won' ? '🏆' : '💣';
+  const isNewBest = gameState === 'won' && bestTimes[difficulty] === timer;
+  const hasBest = bestTimes[difficulty] != null && bestTimes[difficulty] > 0;
+
   return (
-    <div className="game-sub-container minesweeper-sub">
+    <div className="ms-container">
       <style>{`
-/* ═══════════════════════════════════════════════════════════
-   MINESWEEPER — Deep Design Pass
-   The Conflux · Cinematic War Room Experience
-   ═══════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════
+   MINESWEEPER — "The Minefield"
+   Burgundy / Parchment / Candlelight world.
+   The board IS the hero. Everything else is atmospheric.
+   ═══════════════════════════════════════════════════════════════════ */
 
-/* ── Ambient Background: War Room Atmosphere ── */
-.minesweeper-sub {
-  padding: 28px 24px 120px;
-}
-.minesweeper-sub::before {
-  background:
-    radial-gradient(circle at 25% 35%, rgba(239,68,68,0.07) 0%, transparent 45%),
-    radial-gradient(circle at 75% 65%, rgba(185,28,28,0.045) 0%, transparent 50%),
-    radial-gradient(circle at 50% 80%, rgba(251,191,36,0.025) 0%, transparent 40%),
-    radial-gradient(circle at 10% 90%, rgba(239,68,68,0.03) 0%, transparent 35%);
-  animation: minesweeper-ambient-drift 20s ease-in-out infinite;
-}
-@keyframes minesweeper-ambient-drift {
-  0%, 100% { transform: translate(0, 0) rotate(0deg); }
-  33% { transform: translate(2%, -1.5%) rotate(0.8deg); }
-  66% { transform: translate(-1.5%, 2%) rotate(-0.6deg); }
+.ms-container {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: linear-gradient(165deg, #1a1510 0%, #2a1f18 40%, #1e1512 100%);
+  font-family: 'Georgia', 'Times New Roman', serif;
+  box-sizing: border-box;
+  padding: 12px;
 }
 
-/* ── Hero: War Room Command Center ── */
-.minesweeper-sub .game-sub-hero {
-  background: linear-gradient(135deg, rgba(239,68,68,0.14) 0%, rgba(127,29,29,0.08) 50%, rgba(251,191,36,0.04) 100%);
-  border: 1px solid rgba(239,68,68,0.28);
-  box-shadow:
-    0 4px 16px rgba(0,0,0,0.3),
-    0 0 40px rgba(239,68,68,0.05),
-    inset 0 1px 0 rgba(255,255,255,0.04);
-  animation: minesweeper-hero-breathe 6s ease-in-out infinite;
-  padding: 16px 20px;
-  margin-bottom: 10px;
-  min-height: unset;
-  gap: 12px;
-}
-.minesweeper-sub .game-sub-hero-glow {
-  display: none;
-}
-.minesweeper-sub .game-sub-hero-icon {
-  filter: drop-shadow(0 0 12px rgba(239,68,68,0.5)) drop-shadow(0 4px 8px rgba(0,0,0,0.4));
-  font-size: 28px;
-}
-.minesweeper-sub .game-sub-hero-title {
-  background: linear-gradient(135deg, #fbbf24 0%, #ef4444 40%, #dc2626 70%, #b91c1c 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  font-size: 20px;
-}
-.minesweeper-sub .game-sub-hero-subtitle {
-  font-size: 11px;
-  margin: 0;
-}
-.minesweeper-sub .game-sub-best {
-  font-size: 12px;
-  padding: 4px 10px;
-  animation: minesweeper-best-pulse 3s ease-in-out infinite;
-}
-.minesweeper-sub .game-sub-back {
-  margin: 0;
-  padding: 10px 20px;
-  font-size: 14px;
-  font-weight: 700;
-  border-radius: 20px;
-  border: 1.5px solid rgba(239,68,68,0.6);
-  background: rgba(239,68,68,0.2);
-  color: #ef4444;
-  display: inline-block;
-  letter-spacing: 0.5px;
-}
-.minesweeper-sub .game-sub-back:hover {
-  border-color: rgba(239,68,68,0.9);
-  background: rgba(239,68,68,0.3);
-  transform: scale(1.05);
+/* ── Atmosphere: candlelight glow ── */
+.ms-atmosphere {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
 }
 
-/* ── Canvas Wrap: Minefield Border ── */
-.minesweeper-sub .game-sub-canvas-wrap {
-  width: 100%;
-  margin: 0 auto;
-  border-color: rgba(239,68,68,0.3);
-  border-width: 2px;
-  box-shadow:
-    0 0 24px rgba(239,68,68,0.1),
-    0 0 72px rgba(239,68,68,0.05),
-    0 0 120px rgba(239,68,68,0.02),
-    inset 0 0 40px rgba(0,0,0,0.2);
-  transition: box-shadow 0.5s ease, border-color 0.5s ease;
-}
-.minesweeper-sub .game-sub-canvas-wrap:hover {
-  border-color: rgba(239,68,68,0.45);
-  box-shadow:
-    0 0 36px rgba(239,68,68,0.15),
-    0 0 100px rgba(239,68,68,0.08),
-    0 0 160px rgba(239,68,68,0.03),
-    inset 0 0 40px rgba(0,0,0,0.15);
-}
-
-/* ── HUD: Brass War Gauges ── */
-.minesweeper-sub .game-sub-hud {
-  background: linear-gradient(135deg, rgba(30,20,10,0.7), rgba(20,15,8,0.8));
-  border: 1px solid rgba(251,191,36,0.15);
-  box-shadow:
-    0 4px 20px rgba(0,0,0,0.3),
-    inset 0 1px 0 rgba(255,255,255,0.04),
-    inset 0 -1px 0 rgba(0,0,0,0.2);
-  backdrop-filter: blur(24px) saturate(1.2);
-  -webkit-backdrop-filter: blur(24px) saturate(1.2);
-}
-.minesweeper-sub .game-sub-hud-label {
-  color: rgba(251,191,36,0.5);
-  font-size: 10px;
-  letter-spacing: 2px;
-}
-.minesweeper-sub .game-sub-hud-value {
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 1px;
-}
-
-/* ── Difficulty Pills: Carved Stone Buttons ── */
-.minesweeper-sub .game-sub-diff-pill {
-  position: relative;
-  box-shadow:
-    0 2px 8px rgba(0,0,0,0.3),
-    inset 0 1px 0 rgba(255,255,255,0.06),
-    inset 0 -2px 0 rgba(0,0,0,0.15);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.minesweeper-sub .game-sub-diff-pill:hover {
-  border-color: rgba(239,68,68,0.5);
-  background: rgba(239,68,68,0.12);
-  box-shadow:
-    0 4px 16px rgba(239,68,68,0.15),
-    inset 0 1px 0 rgba(255,255,255,0.08);
-  transform: translateY(-2px);
-}
-.minesweeper-sub .game-sub-diff-pill:active {
-  transform: scale(0.95);
-  box-shadow:
-    0 1px 4px rgba(0,0,0,0.3),
-    inset 0 2px 4px rgba(0,0,0,0.3);
-}
-.minesweeper-sub .game-sub-diff-pill.active {
-  border-color: #ef4444;
-  background: rgba(239,68,68,0.18);
-  box-shadow:
-    0 0 12px rgba(239,68,68,0.2),
-    inset 0 1px 0 rgba(255,255,255,0.08);
-}
-
-/* ── Overlay: Cinema Screen Reveal ── */
-.minesweeper-sub .game-sub-overlay {
-  background: rgba(0,0,0,0.85);
-  backdrop-filter: blur(16px) saturate(0.8);
-  -webkit-backdrop-filter: blur(16px) saturate(0.8);
-  animation: minesweeper-overlay-in 0.6s ease forwards;
-}
-@keyframes minesweeper-overlay-in {
-  0% { opacity: 0; }
-  40% { opacity: 1; }
-}
-.minesweeper-sub .game-sub-overlay-card {
-  background: linear-gradient(160deg, rgba(15,10,10,0.96), rgba(10,5,5,0.98));
-  border: 1px solid rgba(239,68,68,0.25);
-  box-shadow:
-    0 32px 80px rgba(0,0,0,0.7),
-    0 0 60px rgba(239,68,68,0.06),
-    inset 0 1px 0 rgba(255,255,255,0.05);
-  animation: minesweeper-card-dramatic 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-@keyframes minesweeper-card-dramatic {
-  0% { opacity: 0; transform: scale(0.7) translateY(30px); filter: blur(8px); }
-  100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
-}
-.minesweeper-sub .game-sub-overlay-title {
-  background: linear-gradient(135deg, #fbbf24, #ef4444);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-.minesweeper-sub .game-sub-overlay-title.loss {
-  background: linear-gradient(135deg, #ef4444, #991b1b);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-.minesweeper-sub .game-sub-overlay-score {
-  color: #ef4444;
-  text-shadow:
-    0 0 20px rgba(239,68,68,0.4),
-    0 0 60px rgba(239,68,68,0.15);
-  animation: minesweeper-score-glow 2s ease-in-out infinite;
-}
-@keyframes minesweeper-score-glow {
-  0%, 100% { text-shadow: 0 0 20px rgba(239,68,68,0.4), 0 0 60px rgba(239,68,68,0.15); }
-  50% { text-shadow: 0 0 30px rgba(239,68,68,0.6), 0 0 80px rgba(239,68,68,0.25); }
-}
-.minesweeper-sub .game-sub-overlay-win-score {
-  color: #fbbf24;
-  text-shadow:
-    0 0 20px rgba(251,191,36,0.4),
-    0 0 60px rgba(251,191,36,0.15);
-  animation: minesweeper-win-score-glow 2s ease-in-out infinite;
-}
-@keyframes minesweeper-win-score-glow {
-  0%, 100% { text-shadow: 0 0 20px rgba(251,191,36,0.4), 0 0 60px rgba(251,191,36,0.15); }
-  50% { text-shadow: 0 0 30px rgba(251,191,36,0.6), 0 0 80px rgba(251,191,36,0.25); }
-}
-.minesweeper-sub .game-sub-overlay-newbest {
-  background: rgba(251,191,36,0.12);
-  border: 1px solid rgba(251,191,36,0.35);
-  color: #fbbf24;
-  box-shadow: 0 0 20px rgba(251,191,36,0.15);
-  animation: minesweeper-newbest-burst 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards, minesweeper-newbest-glow 2s ease-in-out 0.7s infinite;
-}
-@keyframes minesweeper-newbest-burst {
-  0% { opacity: 0; transform: scale(0.3) rotate(-10deg); }
-  60% { transform: scale(1.15) rotate(2deg); }
-  100% { opacity: 1; transform: scale(1) rotate(0); }
-}
-@keyframes minesweeper-newbest-glow {
-  0%, 100% { box-shadow: 0 0 20px rgba(251,191,36,0.15); }
-  50% { box-shadow: 0 0 32px rgba(251,191,36,0.35), 0 0 60px rgba(251,191,36,0.1); }
-}
-.minesweeper-sub .game-sub-overlay-btn.primary {
-  background: linear-gradient(135deg, #ef4444, #b91c1c);
-  color: #fff;
-  box-shadow:
-    0 6px 20px rgba(239,68,68,0.35),
-    0 0 40px rgba(239,68,68,0.1),
-    inset 0 1px 0 rgba(255,255,255,0.15);
-  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.minesweeper-sub .game-sub-overlay-btn.primary:hover {
-  background: linear-gradient(135deg, #f87171, #ef4444);
-  box-shadow:
-    0 8px 28px rgba(239,68,68,0.45),
-    0 0 60px rgba(239,68,68,0.15),
-    inset 0 1px 0 rgba(255,255,255,0.2);
-  transform: scale(1.07) translateY(-2px);
-}
-.minesweeper-sub .game-sub-overlay-btn.primary:active {
-  transform: scale(0.97);
-  box-shadow: 0 2px 8px rgba(239,68,68,0.3);
-}
-
-/* ── Screen Shake on Loss ── */
-.minesweeper-sub .minesweeper-board.shake {
-  animation: minesweeper-screen-shake 0.4s ease-out;
-}
-@keyframes minesweeper-screen-shake {
-  0%, 100% { transform: translate(0, 0); }
-  10% { transform: translate(-4px, 2px); }
-  20% { transform: translate(4px, -2px); }
-  30% { transform: translate(-3px, 1px); }
-  40% { transform: translate(3px, -1px); }
-  50% { transform: translate(-2px, 1px); }
-  60% { transform: translate(2px, 0); }
-}
-
-/* ── Red Flash on Loss ── */
-.minesweeper-sub .minesweeper-flash-overlay {
+/* Parchment texture overlay */
+.ms-atmosphere::before {
+  content: '';
   position: absolute;
   inset: 0;
-  background: rgba(239,68,68,0.3);
-  z-index: 5;
-  pointer-events: none;
-  border-radius: 20px;
-  animation: minesweeper-red-flash 0.5s ease-out forwards;
+  background-image: url('/backgrounds/minesweeper-bg.webp');
+  background-size: cover;
+  background-position: center;
+  opacity: 0.5;
+  animation: ms-candle-drift 18s ease-in-out infinite alternate;
 }
-@keyframes minesweeper-red-flash {
+
+/* Faint grid */
+.ms-atmosphere::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(200,160,100,0.012) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(200,160,100,0.012) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+@keyframes ms-candle-drift {
+  0%   { opacity: 0.6; transform: translate(0, 0) scale(1); }
+  50%  { opacity: 1;   transform: translate(-1%, 0.5%) scale(1.02); }
+  100% { opacity: 0.7; transform: translate(0.5%, -0.5%) scale(0.99); }
+}
+
+/* ── Screen flash ── */
+.ms-flash-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  animation: ms-flash-fade 0.6s ease-out forwards;
+}
+.ms-flash-overlay.explode { background: radial-gradient(ellipse at center, rgba(200,60,40,0.35) 0%, rgba(80,20,15,0.2) 40%, transparent 70%); }
+.ms-flash-overlay.win    { background: radial-gradient(ellipse at center, rgba(220,180,100,0.2) 0%, rgba(180,140,60,0.08) 40%, transparent 70%); }
+
+@keyframes ms-flash-fade {
   0% { opacity: 1; }
   100% { opacity: 0; }
 }
 
-/* ── D-Pad: Tactile Buttons ── */
-.minesweeper-sub .game-sub-dpad-btn {
-  border-color: rgba(239,68,68,0.2);
-  color: #ef4444;
-  background: rgba(239,68,68,0.06);
-  box-shadow:
-    0 2px 8px rgba(0,0,0,0.3),
-    inset 0 1px 0 rgba(255,255,255,0.06),
-    inset 0 -2px 0 rgba(0,0,0,0.15);
-  transition: all 0.1s ease;
-}
-.minesweeper-sub .game-sub-dpad-btn:active {
-  background: rgba(239,68,68,0.2);
-  box-shadow:
-    0 0 4px rgba(0,0,0,0.3),
-    inset 0 2px 4px rgba(0,0,0,0.3);
-  transform: scale(0.92);
+/* ── Content layer ── */
+.ms-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  max-width: 1000px;
+  padding: 40px 0 150px;
+  box-sizing: border-box;
 }
 
-/* ── Controls Hint ── */
-.minesweeper-sub .game-sub-controls {
-  color: rgba(239,68,68,0.35);
+/* ── Compact HUD strip ── */
+.ms-hud {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  background: rgba(40,24,20,0.6);
+  border: 1px solid rgba(200,160,100,0.1);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3), inset 0 1px 0 rgba(200,160,100,0.04);
+  flex-shrink: 0;
+}
+
+.ms-hud-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ms-hud-label {
+  font-size: 11px;
+  text-transform: uppercase;
   letter-spacing: 1.5px;
-  font-size: 12px;
+  color: rgba(200,160,100,0.35);
+  font-family: 'Georgia', serif;
+  font-weight: 400;
 }
 
-/* ── Back Button ── */
-.minesweeper-sub .game-sub-back {
-  border-color: rgba(239,68,68,0.15);
-  color: rgba(239,68,68,0.6);
-  transition: all 0.25s ease;
-}
-.minesweeper-sub .game-sub-back:hover {
-  border-color: rgba(239,68,68,0.35);
-  color: #ef4444;
-  box-shadow: 0 4px 16px rgba(239,68,68,0.1);
-}
-
-/* ── Dynamic Cell Sizing per Difficulty ── */
-.minesweeper-board.beginner .minesweeper-tile {
-  width: 40px;
-  height: 40px;
+.ms-hud-value {
   font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #c8a064;
+  min-width: 32px;
+  text-align: center;
+  letter-spacing: 1px;
 }
-.minesweeper-board.intermediate .minesweeper-tile {
-  width: 28px;
-  height: 28px;
-  font-size: 12px;
-}
-.minesweeper-board.expert .minesweeper-tile {
-  width: 20px;
+
+.ms-hud-separator {
+  width: 1px;
   height: 20px;
+  background: rgba(200,160,100,0.12);
+}
+
+/* Back to Hub button — prominent, in the HUD */
+.ms-hub-btn {
+  background: rgba(200,160,100,0.12);
+  border: 1px solid rgba(200,160,100,0.25);
+  border-radius: 8px;
+  color: #c8a064;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'Georgia', serif;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: 0.5px;
+  margin-left: 8px;
+}
+.ms-hub-btn:hover {
+  background: rgba(200,160,100,0.2);
+  border-color: rgba(200,160,100,0.4);
+  color: #e0b878;
+}
+
+/* Face button — compact, warm */
+.ms-face-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(200,160,100,0.2);
+  background: rgba(200,160,100,0.06);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.ms-face-btn:hover {
+  background: rgba(200,160,100,0.12);
+  border-color: rgba(200,160,100,0.35);
+  transform: scale(1.1);
+}
+.ms-face-btn:active { transform: scale(0.9); }
+
+/* ── Difficulty pills ── */
+.ms-diff-bar {
+  display: flex;
+  gap: 4px;
+  margin-left: 4px;
+}
+
+.ms-diff-pill {
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(200,160,100,0.12);
+  background: transparent;
+  color: rgba(200,160,100,0.3);
   font-size: 10px;
-  border-radius: 5px;
+  font-weight: 600;
+  font-family: 'Georgia', serif;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+}
+.ms-diff-pill:hover {
+  border-color: rgba(200,160,100,0.25);
+  color: rgba(200,160,100,0.5);
+}
+.ms-diff-pill.active {
+  border-color: rgba(200,160,100,0.3);
+  background: rgba(200,160,100,0.08);
+  color: #c8a064;
+  font-weight: 700;
+}
+
+/* ── Board frame — the stage ── */
+.ms-board-frame {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  position: relative;
+  overflow: auto;
+  background: rgba(20,14,12,1);
+  border: 1px solid rgba(200,160,100,0.1);
+  border-radius: 12px;
+}
+
+/* Ornamental border */
+.ms-board-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(200,160,100,0.06);
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+/* ── Board grid — fixed cell sizes ── */
+.ms-board {
+  --cell-size: 28px;
+  --cell-gap: 1px;
+  display: grid;
+  gap: var(--cell-gap);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.ms-board.shake {
+  animation: ms-shake 0.4s ease-out;
+}
+
+@keyframes ms-shake {
+  0%, 100% { transform: translate(0, 0); }
+  15% { transform: translate(-3px, 2px); }
+  30% { transform: translate(3px, -2px); }
+  45% { transform: translate(-2px, 1px); }
+  60% { transform: translate(2px, -1px); }
+  75% { transform: translate(-1px, 0); }
+}
+
+/* ── Tiles ── */
+.ms-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--cell-size);
+  height: var(--cell-size);
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  user-select: none;
+  font-weight: 700;
+  border-radius: 3px;
+  transition: background 0.1s ease;
+  position: relative;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  font-size: 13px;
+}
+
+/* Hidden tile — parchment feel, subtle 3D */
+.ms-tile.ms-hidden {
+  background: linear-gradient(145deg, rgba(90,65,50,0.45) 0%, rgba(65,45,35,0.55) 100%);
+  border: 1px solid rgba(0,0,0,0.8);
+  box-shadow:
+    inset 0 1px 0 rgba(180,140,100,0.08),
+    inset 0 -1px 0 rgba(0,0,0,0.15);
+}
+.ms-tile.ms-hidden:hover {
+  background: linear-gradient(145deg, rgba(110,80,60,0.55) 0%, rgba(80,55,40,0.6) 100%);
+  border-color: rgba(180,140,100,0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(200,160,120,0.1),
+    inset 0 -1px 0 rgba(0,0,0,0.12),
+    0 0 8px rgba(200,160,100,0.06);
+}
+.ms-tile.ms-hidden:active {
+  background: linear-gradient(145deg, rgba(60,40,30,0.6) 0%, rgba(50,30,25,0.7) 100%);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+}
+
+/* Flagged */
+.ms-tile.ms-flagged {
+  background: linear-gradient(145deg, rgba(160,80,50,0.25) 0%, rgba(120,55,35,0.35) 100%);
+  border: 1px solid rgba(200,120,80,0.3);
+  box-shadow: inset 0 1px 0 rgba(200,140,100,0.06);
+}
+.ms-tile.ms-flagged:hover {
+  background: linear-gradient(145deg, rgba(180,90,55,0.3) 0%, rgba(140,65,40,0.4) 100%);
+}
+
+/* Revealed */
+.ms-tile.ms-revealed {
+  background: rgba(20,14,12,0.6);
+  border: 1px solid rgba(80,55,40,0.15);
+  cursor: default;
+}
+
+/* Mine — warm danger */
+.ms-tile.ms-mine {
+  background: rgba(160,45,30,0.35);
+  border: 1px solid rgba(200,60,40,0.35);
+}
+
+/* Exploded mine */
+.ms-tile.ms-exploded {
+  background: radial-gradient(circle at center, rgba(220,80,50,0.7) 0%, rgba(160,40,25,0.5) 50%, rgba(120,30,20,0.35) 100%);
+  border: 1px solid rgba(240,100,70,0.5);
+  box-shadow: 0 0 12px rgba(200,60,40,0.4), inset 0 0 8px rgba(240,100,60,0.2);
+  animation: ms-explode-pulse 0.6s ease-out;
+}
+
+@keyframes ms-explode-pulse {
+  0%   { transform: scale(1.15); box-shadow: 0 0 24px rgba(240,80,40,0.6); }
+  100% { transform: scale(1);    box-shadow: 0 0 12px rgba(200,60,40,0.4); }
+}
+
+/* Number styling */
+.ms-tile.ms-number {
+  cursor: default;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-weight: 800;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+/* Cascade reveal animation */
+.ms-tile.ms-cascade-reveal {
+  animation: ms-cascade-in 0.2s ease-out backwards;
+}
+
+@keyframes ms-cascade-in {
+  0%   { background: rgba(200,160,100,0.15); transform: scale(0.92); }
+  100% { background: rgba(20,14,12,0.6);      transform: scale(1); }
+}
+
+/* ── Overlays: win / loss ── */
+.ms-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  animation: ms-overlay-in 0.4s ease-out;
+}
+
+.ms-overlay.win {
+  background: radial-gradient(ellipse at center, rgba(200,160,80,0.12) 0%, rgba(10,8,6,0.85) 60%);
+}
+
+.ms-overlay.loss {
+  background: radial-gradient(ellipse at center, rgba(160,40,30,0.1) 0%, rgba(10,8,6,0.88) 60%);
+}
+
+@keyframes ms-overlay-in {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.ms-overlay-card {
+  text-align: center;
+  padding: 28px 36px;
+  animation: ms-card-rise 0.5s ease-out 0.1s backwards;
+}
+
+@keyframes ms-card-rise {
+  0%   { opacity: 0; transform: translateY(16px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+.ms-overlay-emoji {
+  font-size: 44px;
+  margin-bottom: 8px;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4));
+}
+
+.ms-overlay-title {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.ms-overlay-title.win { color: #d4a854; }
+.ms-overlay-title.loss { color: #c06040; }
+
+.ms-overlay-time {
+  font-size: 42px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  letter-spacing: 2px;
+  margin-bottom: 2px;
+}
+
+.ms-overlay-time.win { color: #d4a854; text-shadow: 0 0 20px rgba(200,160,80,0.3); }
+.ms-overlay-time.loss { color: #c06040; }
+
+.ms-overlay-sub {
+  font-size: 13px;
+  color: rgba(200,160,100,0.35);
+  font-style: italic;
+  margin-bottom: 4px;
+}
+
+.ms-overlay-newbest {
+  display: inline-block;
+  padding: 4px 14px;
+  border-radius: 20px;
+  background: rgba(212,168,84,0.1);
+  border: 1px solid rgba(212,168,84,0.25);
+  color: #d4a854;
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 6px;
+  animation: ms-best-glow 2s ease-in-out infinite;
+}
+
+@keyframes ms-best-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(212,168,84,0.1); }
+  50%      { box-shadow: 0 0 16px rgba(212,168,84,0.25); }
+}
+
+.ms-overlay-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.ms-overlay-btn {
+  padding: 8px 22px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: 'Georgia', serif;
+  letter-spacing: 0.3px;
+}
+
+.ms-overlay-btn.primary {
+  background: linear-gradient(135deg, rgba(200,160,80,0.2), rgba(180,140,60,0.15));
+  border: 1px solid rgba(200,160,80,0.35);
+  color: #d4a854;
+}
+
+.ms-overlay-btn.primary:hover {
+  background: linear-gradient(135deg, rgba(200,160,80,0.3), rgba(180,140,60,0.25));
+  border-color: rgba(200,160,80,0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(200,160,80,0.15);
+}
+
+.ms-overlay-btn.secondary {
+  background: transparent;
+  border: 1px solid rgba(200,160,100,0.12);
+  color: rgba(200,160,100,0.4);
+}
+
+.ms-overlay-btn.secondary:hover {
+  border-color: rgba(200,160,100,0.25);
+  color: rgba(200,160,100,0.6);
+}
+
+/* ── Bottom bar ── */
+.ms-bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 8px 16px;
+  flex-shrink: 0;
+  background: rgba(40,24,20,0.6);
+  border: 1px solid rgba(200,160,100,0.1);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3), inset 0 1px 0 rgba(200,160,100,0.04);
+}
+
+.ms-hint {
+  font-size: 10px;
+  color: rgba(200,160,100,0.2);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-family: 'Georgia', serif;
+}
+
+.ms-back-btn {
+  background: transparent;
+  border: 1px solid rgba(200,160,100,0.1);
+  border-radius: 6px;
+  color: rgba(200,160,100,0.25);
+  padding: 4px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: 'Georgia', serif;
+  transition: all 0.15s ease;
+  letter-spacing: 0.5px;
+}
+.ms-back-btn:hover {
+  border-color: rgba(200,160,100,0.25);
+  color: rgba(200,160,100,0.5);
+}
+
+/* ── Best time badge ── */
+.ms-best-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  background: rgba(200,160,80,0.06);
+  border: 1px solid rgba(200,160,80,0.12);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(200,160,80,0.4);
+  font-weight: 600;
+  margin-left: 8px;
+}
+
+.ms-best-badge .best-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  opacity: 0.6;
 }
 `}</style>
 
-      {/* Hero Section */}
-      {/* Hero Section */}
-      <div className="game-sub-hero">
-        <button className="game-sub-back" onClick={onBack}>← Hub</button>
-        <div className="game-sub-hero-icon">💣</div>
-        <div className="game-sub-hero-info">
-          <h2 className="game-sub-hero-title">Minesweeper</h2>
-          <p className="game-sub-hero-subtitle">Classic puzzle · Find the mines</p>
-        </div>
-        {bestTimes[difficulty] > 0 && (
-          <div className="game-sub-best" style={{background:'rgba(239,68,68,0.12)',border:'1px solid rgba(239,68,68,0.25)',color:'#ef4444'}}>🏆 {formatTime(bestTimes[difficulty])}</div>
-        )}
-      </div>
+      {/* ── Atmosphere ── */}
+      <div className="ms-atmosphere" />
 
-      {/* Difficulty Pills: Carved Stone Buttons */}
-      <div style={{display:'flex',gap:'8px',justifyContent:'center',flexWrap:'wrap',marginBottom:'8px'}}>
-        {(Object.keys(DIFFICULTY_CONFIG) as Difficulty[]).map(diff => (
-          <button key={diff} onClick={() => startGame(diff)} className={`game-sub-diff-pill${diff === difficulty ? ' active' : ''}`} style={{padding:'7px 16px',borderRadius:'20px',border: diff === difficulty ? '1px solid #ef4444' : '1px solid rgba(239,68,68,0.25)',background: diff === difficulty ? 'rgba(239,68,68,0.18)' : 'rgba(239,68,68,0.05)',color: diff === difficulty ? '#ef4444' : 'var(--text-muted)',cursor:'pointer',fontSize:'13px',fontWeight: diff === difficulty ? 700 : 500,letterSpacing:'0.3px'}}>
-            {DIFFICULTY_CONFIG[diff].label}
-          </button>
-        ))}
-      </div>
+      {/* ── Screen flash ── */}
+      {flashOverlay !== 'none' && (
+        <div className={`ms-flash-overlay ${flashOverlay}`} />
+      )}
 
-      {/* HUD + Board */}
-      {(
-        <>
-          <div className="game-sub-hud">
-            <div className="game-sub-hud-left">
-              <span className="game-sub-hud-label">Mines</span>
-              <span className="game-sub-hud-value" style={{color:'#ef4444'}}>💣 {mineCount - flagCount}</span>
-            </div>
-            <div className="game-sub-hud-center">
-              <span className="game-sub-hud-value" style={{fontSize:'16px',color:'#ef4444'}}>{config.label}</span>
-            </div>
-            <div className="game-sub-hud-right">
-              <span className="game-sub-hud-label">Time</span>
-              <span className="game-sub-hud-value" style={{color:'#fbbf24',fontSize:'16px'}}>⏱ {formatTime(timer)}</span>
-            </div>
+      {/* ── Content ── */}
+      <div className="ms-content">
+
+        {/* ── Compact HUD ── */}
+        <div className="ms-hud">
+          {/* Mines remaining */}
+          <div className="ms-hud-item">
+            <span className="ms-hud-label">Mines</span>
+            <span className="ms-hud-value">{String(remainingMines).padStart(2, '0')}</span>
           </div>
 
-          <div className="game-sub-canvas-wrap" style={{maxWidth: '480px', margin: '0 auto'}}>
-            <div
-              className={`minesweeper-board ${difficulty} ${gameState}${isShaking ? ' shake' : ''}`}
-              ref={boardWrapRef}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: `repeat(${config.cols}, var(--cell-size, 36px))`,
-                gridTemplateRows: `repeat(${config.rows}, var(--cell-size, 36px))`,
-                gap: '3px',
-              }}
-            >
-              {showFlash && <div className="minesweeper-flash-overlay" />}
-              {board.flat().map((tile, idx) => (
+          <div className="ms-hud-separator" />
+
+          {/* Face / reset */}
+          <button
+            className="ms-face-btn"
+            onClick={() => resetGame()}
+            title="New game"
+          >
+            {faceEmoji}
+          </button>
+
+          <div className="ms-hud-separator" />
+
+          {/* Timer */}
+          <div className="ms-hud-item">
+            <span className="ms-hud-label">Time</span>
+            <span className="ms-hud-value">{formatTime(timer)}</span>
+          </div>
+
+          {/* Best time (if exists) */}
+          {hasBest && (
+            <>
+              <div className="ms-hud-separator" />
+              <div className="ms-best-badge">
+                <span className="best-label">Best</span>
+                <span>{formatTime(bestTimes[difficulty])}</span>
+              </div>
+            </>
+          )}
+
+          <div className="ms-hud-separator" />
+
+          {/* Difficulty pills */}
+          <div className="ms-diff-bar">
+            {(Object.keys(DIFFICULTY_CONFIG) as Difficulty[]).map(diff => (
+              <button
+                key={diff}
+                className={`ms-diff-pill ${diff === difficulty ? 'active' : ''}`}
+                onClick={() => startGame(diff)}
+              >
+                {DIFFICULTY_CONFIG[diff].label}
+              </button>
+            ))}
+          </div>
+
+          {/* Back to Hub — prominent */}
+          <button className="ms-hub-btn" onClick={onBack}>← Hub</button>
+        </div>
+
+        {/* ── The Board — the hero ── */}
+        <div className="ms-board-frame">
+          <div
+            className={`ms-board${isShaking ? ' shake' : ''}`}
+            style={{
+              gridTemplateColumns: `repeat(${config.cols}, var(--cell-size))`,
+              gridTemplateRows: `repeat(${config.rows}, var(--cell-size))`,
+            }}
+          >
+            {board.flat().map((tile, idx) => {
+              const numColor = tile.adjacentMines > 0 ? NUMBER_COLORS[tile.adjacentMines] : undefined;
+              const classes = ['ms-tile'];
+              if (tile.isFlagged && !tile.isRevealed) classes.push('ms-flagged');
+              else if (!tile.isRevealed) classes.push('ms-hidden');
+              else if (tile.isMine) classes.push(tile.isExploded ? 'ms-exploded' : 'ms-mine');
+              else {
+                classes.push('ms-revealed');
+                if (tile.adjacentMines > 0) {
+                  classes.push('ms-number');
+                }
+                if (tile.cascadeDelay !== undefined && tile.cascadeDelay > 0) {
+                  classes.push('ms-cascade-reveal');
+                }
+              }
+
+              return (
                 <button
                   key={idx}
                   data-row={tile.row}
                   data-col={tile.col}
-                  className={getTileClass(tile)}
-                  style={
-                    tile.isRevealed && tile.adjacentMines === 0 && !tile.isMine
-                      ? { animationDelay: `${tile.cascadeDelay || 0}ms` }
-                      : {}
-                  }
+                  className={classes.join(' ')}
+                  style={{
+                    color: numColor,
+                    animationDelay: tile.cascadeDelay ? `${tile.cascadeDelay}ms` : undefined,
+                  }}
                   onClick={() => handleLeftClick(tile.row, tile.col)}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     handleRightClick(tile.row, tile.col);
                   }}
-                  onMouseDown={handleMouseDown}
-                  onMouseUp={handleMouseUp}
-                  onMouseLeave={handleMouseUp}
                 >
                   {getTileContent(tile)}
                 </button>
-              ))}
-            </div>
-
-            {/* Game Over Overlay */}
-            {gameState === 'lost' && (
-              <div className="game-sub-overlay">
-                <div className="game-sub-overlay-card">
-                  <div style={{fontSize:'48px',animation:'minesweeper-score-glow 2s ease-in-out infinite'}}>💥</div>
-                  <div className="game-sub-overlay-title loss">Game Over</div>
-                  <div className="game-sub-overlay-score">{timer}s</div>
-                  <div className="game-sub-overlay-sub" style={{color:'var(--text-muted)',fontSize:'14px'}}>Better luck next time, soldier</div>
-                  <div className="game-sub-overlay-actions">
-                    <button className="game-sub-overlay-btn primary" onClick={() => startGame(difficulty)}>Try Again</button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Win Overlay */}
-            {gameState === 'won' && (
-              <div className="game-sub-overlay">
-                <div className="game-sub-overlay-card">
-                  <div style={{fontSize:'48px',animation:'minesweeper-win-score-glow 2s ease-in-out infinite'}}>🎉</div>
-                  <div className="game-sub-overlay-title">Field Cleared!</div>
-                  <div className="game-sub-overlay-win-score" style={{fontSize:'64px',fontWeight:950,fontVariantNumeric:'tabular-nums',lineHeight:1,letterSpacing:'-1px'}}>{timer}s</div>
-                  {bestTimes[difficulty] === timer && (
-                    <div className="game-sub-overlay-newbest">🏆 New Best Time!</div>
-                  )}
-                  <div className="game-sub-overlay-actions">
-                    <button className="game-sub-overlay-btn primary" onClick={() => startGame(difficulty)}>Play Again</button>
-                  </div>
-                </div>
-              </div>
-            )}
+              );
+            })}
           </div>
 
-          {/* Controls Hint */}
-          <div className="game-sub-controls">Left-click to reveal · Right-click to flag</div>
-        </>
-      )}
+          {/* ── Win overlay ── */}
+          {gameState === 'won' && (
+            <div className="ms-overlay win">
+              <div className="ms-overlay-card">
+                <div className="ms-overlay-emoji">🏆</div>
+                <div className="ms-overlay-title win">Field Cleared</div>
+                <div className="ms-overlay-time win">{formatTime(timer)}</div>
+                <div className="ms-overlay-sub">{DIFFICULTY_CONFIG[difficulty].meta}</div>
+                {isNewBest && <div className="ms-overlay-newbest">✦ New Best Time</div>}
+                <div className="ms-overlay-actions">
+                  <button className="ms-overlay-btn primary" onClick={() => startGame(difficulty)}>Play Again</button>
+                  <button className="ms-overlay-btn secondary" onClick={onBack}>Back to Hub</button>
+                </div>
+              </div>
+            </div>
+          )}
 
-      <button className="game-sub-back" onClick={onBack} style={{display:'none'}}>← Games Hub</button>
+          {/* ── Loss overlay ── */}
+          {gameState === 'lost' && (
+            <div className="ms-overlay loss">
+              <div className="ms-overlay-card">
+                <div className="ms-overlay-emoji">💥</div>
+                <div className="ms-overlay-title loss">Mine Hit</div>
+                <div className="ms-overlay-time loss">{formatTime(timer)}</div>
+                <div className="ms-overlay-sub">Watch your step out there</div>
+                <div className="ms-overlay-actions">
+                  <button className="ms-overlay-btn primary" onClick={() => startGame(difficulty)}>Try Again</button>
+                  <button className="ms-overlay-btn secondary" onClick={onBack}>Back to Hub</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Bottom bar ── */}
+        <div className="ms-bottom-bar">
+          <span className="ms-hint">Click to reveal · Right-click to flag</span>
+        </div>
+      </div>
     </div>
   );
 }
