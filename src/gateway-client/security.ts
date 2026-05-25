@@ -206,3 +206,169 @@ export async function getAnomalyRules(): Promise<AnomalyRule[]> {
 export async function cleanupSecurityEvents(days?: number): Promise<number> {
   return invoke('security_cleanup_events', { days });
 }
+
+// ── Quarantine (Sentinel) Types ──
+
+export interface QuarantineStatus {
+  agent_id: string;
+  level: number;
+  level_name: string;
+  level_emoji: string;
+  reason: string;
+  trigger_event_id: string | null;
+  auto_escalated: boolean;
+  created_at: string;
+}
+
+export interface QuarantineEvent {
+  id: string;
+  agent_id: string;
+  level: number;
+  level_name: string;
+  level_emoji: string;
+  reason: string;
+  trigger_event_id: string | null;
+  auto_escalated: boolean;
+  is_active: boolean;
+  released_at: string | null;
+  released_by: string | null;
+  created_at: string;
+}
+
+export interface AutoEscalation {
+  agent_id: string;
+  new_level: number;
+  level_name: string;
+  level_emoji: string;
+}
+
+// ── Quarantine (Sentinel) API Functions ──
+
+/** Get current quarantine status for an agent */
+export async function getQuarantineStatus(agentId: string): Promise<QuarantineStatus> {
+  return invoke('quarantine_get_status', { agentId });
+}
+
+/** Get quarantine level for an agent (lightweight) */
+export async function getQuarantineLevel(agentId: string): Promise<string> {
+  return invoke('quarantine_get_level', { agentId });
+}
+
+/** Manually escalate an agent's quarantine level */
+export async function quarantineEscalate(
+  agentId: string,
+  level: number,
+  reason: string
+): Promise<string> {
+  return invoke('quarantine_escalate', { agentId, level, reason });
+}
+
+/** Release an agent from quarantine */
+export async function quarantineRelease(agentId: string): Promise<boolean> {
+  return invoke('quarantine_release', { agentId });
+}
+
+/** Get quarantine history (all agents or specific agent) */
+export async function getQuarantineHistory(
+  agentId?: string,
+  limit?: number
+): Promise<QuarantineEvent[]> {
+  return invoke('quarantine_get_history', { agentId, limit });
+}
+
+/** Get all currently quarantined agents */
+export async function getAllQuarantined(): Promise<QuarantineStatus[]> {
+  return invoke('quarantine_get_all');
+}
+
+/** Run auto-escalation checks across all agents */
+export async function runAutoEscalation(): Promise<AutoEscalation[]> {
+  return invoke('quarantine_run_auto_escalation');
+}
+
+/** Check if an agent can respond (not Suspended/Frozen) */
+export async function canAgentRespond(agentId: string): Promise<boolean> {
+  return invoke('quarantine_can_respond', { agentId });
+}
+
+// ══════════════════════════════════════════════════════════════
+// NETWORK DISCOVERY — Phase 9: "Who's on my WiFi?"
+// ══════════════════════════════════════════════════════════════
+
+export interface NetworkDevice {
+  id: string;
+  ip_address: string;
+  mac_address: string | null;
+  hostname: string | null;
+  manufacturer: string | null;
+  device_type: string;
+  is_known: boolean;
+  nickname: string | null;
+  first_seen: string;
+  last_seen: string;
+  open_ports: number[];
+  is_online: boolean;
+  scan_count: number;
+}
+
+export interface NetworkEvent {
+  id: string;
+  event_type: string;
+  device_id: string;
+  description: string | null;
+  severity: string;
+  created_at: string;
+}
+
+export interface NetworkScanResult {
+  devices_found: number;
+  devices_new: number;
+  devices_left: number;
+  total_known: number;
+  total_online: number;
+  unknown_online: number;
+  scan_duration_ms: number;
+}
+
+export interface NetworkMapData {
+  local_ip: string;
+  gateway_ip: string | null;
+  subnet: string;
+  devices: NetworkDevice[];
+  scan_result: NetworkScanResult | null;
+}
+
+/** Run a full network scan (ARP + hostname + ports) */
+export async function networkScan(): Promise<NetworkScanResult> {
+  return invoke('network_scan');
+}
+
+/** Get all known network devices */
+export async function networkGetDevices(): Promise<NetworkDevice[]> {
+  return invoke('network_get_devices');
+}
+
+/** Get network events (device join/leave) */
+export async function networkGetEvents(limit?: number): Promise<NetworkEvent[]> {
+  return invoke('network_get_events', { limit });
+}
+
+/** Get the full network map data */
+export async function networkGetMap(): Promise<NetworkMapData> {
+  return invoke('network_get_map');
+}
+
+/** Rename a device (give it a nickname) */
+export async function networkRenameDevice(deviceId: string, nickname: string): Promise<void> {
+  return invoke('network_rename_device', { deviceId, nickname });
+}
+
+/** Mark a device as known/trusted */
+export async function networkMarkKnown(deviceId: string): Promise<void> {
+  return invoke('network_mark_known', { deviceId });
+}
+
+/** Delete a device from the database */
+export async function networkDeleteDevice(deviceId: string): Promise<void> {
+  return invoke('network_delete_device', { deviceId });
+}
