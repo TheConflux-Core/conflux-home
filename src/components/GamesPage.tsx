@@ -1,23 +1,38 @@
 // GamesPage — Phase 1: The Arcade
 // Conflux Home · Full Games Hub · "Story"
-// All critical styles are inline to bypass any external CSS cascade issues.
-
+// All styles inline — no external CSS cascade.
 import { useState, useCallback } from 'react';
 import type { GameItem } from './GamesHub';
 
 // ── Game catalog ──────────────────────────────────────────────────────────────
 
 const GAMES: GameItem[] = [
-  { id: 'snake',         name: 'Snake',           icon: '🐍', subtitle: 'Arcade Classic',           status: 'available' },
-  { id: 'pacman',        name: 'Pac-Man',         icon: '🟡', subtitle: 'Arcade Classic',           status: 'available' },
-  { id: 'minesweeper',   name: 'Minesweeper',     icon: '💣', subtitle: 'Classic · 9×9 Grid',      status: 'available' },
-  { id: 'solitaire',     name: 'Solitaire',       icon: '🃏', subtitle: 'Classic Card Game',      status: 'available' },
-  { id: 'nani-solitaire',name: 'Nani Solitaire',  icon: '🎴', subtitle: 'Family Tradition · 4×4',  status: 'available' },
-  { id: 'johnny-solitaire',name:"Johnny C's Solitaire", icon: '🀄', subtitle: 'FreeCell · 8 Columns', status: 'available' },
-  { id: 'stories',       name: 'Conflux Stories', icon: '📖', subtitle: 'Interactive Fiction',     status: 'coming-soon' },
+  { id: 'snake',           name: 'Snake',             icon: '🐍', subtitle: 'Arcade Classic',          status: 'available' },
+  { id: 'pacman',          name: 'Pac-Man',           icon: '🟡', subtitle: 'Arcade Classic',          status: 'available' },
+  { id: 'minesweeper',     name: 'Minesweeper',       icon: '💣', subtitle: 'Classic · 9×9 Grid',     status: 'available' },
+  { id: 'solitaire',       name: 'Solitaire',         icon: '🃏', subtitle: 'Classic Card Game',       status: 'available' },
+  { id: 'nani-solitaire',  name: 'Nani Solitaire',    icon: '🎴', subtitle: 'Family Tradition · 4×4', status: 'available' },
+  { id: 'johnny-solitaire',name: "Johnny C's Solitaire", icon: '🀄', subtitle: 'FreeCell · 8 Columns', status: 'available' },
+  { id: 'stories',         name: 'Conflux Stories',   icon: '📖', subtitle: 'Interactive Fiction',    status: 'coming-soon' },
 ];
 
-// ── Inline style helpers ───────────────────────────────────────────────────────
+const GAME_ACCENTS: Record<string, { glow: string; gradient: string; border: string }> = {
+  snake:           { glow: '#4ade80', gradient: 'linear-gradient(135deg, #052e16, #0d3d23)', border: 'rgba(74,222,128,0.3)' },
+  pacman:           { glow: '#fbbf24', gradient: 'linear-gradient(135deg, #1c1a08, #2d2a0c)', border: 'rgba(251,191,36,0.3)' },
+  minesweeper:      { glow: '#f87171', gradient: 'linear-gradient(135deg, #1c0808, #2d1010)', border: 'rgba(248,113,113,0.3)' },
+  solitaire:        { glow: '#60a5fa', gradient: 'linear-gradient(135deg, #081428, #0d1f3c)', border: 'rgba(96,165,250,0.3)' },
+  'nani-solitaire': { glow: '#c084fc', gradient: 'linear-gradient(135deg, #1a0d2e, #2d1248)', border: 'rgba(192,132,252,0.3)' },
+  'johnny-solitaire':{ glow: '#34d399', gradient: 'linear-gradient(135deg, #062e22, #0d3d30)', border: 'rgba(52,211,153,0.3)' },
+  stories:          { glow: '#ffd700', gradient: 'linear-gradient(135deg, #2d2608, #3d350a)', border: 'rgba(255,215,0,0.3)' },
+};
+
+// ── Global padding (matches KitchenView, LifeAutopilotView) ──────────────────
+// topBar: ~50px, bottomNav: ~150px, horizontal: 121px
+const PAD_TOP    = '50px';
+const PAD_BOTTOM = '150px';
+const PAD_H      = '121px';
+
+// ── Page style ────────────────────────────────────────────────────────────────
 
 const PAGE_STYLE = {
   position: 'fixed' as const,
@@ -25,13 +40,14 @@ const PAGE_STYLE = {
   zIndex: 1,
   minHeight: '100vh',
   width: '100%',
-  overflow: 'hidden',
-  display: 'flex',
-  flexDirection: 'column' as const,
+  overflowY: 'auto' as const,
+  overflowX: 'hidden' as const,
   background: 'linear-gradient(160deg, #0d0d12 0%, #1a0a0a 100%)',
   fontFamily: "'system-ui', -apple-system, sans-serif",
   color: '#fff8f0',
 };
+
+// ── Background ────────────────────────────────────────────────────────────────
 
 const BG_STYLE = {
   position: 'fixed' as const,
@@ -46,111 +62,141 @@ const GRID_STYLE = {
   inset: 0,
   zIndex: 0,
   backgroundImage: `
-    linear-gradient(rgba(255,77,0,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,77,0,0.03) 1px, transparent 1px)
+    linear-gradient(rgba(255,77,0,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,77,0,0.025) 1px, transparent 1px)
   `,
-  backgroundSize: '60px 60px',
-  maskImage: 'radial-gradient(ellipse 90% 90% at 50% 50%, black 30%, transparent 100%)',
-  WebkitMaskImage: 'radial-gradient(ellipse 90% 90% at 50% 50%, black 30%, transparent 100%)',
+  backgroundSize: '64px 64px',
+  WebkitMaskImage: 'radial-gradient(ellipse 85% 85% at 50% 50%, black 20%, transparent 100%)',
+  maskImage: 'radial-gradient(ellipse 85% 85% at 50% 50%, black 20%, transparent 100%)',
 };
 
 const SPOTLIGHT_STYLE = {
   position: 'fixed' as const,
   inset: 0,
   zIndex: 0,
-  background: 'radial-gradient(ellipse 50% 40% at 50% 0%, rgba(255,77,0,0.06) 0%, transparent 70%)',
+  background: 'radial-gradient(ellipse 60% 50% at 50% -10%, rgba(255,77,0,0.08) 0%, transparent 65%)',
 };
 
 const INNER_STYLE = {
   position: 'relative' as const,
   zIndex: 1,
-  padding: '24px 32px 100px',
-  maxWidth: '1100px',
+  paddingTop: PAD_TOP,
+  paddingBottom: PAD_BOTTOM,
+  paddingLeft: PAD_H,
+  paddingRight: PAD_H,
+  maxWidth: '1200px',
   margin: '0 auto',
   width: '100%',
   boxSizing: 'border-box' as const,
 };
 
+// ── Header ─────────────────────────────────────────────────────────────────────
+
 const HEADER_STYLE = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  marginBottom: '32px',
+  marginBottom: '40px',
 };
 
 const BACK_BTN_STYLE = {
-  background: 'rgba(255,255,255,0.06)',
-  border: '1px solid rgba(255,255,255,0.12)',
+  background: 'rgba(255,255,255,0.04)',
+  border: '1px solid rgba(255,255,255,0.1)',
   borderRadius: '999px',
   color: '#fff8f0',
-  padding: '8px 20px',
+  padding: '10px 22px',
   fontSize: '14px',
+  fontWeight: 500,
   cursor: 'pointer',
-  fontFamily: "'system-ui', -apple-system, sans-serif",
+  backdropFilter: 'blur(12px)',
+  WebkitBackdropFilter: 'blur(12px)',
+  boxShadow: '0 4px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06)',
+  transition: 'all 0.2s ease',
 };
 
-const TITLE_GROUP_STYLE = {
+const TITLE_ROW_STYLE = {
   display: 'flex',
   alignItems: 'center',
-  gap: '12px',
+  gap: '14px',
 };
 
 const ICON_STYLE = {
-  fontSize: '36px',
+  fontSize: '42px',
   lineHeight: 1,
-};
-
-const TITLE_TEXT_STYLE = {
-  display: 'flex',
-  flexDirection: 'column' as const,
-  gap: '2px',
+  filter: 'drop-shadow(0 0 8px rgba(255,77,0,0.5))',
 };
 
 const H1_STYLE = {
   margin: 0,
-  fontSize: '28px',
-  fontWeight: 700,
+  fontSize: '32px',
+  fontWeight: 800,
   color: '#fff8f0',
   lineHeight: 1.1,
+  textShadow: '0 2px 12px rgba(0,0,0,0.5)',
 };
 
 const SUBTITLE_P_STYLE = {
-  margin: 0,
+  margin: '2px 0 0',
   fontSize: '13px',
   color: '#8a7a6a',
   fontWeight: 500,
 };
 
+const SOUND_BTN_STYLE = {
+  width: '44px',
+  height: '44px',
+  borderRadius: '50%',
+  border: '1px solid rgba(255,255,255,0.08)',
+  background: 'rgba(255,255,255,0.04)',
+  fontSize: '18px',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  backdropFilter: 'blur(12px)',
+  WebkitBackdropFilter: 'blur(12px)',
+  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+  transition: 'all 0.2s ease',
+};
+
+// ── Section label ─────────────────────────────────────────────────────────────
+
 const SECTION_LABEL_STYLE = {
   fontSize: '11px',
   fontWeight: 700,
   textTransform: 'uppercase' as const,
-  letterSpacing: '2px',
+  letterSpacing: '2.5px',
   color: '#8a7a6a',
-  marginBottom: '16px',
+  marginBottom: '20px',
   display: 'flex',
   alignItems: 'center',
-  gap: '12px',
-  opacity: 0.6,
+  gap: '14px',
+  opacity: 0.7,
 };
+
+// ── Hero ───────────────────────────────────────────────────────────────────────
 
 const HERO_STYLE = {
   position: 'relative' as const,
-  marginBottom: '32px',
-  borderRadius: '20px',
+  marginBottom: '44px',
+  borderRadius: '24px',
   overflow: 'hidden',
   background: 'linear-gradient(135deg, #161020 0%, #1e1428 100%)',
-  border: '1px solid rgba(255,77,0,0.2)',
-  padding: '24px 28px',
+  border: '1px solid rgba(255,215,0,0.2)',
+  padding: '28px 32px',
   display: 'flex',
   alignItems: 'center',
-  gap: '20px',
+  gap: '24px',
   cursor: 'pointer',
+  boxShadow: '0 8px 40px rgba(0,0,0,0.4), 0 0 60px rgba(255,215,0,0.05), inset 0 1px 0 rgba(255,255,255,0.06)',
+  transform: 'perspective(800px)',
+  transition: 'all 0.3s cubic-bezier(.4,0,.2,1)',
 };
 
 const HERO_ICON_STYLE = {
-  fontSize: '48px',
+  fontSize: '56px',
   flexShrink: 0,
+  filter: 'drop-shadow(0 0 12px rgba(255,215,0,0.4))',
 };
 
 const HERO_BODY_STYLE = {
@@ -162,16 +208,17 @@ const HERO_BODY_STYLE = {
 
 const HERO_H2_STYLE = {
   margin: 0,
-  fontSize: '20px',
-  fontWeight: 700,
+  fontSize: '22px',
+  fontWeight: 800,
   color: '#ffd700',
+  textShadow: '0 0 20px rgba(255,215,0,0.3)',
 };
 
 const HERO_P_STYLE = {
   margin: 0,
   fontSize: '14px',
-  color: '#fff8f0',
-  lineHeight: 1.5,
+  color: 'rgba(255,248,240,0.85)',
+  lineHeight: 1.6,
 };
 
 const HERO_HINT_STYLE = {
@@ -185,78 +232,22 @@ const HERO_CTA_STYLE = {
   border: 'none',
   borderRadius: '999px',
   color: '#0d0d12',
-  padding: '10px 24px',
-  fontSize: '14px',
-  fontWeight: 700,
+  padding: '12px 28px',
+  fontSize: '15px',
+  fontWeight: 800,
   cursor: 'pointer',
   flexShrink: 0,
-  boxShadow: '0 4px 16px rgba(255,215,0,0.3)',
+  boxShadow: '0 6px 24px rgba(255,215,0,0.35), 0 0 40px rgba(255,215,0,0.1)',
+  transition: 'all 0.2s ease',
 };
+
+// ── Card grid ──────────────────────────────────────────────────────────────────
 
 const GRID_STYLE_CSS = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-  gap: '16px',
-  marginBottom: '36px',
-};
-
-const CARD_STYLE = (accentColor: string) => ({
-  position: 'relative' as const,
-  borderRadius: '16px',
-  padding: '20px',
-  background: '#161020',
-  border: `1px solid ${accentColor}33`,
-  cursor: 'pointer',
-  display: 'flex',
-  flexDirection: 'column' as const,
-  gap: '8px',
-  transition: 'all 0.2s ease',
-});
-
-const CARD_BODY_STYLE = {
-  display: 'flex',
-  flexDirection: 'column' as const,
-  alignItems: 'center',
-  gap: '8px',
-  flex: 1,
-};
-
-const CARD_ICON_STYLE = {
-  fontSize: '40px',
-  lineHeight: 1,
-};
-
-const CARD_NAME_STYLE = {
-  fontSize: '16px',
-  fontWeight: 600,
-  color: '#fff8f0',
-};
-
-const CARD_SUBTITLE_STYLE = {
-  fontSize: '12px',
-  color: '#8a7a6a',
-};
-
-const CARD_CTA_STYLE = {
-  fontSize: '12px',
-  color: '#4ade80',
-  fontWeight: 600,
-};
-
-const SOUND_BTN_STYLE = {
-  width: '40px',
-  height: '40px',
-  borderRadius: '50%',
-  border: '1px solid rgba(255,255,255,0.07)',
-  background: 'rgba(255,255,255,0.04)',
-  fontSize: '16px',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  transition: 'all 0.2s',
-  backdropFilter: 'blur(10px)',
-  WebkitBackdropFilter: 'blur(10px)',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+  gap: '20px',
+  marginBottom: '48px',
 };
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -280,16 +271,6 @@ interface GamesPageProps {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-const GAME_ACCENTS: Record<string, string> = {
-  snake: '#4ade80',
-  pacman: '#fbbf24',
-  minesweeper: '#f87171',
-  solitaire: '#60a5fa',
-  'nani-solitaire': '#c084fc',
-  'johnny-solitaire': '#34d399',
-  stories: '#ffd700',
-};
-
 export default function GamesPage({
   activeMinesweeper = false,
   activeSnake = false,
@@ -303,6 +284,8 @@ export default function GamesPage({
     try { return localStorage.getItem('conflux_sound_enabled') !== 'false'; }
     catch { return true; }
   });
+  const [hoveredGame, setHoveredGame] = useState<string | null>(null);
+  const [hoveredHero, setHoveredHero] = useState(false);
 
   const handleToggleSound = useCallback(() => {
     setSoundEnabled(prev => {
@@ -318,18 +301,16 @@ export default function GamesPage({
 
   const handleBack = useCallback(() => {
     if (onBack) onBack();
-    else {
-      window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: 'dashboard' }));
-    }
+    else window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: 'dashboard' }));
   }, [onBack]);
 
   const activeSessions: { id: string; name: string; icon: string; meta: string }[] = [];
-  if (activeSnake)         activeSessions.push({ id: 'snake',            name: 'Snake',            icon: '🐍', meta: 'Game in progress' });
-  if (activePacman)        activeSessions.push({ id: 'pacman',           name: 'Pac-Man',          icon: '🟡', meta: 'Game in progress' });
-  if (activeMinesweeper)   activeSessions.push({ id: 'minesweeper',       name: 'Minesweeper',      icon: '💣', meta: 'Game in progress' });
-  if (activeSolitaire)     activeSessions.push({ id: 'solitaire',        name: 'Solitaire',        icon: '🃏', meta: 'Game in progress' });
-  if (activeNaniSolitaire) activeSessions.push({ id: 'nani-solitaire',   name: 'Nani Solitaire',   icon: '🎴', meta: 'Game in progress' });
-  if (activeJohnnySolitaire)activeSessions.push({ id: 'johnny-solitaire',name: "Johnny C's Solitaire", icon: '🀄', meta: 'Game in progress' });
+  if (activeSnake)           activeSessions.push({ id: 'snake',            name: 'Snake',            icon: '🐍', meta: 'Game in progress' });
+  if (activePacman)          activeSessions.push({ id: 'pacman',           name: 'Pac-Man',          icon: '🟡', meta: 'Game in progress' });
+  if (activeMinesweeper)     activeSessions.push({ id: 'minesweeper',       name: 'Minesweeper',      icon: '💣', meta: 'Game in progress' });
+  if (activeSolitaire)       activeSessions.push({ id: 'solitaire',         name: 'Solitaire',        icon: '🃏', meta: 'Game in progress' });
+  if (activeNaniSolitaire)   activeSessions.push({ id: 'nani-solitaire',   name: 'Nani Solitaire',   icon: '🎴', meta: 'Game in progress' });
+  if (activeJohnnySolitaire) activeSessions.push({ id: 'johnny-solitaire', name: "Johnny C's Solitaire", icon: '🀄', meta: 'Game in progress' });
 
   const handleResumeGame = useCallback((gameId: string) => {
     window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: gameId }));
@@ -340,7 +321,8 @@ export default function GamesPage({
       {/* ── Background layers ── */}
       <div style={BG_STYLE}>
         <div style={GRID_STYLE} />
-        {Array.from({ length: 8 }).map((_, i) => (
+        {/* Ember particles */}
+        {Array.from({ length: 10 }).map((_, i) => (
           <div
             key={i}
             style={{
@@ -349,25 +331,35 @@ export default function GamesPage({
               height: i % 3 === 0 ? '3px' : '2px',
               borderRadius: '50%',
               background: '#ff4d00',
-              boxShadow: '0 0 6px #ff4d00, 0 0 12px #ff4d00',
-              left: `${8 + i * 12}%`,
-              bottom: '-10px',
-              animation: `ember-rise ${9 + i}s linear infinite`,
-              animationDelay: `${i * 1.3}s`,
+              boxShadow: '0 0 8px #ff4d00, 0 0 16px rgba(255,77,0,0.6)',
+              left: `${6 + i * 10}%`,
+              bottom: '-12px',
+              animation: `ember-rise ${8 + i * 1.2}s linear infinite`,
+              animationDelay: `${i * 1.1}s`,
             }}
           />
         ))}
         <div style={SPOTLIGHT_STYLE} />
+        {/* Corner glow blobs */}
+        <div style={{ position: 'fixed', top: '-80px', right: '-80px', width: '300px', height: '300px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,77,0,0.06) 0%, transparent 70%)', zIndex: 0, pointerEvents: 'none' }} />
+        <div style={{ position: 'fixed', bottom: '80px', left: '-60px', width: '200px', height: '200px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,77,0,0.04) 0%, transparent 70%)', zIndex: 0, pointerEvents: 'none' }} />
       </div>
 
-      {/* ── Inner content ── */}
+      {/* ── Content ── */}
       <div style={INNER_STYLE}>
         {/* Header */}
         <div style={HEADER_STYLE}>
-          <div style={TITLE_GROUP_STYLE}>
-            <button style={BACK_BTN_STYLE} onClick={handleBack}>← Discover</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <button
+              style={BACK_BTN_STYLE}
+              onClick={handleBack}
+              onMouseEnter={e => { (e.target as HTMLButtonElement).style.background = 'rgba(255,255,255,0.08)'; (e.target as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
+              onMouseLeave={e => { (e.target as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)'; (e.target as HTMLButtonElement).style.transform = 'translateY(0)'; }}
+            >
+              ← Discover
+            </button>
             <span style={ICON_STYLE}>🎮</span>
-            <div style={TITLE_TEXT_STYLE}>
+            <div>
               <h1 style={H1_STYLE}>Games</h1>
               <p style={SUBTITLE_P_STYLE}>Play, compete, and unwind</p>
             </div>
@@ -376,20 +368,47 @@ export default function GamesPage({
             style={SOUND_BTN_STYLE}
             onClick={handleToggleSound}
             title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
+            onMouseEnter={e => { (e.target as HTMLButtonElement).style.background = 'rgba(255,255,255,0.08)'; (e.target as HTMLButtonElement).style.transform = 'scale(1.05)'; }}
+            onMouseLeave={e => { (e.target as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)'; (e.target as HTMLButtonElement).style.transform = 'scale(1)'; }}
           >
             {soundEnabled ? '🔊' : '🔇'}
           </button>
         </div>
 
         {/* ── Hero: Conflux Stories ── */}
-        <div style={HERO_STYLE} onClick={() => handleSelectGame('stories')}>
+        <div
+          style={{
+            ...HERO_STYLE,
+            transform: hoveredHero ? 'perspective(800px) rotateX(2deg) scale(1.02)' : 'perspective(800px)',
+            boxShadow: hoveredHero
+              ? '0 20px 60px rgba(0,0,0,0.5), 0 0 80px rgba(255,215,0,0.12), inset 0 1px 0 rgba(255,255,255,0.08)'
+              : HERO_STYLE.boxShadow,
+          }}
+          onClick={() => handleSelectGame('stories')}
+          onMouseEnter={() => setHoveredHero(true)}
+          onMouseLeave={() => setHoveredHero(false)}
+        >
+          {/* Glow border */}
+          <div style={{ position: 'absolute', inset: 0, borderRadius: '24px', border: '1px solid rgba(255,215,0,0.3)', pointerEvents: 'none', opacity: hoveredHero ? 1 : 0.5, transition: 'opacity 0.3s' }} />
+          {/* Corner accent */}
+          <div style={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', background: 'radial-gradient(circle at top right, rgba(255,215,0,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />
+
           <span style={HERO_ICON_STYLE}>📖</span>
           <div style={HERO_BODY_STYLE}>
             <h2 style={HERO_H2_STYLE}>Conflux Stories</h2>
             <p style={HERO_P_STYLE}>Where will your story go? Interactive fiction powered by AI — every choice shapes the narrative.</p>
             <span style={HERO_HINT_STYLE}>"Your adventure awaits..."</span>
           </div>
-          <button style={HERO_CTA_STYLE} onClick={(e) => { e.stopPropagation(); handleSelectGame('stories'); }}>
+          <button
+            style={{
+              ...HERO_CTA_STYLE,
+              transform: hoveredHero ? 'scale(1.05)' : 'scale(1)',
+              boxShadow: hoveredHero
+                ? '0 10px 32px rgba(255,215,0,0.45), 0 0 60px rgba(255,215,0,0.15)'
+                : HERO_CTA_STYLE.boxShadow,
+            }}
+            onClick={(e) => { e.stopPropagation(); handleSelectGame('stories'); }}
+          >
             Begin →
           </button>
         </div>
@@ -401,40 +420,125 @@ export default function GamesPage({
         </div>
         <div style={GRID_STYLE_CSS}>
           {GAMES.filter(g => g.id !== 'stories').map((game) => {
-            const accent = GAME_ACCENTS[game.id] ?? '#ff4d00';
+            const accent = GAME_ACCENTS[game.id] ?? { glow: '#ff4d00', gradient: 'linear-gradient(135deg, #161020, #1e1428)', border: 'rgba(255,77,0,0.3)' };
+            const isHovered = hoveredGame === game.id;
+            const isLocked = game.status === 'coming-soon';
+
             return (
               <div
                 key={game.id}
                 style={{
-                  ...CARD_STYLE(accent),
-                  opacity: game.status === 'coming-soon' ? 0.6 : 1,
+                  position: 'relative' as const,
+                  borderRadius: '20px',
+                  padding: '24px 20px',
+                  background: accent.gradient,
+                  border: `1px solid ${isHovered ? accent.border.replace('0.3', '0.6') : accent.border}`,
+                  cursor: isLocked ? 'default' : 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column' as const,
+                  gap: '12px',
+                  opacity: isLocked ? 0.55 : 1,
+                  transform: isHovered && !isLocked
+                    ? 'perspective(600px) rotateX(4deg) rotateY(-2deg) translateZ(8px) scale(1.04)'
+                    : 'perspective(600px)',
+                  boxShadow: isHovered && !isLocked
+                    ? `0 20px 50px rgba(0,0,0,0.5), 0 0 30px ${accent.glow}22, inset 0 1px 0 rgba(255,255,255,0.08)`
+                    : `0 8px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)`,
+                  transition: 'all 0.25s cubic-bezier(.4,0,.2,1)',
+                  overflow: 'hidden',
                 }}
-                onClick={() => { if (game.status === 'available') handleSelectGame(game.id); }}
+                onClick={() => { if (!isLocked) handleSelectGame(game.id); }}
+                onMouseEnter={() => setHoveredGame(game.id)}
+                onMouseLeave={() => setHoveredGame(null)}
               >
-                {game.status === 'coming-soon' && (
+                {/* Glow orb behind icon */}
+                <div style={{
+                  position: 'absolute' as const,
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -60%)',
+                  width: '80px',
+                  height: '80px',
+                  borderRadius: '50%',
+                  background: `radial-gradient(circle, ${accent.glow}18 0%, transparent 70%)`,
+                  pointerEvents: 'none',
+                  filter: isHovered ? `blur(4px)` : 'blur(12px)',
+                  transition: 'filter 0.3s',
+                }} />
+
+                {/* Accent line at top */}
+                <div style={{
+                  position: 'absolute' as const,
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: '2px',
+                  background: `linear-gradient(90deg, transparent, ${accent.glow}60, transparent)`,
+                  opacity: isHovered ? 1 : 0.4,
+                  transition: 'opacity 0.3s',
+                }} />
+
+                {/* Locked badge */}
+                {isLocked && (
                   <div style={{
-                    position: 'absolute',
-                    top: '12px',
-                    right: '12px',
+                    position: 'absolute' as const,
+                    top: '14px',
+                    right: '14px',
                     fontSize: '10px',
                     fontWeight: 700,
-                    textTransform: 'uppercase',
+                    textTransform: 'uppercase' as const,
                     letterSpacing: '1px',
                     color: '#8a7a6a',
                     background: 'rgba(255,255,255,0.06)',
-                    padding: '3px 8px',
+                    padding: '4px 10px',
                     borderRadius: '999px',
+                    border: '1px solid rgba(255,255,255,0.08)',
                   }}>
                     Coming Soon
                   </div>
                 )}
-                <div style={CARD_BODY_STYLE}>
-                  <span style={CARD_ICON_STYLE}>{game.icon}</span>
-                  <span style={CARD_NAME_STYLE}>{game.name}</span>
-                  <span style={CARD_SUBTITLE_STYLE}>{game.subtitle}</span>
+
+                {/* Card icon */}
+                <div style={{
+                  fontSize: '44px',
+                  lineHeight: 1,
+                  filter: isHovered ? `drop-shadow(0 0 12px ${accent.glow}66)` : 'drop-shadow(0 0 4px rgba(0,0,0,0.5))',
+                  transform: isHovered ? 'translateY(-4px) scale(1.1)' : 'translateY(0)',
+                  transition: 'all 0.3s cubic-bezier(.4,0,.2,1)',
+                  textAlign: 'center' as const,
+                }}>
+                  {game.icon}
                 </div>
-                {game.status === 'available' && (
-                  <div style={CARD_CTA_STYLE}>▶ Play</div>
+
+                {/* Card text */}
+                <div style={{ textAlign: 'center' as const }}>
+                  <div style={{
+                    fontSize: '17px',
+                    fontWeight: 700,
+                    color: isHovered ? accent.glow : '#fff8f0',
+                    transition: 'color 0.2s',
+                  }}>
+                    {game.name}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#8a7a6a', marginTop: '4px' }}>
+                    {game.subtitle}
+                  </div>
+                </div>
+
+                {/* Play button */}
+                {!isLocked && (
+                  <div style={{
+                    marginTop: 'auto',
+                    textAlign: 'center' as const,
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: accent.glow,
+                    opacity: isHovered ? 1 : 0.6,
+                    transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
+                    transition: 'all 0.2s',
+                  }}>
+                    ▶ Play
+                  </div>
                 )}
               </div>
             );
@@ -448,37 +552,45 @@ export default function GamesPage({
               Continue Playing
               <span style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, rgba(255,255,255,0.07) 0%, transparent 100%)' }} />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {activeSessions.map(session => (
                 <div
                   key={session.id}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '16px',
-                    padding: '16px 20px',
-                    background: '#161020',
+                    gap: '20px',
+                    padding: '20px 24px',
+                    background: 'linear-gradient(135deg, #161020, #1a1428)',
                     border: '1px solid rgba(255,255,255,0.07)',
-                    borderRadius: '14px',
+                    borderRadius: '18px',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)',
+                    transition: 'all 0.2s ease',
                   }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(74,222,128,0.3)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(255,255,255,0.07)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}
                 >
-                  <span style={{ fontSize: '28px' }}>{session.icon}</span>
+                  <span style={{ fontSize: '36px', filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.2))' }}>{session.icon}</span>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '15px', fontWeight: 600, color: '#fff8f0' }}>{session.name}</div>
-                    <div style={{ fontSize: '12px', color: '#8a7a6a' }}>{session.meta}</div>
+                    <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff8f0' }}>{session.name}</div>
+                    <div style={{ fontSize: '12px', color: '#8a7a6a', marginTop: '3px' }}>{session.meta}</div>
                   </div>
                   <button
                     style={{
-                      padding: '8px 20px',
+                      padding: '10px 24px',
                       borderRadius: '999px',
                       border: '1px solid rgba(74,222,128,0.3)',
-                      background: 'rgba(74,222,128,0.1)',
+                      background: 'rgba(74,222,128,0.08)',
                       color: '#4ade80',
-                      fontSize: '13px',
-                      fontWeight: 600,
+                      fontSize: '14px',
+                      fontWeight: 700,
                       cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(74,222,128,0.15)',
+                      transition: 'all 0.2s ease',
                     }}
                     onClick={() => handleResumeGame(session.id)}
+                    onMouseEnter={e => { (e.target as HTMLButtonElement).style.background = 'rgba(74,222,128,0.16)'; (e.target as HTMLButtonElement).style.transform = 'scale(1.05)'; }}
+                    onMouseLeave={e => { (e.target as HTMLButtonElement).style.background = 'rgba(74,222,128,0.08)'; (e.target as HTMLButtonElement).style.transform = 'scale(1)'; }}
                   >
                     Resume
                   </button>
@@ -491,10 +603,10 @@ export default function GamesPage({
 
       <style>{`
         @keyframes ember-rise {
-          0%   { transform: translateY(0) scale(1); opacity: 0.8; }
+          0%   { transform: translateY(0) scale(1); opacity: 0.7; }
           20%  { opacity: 1; }
-          80%  { opacity: 0.6; }
-          100% { transform: translateY(-110vh) scale(0.5); opacity: 0; }
+          80%  { opacity: 0.5; }
+          100% { transform: translateY(-120vh) scale(0.4); opacity: 0; }
         }
       `}</style>
     </div>
