@@ -44,14 +44,11 @@
   align-items: center;
   position: relative;
   background:
+    url('../backgrounds/nani-solitaire-bg.webp') center / cover no-repeat,
     radial-gradient(ellipse at 50% 30%, rgba(212, 164, 76, 0.06) 0%, transparent 60%),
     radial-gradient(ellipse at 50% 80%, rgba(107, 29, 42, 0.08) 0%, transparent 50%),
     linear-gradient(180deg, var(--nani-bg) 0%, var(--nani-bg-warm) 100%);
-  background-image:
-    url('/backgrounds/nani-solitaire-bg.webp');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+
   border-radius: 20px;
   box-shadow:
     0 8px 40px var(--nani-shadow),
@@ -833,6 +830,7 @@
     --accent-primary: var(--nani-terracotta);
 
     background:
+      url('../backgrounds/nani-solitaire-bg.webp') center / cover no-repeat,
       radial-gradient(ellipse at 50% 30%, rgba(212, 164, 76, 0.08) 0%, transparent 60%),
       linear-gradient(180deg, #f5e6d0 0%, #efe0cc 100%);
     box-shadow:
