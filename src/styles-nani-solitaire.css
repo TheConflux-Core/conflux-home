@@ -516,17 +516,26 @@
 
 .nani-discard-pile {
   border-style: solid;
-  border-color: rgba(160, 120, 48, 0.2);
+  border-color: var(--nani-gold-dim);
   background: rgba(40, 20, 14, 0.4);
 }
 
+.nani-discard-pile .nani-card {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(145deg, var(--nani-paper) 0%, var(--nani-paper-aged) 100%);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
 .nani-discard-placeholder {
-  font-size: 10px;
-  color: var(--nani-brown-light);
-  opacity: 0.5;
+  font-size: 12px;
+  font-weight: 700;
+  color: #c9a050 !important;
   text-align: center;
   font-family: Georgia, serif;
-  font-style: italic;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 /* ── Action Buttons ── */
