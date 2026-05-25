@@ -65,6 +65,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   echo: { icon: '🪞', label: 'Echo' },
   api: { icon: '📊', label: 'API' },
   radar: { icon: '📡', label: 'Radar' },
+  games: { icon: '🎮', label: 'Games' },
 };
 
 const ALL_APPS: AppItem[] = [

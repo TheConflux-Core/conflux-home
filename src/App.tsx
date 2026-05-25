@@ -36,6 +36,7 @@ import PacmanGame from './components/PacmanGame';
 import SolitaireGame from './components/SolitaireGame';
 import NaniSolitaireGame from './components/NaniSolitaireGame';
 import JohnnySolitaireGame from './components/JohnnySolitaireGame';
+import GamesPage from './components/GamesPage';
 import StoryGameReader from './components/StoryGameReader';
 import ParentDashboard from './components/ParentDashboard';
 import VoiceChat from './components/VoiceChat';
@@ -866,17 +867,22 @@ const [activeSnake, setActiveSnake] = useState(false);
       // Only handle marketplace-style events (object with viewId), ignore string events (e.g. settings)
       if (!detail || typeof detail !== 'object' || !('viewId' in detail)) return;
       const { viewId, gameId } = detail;
-      if (gameId === 'minesweeper') { setImmersiveView(viewId as View); setActiveMinesweeper(true); }
-      else if (gameId === 'snake') { setImmersiveView(viewId as View); setActiveSnake(true); }
-      else if (gameId === 'pacman') { setImmersiveView(viewId as View); setActivePacman(true); }
-      else if (gameId === 'solitaire') { setImmersiveView(viewId as View); setActiveSolitaire(true); }
-      else if (gameId === 'nani-solitaire') { setImmersiveView(viewId as View); setActiveNaniSolitaire(true); }
-      else if (gameId === 'johnny-solitaire') { setImmersiveView(viewId as View); setActiveJohnnySolitaire(true); }
-      else if (gameId === 'stories') { setImmersiveView(viewId as View); setActiveGameId(null); }
+      if (gameId === 'minesweeper') { setImmersiveView('story'); setActiveMinesweeper(true); }
+      else if (gameId === 'snake') { setImmersiveView('story'); setActiveSnake(true); }
+      else if (gameId === 'pacman') { setImmersiveView('story'); setActivePacman(true); }
+      else if (gameId === 'solitaire') { setImmersiveView('story'); setActiveSolitaire(true); }
+      else if (gameId === 'nani-solitaire') { setImmersiveView('story'); setActiveNaniSolitaire(true); }
+      else if (gameId === 'johnny-solitaire') { setImmersiveView('story'); setActiveJohnnySolitaire(true); }
+      else if (gameId === 'stories') { setImmersiveView('story'); setActiveGameId(null); }
       else if (gameId === 'games') {
-        // Back to Games — expand Discover category and open Games sub-folder
-        setImmersiveView(null);
-        window.dispatchEvent(new CustomEvent('conflux:games-back', { detail: { viewId, gameId } }));
+        setActiveMinesweeper(false);
+        setActiveSnake(false);
+        setActivePacman(false);
+        setActiveSolitaire(false);
+        setActiveNaniSolitaire(false);
+        setActiveJohnnySolitaire(false);
+        setActiveGameId(null);
+        setImmersiveView('games');
       }
       else setImmersiveView(viewId as View);
     };
@@ -1089,6 +1095,16 @@ const [activeSnake, setActiveSnake] = useState(false);
       setImmersiveView(null);
       setChatOpen(false);
       setVoiceChatOpen(false);
+    } else if (v === 'games') {
+      setActiveMinesweeper(false);
+      setActiveSnake(false);
+      setActivePacman(false);
+      setActiveSolitaire(false);
+      setActiveNaniSolitaire(false);
+      setActiveJohnnySolitaire(false);
+      setActiveGameId(null);
+      setImmersiveView('games');
+      setChatOpen(false);
     } else if (v === 'marketplace' || v === 'bazaar') {
       // Discover → open marketplace
       setImmersiveView('marketplace');
@@ -1128,7 +1144,7 @@ const [activeSnake, setActiveSnake] = useState(false);
     }
   }, [agents, selectedAgent]);
 
-  // Close game and return to Desktop → Discover → Games
+  // Close game and return to Games hub
   const closeGame = useCallback(() => {
     setActiveMinesweeper(false);
     setActiveSnake(false);
@@ -1137,8 +1153,8 @@ const [activeSnake, setActiveSnake] = useState(false);
     setActiveNaniSolitaire(false);
     setActiveJohnnySolitaire(false);
     setActiveGameId(null);
-    window.dispatchEvent(new CustomEvent('conflux:games-back', {
-      detail: { viewId: 'discover', gameId: 'games' },
+    window.dispatchEvent(new CustomEvent('conflux:navigate', {
+      detail: { viewId: 'games', gameId: 'games' },
     }));
   }, []);
 
@@ -1291,7 +1307,7 @@ const [activeSnake, setActiveSnake] = useState(false);
           {immersiveView === 'horizon' && <DreamBuilderView />}
           {immersiveView === 'google' && <GoogleView />}
           {(immersiveView === 'marketplace' || anyGameActive) && (
-            <div style={anyGameActive ? { display: 'none' } : undefined}>
+            <div style={immersiveView === 'games' ? { display: 'none' } : undefined}>
               <Marketplace />
             </div>
           )}
@@ -1354,22 +1370,23 @@ const [activeSnake, setActiveSnake] = useState(false);
               </div>
             </div>
           )}
+          {immersiveView === 'games' && <GamesPage />}
           {immersiveView === 'story' && activeMinesweeper && (
             <MinesweeperGame onBack={closeGame} />
           )}
-          {immersiveView === 'story' && activeSnake && !activeMinesweeper && (
+          {immersiveView === 'story' && activeSnake && (
             <SnakeGame onBack={closeGame} />
           )}
-          {immersiveView === 'story' && activePacman && !activeMinesweeper && !activeSnake && (
+          {immersiveView === 'story' && activePacman && (
             <PacmanGame onBack={closeGame} />
           )}
-          {immersiveView === 'story' && activeSolitaire && !activeMinesweeper && !activeSnake && !activePacman && (
+          {immersiveView === 'story' && activeSolitaire && (
             <SolitaireGame onBack={closeGame} />
           )}
-          {immersiveView === 'story' && activeNaniSolitaire && !activeMinesweeper && !activeSnake && !activePacman && !activeSolitaire && (
+          {immersiveView === 'story' && activeNaniSolitaire && (
             <NaniSolitaireGame onBack={closeGame} />
           )}
-          {immersiveView === 'story' && activeJohnnySolitaire && !activeMinesweeper && !activeSnake && !activePacman && !activeSolitaire && !activeNaniSolitaire && (
+          {immersiveView === 'story' && activeJohnnySolitaire && (
             <JohnnySolitaireGame onBack={closeGame} />
           )}
         </ImmersiveView>
