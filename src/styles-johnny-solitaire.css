@@ -410,21 +410,24 @@
 
 .johnny-card-suit-edge {
   position: absolute;
-  right: 2px;
-  top: 4px;
+  right: 3px;
+  top: 3px;
   transform: none;
-  font-size: 11px;
-  opacity: 0.5;
+  font-size: 13px;
+  opacity: 0.75;
   font-family: Georgia, serif;
   line-height: 1;
+  z-index: 5;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
 }
 
 .johnny-card-suit-edge.red {
-  color: var(--j-red-suit);
+  color: #c01818 !important;
 }
 
 .johnny-card-suit-edge.black {
-  color: var(--j-black-suit);
+  color: #1a0e06 !important;
+  opacity: 0.85;
 }
 
 /* ── Card Face ── */
