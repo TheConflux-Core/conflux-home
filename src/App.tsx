@@ -1294,7 +1294,7 @@ const [activeSnake, setActiveSnake] = useState(false);
       {immersiveView && (
         <ImmersiveView
           view={immersiveView}
-          backgroundUrl={VIEW_BACKGROUNDS[immersiveView] || '/backgrounds/dashboard-bg.webp'}
+          backgroundUrl={(immersiveView === 'story' && activeNaniSolitaire) ? '/backgrounds/nani-solitaire-bg.webp' : VIEW_BACKGROUNDS[immersiveView] || '/backgrounds/dashboard-bg.webp'}
           onClose={() => setImmersiveView(null)}
         >
           {immersiveView === 'hearth' && <KitchenView />}
