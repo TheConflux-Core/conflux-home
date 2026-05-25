@@ -180,6 +180,41 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
     }
   });
 
+  const boardWrapRef = useRef<HTMLDivElement>(null);
+
+  // Compute cell size when board dimensions or container change
+  useEffect(() => {
+    if (!boardWrapRef.current) return;
+    const container = boardWrapRef.current;
+    const updateCellSize = () => {
+      const computed = getComputedStyle(container).getPropertyValue('--cell-size').trim();
+      if (!computed) return;
+    };
+
+    const observer = new ResizeObserver(() => {
+      if (!boardWrapRef.current) return;
+      const wrapEl = boardWrapRef.current.closest('.game-sub-canvas-wrap') as HTMLElement | null;
+      if (!wrapEl) return;
+      const config2 = DIFFICULTY_CONFIG[difficulty];
+      const wrapWidth = wrapEl.clientWidth;
+      const GAP = 0;
+      const availWidth = wrapWidth - GAP;
+      const computedCellSize = Math.floor(availWidth / config2.cols);
+      boardWrapRef.current.style.setProperty('--cell-size', `${computedCellSize}px`);
+    });
+
+    observer.observe(boardWrapRef.current);
+    // Trigger once
+    const wrapEl = boardWrapRef.current.closest('.game-sub-canvas-wrap') as HTMLElement | null;
+    if (wrapEl) {
+      const config2 = DIFFICULTY_CONFIG[difficulty];
+      const wrapWidth = wrapEl.clientWidth;
+      boardWrapRef.current.style.setProperty('--cell-size', `${Math.floor(wrapWidth / config2.cols)}px`);
+    }
+
+    return () => observer.disconnect();
+  }, [difficulty, board.length]);
+
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTargetRef = useRef<{ row: number; col: number } | null>(null);
@@ -812,34 +847,39 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
           </div>
 
           <div className="game-sub-canvas-wrap" style={{maxWidth: '480px', margin: '0 auto'}}>
-            <div className={`minesweeper-board ${difficulty} ${gameState}${isShaking ? ' shake' : ''}`} style={{padding:'0'}}>
+            <div
+              className={`minesweeper-board ${difficulty} ${gameState}${isShaking ? ' shake' : ''}`}
+              ref={boardWrapRef}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${config.cols}, var(--cell-size, 36px))`,
+                gridTemplateRows: `repeat(${config.rows}, var(--cell-size, 36px))`,
+                gap: '3px',
+              }}
+            >
               {showFlash && <div className="minesweeper-flash-overlay" />}
-              {board.map((row, ri) => (
-                <div key={ri} className="minesweeper-row">
-                  {row.map((tile, ci) => (
-                    <button
-                      key={`${ri}-${ci}`}
-                      data-row={ri}
-                      data-col={ci}
-                      className={getTileClass(tile)}
-                      style={
-                        tile.isRevealed && tile.adjacentMines === 0 && !tile.isMine
-                          ? { animationDelay: `${tile.cascadeDelay || 0}ms` }
-                          : {}
-                      }
-                      onClick={() => handleLeftClick(ri, ci)}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        handleRightClick(ri, ci);
-                      }}
-                      onMouseDown={handleMouseDown}
-                      onMouseUp={handleMouseUp}
-                      onMouseLeave={handleMouseUp}
-                    >
-                      {getTileContent(tile)}
-                    </button>
-                  ))}
-                </div>
+              {board.flat().map((tile, idx) => (
+                <button
+                  key={idx}
+                  data-row={tile.row}
+                  data-col={tile.col}
+                  className={getTileClass(tile)}
+                  style={
+                    tile.isRevealed && tile.adjacentMines === 0 && !tile.isMine
+                      ? { animationDelay: `${tile.cascadeDelay || 0}ms` }
+                      : {}
+                  }
+                  onClick={() => handleLeftClick(tile.row, tile.col)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    handleRightClick(tile.row, tile.col);
+                  }}
+                  onMouseDown={handleMouseDown}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={handleMouseUp}
+                >
+                  {getTileContent(tile)}
+                </button>
               ))}
             </div>
 
