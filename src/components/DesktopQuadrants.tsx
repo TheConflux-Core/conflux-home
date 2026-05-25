@@ -473,7 +473,19 @@ export default function DesktopQuadrants({ onNavigate, agents }: DesktopQuadrant
     return () => window.removeEventListener('conflux:navigate', handler as EventListener);
   }, []);
 
-  // Also reset on keyboard shortcut (Escape is handled in ImmersiveView, but for desktop we need this)
+  // Expand to a specific category (e.g. back from Games → Discover)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (typeof detail === 'string') {
+        setExpandedCategory(detail);
+      }
+    };
+    window.addEventListener('conflux:expand-category', handler as EventListener);
+    return () => window.removeEventListener('conflux:expand-category', handler as EventListener);
+  }, []);
+
+  // Escape key resets expanded category
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setExpandedCategory(null);
