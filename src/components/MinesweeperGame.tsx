@@ -382,14 +382,6 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
     }, 300);
   }, [handleRightClick]);
 
-  const handleMouseUp = useCallback(() => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-    longPressTargetRef.current = null;
-  }, []);
-
   useEffect(() => {
     return () => {
       if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
@@ -811,7 +803,7 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
             </div>
           </div>
 
-          <div className="game-sub-canvas-wrap">
+          <div className="game-sub-canvas-wrap" style={{maxWidth: '480px', margin: '0 auto'}}>
             <div className={`minesweeper-board ${difficulty} ${gameState}${isShaking ? ' shake' : ''}`} style={{padding:'12px'}}>
               {showFlash && <div className="minesweeper-flash-overlay" />}
               {board.map((row, ri) => (
