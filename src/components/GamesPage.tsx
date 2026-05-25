@@ -245,8 +245,8 @@ const HERO_CTA_STYLE = {
 
 const GRID_STYLE_CSS = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-  gap: '20px',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+  gap: '24px',
   marginBottom: '48px',
 };
 
@@ -402,6 +402,7 @@ export default function GamesPage({
           <button
             style={{
               ...HERO_CTA_STYLE,
+              animation: 'hero-cta-breathe 3s ease-in-out infinite',
               transform: hoveredHero ? 'scale(1.05)' : 'scale(1)',
               boxShadow: hoveredHero
                 ? '0 10px 32px rgba(255,215,0,0.45), 0 0 60px rgba(255,215,0,0.15)'
@@ -419,7 +420,7 @@ export default function GamesPage({
           <span style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, rgba(255,255,255,0.07) 0%, transparent 100%)' }} />
         </div>
         <div style={GRID_STYLE_CSS}>
-          {GAMES.filter(g => g.id !== 'stories').map((game) => {
+          {GAMES.filter(g => g.id !== 'stories').map((game, idx) => {
             const accent = GAME_ACCENTS[game.id] ?? { glow: '#ff4d00', gradient: 'linear-gradient(135deg, #161020, #1e1428)', border: 'rgba(255,77,0,0.3)' };
             const isHovered = hoveredGame === game.id;
             const isLocked = game.status === 'coming-soon';
@@ -430,7 +431,7 @@ export default function GamesPage({
                 style={{
                   position: 'relative' as const,
                   borderRadius: '20px',
-                  padding: '24px 20px',
+                  padding: '32px 24px',
                   background: accent.gradient,
                   border: `1px solid ${isHovered ? accent.border.replace('0.3', '0.6') : accent.border}`,
                   cursor: isLocked ? 'default' : 'pointer',
@@ -446,24 +447,27 @@ export default function GamesPage({
                     : `0 8px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)`,
                   transition: 'all 0.25s cubic-bezier(.4,0,.2,1)',
                   overflow: 'hidden',
+                  animation: 'card-portal-enter 0.5s ease-out backwards',
+                  animationDelay: `${idx * 80}ms`,
                 }}
                 onClick={() => { if (!isLocked) handleSelectGame(game.id); }}
                 onMouseEnter={() => setHoveredGame(game.id)}
                 onMouseLeave={() => setHoveredGame(null)}
               >
-                {/* Glow orb behind icon */}
+                {/* Glow orb behind icon — portal effect */}
                 <div style={{
                   position: 'absolute' as const,
-                  top: '50%',
+                  top: '30%',
                   left: '50%',
-                  transform: 'translate(-50%, -60%)',
-                  width: '80px',
-                  height: '80px',
+                  transform: 'translate(-50%, -50%)',
+                  width: isHovered ? '120px' : '80px',
+                  height: isHovered ? '120px' : '80px',
                   borderRadius: '50%',
-                  background: `radial-gradient(circle, ${accent.glow}18 0%, transparent 70%)`,
+                  background: `radial-gradient(circle, ${accent.glow}28 0%, ${accent.glow}08 50%, transparent 70%)`,
                   pointerEvents: 'none',
-                  filter: isHovered ? `blur(4px)` : 'blur(12px)',
-                  transition: 'filter 0.3s',
+                  filter: isHovered ? 'blur(8px)' : 'blur(16px)',
+                  transition: 'all 0.4s ease',
+                  opacity: isHovered ? 1 : 0.5,
                 }} />
 
                 {/* Accent line at top */}
@@ -498,13 +502,15 @@ export default function GamesPage({
                   </div>
                 )}
 
-                {/* Card icon */}
+                {/* Card icon — portal gateway */}
                 <div style={{
-                  fontSize: '44px',
+                  fontSize: '52px',
                   lineHeight: 1,
-                  filter: isHovered ? `drop-shadow(0 0 12px ${accent.glow}66)` : 'drop-shadow(0 0 4px rgba(0,0,0,0.5))',
-                  transform: isHovered ? 'translateY(-4px) scale(1.1)' : 'translateY(0)',
-                  transition: 'all 0.3s cubic-bezier(.4,0,.2,1)',
+                  filter: isHovered
+                    ? `drop-shadow(0 0 16px ${accent.glow}88) drop-shadow(0 0 40px ${accent.glow}33)`
+                    : 'drop-shadow(0 0 6px rgba(0,0,0,0.5))',
+                  transform: isHovered ? 'translateY(-6px) scale(1.15)' : 'translateY(0)',
+                  transition: 'all 0.35s cubic-bezier(.4,0,.2,1)',
                   textAlign: 'center' as const,
                 }}>
                   {game.icon}
@@ -513,29 +519,31 @@ export default function GamesPage({
                 {/* Card text */}
                 <div style={{ textAlign: 'center' as const }}>
                   <div style={{
-                    fontSize: '17px',
-                    fontWeight: 700,
+                    fontSize: '18px',
+                    fontWeight: 800,
                     color: isHovered ? accent.glow : '#fff8f0',
-                    transition: 'color 0.2s',
+                    transition: 'color 0.25s',
+                    textShadow: isHovered ? `0 0 20px ${accent.glow}44` : 'none',
                   }}>
                     {game.name}
                   </div>
-                  <div style={{ fontSize: '12px', color: '#8a7a6a', marginTop: '4px' }}>
+                  <div style={{ fontSize: '12px', color: '#8a7a6a', marginTop: '6px', fontWeight: 500 }}>
                     {game.subtitle}
                   </div>
                 </div>
 
-                {/* Play button */}
+                {/* Play CTA */}
                 {!isLocked && (
                   <div style={{
                     marginTop: 'auto',
                     textAlign: 'center' as const,
                     fontSize: '13px',
-                    fontWeight: 700,
+                    fontWeight: 800,
                     color: accent.glow,
-                    opacity: isHovered ? 1 : 0.6,
-                    transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
-                    transition: 'all 0.2s',
+                    opacity: isHovered ? 1 : 0.5,
+                    transform: isHovered ? 'translateY(-3px)' : 'translateY(0)',
+                    transition: 'all 0.25s cubic-bezier(.4,0,.2,1)',
+                    letterSpacing: '0.5px',
                   }}>
                     ▶ Play
                   </div>
@@ -607,6 +615,14 @@ export default function GamesPage({
           20%  { opacity: 1; }
           80%  { opacity: 0.5; }
           100% { transform: translateY(-120vh) scale(0.4); opacity: 0; }
+        }
+        @keyframes card-portal-enter {
+          0% { opacity: 0; transform: perspective(600px) translateY(30px) scale(0.95); }
+          100% { opacity: 1; transform: perspective(600px) translateY(0) scale(1); }
+        }
+        @keyframes hero-cta-breathe {
+          0%, 100% { box-shadow: 0 6px 24px rgba(255,215,0,0.35), 0 0 40px rgba(255,215,0,0.1); }
+          50% { box-shadow: 0 6px 24px rgba(255,215,0,0.45), 0 0 60px rgba(255,215,0,0.18); }
         }
       `}</style>
     </div>

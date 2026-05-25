@@ -646,7 +646,232 @@ export default function SnakeGame({ onBack }: SnakeGameProps) {
 
   return (
     <div className="game-sub-container snake-sub">
-      <style>{`.snake-sub::before{background:radial-gradient(circle at 25% 35%,rgba(52,211,153,0.045) 0%,transparent 45%),radial-gradient(circle at 75% 65%,rgba(52,211,153,0.025) 0%,transparent 50%),radial-gradient(circle at 50% 80%,rgba(251,191,36,0.015) 0%,transparent 40%);animation-duration:18s;}.snake-sub .game-sub-hero{background:linear-gradient(135deg,rgba(52,211,153,0.1),rgba(16,185,129,0.05));border:1px solid rgba(52,211,153,0.2);}.snake-sub .game-sub-hero-glow{background:radial-gradient(circle at 80% 20%,rgba(52,211,153,0.2),transparent 60%);}.snake-sub .game-diff-tile:hover{border-color:#10b981;box-shadow:0 8px 24px rgba(52,211,153,0.15),0 0 0 1px rgba(52,211,153,0.1);}.snake-sub .game-diff-tile:hover::after{background:radial-gradient(circle at 50% 120%,rgba(52,211,153,0.08),transparent 70%);opacity:1;}.snake-sub .game-sub-canvas-wrap{border-color:rgba(52,211,153,0.25);box-shadow:0 0 20px rgba(52,211,153,0.08),0 0 60px rgba(52,211,153,0.04),inset 0 0 30px rgba(0,0,0,0.15);}.snake-sub .game-sub-canvas-wrap:hover{box-shadow:0 0 28px rgba(52,211,153,0.12),0 0 80px rgba(52,211,153,0.06),inset 0 0 30px rgba(0,0,0,0.15);}.snake-sub .game-sub-overlay-card{background:var(--bg-card);border:1px solid rgba(52,211,153,0.2);}.snake-sub .game-sub-overlay-title{color:#10b981;}.snake-sub .game-sub-overlay-score{color:#10b981;text-shadow:0 0 20px rgba(52,211,153,0.3);}.snake-sub .game-sub-overlay-newbest{background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.3);color:#10b981;}.snake-sub .game-sub-overlay-btn.primary{background:#10b981;box-shadow:0 4px 12px rgba(52,211,153,0.3);}.snake-sub .game-sub-overlay-btn.primary:hover{box-shadow:0 6px 20px rgba(52,211,153,0.4);}.snake-sub .game-sub-dpad-btn{border-color:rgba(52,211,153,0.2);color:#10b981;}.snake-sub .game-sub-dpad-btn:active{background:rgba(52,211,153,0.2);}`}</style>
+      <style>{`
+/* ═══════════════════════════════════════════════════════════
+   SNAKE — Deep Design Pass
+   The Conflux · Cinematic Arcade Experience
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Ambient Background ── */
+.snake-sub {
+  padding: 28px 24px 120px;
+}
+.snake-sub::before {
+  background:
+    radial-gradient(circle at 20% 20%, rgba(16,185,129,0.06) 0%, transparent 40%),
+    radial-gradient(circle at 80% 30%, rgba(251,191,36,0.035) 0%, transparent 35%),
+    radial-gradient(circle at 50% 75%, rgba(16,185,129,0.04) 0%, transparent 50%),
+    radial-gradient(circle at 15% 85%, rgba(251,191,36,0.02) 0%, transparent 40%);
+  animation: snake-ambient-drift 22s ease-in-out infinite;
+}
+@keyframes snake-ambient-drift {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  33% { transform: translate(2%, -1.5%) rotate(0.8deg); }
+  66% { transform: translate(-1.5%, 2%) rotate(-0.6deg); }
+}
+
+/* ── Hero: Ancient Terminal Header ── */
+.snake-sub .game-sub-hero {
+  background: linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(6,78,59,0.08) 50%, rgba(251,191,36,0.04) 100%);
+  border: 1px solid rgba(16,185,129,0.25);
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.3),
+    0 0 60px rgba(16,185,129,0.04),
+    inset 0 1px 0 rgba(255,255,255,0.04);
+  animation: snake-hero-breathe 6s ease-in-out infinite;
+}
+@keyframes snake-hero-breathe {
+  0%, 100% { box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 60px rgba(16,185,129,0.04), inset 0 1px 0 rgba(255,255,255,0.04); }
+  50% { box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 80px rgba(16,185,129,0.08), inset 0 1px 0 rgba(255,255,255,0.06); }
+}
+.snake-sub .game-sub-hero-glow {
+  background:
+    radial-gradient(circle at 80% 20%, rgba(16,185,129,0.2) 0%, transparent 50%),
+    radial-gradient(circle at 20% 80%, rgba(251,191,36,0.06) 0%, transparent 40%);
+  animation: snake-hero-glow-pulse 8s ease-in-out infinite;
+}
+@keyframes snake-hero-glow-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+.snake-sub .game-sub-hero-icon {
+  filter: drop-shadow(0 0 16px rgba(16,185,129,0.5)) drop-shadow(0 4px 12px rgba(0,0,0,0.4));
+}
+.snake-sub .game-sub-hero-title {
+  background: linear-gradient(135deg, #10b981 0%, #34d399 50%, #6ee7b7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.snake-sub .game-sub-best {
+  animation: snake-best-pulse 3s ease-in-out infinite;
+}
+@keyframes snake-best-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(251,191,36,0.3); }
+  50% { box-shadow: 0 0 24px rgba(251,191,36,0.6), 0 0 48px rgba(251,191,36,0.2); }
+}
+
+/* ── Canvas Wrap: Ancient Terminal Screen ── */
+.snake-sub .game-sub-canvas-wrap {
+  border-color: rgba(16,185,129,0.3);
+  border-width: 2px;
+  box-shadow:
+    0 0 24px rgba(16,185,129,0.1),
+    0 0 72px rgba(16,185,129,0.05),
+    0 0 120px rgba(16,185,129,0.02),
+    inset 0 0 40px rgba(0,0,0,0.2);
+  transition: box-shadow 0.5s ease, border-color 0.5s ease;
+}
+.snake-sub .game-sub-canvas-wrap:hover {
+  border-color: rgba(16,185,129,0.45);
+  box-shadow:
+    0 0 36px rgba(16,185,129,0.15),
+    0 0 100px rgba(16,185,129,0.08),
+    0 0 160px rgba(16,185,129,0.03),
+    inset 0 0 40px rgba(0,0,0,0.15);
+}
+.snake-canvas {
+  display: block;
+}
+
+/* ── HUD: Brass Gauges ── */
+.snake-sub .game-sub-hud {
+  background: linear-gradient(135deg, rgba(30,20,10,0.7), rgba(20,15,8,0.8));
+  border: 1px solid rgba(251,191,36,0.15);
+  box-shadow:
+    0 4px 20px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    inset 0 -1px 0 rgba(0,0,0,0.2);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+}
+.snake-sub .game-sub-hud-label {
+  color: rgba(251,191,36,0.5);
+  font-size: 10px;
+  letter-spacing: 2px;
+}
+.snake-sub .game-sub-hud-value {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+
+/* ── Overlay: Cinema Screen Reveal ── */
+.snake-sub .game-sub-overlay {
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(16px) saturate(0.8);
+  -webkit-backdrop-filter: blur(16px) saturate(0.8);
+  animation: snake-overlay-in 0.6s ease forwards;
+}
+@keyframes snake-overlay-in {
+  0% { opacity: 0; }
+  40% { opacity: 1; }
+}
+.snake-sub .game-sub-overlay-card {
+  background: linear-gradient(160deg, rgba(15,15,20,0.95), rgba(10,10,14,0.98));
+  border: 1px solid rgba(16,185,129,0.25);
+  box-shadow:
+    0 32px 80px rgba(0,0,0,0.7),
+    0 0 60px rgba(16,185,129,0.06),
+    inset 0 1px 0 rgba(255,255,255,0.05);
+  animation: snake-card-dramatic 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes snake-card-dramatic {
+  0% { opacity: 0; transform: scale(0.7) translateY(30px); filter: blur(8px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
+}
+.snake-sub .game-sub-overlay-title {
+  background: linear-gradient(135deg, #10b981, #34d399);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.snake-sub .game-sub-overlay-score {
+  color: #10b981;
+  text-shadow:
+    0 0 20px rgba(16,185,129,0.4),
+    0 0 60px rgba(16,185,129,0.15);
+  animation: snake-score-glow 2s ease-in-out infinite;
+}
+@keyframes snake-score-glow {
+  0%, 100% { text-shadow: 0 0 20px rgba(16,185,129,0.4), 0 0 60px rgba(16,185,129,0.15); }
+  50% { text-shadow: 0 0 30px rgba(16,185,129,0.6), 0 0 80px rgba(16,185,129,0.25); }
+}
+.snake-sub .game-sub-overlay-newbest {
+  background: rgba(251,191,36,0.12);
+  border: 1px solid rgba(251,191,36,0.35);
+  color: #fbbf24;
+  box-shadow: 0 0 20px rgba(251,191,36,0.15);
+  animation: snake-newbest-burst 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards, snake-newbest-glow 2s ease-in-out 0.7s infinite;
+}
+@keyframes snake-newbest-burst {
+  0% { opacity: 0; transform: scale(0.3) rotate(-10deg); }
+  60% { transform: scale(1.15) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+@keyframes snake-newbest-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(251,191,36,0.15); }
+  50% { box-shadow: 0 0 32px rgba(251,191,36,0.35), 0 0 60px rgba(251,191,36,0.1); }
+}
+.snake-sub .game-sub-overlay-btn.primary {
+  background: linear-gradient(135deg, #10b981, #059669);
+  box-shadow:
+    0 6px 20px rgba(16,185,129,0.35),
+    0 0 40px rgba(16,185,129,0.1),
+    inset 0 1px 0 rgba(255,255,255,0.15);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.snake-sub .game-sub-overlay-btn.primary:hover {
+  background: linear-gradient(135deg, #34d399, #10b981);
+  box-shadow:
+    0 8px 28px rgba(16,185,129,0.45),
+    0 0 60px rgba(16,185,129,0.15),
+    inset 0 1px 0 rgba(255,255,255,0.2);
+  transform: scale(1.07) translateY(-2px);
+}
+.snake-sub .game-sub-overlay-btn.primary:active {
+  transform: scale(0.97);
+  box-shadow: 0 2px 8px rgba(16,185,129,0.3);
+}
+
+/* ── D-Pad: Tactile Arcade Buttons ── */
+.snake-sub .game-sub-dpad-btn {
+  border-color: rgba(16,185,129,0.2);
+  color: #10b981;
+  background: rgba(16,185,129,0.06);
+  box-shadow:
+    0 2px 8px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    inset 0 -2px 0 rgba(0,0,0,0.15);
+  transition: all 0.1s ease;
+}
+.snake-sub .game-sub-dpad-btn:active {
+  background: rgba(16,185,129,0.2);
+  box-shadow:
+    0 0 4px rgba(0,0,0,0.3),
+    inset 0 2px 4px rgba(0,0,0,0.3);
+  transform: scale(0.92);
+}
+
+/* ── Controls Hint ── */
+.snake-sub .game-sub-controls {
+  color: rgba(16,185,129,0.35);
+  letter-spacing: 1.5px;
+  font-size: 12px;
+}
+
+/* ── Back Button ── */
+.snake-sub .game-sub-back {
+  border-color: rgba(16,185,129,0.15);
+  color: rgba(16,185,129,0.6);
+  transition: all 0.25s ease;
+}
+.snake-sub .game-sub-back:hover {
+  border-color: rgba(16,185,129,0.35);
+  color: #10b981;
+  box-shadow: 0 4px 16px rgba(16,185,129,0.1);
+}
+`}</style>
 
       {/* Hero Section */}
       <div className="game-sub-hero">
