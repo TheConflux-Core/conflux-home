@@ -455,21 +455,37 @@
 .johnny-card-face.red {
   color: var(--j-red-suit);
 }
+.johnny-card-face.red .johnny-card-rank,
+.johnny-card-face.red .johnny-card-suit {
+  color: #7b1111 !important;
+  text-shadow: none;
+}
+.johnny-card-face.red .johnny-card-big-suit {
+  color: #7b1111 !important;
+  opacity: 0.25;
+}
 
 .johnny-card-face.black {
   color: var(--j-black-suit);
+}
+.johnny-card-face.black .johnny-card-rank,
+.johnny-card-face.black .johnny-card-suit {
+  color: #1a0e06 !important;
+  text-shadow: none;
+}
+.johnny-card-face.black .johnny-card-big-suit {
+  color: #1a0e06 !important;
+  opacity: 0.2;
 }
 
 /* Ensure rank/suit inherit card color */
 .johnny-card-face .johnny-card-rank,
 .johnny-card-face .johnny-card-suit {
-  color: inherit;
   text-shadow: none;
   filter: none;
 }
 
 .johnny-card-face .johnny-card-big-suit {
-  color: inherit;
   opacity: 0.18;
 }
 
@@ -499,12 +515,15 @@
   font-weight: 900;
   line-height: 1;
   font-family: Georgia, 'Palatino Linotype', serif;
+  color: #1a0e06 !important;
+  -webkit-text-stroke: 0.3px rgba(26, 14, 6, 0.3);
 }
 
 .johnny-card-suit {
   font-size: 16px;
   line-height: 1;
   margin-top: 3px;
+  color: #1a0e06 !important;
 }
 
 /* Center suit */
