@@ -517,7 +517,6 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
 /* ── Canvas Wrap: Minefield Border ── */
 .minesweeper-sub .game-sub-canvas-wrap {
   width: 100%;
-  max-width: 480px;
   margin: 0 auto;
   border-color: rgba(239,68,68,0.3);
   border-width: 2px;
@@ -752,6 +751,24 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
   color: #ef4444;
   box-shadow: 0 4px 16px rgba(239,68,68,0.1);
 }
+
+/* ── Dynamic Cell Sizing per Difficulty ── */
+.minesweeper-board.beginner .minesweeper-tile {
+  width: 40px;
+  height: 40px;
+  font-size: 16px;
+}
+.minesweeper-board.intermediate .minesweeper-tile {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+}
+.minesweeper-board.expert .minesweeper-tile {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+  border-radius: 5px;
+}
 `}</style>
 
       {/* Hero Section */}
@@ -795,7 +812,7 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
           </div>
 
           <div className="game-sub-canvas-wrap">
-            <div className={`minesweeper-board ${gameState}${isShaking ? ' shake' : ''}`} style={{padding:'12px'}}>
+            <div className={`minesweeper-board ${difficulty} ${gameState}${isShaking ? ' shake' : ''}`} style={{padding:'12px'}}>
               {showFlash && <div className="minesweeper-flash-overlay" />}
               {board.map((row, ri) => (
                 <div key={ri} className="minesweeper-row">
