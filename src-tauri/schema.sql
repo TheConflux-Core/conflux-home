@@ -2346,3 +2346,207 @@ CREATE TABLE IF NOT EXISTS pulse_messages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_pulse_messages_session ON pulse_messages(session_id);
+
+-- ─────────────────────────────────────────────────────────
+-- WATCHTOWER — Continuous Monitoring (Phase 6)
+-- File system, process, and network monitoring
+-- ─────────────────────────────────────────────────────────
+
+-- File baselines: SHA-256 hashes of watched files
+CREATE TABLE IF NOT EXISTS watchtower_baselines (
+    id              TEXT PRIMARY KEY,
+    file_path       TEXT NOT NULL UNIQUE,
+    file_hash       TEXT NOT NULL,
+    file_size       INTEGER,
+    file_mode       INTEGER,
+    owner_uid       INTEGER,
+    first_seen      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    last_checked    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    is_critical     INTEGER NOT NULL DEFAULT 0  -- system files, configs
+);
+
+CREATE INDEX IF NOT EXISTS idx_wt_baselines_path ON watchtower_baselines(file_path);
+
+-- File system events: created, modified, deleted, permission/ownership changes
+CREATE TABLE IF NOT EXISTS watchtower_events (
+    id              TEXT PRIMARY KEY,
+    event_type      TEXT NOT NULL,  -- created | modified | deleted | permission_change | ownership_change
+    file_path       TEXT NOT NULL,
+    old_hash        TEXT,
+    new_hash        TEXT,
+    severity        TEXT NOT NULL DEFAULT 'info',  -- info | warning | critical
+    description     TEXT,
+    was_expected    INTEGER NOT NULL DEFAULT 0,    -- linked to known install/update
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_wt_events_time ON watchtower_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_wt_events_severity ON watchtower_events(severity);
+CREATE INDEX IF NOT EXISTS idx_wt_events_path ON watchtower_events(file_path);
+
+-- Process snapshots: periodic process tree monitoring
+CREATE TABLE IF NOT EXISTS watchtower_processes (
+    id              TEXT PRIMARY KEY,
+    pid             INTEGER NOT NULL,
+    ppid            INTEGER,
+    name            TEXT NOT NULL,
+    exe_path        TEXT,
+    cmdline         TEXT,
+    user_name       TEXT,
+    cpu_percent     REAL,
+    memory_mb       REAL,
+    first_seen      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    last_seen       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    is_baseline     INTEGER NOT NULL DEFAULT 0,
+    is_suspicious   INTEGER NOT NULL DEFAULT 0,
+    suspicion_reason TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_wt_proc_pid ON watchtower_processes(pid);
+CREATE INDEX IF NOT EXISTS idx_wt_proc_name ON watchtower_processes(name);
+CREATE INDEX IF NOT EXISTS idx_wt_proc_suspicious ON watchtower_processes(is_suspicious);
+
+-- Network connections: periodic netstat snapshots
+CREATE TABLE IF NOT EXISTS watchtower_connections (
+    id              TEXT PRIMARY KEY,
+    local_addr      TEXT NOT NULL,
+    local_port      INTEGER NOT NULL,
+    remote_addr     TEXT,
+    remote_port     INTEGER,
+    protocol        TEXT NOT NULL,
+    pid             INTEGER,
+    process_name    TEXT,
+    country         TEXT,
+    is_baseline     INTEGER NOT NULL DEFAULT 0,
+    is_suspicious   INTEGER NOT NULL DEFAULT 0,
+    suspicion_reason TEXT,
+    first_seen      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    last_seen       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    bytes_sent      INTEGER DEFAULT 0,
+    bytes_recv      INTEGER DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_wt_conn_remote ON watchtower_connections(remote_addr);
+CREATE INDEX IF NOT EXISTS idx_wt_conn_pid ON watchtower_connections(pid);
+CREATE INDEX IF NOT EXISTS idx_wt_conn_suspicious ON watchtower_connections(is_suspicious);
+
+-- ─────────────────────────────────────────────────────────
+-- REMEDIATION ENGINE — "Fix It" Actions (Phase 7)
+-- Logs all remediation actions with undo support
+-- ─────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS remediation_log (
+    id              TEXT PRIMARY KEY,
+    finding_id      TEXT NOT NULL,
+    finding_source  TEXT NOT NULL,          -- 'aegis' or 'viper'
+    action_type     TEXT NOT NULL,          -- 'firewall_enable', 'permission_fix', etc.
+    command_executed TEXT NOT NULL,
+    stdout          TEXT,
+    stderr          TEXT,
+    exit_code       INTEGER,
+    success         INTEGER NOT NULL,
+    undo_command    TEXT,                   -- inverse operation if available
+    undone          INTEGER NOT NULL DEFAULT 0,
+    executed_by     TEXT NOT NULL DEFAULT 'user',  -- 'user' or 'auto'
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_remediation_finding ON remediation_log(finding_id);
+CREATE INDEX IF NOT EXISTS idx_remediation_time ON remediation_log(created_at DESC);
+
+-- ─────────────────────────────────────────────────────────
+-- AGENT QUARANTINE — Sentinel Enforcement (Phase 8)
+-- Agent isolation with 5 quarantine levels
+-- ─────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS agent_quarantine (
+    id                  TEXT PRIMARY KEY,
+    agent_id            TEXT NOT NULL,
+    level               INTEGER NOT NULL DEFAULT 0,  -- 0=Normal, 1=Watched, 2=Restricted, 3=Suspended, 4=Frozen
+    reason              TEXT NOT NULL,
+    trigger_event_id    TEXT,
+    auto_escalated      INTEGER NOT NULL DEFAULT 0,
+    is_active           INTEGER NOT NULL DEFAULT 1,
+    released_at         TEXT,
+    released_by         TEXT,  -- 'user' or 'auto'
+    created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_quarantine_agent ON agent_quarantine(agent_id);
+CREATE INDEX IF NOT EXISTS idx_quarantine_active ON agent_quarantine(is_active, level);
+CREATE INDEX IF NOT EXISTS idx_quarantine_time ON agent_quarantine(created_at DESC);
+
+-- Seed default anomaly rules for quarantine auto-escalation
+INSERT OR IGNORE INTO anomaly_rules (id, name, description, rule_type, condition_json, severity, action, is_enabled)
+VALUES (
+    'quarantine-anomaly-rate',
+    'Quarantine: High Anomaly Rate',
+    'Auto-escalate agent to Watched when 3+ anomalies trigger in 1 hour',
+    'rate_limit',
+    '{"event_type": "anomaly", "threshold": 3, "window_seconds": 3600}',
+    'warning',
+    'quarantine_watched',
+    1
+);
+
+INSERT OR IGNORE INTO anomaly_rules (id, name, description, rule_type, condition_json, severity, action, is_enabled)
+VALUES (
+    'quarantine-permission-denial',
+    'Quarantine: Excessive Permission Denials',
+    'Auto-escalate agent to Suspended when 5+ permission denials in 10 minutes + critical alert',
+    'rate_limit',
+    '{"event_type": "permission_denied", "threshold": 5, "window_seconds": 600}',
+    'critical',
+    'quarantine_suspended',
+    1
+);
+
+-- ============================================================
+-- NETWORK DISCOVERY — Phase 9: "Who's on my WiFi?"
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS network_devices (
+    id              TEXT PRIMARY KEY,
+    ip_address      TEXT NOT NULL,
+    mac_address     TEXT,
+    hostname        TEXT,
+    manufacturer    TEXT,
+    device_type     TEXT DEFAULT 'unknown',  -- phone, laptop, desktop, IoT, printer, router, server, unknown
+    is_known        INTEGER NOT NULL DEFAULT 0,
+    nickname        TEXT,
+    first_seen      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    last_seen       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    open_ports      TEXT DEFAULT '[]',       -- JSON array of port numbers
+    is_online       INTEGER NOT NULL DEFAULT 1,
+    scan_count      INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_network_devices_mac ON network_devices(mac_address);
+CREATE INDEX IF NOT EXISTS idx_network_devices_ip ON network_devices(ip_address);
+CREATE INDEX IF NOT EXISTS idx_network_devices_online ON network_devices(is_online);
+CREATE INDEX IF NOT EXISTS idx_network_devices_known ON network_devices(is_known);
+
+CREATE TABLE IF NOT EXISTS network_events (
+    id              TEXT PRIMARY KEY,
+    event_type      TEXT NOT NULL,  -- device_joined, device_left, ip_changed, port_opened, port_closed
+    device_id       TEXT NOT NULL REFERENCES network_devices(id),
+    description     TEXT,
+    severity        TEXT NOT NULL DEFAULT 'info',  -- info, warning, critical
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_network_events_time ON network_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_network_events_device ON network_events(device_id);
+CREATE INDEX IF NOT EXISTS idx_network_events_severity ON network_events(severity);
+
+-- Network scan cron — every 6 hours
+INSERT OR IGNORE INTO cron_jobs (id, name, schedule, agent_id, task_message, is_enabled, created_at)
+VALUES (
+    'sec-network-scan',
+    'Network Scan',
+    '0 */6 * * *',
+    'watchtower',
+    'Run a network scan. Discover all devices on the local network. Report new devices, devices that left, and any unknown devices. Log findings.',
+    1,
+    strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+);
