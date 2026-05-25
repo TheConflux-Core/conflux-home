@@ -296,12 +296,12 @@ export default function GamesPage({
   }, []);
 
   const handleSelectGame = useCallback((gameId: string) => {
-    window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: gameId }));
+    window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: { viewId: gameId, gameId } }));
   }, []);
 
   const handleBack = useCallback(() => {
     if (onBack) onBack();
-    else window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: 'dashboard' }));
+    else window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: { viewId: 'games' } }));
   }, [onBack]);
 
   const activeSessions: { id: string; name: string; icon: string; meta: string }[] = [];
@@ -313,7 +313,7 @@ export default function GamesPage({
   if (activeJohnnySolitaire) activeSessions.push({ id: 'johnny-solitaire', name: "Johnny C's Solitaire", icon: '🀄', meta: 'Game in progress' });
 
   const handleResumeGame = useCallback((gameId: string) => {
-    window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: gameId }));
+    window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: { viewId: gameId, gameId } }));
   }, []);
 
   return (
