@@ -1004,11 +1004,238 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
 
   return (
     <div className="game-sub-container pacman-sub">
-      <style>{`.pacman-sub::before{background:radial-gradient(circle at 40% 35%,rgba(251,191,36,0.12) 0%,transparent 55%);animation-duration:24s;}.pacman-sub .game-sub-hero{background:linear-gradient(135deg,rgba(251,191,36,0.12),rgba(245,158,11,0.06));border:1px solid rgba(251,191,36,0.2);}.pacman-sub .game-sub-hero-glow{background:radial-gradient(circle at 80% 20%,rgba(251,191,36,0.25),transparent 60%);}.pacman-sub .game-diff-tile:hover{border-color:#fbbf24;box-shadow:0 8px 24px rgba(251,191,36,0.15),0 0 0 1px rgba(251,191,36,0.1);}.pacman-sub .game-diff-tile:hover::after{background:radial-gradient(circle at 50% 120%,rgba(251,191,36,0.08),transparent 70%);opacity:1;}.pacman-sub .game-sub-canvas-wrap{border-color:rgba(251,191,36,0.25);box-shadow:0 0 20px rgba(251,191,36,0.08),0 0 60px rgba(251,191,36,0.04);}.pacman-sub .game-sub-canvas-wrap:hover{box-shadow:0 0 28px rgba(251,191,36,0.12),0 0 72px rgba(251,191,36,0.06);}.pacman-sub .game-sub-overlay-card{background:var(--bg-card);border:1px solid rgba(251,191,36,0.25);}.pacman-sub .game-sub-overlay-title{color:#fbbf24;}.pacman-sub .game-sub-overlay-score{color:#fbbf24;text-shadow:0 0 24px rgba(251,191,36,0.4);}.pacman-sub .game-sub-overlay-newbest{background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3);color:#fbbf24;}.pacman-sub .game-sub-overlay-btn.primary{background:#fbbf24;color:#1a1a0a;box-shadow:0 4px 12px rgba(251,191,36,0.3);}.pacman-sub .game-sub-overlay-btn.primary:hover{box-shadow:0 6px 20px rgba(251,191,36,0.4);}.pacman-sub .game-sub-dpad-btn{border-color:rgba(251,191,36,0.2);color:#fbbf24;}.pacman-sub .game-sub-dpad-btn:active{background:rgba(251,191,36,0.15);}.pacman-sub .game-sub-hud-value{color:#fbbf24;}`}</style>
+      <style>{`
+/* ═══════════════════════════════════════════════════════════
+   PAC-MAN — Deep Design Pass
+   The Conflux · Cinematic Arcade Experience
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Ambient Background ── */
+.pacman-sub {
+  padding: 28px 24px 120px;
+}
+.pacman-sub::before {
+  background:
+    radial-gradient(circle at 30% 25%, rgba(251,191,36,0.08) 0%, transparent 45%),
+    radial-gradient(circle at 75% 35%, rgba(245,158,11,0.05) 0%, transparent 40%),
+    radial-gradient(circle at 50% 80%, rgba(251,191,36,0.04) 0%, transparent 50%),
+    radial-gradient(circle at 20% 70%, rgba(252,211,77,0.03) 0%, transparent 40%);
+  animation: pacman-ambient-drift 24s ease-in-out infinite;
+}
+@keyframes pacman-ambient-drift {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  33% { transform: translate(2%, -1.5%) rotate(0.8deg); }
+  66% { transform: translate(-1.5%, 2%) rotate(-0.6deg); }
+}
+
+/* ── Hero: Arcade Cabinet Header ── */
+.pacman-sub .game-sub-hero {
+  background: linear-gradient(135deg, rgba(251,191,36,0.14) 0%, rgba(245,158,11,0.07) 50%, rgba(252,211,77,0.04) 100%);
+  border: 1px solid rgba(251,191,36,0.25);
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.3),
+    0 0 60px rgba(251,191,36,0.04),
+    inset 0 1px 0 rgba(255,255,255,0.04);
+  animation: pacman-hero-breathe 6s ease-in-out infinite;
+}
+@keyframes pacman-hero-breathe {
+  0%, 100% { box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 60px rgba(251,191,36,0.04), inset 0 1px 0 rgba(255,255,255,0.04); }
+  50% { box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 80px rgba(251,191,36,0.08), inset 0 1px 0 rgba(255,255,255,0.06); }
+}
+.pacman-sub .game-sub-hero-glow {
+  background:
+    radial-gradient(circle at 80% 20%, rgba(251,191,36,0.25) 0%, transparent 50%),
+    radial-gradient(circle at 20% 80%, rgba(245,158,11,0.08) 0%, transparent 40%);
+  animation: pacman-hero-glow-pulse 8s ease-in-out infinite;
+}
+@keyframes pacman-hero-glow-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+.pacman-sub .game-sub-hero-icon {
+  filter: drop-shadow(0 0 16px rgba(251,191,36,0.5)) drop-shadow(0 4px 12px rgba(0,0,0,0.4));
+}
+.pacman-sub .game-sub-hero-title {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #fcd34d 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.pacman-sub .game-sub-best {
+  animation: pacman-best-pulse 3s ease-in-out infinite;
+}
+@keyframes pacman-best-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(251,191,36,0.3); }
+  50% { box-shadow: 0 0 24px rgba(251,191,36,0.6), 0 0 48px rgba(251,191,36,0.2); }
+}
+
+/* ── Canvas Wrap: Arcade Screen ── */
+.pacman-sub .game-sub-canvas-wrap {
+  border-color: rgba(251,191,36,0.3);
+  border-width: 2px;
+  box-shadow:
+    0 0 24px rgba(251,191,36,0.1),
+    0 0 72px rgba(251,191,36,0.05),
+    0 0 120px rgba(251,191,36,0.02),
+    inset 0 0 40px rgba(0,0,0,0.2);
+  transition: box-shadow 0.5s ease, border-color 0.5s ease;
+}
+.pacman-sub .game-sub-canvas-wrap:hover {
+  border-color: rgba(251,191,36,0.45);
+  box-shadow:
+    0 0 36px rgba(251,191,36,0.15),
+    0 0 100px rgba(251,191,36,0.08),
+    0 0 160px rgba(251,191,36,0.03),
+    inset 0 0 40px rgba(0,0,0,0.15);
+}
+.pacman-canvas {
+  display: block;
+}
+
+/* ── HUD: Brass Gauges ── */
+.pacman-sub .game-sub-hud {
+  background: linear-gradient(135deg, rgba(30,20,10,0.7), rgba(20,15,8,0.8));
+  border: 1px solid rgba(251,191,36,0.15);
+  box-shadow:
+    0 4px 20px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    inset 0 -1px 0 rgba(0,0,0,0.2);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+}
+.pacman-sub .game-sub-hud-label {
+  color: rgba(251,191,36,0.5);
+  font-size: 10px;
+  letter-spacing: 2px;
+}
+.pacman-sub .game-sub-hud-value {
+  color: #fbbf24;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+
+/* ── Overlay: Cinema Screen Reveal ── */
+.pacman-sub .game-sub-overlay {
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(16px) saturate(0.8);
+  -webkit-backdrop-filter: blur(16px) saturate(0.8);
+  animation: pacman-overlay-in 0.6s ease forwards;
+}
+@keyframes pacman-overlay-in {
+  0% { opacity: 0; }
+  40% { opacity: 1; }
+}
+.pacman-sub .game-sub-overlay-card {
+  background: linear-gradient(160deg, rgba(15,15,20,0.95), rgba(10,10,14,0.98));
+  border: 1px solid rgba(251,191,36,0.25);
+  box-shadow:
+    0 32px 80px rgba(0,0,0,0.7),
+    0 0 60px rgba(251,191,36,0.06),
+    inset 0 1px 0 rgba(255,255,255,0.05);
+  animation: pacman-card-dramatic 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes pacman-card-dramatic {
+  0% { opacity: 0; transform: scale(0.7) translateY(30px); filter: blur(8px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
+}
+.pacman-sub .game-sub-overlay-title {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.pacman-sub .game-sub-overlay-score {
+  color: #fbbf24;
+  text-shadow:
+    0 0 20px rgba(251,191,36,0.4),
+    0 0 60px rgba(251,191,36,0.15);
+  animation: pacman-score-glow 2s ease-in-out infinite;
+}
+@keyframes pacman-score-glow {
+  0%, 100% { text-shadow: 0 0 20px rgba(251,191,36,0.4), 0 0 60px rgba(251,191,36,0.15); }
+  50% { text-shadow: 0 0 30px rgba(251,191,36,0.6), 0 0 80px rgba(251,191,36,0.25); }
+}
+.pacman-sub .game-sub-overlay-newbest {
+  background: rgba(251,191,36,0.12);
+  border: 1px solid rgba(251,191,36,0.35);
+  color: #fbbf24;
+  box-shadow: 0 0 20px rgba(251,191,36,0.15);
+  animation: pacman-newbest-burst 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards, pacman-newbest-glow 2s ease-in-out 0.7s infinite;
+}
+@keyframes pacman-newbest-burst {
+  0% { opacity: 0; transform: scale(0.3) rotate(-10deg); }
+  60% { transform: scale(1.15) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+@keyframes pacman-newbest-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(251,191,36,0.15); }
+  50% { box-shadow: 0 0 32px rgba(251,191,36,0.35), 0 0 60px rgba(251,191,36,0.1); }
+}
+.pacman-sub .game-sub-overlay-btn.primary {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #1a1a0a;
+  box-shadow:
+    0 6px 20px rgba(251,191,36,0.35),
+    0 0 40px rgba(251,191,36,0.1),
+    inset 0 1px 0 rgba(255,255,255,0.15);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.15);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.pacman-sub .game-sub-overlay-btn.primary:hover {
+  background: linear-gradient(135deg, #fcd34d, #fbbf24);
+  box-shadow:
+    0 8px 28px rgba(251,191,36,0.45),
+    0 0 60px rgba(251,191,36,0.15),
+    inset 0 1px 0 rgba(255,255,255,0.2);
+  transform: scale(1.07) translateY(-2px);
+}
+.pacman-sub .game-sub-overlay-btn.primary:active {
+  transform: scale(0.97);
+  box-shadow: 0 2px 8px rgba(251,191,36,0.3);
+}
+
+/* ── D-Pad: Tactile Arcade Buttons ── */
+.pacman-sub .game-sub-dpad-btn {
+  border-color: rgba(251,191,36,0.2);
+  color: #fbbf24;
+  background: rgba(251,191,36,0.06);
+  box-shadow:
+    0 2px 8px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    inset 0 -2px 0 rgba(0,0,0,0.15);
+  transition: all 0.1s ease;
+}
+.pacman-sub .game-sub-dpad-btn:active {
+  background: rgba(251,191,36,0.2);
+  box-shadow:
+    0 0 4px rgba(0,0,0,0.3),
+    inset 0 2px 4px rgba(0,0,0,0.3);
+  transform: scale(0.92);
+}
+
+/* ── Controls Hint ── */
+.pacman-sub .game-sub-controls {
+  color: rgba(251,191,36,0.35);
+  letter-spacing: 1.5px;
+  font-size: 12px;
+}
+
+/* ── Back Button ── */
+.pacman-sub .game-sub-back {
+  border-color: rgba(251,191,36,0.15);
+  color: rgba(251,191,36,0.6);
+  transition: all 0.25s ease;
+}
+.pacman-sub .game-sub-back:hover {
+  border-color: rgba(251,191,36,0.35);
+  color: #fbbf24;
+  box-shadow: 0 4px 16px rgba(251,191,36,0.1);
+}
+`}</style>
 
       {/* Hero Section */}
       <div className="game-sub-hero">
-        <div className="game-sub-hero-icon">🟡</div>
+        <div className="game-sub-hero-icon">👻</div>
         <div className="game-sub-hero-info">
           <h2 className="game-sub-hero-title">Pac-Man</h2>
           <p className="game-sub-hero-subtitle">Arcade classic · Eat pellets, avoid ghosts</p>
@@ -1034,15 +1261,15 @@ export default function PacmanGame({ onBack }: PacmanGameProps) {
           <div className="game-sub-hud">
             <div className="game-sub-hud-left">
               <span className="game-sub-hud-label">Score</span>
-              <span className="game-sub-hud-value">{score}</span>
+              <span className="game-sub-hud-value">🟡 {score}</span>
             </div>
             <div className="game-sub-hud-center">
-              <span className="game-sub-hud-label">Level</span>
-              <span className="game-sub-hud-value">{level}</span>
+              <span className="game-sub-hud-label">Level {level}</span>
+              <span className="game-sub-hud-value" style={{fontSize:'14px'}}>{'💛'.repeat(Math.max(0, lives))}</span>
             </div>
             <div className="game-sub-hud-right">
-              <span className="game-sub-hud-label">Lives</span>
-              <span className="game-sub-hud-value">{'💛'.repeat(Math.max(0, lives))}</span>
+              <span className="game-sub-hud-label">Best</span>
+              <span className="game-sub-hud-value" style={{fontSize:'16px'}}>🏆 {bestScores[difficulty] || 0}</span>
             </div>
           </div>
 
