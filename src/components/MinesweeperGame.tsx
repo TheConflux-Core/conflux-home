@@ -812,7 +812,7 @@ export default function MinesweeperGame({ onBack }: MinesweeperGameProps) {
           </div>
 
           <div className="game-sub-canvas-wrap" style={{maxWidth: '480px', margin: '0 auto'}}>
-            <div className={`minesweeper-board ${difficulty} ${gameState}${isShaking ? ' shake' : ''}`} style={{padding:'12px'}}>
+            <div className={`minesweeper-board ${difficulty} ${gameState}${isShaking ? ' shake' : ''}`} style={{padding:'0'}}>
               {showFlash && <div className="minesweeper-flash-overlay" />}
               {board.map((row, ri) => (
                 <div key={ri} className="minesweeper-row">
