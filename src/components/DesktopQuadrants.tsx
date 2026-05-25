@@ -386,39 +386,6 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
   );
 }
 
-// ── Folder App Definitions ──
-
-interface FolderItem {
-  id: string;
-  name: string;
-  icon: string;
-  subtitle: string;
-  status: 'available' | 'coming-soon';
-}
-
-const FOLDER_APPS: Record<string, { title: string; icon: string; items: FolderItem[] }> = {
-  games: {
-    title: 'Games',
-    icon: '🎮',
-    items: [
-      { id: 'minesweeper', name: 'Minesweeper', icon: '💣', subtitle: 'Classic · 9×9', status: 'available' },
-      { id: 'solitaire', name: 'Solitaire', icon: '🃏', subtitle: 'Classic Card Game', status: 'available' },
-      { id: 'pacman', name: 'Pac-Man', icon: '🟡', subtitle: 'Arcade Classic', status: 'available' },
-      { id: 'snake', name: 'Snake', icon: '🐍', subtitle: 'Arcade Classic', status: 'available' },
-      { id: 'nani-solitaire', name: "Nani's Solitaire", icon: '🎴', subtitle: 'Family Tradition · 4×4', status: 'available' },
-      { id: 'johnny-solitaire', name: "Johnny C's Solitaire", icon: '🀄', subtitle: 'FreeCell · 8 Columns', status: 'available' },
-      { id: 'stories', name: 'Conflux Stories', icon: '📖', subtitle: 'Interactive Fiction', status: 'coming-soon' },
-    ],
-  },
-  'news-intelligence': {
-    title: 'News & Intelligence',
-    icon: '📡',
-    items: [
-      { id: 'radar', name: 'Radar', icon: '📰', subtitle: 'Daily briefing & signal radar', status: 'available' },
-    ],
-  },
-};
-
 // ── Expanded Category View ──
 
 interface ExpandedViewProps {
@@ -428,84 +395,7 @@ interface ExpandedViewProps {
 }
 
 function ExpandedView({ category, onBack, onNavigate }: ExpandedViewProps) {
-  const [subFolder, setSubFolder] = useState<string | null>(null);
-
   // Handle "Back to Games" — open Games sub-folder when event fires
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.gameId === 'games') {
-        setSubFolder('games');
-      }
-    };
-    window.addEventListener('conflux:games-back', handler as EventListener);
-    return () => window.removeEventListener('conflux:games-back', handler as EventListener);
-  }, []);
-
-  // If inside a sub-folder (like Games), show its items as a grid
-  if (subFolder) {
-    const folder = FOLDER_APPS[subFolder];
-    if (!folder) return null;
-
-    return (
-      <div className="quadrant-expanded">
-        <div className="quadrant-expanded-header">
-          <button className="quadrant-back-btn" onClick={() => setSubFolder(null)}>
-            ←
-          </button>
-          <span className="quadrant-expanded-title">
-            {folder.icon} {folder.title}
-          </span>
-        </div>
-        <div className="quadrant-expanded-grid">
-          {/* Back button tile */}
-          <div
-            className="desktop-widget folder-back-tile"
-            onClick={() => setSubFolder(null)}
-            style={{ '--widget-color': category.color } as React.CSSProperties}
-          >
-            <div className="widget-accent widget-accent-themed" />
-            <div className="widget-body">
-              <span className="widget-icon">↩️</span>
-              <span className="widget-label">Back</span>
-              <span className="widget-preview">Back to {category.label}</span>
-            </div>
-          </div>
-
-          {/* Game tiles */}
-          {folder.items.map((item) => (
-            <div
-              key={item.id}
-              className={`desktop-widget ${item.status === 'coming-soon' ? 'folder-item-locked' : ''}`}
-              onClick={() => {
-                if (item.status === 'available') {
-                  onNavigate('story');
-                  // Small delay to ensure immersiveView is set before game dispatch
-                  setTimeout(() => {
-                    window.dispatchEvent(new CustomEvent('conflux:navigate', {
-                      detail: { viewId: 'story', gameId: item.id },
-                    }));
-                  }, 0);
-                }
-              }}
-              style={{ '--widget-color': category.color } as React.CSSProperties}
-            >
-              <div className="widget-accent widget-accent-themed" />
-              {item.status === 'coming-soon' && (
-                <div className="folder-item-badge">Coming Soon</div>
-              )}
-              <div className="widget-body">
-                <span className="widget-icon">{item.icon}</span>
-                <span className="widget-label">{item.name}</span>
-                <span className="widget-preview">{item.subtitle}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   // Normal category expanded view
   return (
     <div className="quadrant-expanded">
@@ -533,17 +423,12 @@ function ExpandedView({ category, onBack, onNavigate }: ExpandedViewProps) {
         </div>
 
         {category.apps.map((app) => {
-          const isFolder = app.id in FOLDER_APPS;
           return (
             <div
               key={app.id}
               className="desktop-widget"
               onClick={() => {
-                if (isFolder) {
-                  setSubFolder(app.id);
-                } else {
-                  onNavigate(app.id as View);
-                }
+                onNavigate(app.id as View);
               }}
               style={{ '--widget-color': category.color } as React.CSSProperties}
             >
@@ -553,8 +438,7 @@ function ExpandedView({ category, onBack, onNavigate }: ExpandedViewProps) {
                 <span className="widget-label">{app.label}</span>
                 <span className="widget-preview">{app.preview}</span>
               </div>
-              {isFolder && <span className="folder-indicator">▸</span>}
-            </div>
+                </div>
           );
         })}
       </div>
@@ -572,29 +456,21 @@ interface DesktopQuadrantsProps {
 export default function DesktopQuadrants({ onNavigate, agents }: DesktopQuadrantsProps) {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
-  // Collapse expanded view on Home navigation
+  // Collapse expanded view on any non-game/story navigation
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      // Reset on any non-game navigation (dashboard, chat, settings, etc.)
-      if (typeof detail === 'string' || (typeof detail === 'object' && detail?.viewId === 'dashboard')) {
+      // String events (old-style): collapse
+      // Object events: collapse unless it's games or story (those need the desktop visible beneath)
+      const isObjectEvent = typeof detail === 'object' && detail !== null && 'viewId' in detail;
+      if (typeof detail === 'string') {
+        setExpandedCategory(null);
+      } else if (isObjectEvent && detail.viewId !== 'games' && detail.viewId !== 'story') {
         setExpandedCategory(null);
       }
     };
     window.addEventListener('conflux:navigate', handler as EventListener);
     return () => window.removeEventListener('conflux:navigate', handler as EventListener);
-  }, []);
-
-  // Handle "Back to Games" — expand Discover category
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.gameId === 'games') {
-        setExpandedCategory('discover');
-      }
-    };
-    window.addEventListener('conflux:games-back', handler as EventListener);
-    return () => window.removeEventListener('conflux:games-back', handler as EventListener);
   }, []);
 
   // Also reset on keyboard shortcut (Escape is handled in ImmersiveView, but for desktop we need this)
