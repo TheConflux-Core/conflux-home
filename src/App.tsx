@@ -1137,10 +1137,7 @@ const [activeSnake, setActiveSnake] = useState(false);
     setActiveNaniSolitaire(false);
     setActiveJohnnySolitaire(false);
     setActiveGameId(null);
-    // Navigate to Desktop, expanded to Discover → Games
-    setImmersiveView(null);
-    setView('dashboard');
-    window.dispatchEvent(new CustomEvent('conflux:navigate', {
+    window.dispatchEvent(new CustomEvent('conflux:games-back', {
       detail: { viewId: 'discover', gameId: 'games' },
     }));
   }, []);
