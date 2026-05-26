@@ -9,13 +9,6 @@ import { useAuth } from '../../hooks/useAuth';
 
 // ── Types ──
 
-interface CloudModel {
-  id: string;
-  name?: string;
-  provider?: string;
-  tier?: string;
-}
-
 type RouterStatus = 'checking' | 'connected' | 'disconnected';
 
 // ── Constants ──
@@ -23,12 +16,6 @@ type RouterStatus = 'checking' | 'connected' | 'disconnected';
 const CLOUD_ROUTER_URL = import.meta.env.VITE_CLOUD_ROUTER_URL ?? 'https://www.theconflux.com';
 const MODELS_ENDPOINT = `${CLOUD_ROUTER_URL}/v1/models`;
 const PRICING_URL = 'https://theconflux.ai/pricing';
-
-const TIER_CONFIG: Record<string, { label: string; emoji: string; color: string; tagline: string }> = {
-  core: { label: 'Core', emoji: '🟢', color: '#34c759', tagline: 'Free. Fast. Always on.' },
-  pro: { label: 'Pro', emoji: '🔵', color: '#0071e3', tagline: 'Smart. Best daily driver.' },
-  ultra: { label: 'Ultra', emoji: '🟣', color: '#7b2fff', tagline: 'The best model wins.' },
-};
 
 // ── Component ──
 
@@ -38,8 +25,6 @@ export default function ProviderSettings() {
 
   const [routerStatus, setRouterStatus] = useState<RouterStatus>('checking');
   const [routerLatency, setRouterLatency] = useState<number | null>(null);
-  const [models, setModels] = useState<CloudModel[]>([]);
-  const [modelsLoading, setModelsLoading] = useState(true);
 
   // ── Check cloud router status ──
   const checkRouterStatus = useCallback(async () => {
@@ -52,34 +37,16 @@ export default function ProviderSettings() {
       });
       const latency = Date.now() - start;
       setRouterLatency(latency);
-
-      if (res.ok) {
-        setRouterStatus('connected');
-        const data = await res.json();
-        const modelList = Array.isArray(data) ? data : data?.data ?? [];
-        setModels(modelList);
-      } else {
-        setRouterStatus('disconnected');
-      }
+      setRouterStatus(res.ok ? 'connected' : 'disconnected');
     } catch {
       setRouterLatency(null);
       setRouterStatus('disconnected');
-    } finally {
-      setModelsLoading(false);
     }
   }, []);
 
   useEffect(() => {
     checkRouterStatus();
   }, [checkRouterStatus]);
-
-  // ── Group models by tier ──
-  const modelsByTier = models.reduce<Record<string, CloudModel[]>>((acc, m) => {
-    const tier = m.tier ?? 'core';
-    if (!acc[tier]) acc[tier] = [];
-    acc[tier].push(m);
-    return acc;
-  }, {});
 
   // ── Credit display ──
   const getCreditDisplay = () => {
@@ -186,87 +153,6 @@ export default function ProviderSettings() {
         >
           Buy Credits
         </button>
-      </div>
-
-      {/* ── Available Models ── */}
-      <div style={{ marginTop: 4 }}>
-        <div style={{
-          fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)',
-          marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5,
-        }}>
-          Available Models
-        </div>
-
-        {modelsLoading ? (
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: 12 }}>
-            Loading models…
-          </div>
-        ) : models.length === 0 ? (
-          <div style={{
-            fontSize: 12, color: 'var(--text-muted)', padding: 12,
-            background: 'rgba(255,255,255,0.02)', borderRadius: 10,
-            border: '1px solid var(--border)',
-          }}>
-            {routerStatus === 'disconnected'
-              ? 'Unable to reach cloud router. Check your connection.'
-              : 'No models available.'}
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {['core', 'pro', 'ultra'].map(tier => {
-              const tierModels = modelsByTier[tier];
-              if (!tierModels || tierModels.length === 0) return null;
-              const config = TIER_CONFIG[tier] ?? TIER_CONFIG.core;
-
-              return (
-                <div
-                  key={tier}
-                  style={{
-                    background: `linear-gradient(135deg, ${config.color}08, ${config.color}03)`,
-                    border: `1px solid ${config.color}30`,
-                    borderRadius: 12,
-                    padding: 14,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <span style={{ fontSize: 18 }}>{config.emoji}</span>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
-                      {config.label}
-                    </span>
-                    <span style={{
-                      fontSize: 10, padding: '2px 8px', borderRadius: 10,
-                      background: `${config.color}15`, color: config.color, fontWeight: 600,
-                    }}>
-                      {tierModels.length} model{tierModels.length !== 1 ? 's' : ''}
-                    </span>
-                    <span style={{ fontSize: 11, color: config.color, fontWeight: 500, marginLeft: 'auto' }}>
-                      {config.tagline}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {tierModels.map(m => (
-                      <span
-                        key={m.id}
-                        style={{
-                          fontSize: 11, padding: '4px 10px', borderRadius: 6,
-                          background: 'rgba(255,255,255,0.04)', color: 'var(--text-primary)',
-                          fontFamily: 'monospace', border: '1px solid var(--border)',
-                        }}
-                      >
-                        {m.name ?? m.id}
-                        {m.provider && (
-                          <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 6 }}>
-                            {m.provider}
-                          </span>
-                        )}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
 
       {/* ── Pricing Link ── */}
