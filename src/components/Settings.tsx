@@ -31,7 +31,7 @@ const ACCENT_COLORS = [
   { name: 'Cyan',   value: 'cyan',   hex: '#06b6d4' },
 ];
 
-// ── Navigation Categories ──
+// ── Navigation Categories — Universal First, Advanced Last ──
 
 interface NavCategory {
   id: string;
@@ -41,20 +41,27 @@ interface NavCategory {
 }
 
 const NAV_CATEGORIES: NavCategory[] = [
-  { id: 'overview',    label: 'Overview',     icon: '📡', group: 'Mission' },
-  { id: 'system',      label: 'System',       icon: '⚡', group: 'Mission' },
-  { id: 'account',     label: 'Account',      icon: '👤', group: 'Mission' },
-  { id: 'experience',  label: 'Experience',   icon: '🎨', group: 'Interface' },
-  { id: 'alerts',      label: 'Alerts',       icon: '🔔', group: 'Interface' },
-  { id: 'security',    label: 'Security',     icon: '🛡️', group: 'Control' },
-  { id: 'automation',  label: 'Automation',   icon: '🤖', group: 'Control' },
-  { id: 'skills',      label: 'Skills',       icon: '🧩', group: 'Control' },
-  { id: 'data',        label: 'Data & About', icon: '📦', group: 'Control' },
+  // ══ Universal (what everyone needs first) ══
+  { id: 'account',     label: 'Account',      icon: '👤', group: 'Universal' },
+  { id: 'experience', label: 'Experience',    icon: '✨', group: 'Universal' },
+  { id: 'alerts',      label: 'Alerts',        icon: '🔔', group: 'Universal' },
+  // ══ Everything Else ══
+  { id: 'overview',    label: 'Overview',      icon: '📡', group: 'System' },
+  { id: 'cloud',       label: 'Cloud Router', icon: '☁️', group: 'System' },
+  { id: 'billing',     label: 'Billing',       icon: '💳', group: 'System' },
+  { id: 'security',    label: 'Security',      icon: '🛡️', group: 'System' },
+  { id: 'data',        label: 'Data',          icon: '📦', group: 'System' },
+  // ══ Advanced ══
+  { id: 'automation',  label: 'Autopilot',    icon: '⚙️', group: 'Advanced' },
+  { id: 'skills',      label: 'Skills & Agents', icon: '🔮', group: 'Advanced' },
 ];
+
+// ── Alien Wallpaper (deep space nebula) ──
+const WALLPAPER_URL = '/nebula-wallpaper.png';
 
 // ── Particle Generator ──
 function Particles() {
-  const count = 24;
+  const count = 20;
   return (
     <div className="settings-particles" aria-hidden="true">
       {Array.from({ length: count }, (_, i) => (
@@ -63,11 +70,11 @@ function Particles() {
           className="settings-particle"
           style={{
             left: `${(i * 37 + 11) % 100}%`,
-            animationDuration: `${12 + (i * 5) % 20}s`,
+            animationDuration: `${14 + (i * 5) % 18}s`,
             animationDelay: `${(i * 3) % 12}s`,
             width: i % 3 === 0 ? '2px' : '1px',
             height: i % 3 === 0 ? '2px' : '1px',
-            opacity: 0.08 + (i % 7) * 0.02,
+            opacity: 0.06 + (i % 7) * 0.02,
           }}
         />
       ))}
@@ -76,7 +83,6 @@ function Particles() {
 }
 
 // ── Status Bar Components ──
-
 function StatusBar() {
   const [health, setHealth] = useState<{ status: string } | null>(null);
   const [agentCount, setAgentCount] = useState(0);
@@ -100,7 +106,7 @@ function StatusBar() {
         <div className="mc-status-icon engine">⚡</div>
         <div>
           <div className="mc-status-label">Engine</div>
-          <div className="mc-status-value" style={{ color: isHealthy ? '#22c55e' : '#ef4444' }}>
+          <div className="mc-status-value" style={{ color: isHealthy ? '#4ade80' : '#ff5070' }}>
             {isHealthy ? 'Online' : 'Offline'}
           </div>
         </div>
@@ -168,10 +174,10 @@ function AppearanceSection() {
 
   return (
     <div className="settings-section">
-      <div className="settings-section-title">🎨 Accent Color</div>
+      <div className="settings-section-title">✨ Look & Feel</div>
       <div className="settings-row">
-        <span className="settings-label">Theme accent</span>
-        <div className="accent-row" style={{ display: 'flex', gap: 10 }}>
+        <span className="settings-label">Accent color</span>
+        <div style={{ display: 'flex', gap: 10 }}>
           {ACCENT_COLORS.map((c) => (
             <button
               key={c.value}
@@ -229,7 +235,7 @@ function DataSection() {
 
   return (
     <div className="settings-section">
-      <div className="settings-section-title">🔒 Data & Privacy</div>
+      <div className="settings-section-title">📦 Data & Privacy</div>
       <div className="settings-actions" style={{ marginBottom: 12 }}>
         <button className="settings-button" onClick={exportData}>
           📦 Export Data
@@ -254,8 +260,7 @@ function DataSection() {
           </div>
         </div>
       )}
-      <p className="settings-info">All data is stored locally on this device. Nothing is sent to external servers.</p>
-      <p className="settings-tagline">Your agents, your data, your machine.</p>
+      <p className="settings-info">All data is stored locally on this device. Nothing is sent to external servers without your consent.</p>
     </div>
   );
 }
@@ -280,7 +285,7 @@ function AboutSection() {
         <p className="settings-about-version">v{systemInfo?.app_version ?? '0.1.0'}-alpha</p>
         <p className="settings-about-built">Built with: Tauri + React + Embedded Engine</p>
         {systemInfo && (
-          <p className="settings-about-built" style={{ opacity: 0.6 }}>
+          <p className="settings-about-built" style={{ opacity: 0.55 }}>
             {systemInfo.os} · {systemInfo.arch}
           </p>
         )}
@@ -303,13 +308,13 @@ function AboutSection() {
         </button>
       </div>
       {logPath && (
-        <div style={{ marginTop: 14, opacity: 0.8, fontSize: 13 }}>
+        <div style={{ marginTop: 14, opacity: 0.75, fontSize: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span>📋 Gateway Log:</span>
-            <code style={{ background: 'rgba(255,255,255,0.04)', padding: '3px 8px', borderRadius: 6, fontSize: 12 }}>
+            <code style={{ background: 'rgba(255,255,255,0.04)', padding: '4px 10px', borderRadius: 6, fontSize: 11 }}>
               {logPath}
             </code>
-            <button className="settings-button" onClick={() => { navigator.clipboard.writeText(logPath); setCopyStatus('Copied!'); setTimeout(() => setCopyStatus(''), 2000); }} style={{ fontSize: 12, padding: '3px 10px' }}>
+            <button className="settings-button" onClick={() => { navigator.clipboard.writeText(logPath); setCopyStatus('Copied!'); setTimeout(() => setCopyStatus(''), 2000); }} style={{ fontSize: 11, padding: '4px 10px' }}>
               {copyStatus || 'Copy'}
             </button>
           </div>
@@ -328,19 +333,30 @@ function AccountSection() {
       <div className="settings-section-title">👤 Account</div>
       <div className="settings-row">
         <span className="settings-label">Email</span>
-        <span className="settings-value" style={{ fontFamily: 'monospace', fontSize: 13 }}>{user.email}</span>
+        <span className="settings-value" style={{ fontFamily: 'ui-monospace, monospace', fontSize: 13 }}>{user.email}</span>
       </div>
       <div className="settings-row">
         <span className="settings-label">Account ID</span>
-        <span className="settings-value" style={{ fontFamily: 'monospace', fontSize: 11, opacity: 0.7, userSelect: 'all', cursor: 'text' }}>
+        <span className="settings-value" style={{ fontFamily: 'ui-monospace, monospace', fontSize: 11, opacity: 0.65, userSelect: 'all', cursor: 'text' }}>
           {user.id}
         </span>
       </div>
-      <div className="settings-row">
+      <div className="settings-row" style={{ justifyContent: 'flex-start', paddingTop: 14 }}>
         <button onClick={signOut} className="settings-button danger" style={{ padding: '10px 24px' }}>
           Sign Out
         </button>
       </div>
+    </div>
+  );
+}
+
+// ── Advanced Section Divider ──
+function AdvancedDivider() {
+  return (
+    <div className="advanced-divider">
+      <span className="advanced-badge">
+        ⚙️ Advanced & Control Room
+      </span>
     </div>
   );
 }
@@ -356,6 +372,13 @@ function Sidebar({ activeCategory, onNavigate }: { activeCategory: string; onNav
     return g;
   }, []);
 
+  // Group order: Universal first, then System, then Advanced
+  const orderedGroups = [
+    { key: 'Universal', label: 'Universal' },
+    { key: 'System', label: 'System' },
+    { key: 'Advanced', label: 'Advanced' },
+  ];
+
   return (
     <nav className="mc-sidebar">
       <div className="mc-sidebar-logo">
@@ -365,41 +388,49 @@ function Sidebar({ activeCategory, onNavigate }: { activeCategory: string; onNav
           <span className="mc-sidebar-logo-sub">Mission Control</span>
         </div>
       </div>
-      {Object.entries(groups).map(([groupName, items]) => (
-        <div className="mc-nav-group" key={groupName}>
-          <div className="mc-nav-group-label">{groupName}</div>
-          {items.map(cat => (
-            <div
-              key={cat.id}
-              className={`mc-nav-item ${activeCategory === cat.id ? 'active' : ''}`}
-              onClick={() => onNavigate(cat.id)}
-            >
-              <span className="mc-nav-icon">{cat.icon}</span>
-              <span>{cat.label}</span>
-            </div>
-          ))}
-        </div>
-      ))}
+      {orderedGroups.map(({ key, label }) => {
+        const items = groups[key] ?? [];
+        if (items.length === 0) return null;
+        return (
+          <div className="mc-nav-group" key={key}>
+            <div className="mc-nav-group-label">{label}</div>
+            {items.map(cat => (
+              <div
+                key={cat.id}
+                className={`mc-nav-item ${activeCategory === cat.id ? 'active' : ''}`}
+                onClick={() => onNavigate(cat.id)}
+              >
+                <span className="mc-nav-icon">{cat.icon}</span>
+                <span>{cat.label}</span>
+              </div>
+            ))}
+          </div>
+        );
+      })}
     </nav>
   );
 }
 
 // ── Category Headers ──
 const CATEGORY_META: Record<string, { icon: string; title: string; desc: string }> = {
-  overview:    { icon: '📡', title: 'Mission Overview', desc: 'System status at a glance' },
-  system:      { icon: '⚡', title: 'System', desc: 'Engine, cloud router, and integrations' },
-  account:     { icon: '👤', title: 'Account & Billing', desc: 'Profile, subscription, and usage' },
-  experience:  { icon: '🎨', title: 'Experience', desc: 'Appearance and sound preferences' },
-  alerts:      { icon: '🔔', title: 'Alerts & Notifications', desc: 'How and when you get notified' },
-  security:    { icon: '🛡️', title: 'Security', desc: 'Agent permissions, sandboxing, and anomaly detection' },
-  automation:  { icon: '🤖', title: 'Automation', desc: 'Scheduled tasks, webhooks, and heartbeat chains' },
-  skills:      { icon: '🧩', title: 'Skills & Agents', desc: 'Agent personas and skill garden' },
-  data:        { icon: '📦', title: 'Data & About', desc: 'Export, clear data, and app info' },
+  // Universal
+  account:     { icon: '👤', title: 'Account',       desc: 'Your identity and sign-in' },
+  experience: { icon: '✨', title: 'Experience',    desc: 'Look, sound, and how you interact' },
+  alerts:     { icon: '🔔', title: 'Alerts',        desc: 'What your agents tell you and when' },
+  // System
+  overview:   { icon: '📡', title: 'System Overview', desc: 'Engine health, agents, and status' },
+  cloud:      { icon: '☁️', title: 'Cloud Router',    desc: 'Connected accounts and AI models' },
+  billing:    { icon: '💳', title: 'Billing',         desc: 'Subscription, credits, and usage' },
+  security:   { icon: '🛡️', title: 'Security',        desc: 'Permissions, sandboxing, and anomaly detection' },
+  data:       { icon: '📦', title: 'Data & Privacy',  desc: 'Export, clear, and control your data' },
+  // Advanced
+  automation: { icon: '⚙️', title: 'Autopilot',       desc: 'Cron jobs, webhooks, and heartbeat chains' },
+  skills:     { icon: '🔮', title: 'Skills & Agents', desc: 'Agent personas, skill garden, and fragments' },
 };
 
-// ── Main Settings Component ──
+// ── Main Settings Components ──
 export default function Settings() {
-  const [activeCategory, setActiveCategory] = useState('overview');
+  const [activeCategory, setActiveCategory] = useState('account');
 
   useEffect(() => {
     const savedAccent = localStorage.getItem('conflux-accent');
@@ -408,18 +439,20 @@ export default function Settings() {
     }
   }, []);
 
-  const handleNavigate = useCallback((id: string) => {
+  const handleNavigate =  useCallback((id: string) => {
     setActiveCategory(id);
-    // Scroll content to top
     const content = document.querySelector('.mc-content');
     if (content) content.scrollTop = 0;
   }, []);
 
-  const meta = CATEGORY_META[activeCategory] || CATEGORY_META.overview;
+  const meta = CATEGORY_META[activeCategory] || CATEGORY_META.account;
 
   return (
     <div className="settings-page">
       {/* Atmospheric layers */}
+      <div className="settings-wallpaper">
+        <img src={WALLPAPER_URL} alt="" aria-hidden="true" />
+      </div>
       <div className="settings-grid-pattern" aria-hidden="true" />
       <Particles />
 
@@ -437,27 +470,13 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Render sections based on active category */}
+        {/* Render sections by category */}
         <div className="mc-section-group" key={`group-${activeCategory}`}>
-          {activeCategory === 'overview' && (
-            <>
-              <StatusBar />
-              <ProviderSettings />
-            </>
-          )}
 
-          {activeCategory === 'system' && (
-            <>
-              <ProviderSettings />
-              <GoogleSettings />
-            </>
-          )}
-
+          {/* Universal: Account first */}
           {activeCategory === 'account' && (
             <>
               <AccountSection />
-              <BillingSection />
-              <UsageSection />
             </>
           )}
 
@@ -475,12 +494,43 @@ export default function Settings() {
             </>
           )}
 
+          {/* System: Everything else */}
+          {activeCategory === 'overview' && (
+            <>
+              <StatusBar />
+              <ProviderSettings />
+            </>
+          )}
+
+          {activeCategory === 'cloud' && (
+            <>
+              <ProviderSettings />
+              <GoogleSettings />
+            </>
+          )}
+
+          {activeCategory === 'billing' && (
+            <>
+              <BillingSection />
+              <UsageSection />
+            </>
+          )}
+
           {activeCategory === 'security' && (
             <SecuritySettings />
           )}
 
+          {activeCategory === 'data' && (
+            <>
+              <DataSection />
+              <AboutSection />
+            </>
+          )}
+
+          {/* Advanced: Clearly labeled */}
           {activeCategory === 'automation' && (
             <>
+              <AdvancedDivider />
               <CronManager />
               <TaskView />
               <WebhookManager />
@@ -490,15 +540,9 @@ export default function Settings() {
 
           {activeCategory === 'skills' && (
             <>
+              <AdvancedDivider />
               <AgentEditor />
               <SkillGarden />
-            </>
-          )}
-
-          {activeCategory === 'data' && (
-            <>
-              <DataSection />
-              <AboutSection />
             </>
           )}
         </div>
