@@ -42,7 +42,6 @@ import ParentDashboard from './components/ParentDashboard';
 import VoiceChat from './components/VoiceChat';
 import KitchenView from './components/KitchenView';
 import PulseWrapper from './components/PulseWrapper';
-import FeedView from './components/FeedView';
 import LifeAutopilotView from './components/LifeAutopilotView';
 import HomeHealthView from './components/HomeHealthView';
 import DreamBuilderView from './components/DreamBuilderView';
@@ -96,7 +95,6 @@ const VIEW_BACKGROUNDS: Record<string, string> = {
   family: '/backgrounds/agents-bg.webp',
   story: '/backgrounds/games-bg.webp',
   games: '/backgrounds/games-bg.webp',
-  current: '/backgrounds/feed-bg.webp',
   marketplace: '/backgrounds/marketplace-bg.webp',
   mirror: '/backgrounds/echo-bg.webp',
   vault: '/backgrounds/vault-bg.webp',
@@ -1118,7 +1116,9 @@ const [activeSnake, setActiveSnake] = useState(false);
     } else if (v === 'api' || v === 'api-dashboard') {
       setImmersiveView('api-dashboard');
     } else if (v === 'current' || v === 'radar') {
-      setImmersiveView('current');
+      // Coming soon — show a toast and return to dashboard
+      toast('Ripple Radar coming soon — hang tight!', 'info');
+      setView('dashboard');
     } else if (v === 'aegis' || v === 'viper' || v === 'agent-audit' || v === 'siem') {
       setImmersiveView(v);
     } else if (v === 'chat') {
@@ -1139,7 +1139,7 @@ const [activeSnake, setActiveSnake] = useState(false);
       setImmersiveView('settings');
       setChatOpen(false);
     } else {
-      // All other apps — hearth, pulse, orbit, horizon, foundation, radar, agents, echo, vault, studio, etc.
+      // All other apps — hearth, pulse, orbit, horizon, foundation, agents, echo, vault, studio, etc.
       setImmersiveView(v);
       setChatOpen(false);
     }
@@ -1299,7 +1299,6 @@ const [activeSnake, setActiveSnake] = useState(false);
         >
           {immersiveView === 'hearth' && <KitchenView />}
           {immersiveView === 'pulse' && <PulseWrapper />}
-          {immersiveView === 'current' && <FeedView />}
           {immersiveView === 'orbit' && <LifeAutopilotView />}
           {immersiveView === 'foundation' && <HomeHealthView />}
           {immersiveView === 'horizon' && <DreamBuilderView />}
@@ -1509,7 +1508,6 @@ const [activeSnake, setActiveSnake] = useState(false);
               pulse: 'pulse',
               orbit: 'orbit',
               horizon: 'horizon',
-              current: 'current',
             };
             setShowStatusPanel(false);
             if (viewMap[agentId]) setImmersiveView(viewMap[agentId]);
