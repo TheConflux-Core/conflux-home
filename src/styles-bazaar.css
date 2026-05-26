@@ -23,11 +23,19 @@
 }
 
 /* ── CRITICAL: Override immersive-content height clamp ── */
+.immersive-content .bazaar-root,
 .immersive-content .bazaar-hub {
   height: auto !important;
   min-height: 100vh !important;
   overflow-y: visible !important;
   overflow-x: hidden !important;
+}
+
+/* ── Root Shell ── */
+.bazaar-root {
+  position: relative;
+  min-height: 100vh;
+  z-index: 1;
 }
 
 /* ── Hub Shell ── */
@@ -39,18 +47,20 @@
   z-index: 2;
 }
 
-/* Black overlay — background image barely visible */
-.bazaar-hub::after {
-  content: '';
+/* Black overlay — covers the background image at 90% opacity */
+.bazaar-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background: rgba(0, 0, 0, 0.9);
   pointer-events: none;
   z-index: 0;
 }
 
 /* Subtle warm grid */
-.bazaar-hub::before {
+.bazaar-root::before {
   content: '';
   position: fixed;
   inset: 0;
@@ -60,18 +70,6 @@
   background-size: 48px 48px;
   pointer-events: none;
   z-index: 1;
-}
-  z-index: 0;
-}
-
-/* Warm overlay */
-.bazaar-hub::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background: radial-gradient(ellipse at 50% 0%, rgba(245, 200, 66, 0.06) 0%, transparent 60%);
-  pointer-events: none;
-  z-index: 0;
 }
 
 /* ═══════════════════════════════════════════
