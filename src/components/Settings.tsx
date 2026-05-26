@@ -20,18 +20,41 @@ import HeartbeatChainSettings from './settings/HeartbeatChainSettings';
 import { useAuth } from '../hooks/useAuth';
 import { playToggleOn, playToggleOff } from '../lib/sound';
 import { useTourState } from '../hooks/useTourState';
+import '../styles/settings.css';
 
 // ── Constants ──
 
 const ACCENT_COLORS = [
-  { name: 'Blue', value: 'blue', hex: '#0071e3' },
+  { name: 'Blue',   value: 'blue',   hex: '#0071e3' },
   { name: 'Purple', value: 'purple', hex: '#7b2fff' },
-  { name: 'Green', value: 'green', hex: '#00cc44' },
+  { name: 'Green',  value: 'green',  hex: '#00cc44' },
   { name: 'Orange', value: 'orange', hex: '#ff8800' },
-  { name: 'Pink', value: 'pink', hex: '#ff2d78' },
-  { name: 'Cyan', value: 'cyan', hex: '#00b4d8' },
+  { name: 'Pink',   value: 'pink',   hex: '#ff2d78' },
+  { name: 'Cyan',   value: 'cyan',   hex: '#00b4d8' },
 ];
 
+// ── Particle Generator ──
+function Particles() {
+  const count = 28;
+  return (
+    <div className="settings-particles" aria-hidden="true">
+      {Array.from({ length: count }, (_, i) => (
+        <div
+          key={i}
+          className="settings-particle"
+          style={{
+            left: `${(i * 37 + 11) % 100}%`,
+            animationDuration: `${12 + (i * 5) % 20}s`,
+            animationDelay: `${(i * 3) % 12}s`,
+            width: i % 3 === 0 ? '3px' : i % 3 === 1 ? '2px' : '1px',
+            height: i % 3 === 0 ? '3px' : i % 3 === 1 ? '2px' : '1px',
+            opacity: 0.1 + (i % 7) * 0.03,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
 
 // ── Toggle Switch Component ──
 
@@ -83,7 +106,7 @@ function EngineSection() {
   const isHealthy = health?.status === 'healthy' || health !== null;
 
   return (
-    <div className="settings-section">
+    <div className="settings-section engine-glow">
       <div className="settings-section-title">⚡ Engine Status</div>
 
       <div className="settings-row">
@@ -104,7 +127,7 @@ function EngineSection() {
         <span className="settings-value">Embedded (standalone)</span>
       </div>
 
-      <div className="settings-actions">
+      <div className="settings-actions" style={{ marginTop: 12 }}>
         <button className="settings-button" onClick={checkEngine}>
           ↻ Refresh
         </button>
@@ -131,7 +154,6 @@ function AppearanceSection() {
     <div className="settings-section">
       <div className="settings-section-title">🎨 Appearance</div>
 
-      {/* Accent Color */}
       <div className="settings-row">
         <span className="settings-label">Accent Color</span>
         <div className="accent-row">
@@ -151,7 +173,7 @@ function AppearanceSection() {
   );
 }
 
-// ── Section 4: Data & Privacy ──
+// ── Section 3: Data & Privacy ──
 
 function DataSection() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -236,7 +258,12 @@ function DataSection() {
   );
 }
 
-// ── Section 5: About & Support ──
+// Helper for animating in from right on mount (for About)
+const fadeSlideIn = (delay: number) => ({
+  animation: `section-enter ${0.4 + delay}s ease-out ${delay}s both`,
+});
+
+// ── Section 4: About & Support ──
 
 function AboutSection() {
   const [logPath, setLogPath] = useState<string>('');
@@ -244,7 +271,6 @@ function AboutSection() {
   const [copyStatus, setCopyStatus] = useState<string>('');
 
   useEffect(() => {
-    // Fetch log path and system info from Tauri
     invoke<string>('get_log_path').then(setLogPath).catch(() => {});
     invoke<any>('get_system_info').then(setSystemInfo).catch(() => {});
   }, []);
@@ -262,7 +288,7 @@ function AboutSection() {
   };
 
   return (
-    <div className="settings-section">
+    <div className="settings-section" style={fadeSlideIn(0)}>
       <div className="settings-section-title">ℹ️ About</div>
 
       <div className="settings-about">
@@ -287,8 +313,7 @@ function AboutSection() {
         </div>
       </div>
 
-      {/* Feedback & Support */}
-      <div style={{ marginTop: 16, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
         <button
           className="settings-button"
           onClick={() => {
@@ -307,25 +332,24 @@ function AboutSection() {
         </button>
       </div>
 
-      {/* Log Location */}
       {logPath && (
-        <div style={{ marginTop: 12, opacity: 0.8, fontSize: 13 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ marginTop: 14, opacity: 0.8, fontSize: 13 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span>📋 Gateway Log:</span>
-            <code style={{ background: 'var(--bg-surface)', padding: '2px 6px', borderRadius: 4, fontSize: 12 }}>
+            <code style={{ background: 'rgba(255,255,255,0.06)', padding: '3px 8px', borderRadius: 6, fontSize: 12 }}>
               {logPath}
             </code>
             <button
               className="settings-button"
               onClick={handleCopyLogPath}
-              style={{ fontSize: 12, padding: '2px 8px' }}
+              style={{ fontSize: 12, padding: '3px 10px' }}
             >
               {copyStatus || 'Copy'}
             </button>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
             <span>📋 Updater Log:</span>
-            <code style={{ background: 'var(--bg-surface)', padding: '2px 6px', borderRadius: 4, fontSize: 12 }}>
+            <code style={{ background: 'rgba(255,255,255,0.06)', padding: '3px 8px', borderRadius: 6, fontSize: 12 }}>
               {logPath.replace('gateway.log', 'updater.log')}
             </code>
             <button
@@ -335,7 +359,7 @@ function AboutSection() {
                 setCopyStatus('Copied!');
                 setTimeout(() => setCopyStatus(''), 2000);
               }}
-              style={{ fontSize: 12, padding: '2px 8px' }}
+              style={{ fontSize: 12, padding: '3px 10px' }}
             >
               Copy
             </button>
@@ -364,7 +388,11 @@ function AccountSection() {
 
       <div className="settings-row">
         <span className="settings-label">Account ID</span>
-        <span className="settings-value" style={{ fontFamily: 'monospace', fontSize: 11, opacity: 0.7, userSelect: 'all', cursor: 'text' }} title="Click to select">
+        <span
+          className="settings-value"
+          style={{ fontFamily: 'monospace', fontSize: 11, opacity: 0.7, userSelect: 'all', cursor: 'text' }}
+          title="Click to select"
+        >
           {user.id}
         </span>
       </div>
@@ -372,16 +400,8 @@ function AccountSection() {
       <div className="settings-row">
         <button
           onClick={signOut}
-          style={{
-            background: '#e74c3c',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 6,
-            padding: '8px 20px',
-            cursor: 'pointer',
-            fontSize: 14,
-            fontWeight: 600,
-          }}
+          className="settings-button danger"
+          style={{ padding: '10px 24px' }}
         >
           Sign Out
         </button>
@@ -393,9 +413,7 @@ function AccountSection() {
 // ── Main Settings Component ──
 
 export default function Settings() {
-  // Listen for theme changes from elsewhere
   useEffect(() => {
-    // Apply saved accent on mount
     const savedAccent = localStorage.getItem('conflux-accent');
     if (savedAccent) {
       document.body.setAttribute('data-accent', savedAccent);
@@ -404,6 +422,16 @@ export default function Settings() {
 
   return (
     <div className="settings-page">
+      {/* Atmospheric layers */}
+      <div className="settings-grid-pattern" aria-hidden="true" />
+      <Particles />
+
+      {/* Page header */}
+      <div className="settings-header">
+        <h1>⚙️ Settings</h1>
+        <p>Control your world</p>
+      </div>
+
       <AccountSection />
       <AboutSection />
       <EngineSection />

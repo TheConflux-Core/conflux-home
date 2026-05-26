@@ -15,6 +15,7 @@ const AGENT_TO_VIEW: Record<string, View> = {
 interface ConfluxBarV2Props {
   currentView: View;
   agents: Agent[];
+  selectedAgentIds: string[];
   pinnedApps: View[];
   onNavigate: (view: View) => void;
 }
@@ -100,6 +101,7 @@ const CATEGORIES = [
 export default function ConfluxBarV2({
   currentView,
   agents,
+  selectedAgentIds,
   onNavigate,
 }: ConfluxBarV2Props & {
 }) {
@@ -162,8 +164,13 @@ export default function ConfluxBarV2({
     return apps;
   }, [search, category]);
 
-  const activeAgents = agents.filter(a => a.status !== 'offline').length;
-  const workingAgents = agents.filter(a => a.status === 'working' || a.status === 'thinking').length;
+  const filteredAgents = useMemo(() => {
+    if (selectedAgentIds.length === 0) return agents;
+    return agents.filter(a => selectedAgentIds.includes(a.id));
+  }, [agents, selectedAgentIds]);
+
+  const activeAgents = filteredAgents.filter(a => a.status !== 'offline').length;
+  const workingAgents = filteredAgents.filter(a => a.status === 'working' || a.status === 'thinking').length;
 
   const agentStatusColor = useMemo(() => {
     if (workingAgents > 0) return '#f59e0b';

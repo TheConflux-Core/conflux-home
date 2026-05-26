@@ -105,7 +105,7 @@
   --accent-glow: rgba(100, 210, 255, 0.35);
 }
 
-/* === SETTINGS PAGE === */
+/* === SETTINGS PAGE (overridden by settings.css) === */
 .settings-page {
   max-width: none;
   margin: 0;
@@ -1519,7 +1519,7 @@ body {
   background: var(--text-muted);
 }
 
-/* === SETTINGS PAGE === */
+/* === SETTINGS PAGE (overridden by settings.css) === */
 .settings-page {
   max-width: none;
   margin: 0;
