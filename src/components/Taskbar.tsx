@@ -16,7 +16,7 @@ const ITEMS: { view: View; icon: string; label: string }[] = [
   { view: 'hearth', icon: '🍳', label: 'Hearth' },
   { view: 'pulse', icon: '💰', label: 'Pulse' },
   { view: 'current', icon: '📰', label: 'Current' },
-  { view: 'marketplace', icon: '🛒', label: 'Bazaar' },
+  { view: 'marketplace', icon: '🛒', label: 'Marketplace' },
   { view: 'settings', icon: '⚙️', label: 'Settings' },
 ];
 
