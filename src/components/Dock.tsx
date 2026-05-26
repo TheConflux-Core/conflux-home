@@ -17,7 +17,6 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   orbit: { icon: '🧠', label: 'Orbit' },
   foundation: { icon: '🔧', label: 'Foundation' },
   horizon: { icon: '🎯', label: 'Horizon' },
-  current: { icon: '📰', label: 'Current' },
   story: { icon: '📖', label: 'Story' },
   marketplace: { icon: '🛒', label: 'Marketplace' },
   mirror: { icon: '🪞', label: 'Mirror' },
@@ -37,6 +36,8 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   agents: { icon: '🧩', label: 'Agents' },
   echo: { icon: '🪞', label: 'Echo' },
   api: { icon: '📊', label: 'API' },
+  // Coming soon
+  current: { icon: '📰', label: 'Current' },
   radar: { icon: '📡', label: 'Radar' },
   games: { icon: '🎮', label: 'Games' },
 };
