@@ -1275,7 +1275,7 @@ const [activeSnake, setActiveSnake] = useState(false);
       ) : (
         useQuadrants ? (
           <DesktopV2
-            agents={agents}
+            agents={selectedAgentIds.length > 0 ? filteredAgents : agents}
             wallpaper={wallpaper || undefined}
             onNavigate={(v) => handleNavigate(v)}
           />
@@ -1482,6 +1482,7 @@ const [activeSnake, setActiveSnake] = useState(false);
         <ConfluxBarV2
           currentView={view}
           agents={agents}
+          selectedAgentIds={selectedAgentIds}
           pinnedApps={['chat', 'hearth', 'pulse', 'settings']}
           onNavigate={handleNavigate}
         />
