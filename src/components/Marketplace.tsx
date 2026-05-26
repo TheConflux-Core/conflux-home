@@ -43,7 +43,7 @@ function categoryColor(cat: string): string {
 
 function HeroParticles() {
   const particles = useMemo(() => {
-    return Array.from({ length: 18 }, (_, i) => ({
+    return Array.from({ length: 8 }, (_, i) => ({
       id: i,
       left: `${5 + Math.random() * 90}%`,
       size: 2 + Math.random() * 3,
