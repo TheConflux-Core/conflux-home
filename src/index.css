@@ -1316,7 +1316,9 @@ body {
   transform: translateY(-1px);
 }
 
-/* === MARKETPLACE === */
+/* === MARKETPLACE (DEPRECATED — these rules are from the old marketplace UI) === */
+/* The new Marketplace uses .mp-card classes in styles-marketplace.css */
+/* These rules are kept for reference but should not affect the current UI */
 .marketplace-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -2141,7 +2143,7 @@ body {
   line-height: 1.4;
 }
 
-/* === MARKETPLACE CARD ANIMATIONS === */
+/* === MARKETPLACE CARD ANIMATIONS (DEPRECATED) === */
 @keyframes card-enter {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
@@ -2206,7 +2208,7 @@ body {
   transform: translateY(-1px);
 }
 
-/* === MARKETPLACE EMPTY STATE === */
+/* === MARKETPLACE EMPTY STATE (DEPRECATED) === */
 .marketplace-empty-state {
   grid-column: 1 / -1;
   display: flex;
