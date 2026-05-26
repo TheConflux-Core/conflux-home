@@ -85,18 +85,10 @@ function TodaySummary({ entries }: { entries: ReturnType<typeof useUsageHistory>
 function StatsCards({ stats }: { stats: ReturnType<typeof useUsageStats>['stats'] }) {
   if (!stats) return null;
 
-  const topProvider = stats.by_provider.length > 0
-    ? stats.by_provider.reduce((a, b) => a.call_count > b.call_count ? a : b)
-    : null;
-
-  const topModel = stats.by_model.length > 0
-    ? stats.by_model.reduce((a, b) => a.call_count > b.call_count ? a : b)
-    : null;
-
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(4, 1fr)',
+      gridTemplateColumns: 'repeat(2, 1fr)',
       gap: 12,
       marginBottom: 20,
     }}>
@@ -119,30 +111,6 @@ function StatsCards({ stats }: { stats: ReturnType<typeof useUsageStats>['stats'
       }}>
         <div style={{ fontSize: 20, fontWeight: 700 }}>{stats.total_credits.toLocaleString()}</div>
         <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>Credits Used (7d)</div>
-      </div>
-      <div style={{
-        background: 'var(--bg-surface, rgba(255,255,255,0.03))',
-        border: '1px solid var(--border, rgba(255,255,255,0.1))',
-        borderRadius: 10,
-        padding: 14,
-        textAlign: 'center',
-      }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: '#00cc88' }}>
-          {topProvider?.provider_id ?? '—'}
-        </div>
-        <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>Top Provider</div>
-      </div>
-      <div style={{
-        background: 'var(--bg-surface, rgba(255,255,255,0.03))',
-        border: '1px solid var(--border, rgba(255,255,255,0.1))',
-        borderRadius: 10,
-        padding: 14,
-        textAlign: 'center',
-      }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: '#ff8844', wordBreak: 'break-all' }}>
-          {topModel?.model ?? '—'}
-        </div>
-        <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>Top Model</div>
       </div>
     </div>
   );
@@ -208,8 +176,7 @@ export default function UsageSection() {
                     borderBottom: '1px solid var(--border, rgba(255,255,255,0.1))',
                   }}>
                     <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, opacity: 0.7 }}>Time</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, opacity: 0.7 }}>Model</th>
-                    <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, opacity: 0.7 }}>Provider</th>
+                    <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, fontSize: 11, opacity: 0.7 }}>Destination</th>
                     <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, fontSize: 11, opacity: 0.7 }}>Tokens</th>
                     <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, fontSize: 11, opacity: 0.7 }}>Credits</th>
                     <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, fontSize: 11, opacity: 0.7 }}>Status</th>
@@ -229,8 +196,7 @@ export default function UsageSection() {
                         <td style={{ padding: '8px 12px', opacity: 0.8, whiteSpace: 'nowrap' }}>
                           {formatTime(entry.created_at)}
                         </td>
-                        <td style={{ padding: '8px 12px', fontWeight: 500 }}>{entry.model}</td>
-                        <td style={{ padding: '8px 12px', opacity: 0.7 }}>{entry.provider_id}</td>
+                        <td style={{ padding: '8px 12px', fontWeight: 500 }}>🌐 Conflux Router</td>
                         <td style={{ padding: '8px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                           {entry.tokens_used.toLocaleString()}
                         </td>

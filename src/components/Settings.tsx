@@ -13,7 +13,6 @@ import UsageSection from './settings/UsageSection';
 import SoundSection from './settings/SoundSection';
 import SecuritySettings from './settings/SecuritySettings';
 import HeartbeatChainSettings from './settings/HeartbeatChainSettings';
-import AgentEditor from './settings/AgentEditor';
 import { useAuth } from '../hooks/useAuth';
 import { playToggleOn, playToggleOff } from '../lib/sound';
 import { useTourState } from '../hooks/useTourState';
@@ -46,13 +45,12 @@ const NAV_CATEGORIES: NavCategory[] = [
   { id: 'alerts',      label: 'Alerts',        icon: '🔔', group: 'Universal' },
   // ══ Everything Else ══
   { id: 'overview',    label: 'Overview',      icon: '📡', group: 'System' },
-  { id: 'cloud',       label: 'Cloud Router', icon: '☁️', group: 'System' },
   { id: 'billing',     label: 'Billing',       icon: '💳', group: 'System' },
   { id: 'security',    label: 'Security',      icon: '🛡️', group: 'System' },
-  { id: 'data',        label: 'Data',          icon: '📦', group: 'System' },
   // ══ Advanced ══
   { id: 'automation',  label: 'Autopilot',    icon: '⚙️', group: 'Advanced' },
-  { id: 'skills',      label: 'Skills & Agents', icon: '🔮', group: 'Advanced' },
+  // ══ Footer ══
+  { id: 'about',       label: 'About',        icon: 'ℹ️', group: 'About' },
 ];
 
 // ── Alien Wallpaper (deep space nebula) ──
@@ -360,6 +358,28 @@ function AdvancedDivider() {
   );
 }
 
+// ── Report Header (always visible above sidebar) ──
+function ReportHeader() {
+  return (
+    <div className="mc-report-header">
+      <button
+        className="mc-report-btn"
+        onClick={() => open('https://github.com/TheConflux-Core/conflux-home/issues/new?labels=bug&title=%5BBug%5D%20')}
+        title="Report a Bug"
+      >
+        🐛 Report a Bug
+      </button>
+      <button
+        className="mc-report-btn"
+        onClick={() => open('https://github.com/TheConflux-Core/conflux-home/issues/new?labels=enhancement&title=%5BFeature%5D%20')}
+        title="Suggest a Feature"
+      >
+        💡 Suggest a Feature
+      </button>
+    </div>
+  );
+}
+
 // ── Sidebar Component ──
 function Sidebar({ activeCategory, onNavigate }: { activeCategory: string; onNavigate: (id: string) => void }) {
   const groups = useMemo(() => {
@@ -376,6 +396,7 @@ function Sidebar({ activeCategory, onNavigate }: { activeCategory: string; onNav
     { key: 'Universal', label: 'Universal' },
     { key: 'System', label: 'System' },
     { key: 'Advanced', label: 'Advanced' },
+    { key: 'About', label: 'About' },
   ];
 
   return (
@@ -418,13 +439,14 @@ const CATEGORY_META: Record<string, { icon: string; title: string; desc: string 
   alerts:     { icon: '🔔', title: 'Alerts',        desc: 'What your agents tell you and when' },
   // System
   overview:   { icon: '📡', title: 'System Overview', desc: 'Engine health, agents, and status' },
-  cloud:      { icon: '☁️', title: 'Cloud Router',    desc: 'Connected accounts and AI models' },
+
   billing:    { icon: '💳', title: 'Billing',         desc: 'Subscription, credits, and usage' },
   security:   { icon: '🛡️', title: 'Security',        desc: 'Permissions, sandboxing, and anomaly detection' },
   data:       { icon: '📦', title: 'Data & Privacy',  desc: 'Export, clear, and control your data' },
   // Advanced
-  automation: { icon: '⚙️', title: 'Autopilot',       desc: 'Cron jobs, webhooks, and heartbeat chains' },
-  skills:     { icon: '🔮', title: 'Skills & Agents', desc: 'Agent personas, skill garden, and fragments' },
+  automation: { icon: '⚙️', title: 'Autopilot',       desc: 'Cron jobs, webhooks, heartbeat chains, and skill garden' },
+  // Footer
+  about:      { icon: 'ℹ️', title: 'About',         desc: 'Version, links, and log path' },
 };
 
 // ── Main Settings Components ──
@@ -455,6 +477,9 @@ export default function Settings() {
       <div className="settings-grid-pattern" aria-hidden="true" />
       <Particles />
 
+      {/* Report Header — always visible at the top */}
+      <ReportHeader />
+
       {/* Sidebar Navigation */}
       <Sidebar activeCategory={activeCategory} onNavigate={handleNavigate} />
 
@@ -476,6 +501,7 @@ export default function Settings() {
           {activeCategory === 'account' && (
             <>
               <AccountSection />
+              <GoogleSettings />
             </>
           )}
 
@@ -503,7 +529,6 @@ export default function Settings() {
           {activeCategory === 'cloud' && (
             <>
               <ProviderSettings />
-              <GoogleSettings />
             </>
           )}
 
@@ -515,14 +540,20 @@ export default function Settings() {
           )}
 
           {activeCategory === 'security' && (
-            <SecuritySettings />
+            <>
+              <div className="settings-section">
+                <div className="settings-section-title">🛡️ Security</div>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                  Security profiles and permissions are managed by the Security Center.
+                  Coming soon to Settings.
+                </p>
+              </div>
+              <DataSection />
+            </>
           )}
 
-          {activeCategory === 'data' && (
-            <>
-              <DataSection />
-              <AboutSection />
-            </>
+          {activeCategory === 'about' && (
+            <AboutSection />
           )}
 
           {/* Advanced: Clearly labeled */}
@@ -533,13 +564,6 @@ export default function Settings() {
               <TaskView />
               <WebhookManager />
               <HeartbeatChainSettings />
-            </>
-          )}
-
-          {activeCategory === 'skills' && (
-            <>
-              <AdvancedDivider />
-              <AgentEditor />
               <SkillGarden />
             </>
           )}

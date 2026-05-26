@@ -111,6 +111,37 @@
   100% { transform: translateY(-5vh) scale(1.5); opacity: 0; }
 }
 
+/* ── Report Header (persistent across all tabs) ── */
+.mc-report-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--si-border);
+  background: rgba(255,255,255,0.02);
+}
+
+.mc-report-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mc-report-btn:hover {
+  background: rgba(255,255,255,0.08);
+  color: var(--text);
+  border-color: rgba(255,255,255,0.15);
+}
+
 /* ── Sidebar Navigation ── */
 .mc-sidebar {
   position: fixed;
