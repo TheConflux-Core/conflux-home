@@ -411,6 +411,7 @@ pub fn run() {
             commands::engine_update_task,
             commands::engine_get_task,
             commands::engine_get_tasks_for_agent,
+            commands::engine_get_all_tasks,
             // Verification (Anti-Hallucination)
             commands::engine_create_verification,
             commands::engine_complete_verification,
@@ -438,6 +439,7 @@ pub fn run() {
             commands::engine_create_webhook,
             commands::engine_get_webhooks,
             commands::engine_delete_webhook,
+            commands::engine_create_webhook_v2,
             commands::engine_handle_webhook,
             // Events
             commands::engine_get_events,

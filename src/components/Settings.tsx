@@ -358,28 +358,6 @@ function AdvancedDivider() {
   );
 }
 
-// ── Report Header (always visible above sidebar) ──
-function ReportHeader() {
-  return (
-    <div className="mc-report-header">
-      <button
-        className="mc-report-btn"
-        onClick={() => open('https://github.com/TheConflux-Core/conflux-home/issues/new?labels=bug&title=%5BBug%5D%20')}
-        title="Report a Bug"
-      >
-        🐛 Report a Bug
-      </button>
-      <button
-        className="mc-report-btn"
-        onClick={() => open('https://github.com/TheConflux-Core/conflux-home/issues/new?labels=enhancement&title=%5BFeature%5D%20')}
-        title="Suggest a Feature"
-      >
-        💡 Suggest a Feature
-      </button>
-    </div>
-  );
-}
-
 // ── Sidebar Component ──
 function Sidebar({ activeCategory, onNavigate }: { activeCategory: string; onNavigate: (id: string) => void }) {
   const groups = useMemo(() => {
@@ -477,14 +455,29 @@ export default function Settings() {
       <div className="settings-grid-pattern" aria-hidden="true" />
       <Particles />
 
-      {/* Report Header — always visible at the top */}
-      <ReportHeader />
-
       {/* Sidebar Navigation */}
       <Sidebar activeCategory={activeCategory} onNavigate={handleNavigate} />
 
       {/* Main Content */}
       <div className="mc-content">
+        {/* Report Header — centered in content area, above category header */}
+        <div className="mc-report-header">
+          <button
+            className="mc-report-btn"
+            onClick={() => open('https://github.com/TheConflux-Core/conflux-home/issues/new?labels=bug&title=%5BBug%5D%20')}
+            title="Report a Bug"
+          >
+            🐛 Report a Bug
+          </button>
+          <button
+            className="mc-report-btn"
+            onClick={() => open('https://github.com/TheConflux-Core/conflux-home/issues/new?labels=enhancement&title=%5BFeature%5D%20')}
+            title="Suggest a Feature"
+          >
+            💡 Suggest a Feature
+          </button>
+        </div>
+
         {/* Category Header */}
         <div className="mc-category-header" key={activeCategory}>
           <div className="mc-category-icon">{meta.icon}</div>

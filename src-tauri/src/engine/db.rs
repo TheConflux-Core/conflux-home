@@ -1511,6 +1511,42 @@ impl EngineDb {
         Ok(result)
     }
 
+    /// Get all tasks across all agents (no filter).
+    pub fn get_all_tasks(&self) -> Result<Vec<super::types::Task>> {
+        let conn = self.conn_blocking();
+        let mut stmt = conn.prepare(
+            "SELECT id, title, description, agent_id, status, result, parent_task_id, session_id,
+                    created_by, priority, requires_verify, verified, created_at, updated_at, completed_at
+             FROM tasks ORDER BY created_at DESC LIMIT 500",
+        )?;
+
+        let tasks = stmt.query_map([], |row| {
+            Ok(super::types::Task {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                description: row.get(2)?,
+                agent_id: row.get(3)?,
+                status: row.get(4)?,
+                result: row.get(5)?,
+                parent_task_id: row.get(6)?,
+                session_id: row.get(7)?,
+                created_by: row.get(8)?,
+                priority: row.get(9)?,
+                requires_verify: row.get::<_, i64>(10)? != 0,
+                verified: row.get::<_, i64>(11)? != 0,
+                created_at: row.get(12)?,
+                updated_at: row.get(13)?,
+                completed_at: row.get(14)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for t in tasks {
+            result.push(t?);
+        }
+        Ok(result)
+    }
+
     // ── Verification Records ──
 
     pub fn create_verification(

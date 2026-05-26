@@ -829,6 +829,14 @@ pub fn engine_get_tasks_for_agent(
     Ok(serde_json::to_value(tasks).map_err(|e| e.to_string())?)
 }
 
+/// Get all tasks across all agents (for Settings TaskView Kanban board).
+#[tauri::command]
+pub fn engine_get_all_tasks() -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let tasks = engine.get_all_tasks().map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(tasks).map_err(|e| e.to_string())?)
+}
+
 // ── Verification (Anti-Hallucination) ──
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1076,6 +1084,44 @@ pub fn engine_get_webhooks() -> Result<serde_json::Value, String> {
 pub fn engine_delete_webhook(id: String) -> Result<(), String> {
     let engine = engine::get_engine();
     engine.delete_webhook(&id).map_err(|e| e.to_string())
+}
+
+/// Webhook v2 — accepts URL + auth + events (matches frontend useWebhooks hook).
+/// Auto-generates a path and uses a default agent if not specified.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateWebhookRequestV2 {
+    pub url: String,
+    pub auth_type: String,
+    pub auth_secret: Option<String>,
+    pub events: Vec<String>,
+    pub agent_id: Option<String>,
+}
+
+#[tauri::command]
+pub fn engine_create_webhook_v2(req: CreateWebhookRequestV2) -> Result<String, String> {
+    let engine = engine::get_engine();
+    let path = format!("/webhook/{}", uuid::Uuid::new_v4().to_string().replace("-", ""));
+    let name = req.url
+        .strip_prefix("https://")
+        .unwrap_or(&req.url)
+        .split('/')
+        .next()
+        .unwrap_or("webhook")
+        .to_string();
+    let agent_id = req.agent_id.unwrap_or_else(|| "conflux".to_string());
+    let secret = match req.auth_type.as_str() {
+        "hmac" | "bearer" => req.auth_secret.clone(),
+        _ => None,
+    };
+    engine
+        .create_webhook(
+            &name,
+            &agent_id,
+            &path,
+            secret.as_deref(),
+            &format!("Webhook triggered with events: {:?}", req.events),
+        )
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

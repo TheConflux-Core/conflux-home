@@ -5,6 +5,68 @@ import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useCron, type CreateCronReq } from '../../hooks/useCron';
 
+// ── Cron → Human-Readable ──
+
+function cronToHuman(expr: string): string {
+  const parts = expr.trim().split(/\s+/);
+  if (parts.length < 5) return expr;
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+
+  // Every N minutes: */N * * * *
+  if (minute.startsWith('*/') && hour === '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
+    const n = minute.slice(2);
+    return `Every ${n} minutes`;
+  }
+  // Every N hours: */N * * * *  or  0 */N * * *
+  if (hour.startsWith('*/') && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
+    const n = hour.slice(2);
+    if (minute === '0') return `Every ${n} hours`;
+    return `Every ${n} hours, min ${minute}`;
+  }
+  // Daily at specific time: 0 9 * * *
+  if (minute !== '*' && hour !== '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
+    const h = parseInt(hour, 10);
+    const m = parseInt(minute, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    const mm = m < 10 ? `0${m}` : `${m}`;
+    return `Every day at ${h12}:${mm} ${ampm}`;
+  }
+  // Weekdays at specific time: 0 9 * * 1-5
+  if (minute !== '*' && hour !== '*' && dayOfMonth === '*' && month === '*' && dayOfWeek !== '*') {
+    const h = parseInt(hour, 10);
+    const m = parseInt(minute, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    const mm = m < 10 ? `0${m}` : `${m}`;
+    if (dayOfWeek === '1-5' || dayOfWeek === '1,2,3,4,5') return `Weekdays at ${h12}:${mm} ${ampm}`;
+    return `At ${h12}:${mm} ${ampm} on ${dayOfWeek}`;
+  }
+  // Weekly: 0 9 * * 1
+  if (minute !== '*' && hour !== '*' && dayOfMonth === '*' && month === '*' && dayOfWeek !== '*') {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const d = parseInt(dayOfWeek, 10);
+    const h = parseInt(hour, 10);
+    const m = parseInt(minute, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    const mm = m < 10 ? `0${m}` : `${m}`;
+    const dayName = days[d] ?? dayOfWeek;
+    return `Every ${dayName} at ${h12}:${mm} ${ampm}`;
+  }
+  // Monthly
+  if (minute !== '*' && hour !== '*' && dayOfMonth !== '*' && month === '*') {
+    const h = parseInt(hour, 10);
+    const m = parseInt(minute, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    const mm = m < 10 ? `0${m}` : `${m}`;
+    return `Day ${dayOfMonth} of every month at ${h12}:${mm} ${ampm}`;
+  }
+  // Fallback
+  return expr;
+}
+
 function ToggleSwitch({
   checked,
   onChange,
@@ -198,10 +260,15 @@ export default function CronManager() {
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'monospace' }}>
-                  {job.schedule}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                  <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 4 }}>
+                    {job.schedule}
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>
+                    {cronToHuman(job.schedule)}
+                  </span>
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
                   Agent: <span style={{ color: 'var(--accent-primary)' }}>{job.agent_id}</span>
                   {job.next_run && (
                     <span> · Next: {new Date(job.next_run).toLocaleString()}</span>
