@@ -20,7 +20,7 @@ const TYPE_LABELS: Record<MarketplaceItemType, string> = {
   agent: 'Agent',
 };
 
-// Per-category accent colors — consistent identity across the bazaar
+// Per-category accent colors — consistent identity across the marketplace
 const CATEGORY_COLORS: Record<string, string> = {
   all: '#f5c842',
   life: '#ff8844',
