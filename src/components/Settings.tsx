@@ -4,7 +4,6 @@ import { open } from '@tauri-apps/plugin-shell';
 import ProviderSettings from './settings/ProviderSettings';
 import GoogleSettings from './settings/GoogleSettings';
 import NotificationSettings from './settings/NotificationSettings';
-import EmailSettings from './settings/EmailSettings';
 import CronManager from './settings/CronManager';
 import TaskView from './settings/TaskView';
 import WebhookManager from './settings/WebhookManager';
@@ -490,7 +489,6 @@ export default function Settings() {
           {activeCategory === 'alerts' && (
             <>
               <NotificationSettings />
-              <EmailSettings />
             </>
           )}
 
