@@ -613,6 +613,11 @@ impl ConfluxEngine {
         self.db.get_tasks_for_agent(agent_id, status_filter)
     }
 
+    /// Get all tasks across all agents (no agent filter).
+    pub fn get_all_tasks(&self) -> Result<Vec<types::Task>> {
+        self.db.get_all_tasks()
+    }
+
     // ── Lessons Learned ──
 
     pub fn add_lesson(

@@ -37,7 +37,8 @@ export function useWebhooks() {
   useEffect(() => { refresh(); }, [refresh]);
 
   const create = useCallback(async (req: CreateWebhookReq): Promise<string> => {
-    const id = await invoke<string>('engine_create_webhook', { req });
+    // Use v2 which matches the frontend's {url, auth_type, auth_secret, events} format
+    const id = await invoke<string>('engine_create_webhook_v2', { req });
     await refresh();
     return id;
   }, [refresh]);
