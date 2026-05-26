@@ -15,7 +15,7 @@ import ConfluxBar from './components/ConfluxBar';
 import ConfluxBarV2 from './components/ConfluxBarV2';
 import './styles-conflux-bar-v2.css';
 import ChatPanel from './components/ChatPanel';
-import Marketplace from './components/Marketplace';
+import MarketplaceNew from './components/MarketplaceNew';
 import AgentDetail from './components/AgentDetail';
 import Onboarding from './components/Onboarding';
 import WelcomeOverlay from './components/WelcomeOverlay';
@@ -1305,7 +1305,7 @@ const [activeSnake, setActiveSnake] = useState(false);
           {immersiveView === 'horizon' && <DreamBuilderView />}
           {immersiveView === 'google' && <GoogleView />}
           {immersiveView === 'marketplace' && (
-            <Marketplace />
+            <MarketplaceNew />
           )}
           {immersiveView === 'family' && <AgentsView />}
           {immersiveView === 'mirror' && <EchoView />}
