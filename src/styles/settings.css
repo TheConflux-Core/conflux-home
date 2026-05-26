@@ -1,0 +1,729 @@
+/* ============================================================
+   Settings — Cinematic Deep Space Design System
+   Hardcoded dark styles only (no theme switching).
+   ============================================================ */
+
+/* ── Page Container ── */
+html body .settings-page,
+html body div.settings-page,
+body .settings-page,
+div.settings-page,
+.settings-page.settings-page {
+  position: relative;
+  min-height: 100vh;
+  padding: 60px 150px 150px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* ── Subtle Grid Pattern ── */
+.settings-grid-pattern {
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 1;
+  mask-image: radial-gradient(ellipse 90% 80% at 50% 50%, black 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 50%, black 30%, transparent 80%);
+}
+
+/* ── Floating Particles ── */
+.settings-particles {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.settings-particle {
+  position: absolute;
+  border-radius: 50%;
+  background: #0071e3;
+  opacity: 0.2;
+  animation: particle-drift linear infinite;
+}
+
+@keyframes particle-drift {
+  0% { transform: translateY(100vh) scale(0); opacity: 0; }
+  10% { opacity: 0.25; }
+  90% { opacity: 0.2; }
+  100% { transform: translateY(-10vh) scale(1.2); opacity: 0; }
+}
+
+/* ── Section Card — Base ── */
+html body .settings-section,
+html body div.settings-section,
+body .settings-section,
+div.settings-section,
+.settings-section.settings-section {
+  position: relative;
+  z-index: 10;
+  background: rgba(18, 18, 28, 0.72);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 20px;
+  padding: 28px 32px;
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.4),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.2) inset;
+  transition:
+    transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1),
+    box-shadow 0.3s cubic-bezier(0.25, 0.1, 0.25, 1),
+    border-color 0.3s ease;
+  animation: section-enter var(--stagger-delay, 0s) ease-out both;
+}
+
+/* ── Section Entrance Animations (staggered) ── */
+@keyframes section-enter {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.settings-section:nth-child(1)  { --stagger-delay: 0.00s; }
+.settings-section:nth-child(2)  { --stagger-delay: 0.06s; }
+.settings-section:nth-child(3)  { --stagger-delay: 0.12s; }
+.settings-section:nth-child(4)  { --stagger-delay: 0.18s; }
+.settings-section:nth-child(5)  { --stagger-delay: 0.24s; }
+.settings-section:nth-child(6)  { --stagger-delay: 0.30s; }
+.settings-section:nth-child(7)  { --stagger-delay: 0.36s; }
+.settings-section:nth-child(8)  { --stagger-delay: 0.42s; }
+.settings-section:nth-child(9)  { --stagger-delay: 0.48s; }
+.settings-section:nth-child(10) { --stagger-delay: 0.54s; }
+.settings-section:nth-child(11) { --stagger-delay: 0.60s; }
+.settings-section:nth-child(12) { --stagger-delay: 0.66s; }
+.settings-section:nth-child(13) { --stagger-delay: 0.72s; }
+.settings-section:nth-child(14) { --stagger-delay: 0.78s; }
+.settings-section:nth-child(15) { --stagger-delay: 0.84s; }
+.settings-section:nth-child(16) { --stagger-delay: 0.90s; }
+.settings-section:nth-child(17) { --stagger-delay: 0.96s; }
+.settings-section:nth-child(18) { --stagger-delay: 1.02s; }
+
+/* ── Section Hover: Lift & Glow ── */
+.settings-section:hover {
+  transform: translateY(-2px) scale(1.005);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.5),
+    0 2px 0 rgba(255, 255, 255, 0.06) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.3) inset,
+    0 0 30px rgba(0, 113, 227, 0.06);
+}
+
+/* ── Engine Section Ambient Glow ── */
+.settings-section.engine-glow {
+  border-color: rgba(52, 199, 89, 0.15);
+}
+
+.settings-section.engine-glow:hover {
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.5),
+    0 0 30px rgba(52, 199, 89, 0.08);
+}
+
+/* ── Page Header ── */
+.settings-header {
+  position: relative;
+  z-index: 10;
+  text-align: center;
+  padding: 8px 0 4px;
+  animation: section-enter 0.35s ease-out both;
+}
+
+.settings-header h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #e0e0e0;
+  letter-spacing: -0.5px;
+  margin-bottom: 4px;
+}
+
+.settings-header p {
+  font-size: 13px;
+  color: #555577;
+  font-style: italic;
+}
+
+/* ── Section Title ── */
+html body .settings-section-title,
+html body div.settings-section-title,
+body .settings-section-title,
+div.settings-section-title,
+.settings-section-title.settings-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #e0e0e0;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  letter-spacing: -0.2px;
+  position: relative;
+}
+
+html body .settings-section:hover .settings-section-title,
+html body div.settings-section:hover .settings-section-title,
+body .settings-section:hover .settings-section-title,
+div.settings-section:hover .settings-section-title,
+.settings-section:hover .settings-section-title {
+  color: #e0e0e0;
+}
+
+/* ── Settings Row ── */
+html body .settings-row,
+html body div.settings-row,
+body .settings-row,
+div.settings-row,
+.settings-row.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background 0.15s ease;
+  border-radius: 8px;
+  margin: 0 -8px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+html body .settings-row:last-child,
+html body div.settings-row:last-child,
+body .settings-row:last-child,
+div.settings-row:last-child,
+.settings-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+html body .settings-row:hover,
+html body div.settings-row:hover,
+body .settings-row:hover,
+div.settings-row:hover,
+.settings-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* ── Labels & Values ── */
+html body .settings-label,
+html body span.settings-label,
+body .settings-label,
+span.settings-label,
+.settings-label.settings-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #8888aa;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+html body .settings-row:hover .settings-label,
+html body div.settings-row:hover .settings-label,
+body .settings-row:hover .settings-label,
+div.settings-row:hover .settings-label,
+.settings-row:hover .settings-label {
+  color: #e0e0e0;
+}
+
+html body .settings-value,
+html body span.settings-value,
+body .settings-value,
+span.settings-value,
+.settings-value.settings-value {
+  font-size: 13px;
+  color: #e0e0e0;
+  text-align: right;
+  min-width: 0;
+}
+
+/* ── Accent Color Row ── */
+html body .accent-circle,
+html body div.accent-circle,
+body .accent-circle,
+div.accent-circle,
+.accent-circle.accent-circle {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition:
+    transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+  position: relative;
+}
+
+html body .accent-circle:hover,
+html body div.accent-circle:hover,
+body .accent-circle:hover,
+div.accent-circle:hover,
+.accent-circle:hover {
+  transform: scale(1.2);
+}
+
+html body .accent-circle.selected,
+html body div.accent-circle.selected,
+body .accent-circle.selected,
+div.accent-circle.selected,
+.accent-circle.selected {
+  transform: scale(1.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow:
+    0 0 0 3px rgba(0, 0, 0, 0.4),
+    0 0 16px #0071e3;
+}
+
+/* ── Toggle Switch ── */
+html body .toggle-switch,
+html body div.toggle-switch,
+body .toggle-switch,
+div.toggle-switch,
+.toggle-switch.toggle-switch {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  flex-shrink: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.1);
+  transition: background 0.25s ease;
+  outline: none;
+}
+
+html body .toggle-switch.on,
+html body div.toggle-switch.on,
+body .toggle-switch.on,
+div.toggle-switch.on,
+.toggle-switch.on {
+  background: #0071e3;
+  box-shadow: 0 0 12px rgba(0, 113, 227, 0.4);
+}
+
+html body .toggle-knob,
+html body span.toggle-knob,
+body .toggle-knob,
+span.toggle-knob,
+.toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.2s ease;
+}
+
+html body .toggle-switch.on .toggle-knob,
+html body div.toggle-switch.on .toggle-knob,
+body .toggle-switch.on .toggle-knob,
+div.toggle-switch.on .toggle-knob,
+.toggle-switch.on .toggle-knob {
+  transform: translateX(18px);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25),
+              0 0 8px rgba(0, 113, 227, 0.3);
+}
+
+/* ── Status Dot ── */
+html body .status-dot,
+html body span.status-dot,
+body .status-dot,
+span.status-dot,
+.status-dot.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+}
+
+html body .status-dot.connected,
+html body span.status-dot.connected,
+body .status-dot.connected,
+span.status-dot.connected,
+.status-dot.connected {
+  background: #00ff88;
+  box-shadow: 0 0 6px #00ff88, 0 0 12px rgba(52, 199, 89, 0.3);
+  animation: status-pulse 2s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  0%, 100% { box-shadow: 0 0 6px #00ff88, 0 0 12px rgba(52, 199, 89, 0.3); }
+  50% { box-shadow: 0 0 10px #00ff88, 0 0 20px rgba(52, 199, 89, 0.45); }
+}
+
+html body .status-dot.disconnected,
+html body span.status-dot.disconnected,
+body .status-dot.disconnected,
+span.status-dot.disconnected,
+.status-dot.disconnected {
+  background: #ff4466;
+  box-shadow: 0 0 6px #ff4466;
+}
+
+/* ── Buttons ── */
+html body .settings-button,
+html body button.settings-button,
+body .settings-button,
+button.settings-button,
+.settings-button.settings-button {
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #e0e0e0;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+html body .settings-button:hover,
+html body button.settings-button:hover,
+body .settings-button:hover,
+button.settings-button:hover,
+.settings-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  color: #ffffff;
+}
+
+html body .settings-button:active,
+html body button.settings-button:active,
+body .settings-button:active,
+button.settings-button:active,
+.settings-button:active {
+  transform: translateY(0) scale(0.97);
+}
+
+html body .settings-button.primary,
+html body button.settings-button.primary,
+body .settings-button.primary,
+button.settings-button.primary,
+.settings-button.primary {
+  background: #0071e3;
+  border-color: #0071e3;
+  color: #ffffff;
+}
+
+html body .settings-button.primary:hover,
+html body button.settings-button.primary:hover,
+body .settings-button.primary:hover,
+button.settings-button.primary:hover,
+.settings-button.primary:hover {
+  opacity: 0.9;
+  box-shadow: 0 4px 16px rgba(0, 113, 227, 0.3);
+}
+
+html body .settings-button.danger,
+html body button.settings-button.danger,
+body .settings-button.danger,
+button.settings-button.danger,
+.settings-button.danger {
+  color: #ff4466;
+  border-color: rgba(255, 59, 48, 0.3);
+  background: rgba(255, 59, 48, 0.06);
+}
+
+html body .settings-button.danger:hover,
+html body button.settings-button.danger:hover,
+body .settings-button.danger:hover,
+button.settings-button.danger:hover,
+.settings-button.danger:hover {
+  background: rgba(255, 59, 48, 0.14);
+  border-color: #ff4466;
+  box-shadow: 0 4px 12px rgba(255, 59, 48, 0.2);
+}
+
+html body .settings-actions,
+html body div.settings-actions,
+body .settings-actions,
+div.settings-actions,
+.settings-actions.settings-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+/* ── Confirm Bar ── */
+.settings-confirm-bar {
+  background: rgba(255, 159, 10, 0.08);
+  border: 1px solid rgba(255, 159, 10, 0.25);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: confirm-bar-in 0.2s ease-out;
+}
+
+@keyframes confirm-bar-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.settings-confirm-bar span {
+  font-size: 13px;
+  color: #ffaa00;
+  font-weight: 500;
+}
+
+/* ── Info Text ── */
+html body .settings-info,
+html body p.settings-info,
+body .settings-info,
+p.settings-info,
+.settings-info.settings-info {
+  font-size: 12px;
+  color: #555577;
+  line-height: 1.5;
+  margin-top: 10px;
+}
+
+html body .settings-tagline,
+html body p.settings-tagline,
+body .settings-tagline,
+p.settings-tagline,
+.settings-tagline {
+  font-size: 12px;
+  color: #555577;
+  font-style: italic;
+  margin-top: 4px;
+}
+
+/* ── About Section ── */
+html body .settings-about,
+html body div.settings-about,
+body .settings-about,
+div.settings-about,
+.settings-about.settings-about {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  padding: 8px 0;
+}
+
+html body .settings-about-logo,
+html body img.settings-about-logo,
+body .settings-about-logo,
+img.settings-about-logo,
+.settings-about-logo {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  margin-bottom: 6px;
+  filter: drop-shadow(0 4px 12px rgba(0, 113, 227, 0.3));
+  animation: logo-float 4s ease-in-out infinite;
+}
+
+@keyframes logo-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+html body .settings-about-name,
+html body h2.settings-about-name,
+body .settings-about-name,
+h2.settings-about-name,
+.settings-about-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: #e0e0e0;
+  margin: 0;
+  background: linear-gradient(135deg, #e0e0e0, #0071e3);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+html body .settings-about-version,
+html body p.settings-about-version,
+body .settings-about-version,
+p.settings-about-version,
+.settings-about-version {
+  font-size: 13px;
+  color: #0071e3;
+  font-weight: 500;
+  margin: 0;
+}
+
+html body .settings-about-built,
+html body p.settings-about-built,
+body .settings-about-built,
+p.settings-about-built,
+.settings-about-built {
+  font-size: 12px;
+  color: #8888aa;
+  margin: 0;
+}
+
+html body .settings-about-tagline,
+html body p.settings-about-tagline,
+body .settings-about-tagline,
+p.settings-about-tagline,
+.settings-about-tagline {
+  font-size: 13px;
+  color: #555577;
+  font-style: italic;
+  margin: 4px 0 0;
+}
+
+html body .settings-about-links,
+html body div.settings-about-links,
+body .settings-about-links,
+div.settings-about-links,
+.settings-about-links {
+  display: flex;
+  gap: 20px;
+  margin-top: 14px;
+}
+
+html body .settings-link,
+html body a.settings-link,
+body .settings-link,
+a.settings-link,
+.settings-link {
+  font-size: 13px;
+  color: #0071e3;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  padding: 4px 10px;
+  border-radius: 8px;
+  display: inline-block;
+}
+
+html body .settings-link:hover,
+html body a.settings-link:hover,
+body .settings-link:hover,
+a.settings-link:hover,
+.settings-link:hover {
+  opacity: 0.75;
+  background: rgba(0, 113, 227, 0.1);
+}
+
+/* ── Input Fields ── */
+.settings-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 8px 14px;
+  color: #e0e0e0;
+  font-size: 13px;
+  outline: none;
+  font-family: inherit;
+  min-width: 0;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.settings-input:focus {
+  border-color: #0071e3;
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+}
+
+.settings-input::placeholder {
+  color: #555577;
+}
+
+.settings-token-edit {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  align-items: center;
+}
+
+/* ── Segmented Control ── */
+.segmented-control {
+  display: flex;
+  gap: 0;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.segment-btn {
+  padding: 6px 14px;
+  border: none;
+  background: transparent;
+  color: #8888aa;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.segment-btn:hover {
+  color: #e0e0e0;
+}
+
+.segment-btn.active {
+  background: rgba(18, 18, 28, 0.9);
+  color: #e0e0e0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .settings-page {
+    padding: 16px 12px 72px;
+    gap: 14px;
+  }
+
+  .settings-section {
+    padding: 18px 18px;
+    border-radius: 16px;
+  }
+
+  .settings-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .settings-value {
+    text-align: left;
+  }
+
+  .settings-actions {
+    flex-direction: column;
+  }
+
+  .settings-button {
+    width: 100%;
+    justify-content: center;
+  }
+}
