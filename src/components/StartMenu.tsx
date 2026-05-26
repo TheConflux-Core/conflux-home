@@ -29,7 +29,7 @@ const ALL_APPS: AppItem[] = [
   { id: 'settings', icon: '⚙️', label: 'Settings', category: 'system', description: 'Configure your experience', page: 1 },
 
   // Page 2 — More apps
-  { id: 'bazaar', icon: '🛒', label: 'Bazaar', category: 'system', description: 'Discover agents, apps & games', page: 2 },
+  { id: 'marketplace', icon: '🛒', label: 'Marketplace', category: 'system', description: 'Discover agents, apps & games', page: 2 },
   { id: 'security', icon: '🛡️', label: 'Security', category: 'system', description: 'AI agent security suite — audit, scan, defend', page: 2 },
   { id: 'echo', icon: '🪞', label: 'Echo', category: 'life', description: 'AI journal — prompts, mood & memory', page: 2 },
   { id: 'vault', icon: '🔐', label: 'Vault', category: 'system', description: 'Encrypted password & credential manager', page: 2 },

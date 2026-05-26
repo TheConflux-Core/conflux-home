@@ -19,7 +19,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   horizon: { icon: '🎯', label: 'Horizon' },
   current: { icon: '📰', label: 'Current' },
   story: { icon: '📖', label: 'Story' },
-  marketplace: { icon: '🛒', label: 'Bazaar' },
+  marketplace: { icon: '🛒', label: 'Marketplace' },
   mirror: { icon: '🪞', label: 'Mirror' },
   vault: { icon: '🔐', label: 'Vault' },
   studio: { icon: '✨', label: 'Studio' },
@@ -32,7 +32,8 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   siem: { icon: '🛡️', label: 'SIEM' },
   settings: { icon: '⚙️', label: 'Settings' },
   onboarding: { icon: '👋', label: 'Onboarding' },
-  bazaar: { icon: '🛒', label: 'Bazaar' },
+  bazaar: { icon: '🛒', label: 'Marketplace' },
+  // dupe removed
   agents: { icon: '🧩', label: 'Agents' },
   echo: { icon: '🪞', label: 'Echo' },
   api: { icon: '📊', label: 'API' },
