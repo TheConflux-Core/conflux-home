@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { MARKETPLACE_ITEMS, MarketplaceItem, MarketplaceItemType } from '../data/marketplace-items';
 import '../styles-marketplace.css';
@@ -8,10 +8,10 @@ import '../styles-marketplace.css';
 type TypeTab = 'all' | MarketplaceItemType;
 
 const TYPE_TABS: { id: TypeTab; label: string; emoji: string }[] = [
-  { id: 'all', label: 'All', emoji: '✦' },
-  { id: 'app', label: 'Apps', emoji: '◆' },
-  { id: 'game', label: 'Games', emoji: '♦' },
-  { id: 'agent', label: 'Agents', emoji: '◈' },
+  { id: 'all', label: 'All', emoji: '🌟' },
+  { id: 'app', label: 'Apps', emoji: '📱' },
+  { id: 'game', label: 'Games', emoji: '🎮' },
+  { id: 'agent', label: 'Agents', emoji: '🤖' },
 ];
 
 const TYPE_LABELS: Record<MarketplaceItemType, string> = {
@@ -20,7 +20,7 @@ const TYPE_LABELS: Record<MarketplaceItemType, string> = {
   agent: 'Agent',
 };
 
-// Per-category accent colors
+// Per-category accent colors — consistent identity across the bazaar
 const CATEGORY_COLORS: Record<string, string> = {
   all: '#f5c842',
   life: '#ff8844',
@@ -39,41 +39,6 @@ function categoryColor(cat: string): string {
   return CATEGORY_COLORS[cat] ?? '#f5c842';
 }
 
-// ── Hero Particles ──────────────────────────────────────────────
-
-function HeroParticles() {
-  const particles = useMemo(() => {
-    return Array.from({ length: 8 }, (_, i) => ({
-      id: i,
-      left: `${5 + Math.random() * 90}%`,
-      size: 2 + Math.random() * 3,
-      duration: 4 + Math.random() * 6,
-      delay: Math.random() * 5,
-      opacity: 0.15 + Math.random() * 0.35,
-    }));
-  }, []);
-
-  return (
-    <div className="hero-particles">
-      {particles.map((p) => (
-        <div
-          key={p.id}
-          className="hero-particle"
-          style={{
-            left: p.left,
-            bottom: '10%',
-            width: p.size,
-            height: p.size,
-            animationDuration: `${p.duration}s`,
-            animationDelay: `${p.delay}s`,
-            '--max-opacity': p.opacity,
-          } as React.CSSProperties}
-        />
-      ))}
-    </div>
-  );
-}
-
 // ── Marketplace ────────────────────────────────────────────────
 
 export default function Marketplace() {
@@ -81,7 +46,6 @@ export default function Marketplace() {
   const [categoryTab, setCategoryTab] = useState('all');
   const [search, setSearch] = useState('');
   const [localStatus, setLocalStatus] = useState<Record<string, MarketplaceItem['status']>>({});
-  const [searchFocused, setSearchFocused] = useState(false);
 
   // All categories visible under the current type
   const categories = useMemo(() => {
@@ -93,12 +57,13 @@ export default function Marketplace() {
     return ['all', ...cats.sort()];
   }, [typeTab]);
 
+  // Stable handler — resets category to 'all' when switching type
   const handleTypeTab = useCallback((id: TypeTab) => {
     setTypeTab(id);
     setCategoryTab('all');
   }, []);
 
-  // Items after all filters applied
+  // Items after all filters applied (for grid mode)
   const filteredItems = useMemo(() => {
     let items = MARKETPLACE_ITEMS;
     if (typeTab !== 'all') items = items.filter((i) => i.type === typeTab);
@@ -125,7 +90,7 @@ export default function Marketplace() {
     }));
   }, [typeTab, search, localStatus]);
 
-  // Group non-featured items by category
+  // Group non-featured items by category — for the grouped browse view
   const groupedItems = useMemo(() => {
     if (typeTab !== 'all' || search.trim()) return [];
     const nonFeatured = filteredItems.filter((i) => !i.featured);
@@ -165,69 +130,51 @@ export default function Marketplace() {
     switch (status) {
       case 'installed': return '✓ Open';
       case 'available': return '+ Install';
-      case 'coming-soon': return 'Coming Soon';
+      case 'coming-soon': return '🔒 Coming Soon';
     }
   };
 
   const isGroupedBrowse = typeTab === 'all' && !search.trim() && categoryTab === 'all';
-  const installedCount = MARKETPLACE_ITEMS.filter(i => i.status === 'installed').length;
-  const availableCount = MARKETPLACE_ITEMS.filter(i => i.status === 'available').length;
 
   return (
     <div className="marketplace-hub">
-      {/* ── Hero — The Grand Entrance ── */}
+      {/* Hero */}
       <div className="marketplace-hero">
         <div className="marketplace-hero-glow" />
-        <HeroParticles />
         <div className="marketplace-hero-content">
           <div className="marketplace-hero-icon">
-            <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
-              {/* Bazaar tent/market icon */}
-              <path d="M28 6 L6 24 H50 Z" fill="rgba(245,200,66,0.12)" stroke="rgba(245,200,66,0.35)" strokeWidth="1.5" strokeLinejoin="round"/>
-              <path d="M14 24 V46 H42 V24" fill="none" stroke="rgba(245,200,66,0.2)" strokeWidth="1"/>
-              <rect x="22" y="34" width="12" height="12" rx="2" fill="rgba(245,200,66,0.08)" stroke="rgba(245,200,66,0.25)" strokeWidth="1"/>
-              <circle cx="28" cy="16" r="2.5" fill="rgba(245,200,66,0.6)"/>
-              {/* Hanging lanterns */}
-              <line x1="18" y1="24" x2="18" y2="30" stroke="rgba(245,200,66,0.2)" strokeWidth="0.8"/>
-              <circle cx="18" cy="31" r="2" fill="rgba(245,200,66,0.15)" stroke="rgba(245,200,66,0.3)" strokeWidth="0.8"/>
-              <line x1="38" y1="24" x2="38" y2="30" stroke="rgba(245,200,66,0.2)" strokeWidth="0.8"/>
-              <circle cx="38" cy="31" r="2" fill="rgba(245,200,66,0.15)" stroke="rgba(245,200,66,0.3)" strokeWidth="0.8"/>
-              {/* Base line */}
-              <line x1="4" y1="46" x2="52" y2="46" stroke="rgba(245,200,66,0.15)" strokeWidth="1"/>
+            <svg width="52" height="52" viewBox="0 0 56 56" fill="none">
+              <rect x="4" y="20" width="48" height="32" rx="4" fill="rgba(245,200,66,0.12)" stroke="rgba(245,200,66,0.4)" strokeWidth="1.5"/>
+              <rect x="10" y="26" width="12" height="10" rx="2" fill="rgba(245,200,66,0.2)" stroke="rgba(245,200,66,0.3)" strokeWidth="1"/>
+              <rect x="26" y="26" width="12" height="10" rx="2" fill="rgba(245,200,66,0.2)" stroke="rgba(245,200,66,0.3)" strokeWidth="1"/>
+              <rect x="10" y="40" width="12" height="8" rx="2" fill="rgba(245,200,66,0.2)" stroke="rgba(245,200,66,0.3)" strokeWidth="1"/>
+              <rect x="26" y="40" width="12" height="8" rx="2" fill="rgba(245,200,66,0.2)" stroke="rgba(245,200,66,0.3)" strokeWidth="1"/>
+              <path d="M28 4 L32 16 L50 16 L36 24 L40 36 L28 28 L16 36 L20 24 L6 16 L24 16 Z" fill="rgba(245,200,66,0.9)" stroke="rgba(245,200,66,0.6)" strokeWidth="1"/>
             </svg>
           </div>
-          <h1 className="marketplace-hero-title">The Bazaar</h1>
-          <p className="marketplace-hero-sub">
-            Discover your next AI companion — {installedCount} installed, {availableCount} ready to meet
-          </p>
+          <h1 className="marketplace-hero-title">Marketplace</h1>
+          <p className="marketplace-hero-sub">Apps, games, and agents for your AI home</p>
         </div>
       </div>
 
-      {/* ── Sticky Filter Bar ── */}
+      {/* Sticky filter bar */}
       <div className="marketplace-filters">
         <div className="marketplace-content">
 
           {/* Search */}
           <div className="marketplace-search">
             <div className="marketplace-search-inner">
-              <span className="marketplace-search-icon">◈</span>
+              <span className="marketplace-search-icon">🔍</span>
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
-                placeholder="Find your next agent..."
+                placeholder="Search apps, games, agents..."
               />
               {search && (
                 <button className="search-clear" onClick={() => setSearch('')}>✕</button>
               )}
             </div>
-            {search.trim() && (
-              <div className="search-results-count">
-                {filteredItems.length} result{filteredItems.length !== 1 ? 's' : ''} found
-              </div>
-            )}
           </div>
 
           {/* Type Tabs */}
@@ -245,7 +192,7 @@ export default function Marketplace() {
               ))}
             </div>
 
-            {/* Category Tabs */}
+            {/* Category Tabs — only show when not on "All" type, or in grouped mode */}
             {(typeTab !== 'all' || (typeTab === 'all' && categoryTab !== 'all')) && (
               <div className="marketplace-category-tabs">
                 <button
@@ -271,7 +218,7 @@ export default function Marketplace() {
         </div>
       </div>
 
-      {/* ── Main Content ── */}
+      {/* Main content */}
       <div className="marketplace-content marketplace-body">
 
         {/* ── Grouped Browse View (All, no filter) ── */}
@@ -281,7 +228,7 @@ export default function Marketplace() {
             {featuredItems.length > 0 && (
               <div className="marketplace-section">
                 <div className="marketplace-section-header">
-                  <div className="section-header-accent" style={{ background: 'linear-gradient(180deg, #f5c842, #f0a830)' }} />
+                  <div className="section-header-accent" style={{ background: 'linear-gradient(90deg, #f5c842, #f0a830)' }} />
                   <div>
                     <span className="section-eyebrow">Handpicked</span>
                     <h2 className="marketplace-section-title">Featured</h2>
@@ -308,7 +255,7 @@ export default function Marketplace() {
                 <div className="marketplace-section-header">
                   <div
                     className="section-header-accent"
-                    style={{ background: `linear-gradient(180deg, ${categoryColor(category)}, ${categoryColor(category)}66)` }}
+                    style={{ background: `linear-gradient(90deg, ${categoryColor(category)}, ${categoryColor(category)}66)` }}
                   />
                   <div className="section-header-text">
                     <span className="section-eyebrow">Browse</span>
@@ -354,15 +301,9 @@ export default function Marketplace() {
         {/* ── Empty State ── */}
         {filteredItems.length === 0 && (
           <div className="marketplace-empty">
-            <div className="empty-icon-wrap">
-              <span className="empty-emoji">◈</span>
-            </div>
-            <h3>Nothing here yet</h3>
-            <p>
-              {search.trim()
-                ? `No matches for "${search}" — try a different search`
-                : 'No items in this category yet. Check back soon.'}
-            </p>
+            <span className="empty-emoji">🔍</span>
+            <h3>No results found</h3>
+            <p>Try a different search or browse all categories.</p>
           </div>
         )}
       </div>
