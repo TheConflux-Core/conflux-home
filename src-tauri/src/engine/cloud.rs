@@ -605,11 +605,19 @@ fn get_minimax_api_key() -> Option<String> {
                 .or_else(|| option_env!("MINIMAX_API_KEY").map(|s| s.to_string()));
         }
     };
-    let key = engine.db.get_config("minimax_api_key").ok().flatten();
-    if key.is_none() {
-        log::warn!("[get_minimax_api_key] minimax_api_key not in DB config");
+    // Try DB config first, then fall back to env var
+    let key = engine.db.get_config("minimax_api_key").ok().flatten()
+        .filter(|k| !k.is_empty());
+    if key.is_some() {
+        return key;
     }
-    key
+    // Fall back to env var (loaded by dotenvy at startup)
+    let env_key = std::env::var("MINIMAX_API_KEY").ok()
+        .filter(|k| !k.is_empty());
+    if env_key.is_none() {
+        log::warn!("[get_minimax_api_key] MINIMAX_API_KEY not in DB config or env var");
+    }
+    env_key
 }
 
 

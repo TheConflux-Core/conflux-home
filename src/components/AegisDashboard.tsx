@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
 // ── Timeout wrapper — prevents invoke calls from hanging forever ──
-function invokeTimeout<T>(cmd: string, args?: Record<string, unknown>, ms = 5000): Promise<T> {
+function invokeTimeout<T>(cmd: string, args?: Record<string, unknown>, ms = 30000): Promise<T> {
   return Promise.race([
     invoke<T>(cmd, args),
     new Promise<never>((_, reject) =>
@@ -448,8 +448,29 @@ function FindingRow({ finding }: { finding: AuditFinding }) {
 
 function FindingCard({ finding }: { finding: AuditFinding }) {
   const [expanded, setExpanded] = useState(false);
+  const [fixPreview, setFixPreview] = useState<any>(null);
+  const [fixing, setFixing] = useState(false);
+  const [fixResult, setFixResult] = useState<any>(null);
   const meta = severityMeta(finding.severity);
   const catMeta = CATEGORY_META[finding.category] ?? { icon: '📋', label: finding.category };
+
+  const loadPreview = async () => {
+    try {
+      const preview = await invoke<any>('remediation_dry_run', { findingId: finding.id, source: 'aegis' });
+      setFixPreview(preview);
+    } catch (err) { console.error('[Aegis] dry run failed:', err); }
+  };
+
+  const handleFix = async () => {
+    if (!fixPreview) return;
+    if (!confirm(`Run this fix?\n\n${fixPreview.description}\n\nCommand: ${fixPreview.command}\nRisk: ${fixPreview.risk_level}`)) return;
+    setFixing(true);
+    try {
+      const result = await invoke<any>('remediation_execute', { findingId: finding.id, source: 'aegis' });
+      setFixResult(result);
+    } catch (err) { setFixResult({ success: false, stderr: String(err) }); }
+    setFixing(false);
+  };
 
   return (
     <div style={{ ...s.findingCard, borderLeft: `3px solid ${meta.color}` }}>
@@ -475,6 +496,35 @@ function FindingCard({ finding }: { finding: AuditFinding }) {
             <div style={s.findingCardRec}>
               <div style={{ color: '#a5b4fc', fontWeight: 600, marginBottom: 4 }}>💡 What to do:</div>
               {finding.recommendation}
+            </div>
+          )}
+          {/* Fix It button for actionable findings */}
+          {finding.severity !== 'pass' && (
+            <div style={{ marginTop: 12 }}>
+              {fixResult ? (
+                <div style={{ padding: '10px 14px', borderRadius: 6, background: fixResult.success ? '#22c55e10' : '#ef444410', border: `1px solid ${fixResult.success ? '#22c55e30' : '#ef444430'}`, fontSize: 12 }}>
+                  <div style={{ color: fixResult.success ? '#22c55e' : '#ef4444', fontWeight: 700 }}>{fixResult.success ? '✅ Fix applied' : '❌ Fix failed'}</div>
+                  {fixResult.stderr && <div style={{ color: '#f59e0b', marginTop: 4, fontSize: 11 }}>{fixResult.stderr}</div>}
+                </div>
+              ) : fixPreview ? (
+                <div style={{ padding: '10px 14px', borderRadius: 6, background: '#3b82f610', border: '1px solid #3b82f620', fontSize: 12 }}>
+                  <div style={{ color: '#3b82f6', fontWeight: 700, marginBottom: 4 }}>🔧 {fixPreview.description}</div>
+                  <div style={{ color: '#94a3b8', fontFamily: 'monospace', fontSize: 11, marginBottom: 8 }}>$ {fixPreview.command}</div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <button onClick={handleFix} disabled={fixing} style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #22c55e40', background: '#22c55e15', color: '#22c55e', fontSize: 12, cursor: 'pointer', fontWeight: 700 }}>
+                      {fixing ? '⏳ Fixing...' : '🔧 Fix It'}
+                    </button>
+                    <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: fixPreview.risk_level === 'high' ? '#ef444420' : fixPreview.risk_level === 'medium' ? '#f59e0b20' : '#22c55e20', color: fixPreview.risk_level === 'high' ? '#ef4444' : fixPreview.risk_level === 'medium' ? '#f59e0b' : '#22c55e' }}>
+                      {fixPreview.risk_level.toUpperCase()} RISK
+                    </span>
+                    {fixPreview.requires_root && <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: '#f59e0b20', color: '#f59e0b' }}>🔑 ROOT</span>}
+                  </div>
+                </div>
+              ) : (
+                <button onClick={loadPreview} style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #3b82f630', background: '#3b82f610', color: '#3b82f6', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
+                  🔧 Fix It
+                </button>
+              )}
             </div>
           )}
         </div>

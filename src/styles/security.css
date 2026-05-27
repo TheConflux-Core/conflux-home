@@ -54,14 +54,19 @@
   80% { clip-path: inset(80% 0 0% 0); }
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+
 /* ── Container ── */
 .sec-app {
   position: relative;
-  padding: 0 0 40px 0;
+  padding: 0 0 100px 0;
   min-height: 100vh;
   color: #e2e8f0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  overflow: hidden;
 }
 
 /* ── Background Layer ── */
@@ -92,7 +97,7 @@
   z-index: 1;
   max-width: 940px;
   margin: 0 auto;
-  padding: 28px 28px 0 28px;
+  padding: 28px 28px 60px 28px;
   animation: secSlideIn 0.4s ease-out;
 }
 
@@ -348,14 +353,14 @@
 /* ── Tabs ── */
 .sec-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   margin-bottom: 20px;
   padding-bottom: 14px;
   border-bottom: 1px solid #1e293b;
   overflow-x: auto;
-  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
-.sec-tabs::-webkit-scrollbar { display: none; }
 .sec-tab {
   display: flex;
   align-items: center;
@@ -371,6 +376,7 @@
   white-space: nowrap;
   transition: all 0.15s ease;
   position: relative;
+  flex-shrink: 0;
 }
 .sec-tab::after {
   content: '';
@@ -411,6 +417,7 @@
   padding: 22px 24px;
   margin-bottom: 16px;
   animation: secFadeScale 0.3s ease-out;
+  overflow: visible;
 }
 .sec-section-title {
   font-size: 15px;
@@ -569,7 +576,11 @@
   font-size: 12px;
   cursor: pointer;
 }
-.sec-finding-list { display: flex; flex-direction: column; gap: 6px; max-height: 340px; overflow-y: auto; }
+.sec-finding-list { display: flex; flex-direction: column; gap: 6px; }
+.sec-finding-list::-webkit-scrollbar { width: 6px; }
+.sec-finding-list::-webkit-scrollbar-track { background: transparent; }
+.sec-finding-list::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+.sec-finding-list::-webkit-scrollbar-thumb:hover { background: #475569; }
 .sec-finding-card {
   background: #0a0f1a;
   border-radius: 10px;
@@ -584,13 +595,13 @@
   gap: 12px;
 }
 .sec-finding-card-header:hover { background: #0f172a; }
-.sec-finding-card-left { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+.sec-finding-card-left { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; overflow: hidden; }
 .sec-finding-card-icon { font-size: 18px; flex-shrink: 0; }
-.sec-finding-card-title { font-size: 13px; font-weight: 500; color: #e2e8f0; }
-.sec-finding-card-meta { font-size: 11px; color: #64748b; margin-top: 2px; }
+.sec-finding-card-title { font-size: 13px; font-weight: 500; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sec-finding-card-meta { font-size: 11px; color: #64748b; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sec-expand-icon { font-size: 11px; color: #475569; flex-shrink: 0; }
-.sec-finding-card-body { padding: 0 16px 14px 44px; }
-.sec-finding-desc { font-size: 13px; color: #94a3b8; line-height: 1.6; margin: 0 0 10px 0; }
+.sec-finding-card-body { padding: 0 16px 16px 16px; }
+.sec-finding-desc { font-size: 13px; color: #94a3b8; line-height: 1.6; margin: 0 0 10px 0; word-wrap: break-word; }
 .sec-finding-rec {
   background: #0f172a;
   border-radius: 8px;
@@ -894,4 +905,515 @@
   display: flex;
   gap: 10px;
   align-items: center;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   MEDIUM WINS — Agent Personality, Insight Cards, Permission Editor
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Agent Voice Bubble ── */
+.sec-agent-voice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  animation: secSlideIn 0.35s ease-out;
+}
+.sec-agent-voice--aegis {
+  background: #22c55e10;
+  border: 1px solid #22c55e25;
+  color: #86efac;
+}
+.sec-agent-voice--viper {
+  background: #ef444410;
+  border: 1px solid #ef444425;
+  color: #fca5a5;
+}
+.sec-agent-voice--watchtower {
+  background: #3b82f610;
+  border: 1px solid #3b82f625;
+  color: #93c5fd;
+}
+.sec-agent-voice-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.sec-agent-voice--aegis .sec-agent-voice-badge {
+  background: #22c55e20;
+  color: #22c55e;
+}
+.sec-agent-voice--viper .sec-agent-voice-badge {
+  background: #ef444420;
+  color: #ef4444;
+}
+.sec-agent-voice--watchtower .sec-agent-voice-badge {
+  background: #3b82f620;
+  color: #3b82f6;
+}
+.sec-agent-voice-text {
+  font-style: italic;
+  opacity: 0.9;
+}
+
+/* ── Proactive Insight Cards ── */
+.sec-insight-card {
+  padding: 14px 16px;
+  border-radius: 10px;
+  animation: secSlideIn 0.4s ease-out both;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.sec-insight-card:hover {
+  transform: translateY(-1px);
+}
+.sec-insight-card--aegis {
+  background: linear-gradient(135deg, #22c55e08, #22c55e03);
+  border: 1px solid #22c55e20;
+}
+.sec-insight-card--viper {
+  background: linear-gradient(135deg, #ef444408, #ef444403);
+  border: 1px solid #ef444420;
+}
+.sec-insight-card--watchtower {
+  background: linear-gradient(135deg, #3b82f608, #3b82f603);
+  border: 1px solid #3b82f620;
+}
+.sec-insight-card--sentinel {
+  background: linear-gradient(135deg, #f59e0b08, #f59e0b03);
+  border: 1px solid #f59e0b20;
+}
+.sec-insight-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.sec-insight-icon {
+  font-size: 16px;
+}
+.sec-insight-agent {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.sec-insight-card--aegis .sec-insight-agent { color: #22c55e; }
+.sec-insight-card--viper .sec-insight-agent { color: #ef4444; }
+.sec-insight-card--watchtower .sec-insight-agent { color: #3b82f6; }
+.sec-insight-card--sentinel .sec-insight-agent { color: #f59e0b; }
+
+.sec-insight-urgent {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 800;
+  color: #ef4444;
+  background: #ef444420;
+  padding: 2px 8px;
+  border-radius: 4px;
+  animation: secPulse 1.5s ease-in-out infinite;
+  letter-spacing: 0.05em;
+}
+.sec-insight-text {
+  font-size: 13px;
+  color: #cbd5e1;
+  line-height: 1.55;
+  margin: 0;
+}
+.sec-insight-action {
+  margin-top: 8px;
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.sec-insight-action:hover {
+  background: #334155;
+  color: #f1f5f9;
+}
+
+/* ── Permission Profile Editor ── */
+.sec-editor-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+.sec-mode-btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #1e293b;
+  background: #0a0f1a;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.sec-mode-btn:hover {
+  border-color: #334155;
+  color: #94a3b8;
+}
+.sec-mode-btn--active {
+  background: #3b82f620;
+  border-color: #3b82f660;
+  color: #60a5fa;
+}
+.sec-range-input {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #1e293b;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.sec-range-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3b82f6;
+  border: 2px solid #0a0f1a;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.sec-range-input::-webkit-slider-thumb:hover {
+  background: #60a5fa;
+}
+.sec-range-input::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3b82f6;
+  border: 2px solid #0a0f1a;
+  cursor: pointer;
+}
+.sec-profile-card--editing {
+  animation: secFadeScale 0.2s ease-out;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   BIG WIN #1 — Real-Time Streaming Animations
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Live Data Stream Bar ── */
+.sec-data-stream {
+  position: relative;
+  height: 2px;
+  background: #0a0f1a;
+  overflow: hidden;
+  margin: 0 0 4px 0;
+}
+.sec-data-stream-bar {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, #3b82f6, #22c55e, transparent);
+  animation: secDataSweep 2s ease-out forwards;
+}
+@keyframes secDataSweep {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* ── Live Feed Indicator ── */
+.sec-live-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 12px 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.sec-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: secPulse 2s ease-in-out infinite;
+  box-shadow: 0 0 6px #22c55a80;
+}
+
+/* ── New Event Slide-In ── */
+.sec-event-row--new {
+  animation: secStreamIn 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  background: rgba(59, 130, 246, 0.06) !important;
+  border-color: rgba(59, 130, 246, 0.15) !important;
+}
+@keyframes secStreamIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.97);
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-bottom: 0;
+  }
+  40% {
+    max-height: 200px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    margin-bottom: 6px;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    max-height: 200px;
+  }
+}
+
+/* ── NEW Badge ── */
+.sec-new-badge {
+  position: absolute;
+  top: -1px;
+  right: 8px;
+  font-size: 9px;
+  font-weight: 900;
+  color: #3b82f6;
+  background: #3b82f620;
+  padding: 1px 8px;
+  border-radius: 0 0 6px 6px;
+  letter-spacing: 0.1em;
+  animation: secNewBadgeIn 0.3s ease-out, secNewBadgeFade 2s 1s ease-out forwards;
+}
+@keyframes secNewBadgeIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes secNewBadgeFade {
+  from { opacity: 1; }
+  to { opacity: 0.4; }
+}
+
+/* ── Watchtower Row Update Pulse ── */
+.sec-row-updated {
+  animation: secRowGlow 1.5s ease-out;
+}
+@keyframes secRowGlow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3);
+    background: rgba(59, 130, 246, 0.08);
+  }
+  50% {
+    box-shadow: 0 0 12px 2px rgba(59, 130, 246, 0.15);
+  }
+  100% {
+    box-shadow: none;
+    background: transparent;
+  }
+}
+
+/* ── Process Value Change Flash ── */
+.sec-value-flash {
+  animation: secFlashValue 0.8s ease-out;
+}
+@keyframes secFlashValue {
+  0% { color: #60a5fa; }
+  100% { color: inherit; }
+}
+
+/* ── Watchtower File Event Stream Row ── */
+.sec-wt-event-new {
+  animation: secStreamIn 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Ensure event rows have relative positioning for NEW badge ── */
+.sec-event-row {
+  position: relative;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   BIG WIN #2 — Charts & Graphs
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Chart Container ── */
+.sec-chart-container {
+  background: linear-gradient(135deg, #0a0f14 0%, #0d1318 100%);
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 16px;
+  overflow: hidden;
+}
+.sec-chart-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.sec-chart-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #f1f5f9;
+  letter-spacing: 0.01em;
+}
+.sec-chart-subtitle {
+  font-size: 11px;
+  color: #475569;
+}
+.sec-chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   BIG WIN #3 — Auto-Escalation Rules Editor
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Escalation Rule Card ── */
+.sec-escalation-rule {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #0a0f14;
+  border: 1px solid #1e293b;
+  border-left: 3px solid;
+  transition: all 0.2s ease;
+}
+.sec-escalation-rule:hover {
+  border-color: #334155;
+}
+.sec-escalation-rule--disabled {
+  opacity: 0.5;
+}
+.sec-escalation-rule--disabled:hover {
+  opacity: 0.7;
+}
+
+/* ── Rule Editor (expanded) ── */
+.sec-rule-editor {
+  margin-top: 12px;
+  padding: 12px;
+  background: #060a0f;
+  border-radius: 8px;
+  border: 1px solid #1e293b;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sec-rule-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sec-rule-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.sec-rule-input {
+  width: 72px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #334155;
+  background: #0a0f1a;
+  color: #f1f5f9;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.sec-rule-input:focus {
+  border-color: #3b82f6;
+}
+.sec-rule-input::-webkit-inner-spin-button {
+  opacity: 0.3;
+}
+
+/* ── Level Badge ── */
+.sec-level-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 5px;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+/* ── Toggle Switch ── */
+.sec-toggle {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.sec-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.sec-toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: #1e293b;
+  border-radius: 10px;
+  transition: background 0.2s;
+}
+.sec-toggle-slider::before {
+  content: '';
+  position: absolute;
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background: #64748b;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+.sec-toggle input:checked + .sec-toggle-slider {
+  background: #22c55e30;
+}
+.sec-toggle input:checked + .sec-toggle-slider::before {
+  transform: translateX(16px);
+  background: #22c55e;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   BIG WIN #4 — Device Connection Sparklines
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Sparkline ── */
+.sec-sparkline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sec-sparkline svg {
+  flex-shrink: 0;
+}
+.sec-sparkline-label {
+  font-size: 10px;
+  color: #475569;
+  font-weight: 600;
+  white-space: nowrap;
 }
