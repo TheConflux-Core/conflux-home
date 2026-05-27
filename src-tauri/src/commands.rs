@@ -9135,7 +9135,6 @@ pub async fn studio_export_generations_zip(
 // Voice Input — Local speech capture & transcription
 // ═══════════════════════════════════════════════════════
 
-#[cfg(not(target_os = "android"))]
 pub mod voice_cmds {
     use crate::engine;
     use crate::voice;
@@ -9520,7 +9519,6 @@ pub mod voice_cmds {
 }
 
 // Re-export voice commands — desktop uses real impl, Android gets stubs
-#[cfg(not(target_os = "android"))]
 pub use voice_cmds::*;
 
 #[cfg(target_os = "android")]
@@ -11002,12 +11000,12 @@ pub async fn siem_get_weekly_reports(limit: Option<i64>) -> Result<Vec<serde_jso
         .collect())
 }
 
-
 // ─────────────────────────────────────────────
 // WATCHTOWER CONTINUOUS MONITORING COMMANDS (Phase 6)
 // ─────────────────────────────────────────────
 
 /// Full watchtower scan: baselines + processes + connections.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn watchtower_scan() -> Result<serde_json::Value, String> {
     let engine = super::engine::get_engine();
@@ -11029,6 +11027,7 @@ pub async fn watchtower_scan() -> Result<serde_json::Value, String> {
 }
 
 /// Get watchtower status summary.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn watchtower_get_status() -> Result<serde_json::Value, String> {
     let engine = super::engine::get_engine();
@@ -11038,6 +11037,7 @@ pub async fn watchtower_get_status() -> Result<serde_json::Value, String> {
 }
 
 /// Get file system events with optional severity filter.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn watchtower_get_events(
     severity: Option<String>,
@@ -11055,6 +11055,7 @@ pub async fn watchtower_get_events(
 }
 
 /// Get file baselines.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn watchtower_get_baselines(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
@@ -11066,6 +11067,7 @@ pub async fn watchtower_get_baselines(limit: Option<i64>) -> Result<Vec<serde_js
 }
 
 /// Rebuild file baselines from scratch.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn watchtower_rescan() -> Result<i64, String> {
     let engine = super::engine::get_engine();
@@ -11074,6 +11076,7 @@ pub async fn watchtower_rescan() -> Result<i64, String> {
 }
 
 /// Snapshot current processes.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn watchtower_snapshot_processes() -> Result<i64, String> {
     let engine = super::engine::get_engine();
@@ -11082,6 +11085,7 @@ pub async fn watchtower_snapshot_processes() -> Result<i64, String> {
 }
 
 /// Get process list with optional suspicious-only filter.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn watchtower_get_processes(suspicious_only: Option<bool>) -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
@@ -11095,6 +11099,7 @@ pub async fn watchtower_get_processes(suspicious_only: Option<bool>) -> Result<V
 /// Kill a process by PID.
 /// Uses SIGTERM first (graceful), falls back to SIGKILL if needed.
 /// Validates PID exists and belongs to a user process before killing.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn watchtower_kill_process(pid: u32) -> Result<bool, String> {
     #[cfg(target_os = "windows")]
@@ -11133,6 +11138,7 @@ pub async fn watchtower_kill_process(pid: u32) -> Result<bool, String> {
 }
 
 /// Snapshot current network connections.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn watchtower_snapshot_connections() -> Result<i64, String> {
     let engine = super::engine::get_engine();
@@ -11141,6 +11147,7 @@ pub async fn watchtower_snapshot_connections() -> Result<i64, String> {
 }
 
 /// Get network connections with optional suspicious-only filter.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn watchtower_get_connections(suspicious_only: Option<bool>) -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
@@ -11157,6 +11164,7 @@ pub async fn watchtower_get_connections(suspicious_only: Option<bool>) -> Result
 // ─────────────────────────────────────────────
 
 /// Dry run: preview what a remediation would do without executing.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn remediation_dry_run(
     finding_id: String,
@@ -11172,6 +11180,7 @@ pub async fn remediation_dry_run(
 }
 
 /// Execute a remediation for a finding. Returns the action log entry.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn remediation_execute(
     finding_id: String,
@@ -11187,6 +11196,7 @@ pub async fn remediation_execute(
 }
 
 /// Undo a previously executed remediation.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn remediation_undo(remediation_id: String) -> Result<bool, String> {
     let engine = super::engine::get_engine();
@@ -11197,6 +11207,7 @@ pub async fn remediation_undo(remediation_id: String) -> Result<bool, String> {
 }
 
 /// Get remediation action log.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn remediation_get_log(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
@@ -11208,6 +11219,7 @@ pub async fn remediation_get_log(limit: Option<i64>) -> Result<Vec<serde_json::V
 }
 
 /// Check if a finding has a known remediation.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub fn remediation_has_fix(check_name: String, source: String) -> Result<bool, String> {
     Ok(super::engine::security::remediation::has_fix(&check_name, &source))
@@ -11218,6 +11230,7 @@ pub fn remediation_has_fix(check_name: String, source: String) -> Result<bool, S
 // ─────────────────────────────────────────────
 
 /// Get current quarantine status for an agent.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn quarantine_get_status(agent_id: String) -> Result<serde_json::Value, String> {
     let engine = super::engine::get_engine();
@@ -11228,6 +11241,7 @@ pub async fn quarantine_get_status(agent_id: String) -> Result<serde_json::Value
 }
 
 /// Get quarantine level for an agent (lightweight check).
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn quarantine_get_level(agent_id: String) -> Result<String, String> {
     let engine = super::engine::get_engine();
@@ -11238,6 +11252,7 @@ pub async fn quarantine_get_level(agent_id: String) -> Result<String, String> {
 }
 
 /// Manually escalate an agent's quarantine level.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn quarantine_escalate(
     agent_id: String,
@@ -11259,6 +11274,7 @@ pub async fn quarantine_escalate(
 }
 
 /// Release an agent from quarantine.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn quarantine_release(agent_id: String) -> Result<bool, String> {
     let engine = super::engine::get_engine();
@@ -11268,6 +11284,7 @@ pub async fn quarantine_release(agent_id: String) -> Result<bool, String> {
 }
 
 /// Get quarantine history for an agent (or all agents if agent_id is None).
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn quarantine_get_history(
     agent_id: Option<String>,
@@ -11285,6 +11302,7 @@ pub async fn quarantine_get_history(
 }
 
 /// Get all currently quarantined agents.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn quarantine_get_all() -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
@@ -11295,6 +11313,7 @@ pub async fn quarantine_get_all() -> Result<Vec<serde_json::Value>, String> {
 }
 
 /// Run auto-escalation checks across all active agents.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn quarantine_run_auto_escalation() -> Result<Vec<serde_json::Value>, String> {
     let engine = super::engine::get_engine();
@@ -11315,6 +11334,7 @@ pub async fn quarantine_run_auto_escalation() -> Result<Vec<serde_json::Value>, 
 }
 
 /// Check if an agent can respond (not Suspended/Frozen).
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn quarantine_can_respond(agent_id: String) -> Result<bool, String> {
     let engine = super::engine::get_engine();
@@ -11330,6 +11350,7 @@ pub async fn quarantine_can_respond(agent_id: String) -> Result<bool, String> {
 // ─────────────────────────────────────────────
 
 /// Run a full network scan: ARP + hostname resolution + port scan.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn network_scan() -> Result<serde_json::Value, String> {
     let engine = super::engine::get_engine();
@@ -11347,6 +11368,7 @@ pub async fn network_scan() -> Result<serde_json::Value, String> {
 }
 
 /// Get all known network devices.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn network_get_devices() -> Result<serde_json::Value, String> {
     let engine = super::engine::get_engine();
@@ -11357,6 +11379,7 @@ pub async fn network_get_devices() -> Result<serde_json::Value, String> {
 }
 
 /// Get network events (device join/leave).
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn network_get_events(limit: Option<i64>) -> Result<serde_json::Value, String> {
     let engine = super::engine::get_engine();
@@ -11367,6 +11390,7 @@ pub async fn network_get_events(limit: Option<i64>) -> Result<serde_json::Value,
 }
 
 /// Get the full network map data (local IP, gateway, devices).
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn network_get_map() -> Result<serde_json::Value, String> {
     let engine = super::engine::get_engine();
@@ -11377,6 +11401,7 @@ pub async fn network_get_map() -> Result<serde_json::Value, String> {
 }
 
 /// Rename a device (give it a nickname).
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn network_rename_device(device_id: String, nickname: String) -> Result<(), String> {
     let engine = super::engine::get_engine();
@@ -11386,6 +11411,7 @@ pub async fn network_rename_device(device_id: String, nickname: String) -> Resul
 }
 
 /// Mark a device as known/trusted.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn network_mark_known(device_id: String) -> Result<(), String> {
     let engine = super::engine::get_engine();
@@ -11395,6 +11421,7 @@ pub async fn network_mark_known(device_id: String) -> Result<(), String> {
 }
 
 /// Delete a device from the database.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn network_delete_device(device_id: String) -> Result<(), String> {
     let engine = super::engine::get_engine();
