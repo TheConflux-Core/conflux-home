@@ -326,6 +326,7 @@ pub async fn run_anomaly_scan(db: &EngineDb) -> Result<Vec<TriggeredAnomaly>> {
         );
 
         // Phase 8: Run quarantine auto-escalation after anomaly detection
+        #[cfg(not(target_os = "android"))]
         if let Err(e) = super::quarantine::run_auto_escalation(db).await {
             log::error!("[Anomaly] Quarantine auto-escalation failed: {}", e);
         }
