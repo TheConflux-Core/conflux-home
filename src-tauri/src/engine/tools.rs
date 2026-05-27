@@ -245,6 +245,7 @@ fn check_security_gate(tool_name: &str, args: &Value, agent_id: &str) -> Result<
     let db = super::get_engine().db();
 
     // ── Quarantine Gate (Phase 8) — Check FIRST before profile ──
+    #[cfg(not(target_os = "android"))]
     {
         let quarantine_handle = std::thread::spawn({
             let db = super::get_engine().db();
