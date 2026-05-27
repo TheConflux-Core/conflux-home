@@ -1039,7 +1039,7 @@ fn build_system_prompt(
             // Production: bundled resource dir (set at startup via set_resource_dir)
             std::path::PathBuf::from("resources").join("conflux_knowledge.md"),
             // Fallback: workspace path
-            std::path::PathBuf::from("/home/calo/.openclaw/workspace/conflux-home").join("conflux_knowledge.md"),
+            { let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string()); std::path::PathBuf::from(format!("{}/.conflux/workspace/conflux-home", home)).join("conflux_knowledge.md") },
         ];
         for path in &candidates {
             if let Ok(mut file) = std::fs::File::open(path) {

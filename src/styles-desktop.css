@@ -189,8 +189,7 @@
 }
 
 .immersive-content > * {
-  height: 100%;
-  min-height: 0;
+  min-height: 100%;
   box-sizing: border-box;
 }
 
