@@ -1260,8 +1260,9 @@ pub fn engine_send_notification(
     app_handle: tauri::AppHandle,
     req: NotificationRequest,
 ) -> Result<(), String> {
+    let _ = &app_handle; // used by Tauri injection, needed for command signature
     let engine = engine::get_engine();
-    // Emit internal event for logging/UI reactivity + frontend badge update
+    // Persist to events table for audit trail
     engine
         .db()
         .emit_event(
@@ -1272,21 +1273,15 @@ pub fn engine_send_notification(
         )
         .map_err(|e| e.to_string())?;
 
-    // Fire real OS desktop notification via tauri_plugin_notification
-    #[cfg(desktop)]
-    {
-        use tauri_plugin_notification::NotificationExt;
-        let _ = app_handle
-            .notification()
-            .builder()
-            .title(&req.title)
-            .body(&req.body)
-            .show();
-    }
-    #[cfg(not(desktop))]
-    {
-        let _ = req;
-    }
+    // Emit real-time Tauri event so the frontend bell badge + dropdown update
+    engine.emit_tauri_event(
+        "conflux:agent-notification",
+        serde_json::json!({"title": req.title, "body": req.body}),
+    );
+
+    // OS desktop notification is handled by the frontend useNotificationListener hook,
+    // which respects user prefs (quiet hours, event type toggles). Do NOT fire here —
+    // that caused double notifications. The Tauri event above triggers the frontend.
 
     Ok(())
 }

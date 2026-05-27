@@ -3456,8 +3456,7 @@ fn execute_notify(args: &Value) -> Result<ToolResult> {
         });
     }
 
-    // Use Tauri's notification plugin via command
-    // We'll emit an event that the frontend can listen to
+    // Persist to events table for audit trail
     let engine = super::get_engine();
     let _ = engine.db().emit_event(
         "agent_notification",
@@ -3465,6 +3464,16 @@ fn execute_notify(args: &Value) -> Result<ToolResult> {
         None,
         Some(&serde_json::json!({"title": title, "body": body}).to_string()),
     );
+
+    // Emit real-time Tauri event so the frontend bell + native notifications fire
+    engine.emit_tauri_event(
+        "conflux:agent-notification",
+        serde_json::json!({"title": title, "body": body}),
+    );
+
+    // OS desktop notification is handled by the frontend useNotificationListener hook,
+    // which respects user prefs (quiet hours, event type toggles). Do NOT fire here —
+    // that caused double notifications. The Tauri event above triggers the frontend.
 
     Ok(ToolResult {
         success: true,

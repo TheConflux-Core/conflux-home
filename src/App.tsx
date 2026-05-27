@@ -75,6 +75,7 @@ import { useToast } from './hooks/useToast';
 import { useFamily } from './hooks/useFamily';
 import { useAuth } from './hooks/useAuth';
 import { useSubscription } from './hooks/useSubscription';
+import useNotificationListener from './hooks/useNotificationListener';
 import { AuthProvider } from './contexts/AuthContext';
 import { useStoryGames, useStoryGame, useStorySeeds } from './hooks/useStoryGame';
 import { useLearningProgress, useLearningGoals } from './hooks/useLearning';
@@ -146,6 +147,22 @@ export default function App() {
   const { user, loading: authLoading, signInWithEmail } = useAuth();
   const authenticated = !!user;
   const subscription = useSubscription();
+
+  // ── Notification System ──
+  // Central listener: Tauri events → check prefs → native OS + TopBar bell
+  useNotificationListener();
+
+  // ── Cron Scheduler ──
+  // Tick due cron jobs every 60s so scheduled agent tasks actually fire
+  useEffect(() => {
+    const tick = () => {
+      invoke('engine_tick_cron').catch(() => {});
+    };
+    // First tick after 10s (let the app settle), then every 60s
+    const initialDelay = setTimeout(tick, 10_000);
+    const interval = setInterval(tick, 60_000);
+    return () => { clearTimeout(initialDelay); clearInterval(interval); };
+  }, []);
 
   // Handle conflux://auth/callback deep links (fallback for protocol-registered platforms)
   const handleAuthDeepLink = useCallback(async (url: string) => {
