@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::engine::db::EngineDb;
-use crate::engine::security::platform::{current_os, OsType};
+use crate::engine::security::platform::{current_os, hidden_command, OsType};
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -327,7 +327,7 @@ pub async fn execute(
 
     // Execute the command — use PowerShell on Windows, sh on Unix
     let output = if cfg!(target_os = "windows") {
-        std::process::Command::new("powershell")
+        hidden_command("powershell")
             .args(["-Command", &preview.command])
             .output()?
     } else {
@@ -420,7 +420,7 @@ pub async fn undo(db: &EngineDb, remediation_id: &str) -> Result<bool> {
 
     // Execute the undo command — use PowerShell on Windows, sh on Unix
     let output = if cfg!(target_os = "windows") {
-        std::process::Command::new("powershell")
+        hidden_command("powershell")
             .args(["-Command", &undo_cmd])
             .output()?
     } else {

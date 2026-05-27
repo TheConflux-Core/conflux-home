@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::engine::db::EngineDb;
 use crate::engine::security::events::{self, EventCategory, EventType};
-use crate::engine::security::platform::{current_os, OsType};
+use crate::engine::security::platform::{current_os, hidden_command, OsType};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NetworkDevice {
@@ -160,7 +160,7 @@ fn get_local_network() -> Result<(String, String)> {
         }
         OsType::Windows => {
             // Use PowerShell Get-NetIPAddress
-            let output = Command::new("powershell")
+            let output = hidden_command("powershell")
                 .args(["-Command", 
                     "Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias 'Ethernet','Wi-Fi' | \
                      Where-Object {$_.IPAddress -ne '127.0.0.1'} | \
@@ -212,7 +212,7 @@ fn arp_scan(_subnet: &str) -> Result<Vec<(String, Option<String>)>> {
         }
         OsType::Windows => {
             // Use Windows arp -a command
-            let output = Command::new("arp").args(["-a"]).output()?;
+            let output = hidden_command("arp").args(["-a"]).output()?;
             let stdout = String::from_utf8_lossy(&output.stdout);
             Ok(stdout.lines().filter_map(|line| {
                 let parts: Vec<&str> = line.split_whitespace().collect();
@@ -236,7 +236,7 @@ fn resolve_hostname(ip: &str) -> Option<String> {
             })
         }
         OsType::Windows => {
-            Command::new("nslookup").arg(ip).output().ok().and_then(|out| {
+            hidden_command("nslookup").arg(ip).output().ok().and_then(|out| {
                 String::from_utf8_lossy(&out.stdout).lines()
                     .find(|l| l.contains("Name:"))
                     .and_then(|l| l.split(':').nth(1))
@@ -255,7 +255,7 @@ const MAX_DEVICES_TO_PORT_SCAN: usize = 5;
 fn parse_netstat_listening() -> std::collections::HashSet<(String, u16)> {
     let mut listening = std::collections::HashSet::new();
     let output = match current_os() {
-        OsType::Windows => Command::new("powershell")
+        OsType::Windows => hidden_command("powershell")
             .args(["-Command", "netstat -an"])
             .output(),
         _ => Command::new("netstat").args(["-an"]).output(),
@@ -289,7 +289,7 @@ fn scan_ports(ip: &str) -> Vec<u16> {
     TOP_PORTS.iter().filter_map(|&port| {
         let success = match current_os() {
             OsType::Windows => {
-                Command::new("powershell")
+                hidden_command("powershell")
                     .args(["-Command", &format!("Test-NetConnection -ComputerName {} -Port {} -InformationLevel Quiet", ip, port)])
                     .output().ok()
                     .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "True")
@@ -325,7 +325,7 @@ fn scan_ports_fast(ip: &str, netstat: &std::collections::HashSet<(String, u16)>)
         // Only do the slow probe for the critical 5 ports (not 15).
         let success = match current_os() {
             OsType::Windows => {
-                Command::new("powershell")
+                hidden_command("powershell")
                     .args(["-Command", &format!("Test-NetConnection -ComputerName {} -Port {} -InformationLevel Quiet", ip, port)])
                     .output().ok()
                     .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "True")
@@ -497,7 +497,7 @@ pub async fn get_network_map(db: &EngineDb) -> Result<NetworkMapData> {
     let (local_ip, subnet) = get_local_network().unwrap_or_else(|_| ("unknown".into(), "unknown/24".into()));
     let gateway = match current_os() {
         OsType::Windows => {
-            Command::new("powershell")
+            hidden_command("powershell")
                 .args(["-Command", "(Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Select-Object -First 1).NextHop"])
                 .output().ok()
                 .and_then(|o| String::from_utf8_lossy(&o.stdout).trim().to_string().into())

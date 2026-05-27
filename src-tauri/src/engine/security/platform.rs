@@ -5,6 +5,21 @@
 use std::process::Command;
 use serde::{Deserialize, Serialize};
 
+/// Create a Command that runs hidden on Windows (no console window flash).
+/// On non-Windows platforms, returns a normal Command.
+#[cfg(windows)]
+pub fn hidden_command(program: &str) -> Command {
+    use std::os::windows::process::CommandExt;
+    let mut cmd = Command::new(program);
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    cmd
+}
+
+#[cfg(not(windows))]
+pub fn hidden_command(program: &str) -> Command {
+    Command::new(program)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum OsType {
     Linux,
@@ -43,6 +58,22 @@ fn run_cmd(program: &str, args: &[&str]) -> String {
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
         .unwrap_or_default()
+}
+
+#[cfg(windows)]
+pub fn run_cmd_hidden(program: &str, args: &[&str]) -> String {
+    use std::os::windows::process::CommandExt;
+    Command::new(program)
+        .args(args)
+        .creation_flags(0x08000000) // CREATE_NO_WINDOW
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default()
+}
+
+#[cfg(not(windows))]
+pub fn run_cmd_hidden(program: &str, args: &[&str]) -> String {
+    run_cmd(program, args)
 }
 
 /// Get full platform info.
@@ -107,7 +138,7 @@ pub fn get_firewall_status() -> (bool, String, String) {
             (enabled, "macOS Firewall".to_string(), defaults)
         }
         OsType::Windows => {
-            let output = run_cmd("netsh", &["advfirewall", "show", "allprofiles", "state"]);
+            let output = run_cmd_hidden("netsh", &["advfirewall", "show", "allprofiles", "state"]);
             let active = output.contains("ON") || output.contains("Enabled");
             (active, "Windows Defender Firewall".to_string(), output)
         }
@@ -128,7 +159,7 @@ pub fn get_listening_ports() -> Vec<(String, String, String, String)> {
             parse_macos_lsof(&output)
         }
         OsType::Windows => {
-            let output = run_cmd("netstat", &["-ano"]);
+            let output = run_cmd_hidden("netstat", &["-ano"]);
             parse_windows_netstat(&output)
         }
         OsType::Unknown => Vec::new(),
@@ -207,7 +238,7 @@ pub fn get_users() -> Vec<(String, String, String, String)> {
             parse_macos_users(&output, &homes, &shells, &uids)
         }
         OsType::Windows => {
-            let output = run_cmd("wmic", &["useraccount", "get", "name,sid,disabled"]);
+            let output = run_cmd_hidden("wmic", &["useraccount", "get", "name,sid,disabled"]);
             parse_windows_users(&output)
         }
         OsType::Unknown => Vec::new(),
@@ -282,7 +313,7 @@ pub fn is_process_running(name: &str) -> bool {
             !output.is_empty()
         }
         OsType::Windows => {
-            let output = run_cmd("tasklist", &["/FI", &format!("IMAGENAME eq {}", name)]);
+            let output = run_cmd_hidden("tasklist", &["/FI", &format!("IMAGENAME eq {}", name)]);
             output.to_lowercase().contains(&name.to_lowercase())
         }
         OsType::Unknown => false,
@@ -334,7 +365,7 @@ pub fn get_auto_update_status() -> String {
         }
         OsType::MacOS => run_cmd("softwareupdate", &["--list"]),
         OsType::Windows => {
-            let output = run_cmd("powershell", &["-Command", "Get-Service wuauserv | Select-Object -ExpandProperty Status"]);
+            let output = run_cmd_hidden("powershell", &["-Command", "Get-Service wuauserv | Select-Object -ExpandProperty Status"]);
             format!("Windows Update service: {}", output.trim())
         }
         OsType::Unknown => String::new(),
@@ -349,7 +380,7 @@ pub fn is_elevated() -> bool {
             output.trim() == "0"
         }
         OsType::Windows => {
-            let output = run_cmd("net", &["session"]);
+            let output = run_cmd_hidden("net", &["session"]);
             output.contains("denied") || output.is_empty()
         }
         OsType::Unknown => false,
