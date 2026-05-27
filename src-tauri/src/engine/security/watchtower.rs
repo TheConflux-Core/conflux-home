@@ -106,7 +106,7 @@ pub struct WatchtowerStatus {
 
 // ── Default watch paths ──────────────────────────────────────
 
-use crate::engine::security::platform::{current_os, OsType};
+use crate::engine::security::platform::{current_os, hidden_command, OsType};
 
 fn default_watch_paths() -> Vec<PathBuf> {
     match current_os() {
@@ -579,7 +579,7 @@ pub async fn snapshot_connections(db: &EngineDb) -> Result<i64> {
         }
         OsType::Windows => {
             // Use PowerShell Get-NetTCPConnection
-            let output = std::process::Command::new("powershell")
+            let output = hidden_command("powershell")
                 .args(["-Command", 
                     "Get-NetTCPConnection -ErrorAction SilentlyContinue | \
                      Select-Object LocalAddress,LocalPort,RemoteAddress,RemotePort,State,OwningProcess | \
@@ -1242,7 +1242,7 @@ pub fn snapshot_connections_sync(db: &EngineDb) -> Result<i64> {
             }
         }
         OsType::Windows => {
-            let output = std::process::Command::new("powershell")
+            let output = hidden_command("powershell")
                 .args(["-Command",
                     "Get-NetTCPConnection -ErrorAction SilentlyContinue | \
                      Select-Object LocalAddress,LocalPort,RemoteAddress,RemotePort,State,OwningProcess | \

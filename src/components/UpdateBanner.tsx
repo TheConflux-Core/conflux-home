@@ -1,10 +1,11 @@
 import { useAutoUpdate } from '../hooks/useAutoUpdate';
 import './UpdateBanner.css';
 
-const RELEASE_URL = "https://github.com/TheConflux-Core/conflux-home/releases/latest";
+const DOWNLOAD_URL = "https://theconflux.com/download";
+const CHANGELOG_URL = "https://theconflux.com/changelog";
 
 export default function UpdateBanner() {
-  const { available, version, body, downloading, downloaded, error, install, dismiss } = useAutoUpdate();
+  const { available, version, downloading, downloaded, error, install, dismiss } = useAutoUpdate();
 
   if (!available) return null;
 
@@ -14,11 +15,13 @@ export default function UpdateBanner() {
         <span className="update-banner-icon">🚀</span>
         <div className="update-banner-text">
           <strong>Conflux Home v{version} available</strong>
-          {body && <p className="update-banner-body">{body.split('\n')[0]}</p>}
+          <a href={CHANGELOG_URL} target="_blank" rel="noopener noreferrer" className="update-banner-body" style={{ color: 'var(--accent-primary, #7c3aed)', textDecoration: 'underline', cursor: 'pointer', display: 'block', marginTop: '2px', fontSize: '12px' }}>
+            See release notes
+          </a>
           {error && (
             <div className="update-banner-error">
               <p>Auto-update failed: {error}</p>
-              <a href={RELEASE_URL} target="_blank" rel="noopener noreferrer" className="update-btn update-btn-install" style={{ textDecoration: 'none', display: 'inline-block' }}>
+              <a href={DOWNLOAD_URL} target="_blank" rel="noopener noreferrer" className="update-btn update-btn-install" style={{ textDecoration: 'none', display: 'inline-block' }}>
                 Download Manually
               </a>
             </div>
