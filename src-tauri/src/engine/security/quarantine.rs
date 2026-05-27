@@ -476,7 +476,7 @@ pub async fn evaluate_auto_escalation(
     // Auto-escalation rules:
     // Level 0 → 1: 3+ anomaly triggers in 1 hour
     // Level 1 → 2: Critical finding from agent_audit (breach detected)
-    // Level 2 → 3: 5+ permission denials in 10 minutes + critical SIEM alert
+    // Level 2 → 3: 20+ permission denials in 10 minutes + critical SIEM alert
 
     if current_level == QuarantineLevel::Normal && anomaly_count >= 3 {
         return Ok(Some((
@@ -495,7 +495,7 @@ pub async fn evaluate_auto_escalation(
         )));
     }
 
-    if current_level == QuarantineLevel::Restricted && denial_count >= 5 && has_critical_alert {
+    if current_level == QuarantineLevel::Restricted && denial_count >= 20 && has_critical_alert {
         return Ok(Some((
             QuarantineLevel::Suspended,
             format!(

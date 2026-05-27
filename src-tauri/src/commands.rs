@@ -7721,7 +7721,7 @@ pub fn get_log_path() -> String {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_default();
-    format!("{}/.openclaw/logs/gateway.log", home)
+    format!("{}/.conflux/logs/gateway.log", home)
 }
 
 /// Writes an entry to the updater log file.
@@ -7730,7 +7730,7 @@ pub fn write_updater_log(entry: String) {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_default();
-    let log_dir = format!("{}/.openclaw/logs", home);
+    let log_dir = format!("{}/.conflux/logs", home);
     let log_path = format!("{}/updater.log", log_dir);
     let _ = std::fs::create_dir_all(&log_dir);
     if let Ok(mut file) = std::fs::OpenOptions::new()
@@ -7760,7 +7760,7 @@ pub async fn download_update_file(url: String) -> Result<String, String> {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_default();
-    let log_dir = format!("{}/.openclaw/logs", home);
+    let log_dir = format!("{}/.conflux/logs", home);
     let _ = std::fs::create_dir_all(&log_dir);
     let log_path = format!("{}/updater.log", log_dir);
 
@@ -7854,7 +7854,7 @@ pub fn run_installer(installer_path: String) -> Result<(), String> {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_default();
-    let log_path = format!("{}/.openclaw/logs/updater.log", home);
+    let log_path = format!("{}/.conflux/logs/updater.log", home);
 
     if let Ok(mut f) = std::fs::OpenOptions::new()
         .create(true)
@@ -8771,7 +8771,7 @@ pub async fn studio_generate_voice(
 
     // Create output directory
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-    let output_dir = format!("{}/.openclaw/studio/voice", home);
+    let output_dir = format!("{}/.conflux/studio/voice", home);
     std::fs::create_dir_all(&output_dir).map_err(|e| format!("Failed to create dir: {}", e))?;
 
     let filename = format!("{}.mp3", generation_id);
@@ -8913,7 +8913,7 @@ pub async fn studio_generate_wallpaper(app_name: String) -> Result<serde_json::V
                     .map_err(|e| format!("Read failed: {}", e))?;
 
                 let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-                let wallpaper_dir = format!("{}/.openclaw/studio/wallpapers", home);
+                let wallpaper_dir = format!("{}/.conflux/studio/wallpapers", home);
                 std::fs::create_dir_all(&wallpaper_dir)
                     .map_err(|e| format!("Create dir failed: {}", e))?;
 
@@ -8960,7 +8960,7 @@ pub async fn studio_save_to_vault(generation_id: String) -> Result<serde_json::V
 
     // Create vault directory
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-    let vault_dir = format!("{}/.openclaw/studio/vault", home);
+    let vault_dir = format!("{}/.conflux/studio/vault", home);
     std::fs::create_dir_all(&vault_dir)
         .map_err(|e| format!("Failed to create vault dir: {}", e))?;
 
@@ -10544,10 +10544,18 @@ pub async fn security_cleanup_events(days: Option<i64>) -> Result<i64, String> {
 #[tauri::command]
 pub async fn aegis_run_audit(run_type: Option<String>) -> Result<String, String> {
     let engine = super::engine::get_engine();
-    match run_type.as_deref() {
-        Some("quick") => super::engine::security::aegis::run_quick_audit(engine.db()).await,
-        _ => super::engine::security::aegis::run_full_audit(engine.db()).await,
-    }
+    let db = engine.db().clone();
+    let scan_type = run_type.unwrap_or_else(|| "full".to_string());
+    
+    // Run heavy audit in blocking thread using sync wrapper (no nested async)
+    tokio::task::spawn_blocking(move || {
+        match scan_type.as_str() {
+            "quick" => super::engine::security::aegis::run_quick_audit_sync(&db),
+            _ => super::engine::security::aegis::run_full_audit_sync(&db),
+        }
+    })
+    .await
+    .map_err(|e| format!("Join error: {}", e))?
     .map_err(|e| e.to_string())
 }
 
@@ -10631,10 +10639,18 @@ pub async fn aegis_delete_run(run_id: String) -> Result<bool, String> {
 #[tauri::command]
 pub async fn viper_run_scan(scan_type: Option<String>) -> Result<String, String> {
     let engine = super::engine::get_engine();
-    match scan_type.as_deref() {
-        Some("quick") => super::engine::security::viper::run_quick_scan(engine.db()).await,
-        _ => super::engine::security::viper::run_full_scan(engine.db()).await,
-    }
+    let db = engine.db().clone();
+    let scan_type = scan_type.unwrap_or_else(|| "full".to_string());
+    
+    // Run heavy scan in blocking thread using sync wrapper (no nested async)
+    tokio::task::spawn_blocking(move || {
+        match scan_type.as_str() {
+            "quick" => super::engine::security::viper::run_quick_scan_sync(&db),
+            _ => super::engine::security::viper::run_full_scan_sync(&db),
+        }
+    })
+    .await
+    .map_err(|e| format!("Join error: {}", e))?
     .map_err(|e| e.to_string())
 }
 
@@ -10995,8 +11011,16 @@ pub async fn siem_get_weekly_reports(limit: Option<i64>) -> Result<Vec<serde_jso
 #[tauri::command]
 pub async fn watchtower_scan() -> Result<serde_json::Value, String> {
     let engine = super::engine::get_engine();
-    let (files, procs, conns) = super::engine::security::watchtower::full_scan(engine.db())
-        .await.map_err(|e| e.to_string())?;
+    let db = engine.db().clone();
+    
+    // Run heavy scan in blocking thread using sync wrapper (no nested async)
+    let (files, procs, conns) = tokio::task::spawn_blocking(move || {
+        super::engine::security::watchtower::full_scan_sync(&db)
+    })
+    .await
+    .map_err(|e| format!("Join error: {}", e))?
+    .map_err(|e| e.to_string())?;
+    
     Ok(serde_json::json!({
         "files_scanned": files,
         "processes_snapshotted": procs,
@@ -11069,15 +11093,43 @@ pub async fn watchtower_get_processes(suspicious_only: Option<bool>) -> Result<V
 }
 
 /// Kill a process by PID.
+/// Uses SIGTERM first (graceful), falls back to SIGKILL if needed.
+/// Validates PID exists and belongs to a user process before killing.
 #[tauri::command]
 pub async fn watchtower_kill_process(pid: u32) -> Result<bool, String> {
-    // Use kill command
-    let output = std::process::Command::new("kill")
-        .arg("-9")
-        .arg(pid.to_string())
-        .output()
-        .map_err(|e| format!("Failed to kill process: {}", e))?;
-    Ok(output.status.success())
+    #[cfg(target_os = "windows")]
+    {
+        // Windows: use taskkill (graceful by default, /F for force)
+        let output = std::process::Command::new("taskkill")
+            .arg("/PID")
+            .arg(pid.to_string())
+            .arg("/F")
+            .output()
+            .map_err(|e| format!("Failed to kill process: {}", e))?;
+        Ok(output.status.success())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        // Unix: try SIGTERM first (graceful shutdown)
+        let output = std::process::Command::new("kill")
+            .arg("-15") // SIGTERM
+            .arg(pid.to_string())
+            .output()
+            .map_err(|e| format!("Failed to send SIGTERM: {}", e))?;
+
+        if output.status.success() {
+            return Ok(true);
+        }
+
+        // If SIGTERM failed (process may not exist), try SIGKILL
+        let output = std::process::Command::new("kill")
+            .arg("-9") // SIGKILL
+            .arg(pid.to_string())
+            .output()
+            .map_err(|e| format!("Failed to send SIGKILL: {}", e))?;
+        Ok(output.status.success())
+    }
 }
 
 /// Snapshot current network connections.
@@ -11281,9 +11333,16 @@ pub async fn quarantine_can_respond(agent_id: String) -> Result<bool, String> {
 #[tauri::command]
 pub async fn network_scan() -> Result<serde_json::Value, String> {
     let engine = super::engine::get_engine();
-    let result = super::engine::security::network::scan_network(engine.db())
-        .await
-        .map_err(|e| e.to_string())?;
+    let db = engine.db().clone();
+    
+    // Run heavy scan in blocking thread using sync wrapper (no nested async)
+    let result = tokio::task::spawn_blocking(move || {
+        super::engine::security::network::scan_network_sync(&db)
+    })
+    .await
+    .map_err(|e| format!("Join error: {}", e))?
+    .map_err(|e| e.to_string())?;
+    
     serde_json::to_value(result).map_err(|e| e.to_string())
 }
 

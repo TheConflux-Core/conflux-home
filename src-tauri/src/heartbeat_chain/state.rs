@@ -40,7 +40,7 @@ impl ChainState {
 
 fn state_path() -> PathBuf {
     let base = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
-    base.join(".openclaw").join("heartbeat_chain_state.json")
+    base.join(".conflux").join("heartbeat_chain_state.json")
 }
 
 impl ChainState {

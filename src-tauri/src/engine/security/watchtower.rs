@@ -23,6 +23,10 @@ use walkdir::WalkDir;
 use crate::engine::db::EngineDb;
 use crate::engine::security::events::{self, EventCategory, EventType as SecEventType};
 
+// ── Scan limits ──────────────────────────────────────────────
+const MAX_FILES_TO_SCAN: usize = 1000;
+const MAX_FILE_SIZE_FOR_HASH: u64 = 10 * 1024 * 1024; // 10MB
+
 // ── Types ────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,15 +106,35 @@ pub struct WatchtowerStatus {
 
 // ── Default watch paths ──────────────────────────────────────
 
+use crate::engine::security::platform::{current_os, OsType};
+
 fn default_watch_paths() -> Vec<PathBuf> {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
-    vec![
-        PathBuf::from("/etc"),
-        PathBuf::from(format!("{}/.config", home)),
-        PathBuf::from(format!("{}/.ssh", home)),
-        PathBuf::from(format!("{}/Downloads", home)),
-        PathBuf::from(format!("{}/.local/share/applications", home)),
-    ]
+    match current_os() {
+        OsType::Linux | OsType::MacOS => {
+            let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
+            vec![
+                PathBuf::from("/etc"),
+                PathBuf::from(format!("{}/.config", home)),
+                PathBuf::from(format!("{}/.ssh", home)),
+                PathBuf::from(format!("{}/Downloads", home)),
+                PathBuf::from(format!("{}/.local/share/applications", home)),
+            ]
+        }
+        OsType::Windows => {
+            let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".to_string());
+            let program_data = std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".to_string());
+            let user_profile = std::env::var("USERPROFILE").unwrap_or_default();
+            let app_data = std::env::var("APPDATA").unwrap_or_default();
+            vec![
+                PathBuf::from(format!(r"{}\System32\drivers\etc", system_root)),
+                PathBuf::from(format!(r"{}\ssh", program_data)),
+                PathBuf::from(format!(r"{}\.ssh", user_profile)),
+                PathBuf::from(format!(r"{}\Microsoft\Windows\Start Menu\Programs\Startup", app_data)),
+                PathBuf::from(format!(r"{}\Downloads", user_profile)),
+            ]
+        }
+        _ => vec![PathBuf::from("/etc")],
+    }
 }
 
 fn ignore_patterns() -> Vec<&'static str> {
@@ -128,22 +152,30 @@ fn should_ignore(path: &str) -> bool {
 // ── Critical file detection ──────────────────────────────────
 
 fn is_critical_path(path: &str) -> bool {
-    let critical_prefixes = [
+    let critical_prefixes_linux = [
         "/etc/ssh", "/etc/passwd", "/etc/shadow", "/etc/sudoers",
         "/etc/hosts", "/etc/resolv.conf", "/etc/crontab", "/etc/systemd",
         "/etc/pam.d", "/etc/security", "/etc/fstab",
     ];
-    critical_prefixes.iter().any(|p| path.starts_with(p))
+    let critical_prefixes_windows = [
+        r"C:\Windows\System32\drivers\etc\hosts",
+        r"C:\Windows\System32\config",
+        r"C:\ProgramData\ssh",
+        r"C:\Windows\System32\GroupPolicy",
+    ];
+    critical_prefixes_linux.iter().any(|p| path.starts_with(p))
+        || critical_prefixes_windows.iter().any(|p| path.starts_with(p))
 }
 
 fn classify_event(event_type: &str, path: &str, is_critical: bool) -> (&'static str, String) {
+    let path_lower = path.to_lowercase();
     if is_critical && event_type == "deleted" {
         ("critical", format!("CRITICAL: System file deleted — {}", path))
     } else if is_critical && event_type == "modified" {
         ("warning", format!("System file modified — {}", path))
-    } else if event_type == "permission_change" && path.contains("/etc") {
+    } else if event_type == "permission_change" && (path.contains("/etc") || path_lower.contains(r"\windows\")) {
         ("critical", format!("Permission change on system config — {}", path))
-    } else if event_type == "created" && (path.contains("/tmp") || path.contains("/var/tmp")) {
+    } else if event_type == "created" && (path.contains("/tmp") || path.contains("/var/tmp") || path_lower.contains(r"\temp\") || path_lower.contains(r"\tmp\")) {
         ("info", format!("New file in temporary directory — {}", path))
     } else if is_critical {
         ("warning", format!("{} — {}", event_type.replace('_', " "), path))
@@ -405,12 +437,19 @@ fn detect_suspicious_process(
     cpu: f64,
     mem_mb: f64,
 ) -> (bool, Option<String>) {
-    // Running from /tmp or /var/tmp
+    // Running from /tmp or /var/tmp (Linux) or temp directories (Windows)
     if let Some(exe) = exe_path {
+        let exe_lower = exe.to_lowercase();
+        // Linux temp paths
         if exe.starts_with("/tmp/") || exe.starts_with("/var/tmp/") {
             return (true, Some(format!("Process running from temporary directory: {}", exe)));
         }
-        // Hidden directory execution
+        // Windows temp paths
+        if exe_lower.contains(r"\temp\") || exe_lower.contains(r"\tmp\") 
+            || exe_lower.contains(r"\appdata\local\temp\") {
+            return (true, Some(format!("Process running from temporary directory: {}", exe)));
+        }
+        // Hidden directory execution (Linux)
         if exe.contains("/.") && !exe.contains("/.config") && !exe.contains("/.local") && !exe.contains("/.cache") {
             return (true, Some(format!("Process running from hidden directory: {}", exe)));
         }
@@ -449,7 +488,8 @@ fn detect_suspicious_process(
 
 // ── Network connection monitoring ────────────────────────────
 
-/// Parse /proc/net/tcp and /proc/net/tcp6 for current connections.
+/// Parse /proc/net/tcp and /proc/net/tcp6 for current connections (Linux).
+/// Use PowerShell Get-NetTCPConnection on Windows.
 pub async fn snapshot_connections(db: &EngineDb) -> Result<i64> {
     let conn = db.conn_async().await;
     let mut count = 0i64;
@@ -465,74 +505,138 @@ pub async fn snapshot_connections(db: &EngineDb) -> Result<i64> {
         .map(|(pid, proc)| (pid.as_u32(), proc.name().to_string_lossy().to_string()))
         .collect();
 
-    // Parse /proc/net/tcp (IPv4) and /proc/net/tcp6 (IPv6)
-    for proto_file in &["/proc/net/tcp", "/proc/net/tcp6"] {
-        let content = match fs::read_to_string(proto_file) {
-            Ok(c) => c,
-            Err(_) => continue,
-        };
+    match current_os() {
+        OsType::Linux => {
+            // Parse /proc/net/tcp (IPv4) and /proc/net/tcp6 (IPv6)
+            for proto_file in &[&"/proc/net/tcp", &"/proc/net/tcp6"] {
+                let content = match fs::read_to_string(proto_file) {
+                    Ok(c) => c,
+                    Err(_) => continue,
+                };
 
-        let protocol = if proto_file.ends_with("6") { "tcp6" } else { "tcp" };
+                let protocol = if proto_file.ends_with("6") { "tcp6" } else { "tcp" };
 
-        for line in content.lines().skip(1) {
-            let fields: Vec<&str> = line.split_whitespace().collect();
-            if fields.len() < 10 {
-                continue;
-            }
+                for line in content.lines().skip(1) {
+                    let fields: Vec<&str> = line.split_whitespace().collect();
+                    if fields.len() < 10 {
+                        continue;
+                    }
 
-            let local_addr = parse_hex_addr(fields[1]);
-            let remote_addr = parse_hex_addr(fields[2]);
-            let state = fields[3];
-            let uid = fields[7].parse::<i64>().unwrap_or(0);
+                    let local_addr = parse_hex_addr(fields[1]);
+                    let remote_addr = parse_hex_addr(fields[2]);
+                    let state = fields[3];
 
-            // Parse inode → PID mapping (field 9 is inode)
-            let inode = fields[9].parse::<u64>().unwrap_or(0);
-            let proc_pid = find_pid_by_inode(inode, &pid_names);
-            let proc_name = proc_pid.and_then(|p| pid_names.get(&p).cloned());
+                    // Parse inode → PID mapping (field 9 is inode)
+                    let inode = fields[9].parse::<u64>().unwrap_or(0);
+                    let proc_pid = find_pid_by_inode(inode, &pid_names);
+                    let proc_name = proc_pid.and_then(|p| pid_names.get(&p).cloned());
 
-            // Only track established connections (state 01) and LISTEN (state 0A)
-            let (local_ip, local_port) = parse_addr_port(&local_addr);
-            let (remote_ip, remote_port) = parse_addr_port(&remote_addr);
+                    // Only track established connections (state 01) and LISTEN (state 0A)
+                    let (local_ip, local_port) = parse_addr_port(&local_addr);
+                    let (remote_ip, remote_port) = parse_addr_port(&remote_addr);
 
-            if remote_ip == "0.0.0.0" || remote_ip == "::" || remote_ip.is_empty() {
-                // Listening socket — still track for port monitoring
-                if state != "0A" {
-                    continue;
+                    if remote_ip == "0.0.0.0" || remote_ip == "::" || remote_ip.is_empty() {
+                        // Listening socket — still track for port monitoring
+                        if state != "0A" {
+                            continue;
+                        }
+                    }
+
+                    let is_suspicious = detect_suspicious_connection(
+                        &remote_ip,
+                        remote_port,
+                        proc_name.as_deref(),
+                    );
+                    let reason = if is_suspicious.0 { is_suspicious.1 } else { None };
+
+                    let conn_id = format!("{}:{}-{}:{}", local_ip, local_port, remote_ip, remote_port);
+
+                    // Check existing
+                    let existing: Option<String> = conn
+                        .query_row(
+                            "SELECT id FROM watchtower_connections WHERE local_addr = ? AND local_port = ? AND remote_addr = ? AND remote_port = ?",
+                            rusqlite::params![local_ip, local_port, remote_ip, remote_port],
+                            |row| Ok(row.get::<_, String>(0)?),
+                        )
+                        .ok();
+
+                    if let Some(existing_id) = existing {
+                        conn.execute(
+                            "UPDATE watchtower_connections SET last_seen = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), is_suspicious = ?, suspicion_reason = ? WHERE id = ?",
+                            rusqlite::params![if is_suspicious.0 { 1 } else { 0 }, reason, existing_id],
+                        )?;
+                    } else {
+                        let id = Uuid::new_v4().to_string();
+                        conn.execute(
+                            "INSERT INTO watchtower_connections (id, local_addr, local_port, remote_addr, remote_port, protocol, pid, process_name, is_suspicious, suspicion_reason)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            rusqlite::params![id, local_ip, local_port, remote_ip, remote_port, protocol, proc_pid.map(|p| p as i64), proc_name, if is_suspicious.0 { 1 } else { 0 }, reason],
+                        )?;
+                    }
+                    count += 1;
                 }
             }
+        }
+        OsType::Windows => {
+            // Use PowerShell Get-NetTCPConnection
+            let output = std::process::Command::new("powershell")
+                .args(["-Command", 
+                    "Get-NetTCPConnection -ErrorAction SilentlyContinue | \
+                     Select-Object LocalAddress,LocalPort,RemoteAddress,RemotePort,State,OwningProcess | \
+                     ConvertTo-Json -Compress"])
+                .output();
+            
+            if let Ok(output) = output {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                if let Ok(connections) = serde_json::from_str::<Vec<serde_json::Value>>(&stdout) {
+                    for conn_obj in connections {
+                        let local_addr = conn_obj["LocalAddress"].as_str().unwrap_or("").to_string();
+                        let local_port = conn_obj["LocalPort"].as_i64().unwrap_or(0);
+                        let remote_addr = conn_obj["RemoteAddress"].as_str().unwrap_or("").to_string();
+                        let remote_port = conn_obj["RemotePort"].as_i64().unwrap_or(0);
+                        let state = conn_obj["State"].as_str().unwrap_or("").to_string();
+                        let pid = conn_obj["OwningProcess"].as_i64();
+                        
+                        // Get process name from PID
+                        let proc_name = pid.and_then(|p| pid_names.get(&(p as u32)).cloned());
+                        
+                        let is_suspicious = detect_suspicious_connection(
+                            &remote_addr,
+                            remote_port,
+                            proc_name.as_deref(),
+                        );
+                        let reason = if is_suspicious.0 { is_suspicious.1 } else { None };
 
-            let is_suspicious = detect_suspicious_connection(
-                &remote_ip,
-                remote_port,
-                proc_name.as_deref(),
-            );
-            let reason = if is_suspicious.0 { is_suspicious.1 } else { None };
+                        // Check existing
+                        let existing: Option<String> = conn
+                            .query_row(
+                                "SELECT id FROM watchtower_connections WHERE local_addr = ? AND local_port = ? AND remote_addr = ? AND remote_port = ?",
+                                rusqlite::params![local_addr, local_port, remote_addr, remote_port],
+                                |row| Ok(row.get::<_, String>(0)?),
+                            )
+                            .ok();
 
-            let conn_id = format!("{}:{}-{}:{}", local_ip, local_port, remote_ip, remote_port);
-
-            // Check existing
-            let existing: Option<String> = conn
-                .query_row(
-                    "SELECT id FROM watchtower_connections WHERE local_addr = ? AND local_port = ? AND remote_addr = ? AND remote_port = ?",
-                    rusqlite::params![local_ip, local_port, remote_ip, remote_port],
-                    |row| Ok(row.get::<_, String>(0)?),
-                )
-                .ok();
-
-            if let Some(existing_id) = existing {
-                conn.execute(
-                    "UPDATE watchtower_connections SET last_seen = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), is_suspicious = ?, suspicion_reason = ? WHERE id = ?",
-                    rusqlite::params![if is_suspicious.0 { 1 } else { 0 }, reason, existing_id],
-                )?;
-            } else {
-                let id = Uuid::new_v4().to_string();
-                conn.execute(
-                    "INSERT INTO watchtower_connections (id, local_addr, local_port, remote_addr, remote_port, protocol, pid, process_name, is_suspicious, suspicion_reason)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    rusqlite::params![id, local_ip, local_port, remote_ip, remote_port, protocol, proc_pid.map(|p| p as i64), proc_name, if is_suspicious.0 { 1 } else { 0 }, reason],
-                )?;
+                        if let Some(existing_id) = existing {
+                            conn.execute(
+                                "UPDATE watchtower_connections SET last_seen = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), is_suspicious = ?, suspicion_reason = ? WHERE id = ?",
+                                rusqlite::params![if is_suspicious.0 { 1 } else { 0 }, reason, existing_id],
+                            )?;
+                        } else {
+                            let id = Uuid::new_v4().to_string();
+                            conn.execute(
+                                "INSERT INTO watchtower_connections (id, local_addr, local_port, remote_addr, remote_port, protocol, pid, process_name, is_suspicious, suspicion_reason)
+                                 VALUES (?, ?, ?, ?, ?, 'tcp', ?, ?, ?, ?)",
+                                rusqlite::params![id, local_addr, local_port, remote_addr, remote_port, pid, proc_name, if is_suspicious.0 { 1 } else { 0 }, reason],
+                            )?;
+                        }
+                        count += 1;
+                    }
+                }
             }
-            count += 1;
+        }
+        _ => {
+            // Unknown platform — no connections to parse
+            log::warn!("[Watchtower] Connection snapshot not supported on this platform");
         }
     }
 
@@ -852,5 +956,357 @@ pub async fn full_scan(db: &EngineDb) -> Result<(i64, i64, i64)> {
     let files = scan_baselines(db).await?;
     let procs = snapshot_processes(db).await?;
     let conns = snapshot_connections(db).await?;
+    Ok((files, procs, conns))
+}
+
+// ── Synchronous wrappers (for spawn_blocking) ─────────────
+// These use conn_blocking() instead of conn_async().await,
+// avoiding nested rt.block_on() deadlocks.
+
+/// Synchronous baseline scan with file limits.
+/// Skips files >10MB for hashing, stops at MAX_FILES_TO_SCAN.
+pub fn scan_baselines_sync(db: &EngineDb) -> Result<i64> {
+    let paths = default_watch_paths();
+    let mut count = 0i64;
+    let conn = db.conn_blocking();
+
+    'outer: for base_path in &paths {
+        if !base_path.exists() {
+            continue;
+        }
+
+        for entry in WalkDir::new(base_path)
+            .follow_links(false)
+            .max_depth(5)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            if count >= MAX_FILES_TO_SCAN as i64 {
+                log::info!("[Watchtower] Reached file scan limit ({})", MAX_FILES_TO_SCAN);
+                break 'outer;
+            }
+
+            let fpath = entry.path();
+            if !fpath.is_file() {
+                continue;
+            }
+
+            let path_str = fpath.to_string_lossy().to_string();
+            if should_ignore(&path_str) {
+                continue;
+            }
+
+            // Skip files >10MB for hashing
+            let metadata = match fs::metadata(fpath) {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+            if metadata.len() > MAX_FILE_SIZE_FOR_HASH {
+                continue;
+            }
+
+            let hash = match hash_file(fpath) {
+                Some(h) => h,
+                None => continue,
+            };
+
+            let file_size = metadata.len() as i64;
+            #[cfg(unix)]
+            let file_mode = {
+                use std::os::unix::fs::PermissionsExt;
+                metadata.permissions().mode() as i64
+            };
+            #[cfg(not(unix))]
+            let file_mode: i64 = 0;
+
+            #[cfg(unix)]
+            let owner_uid = {
+                use std::os::unix::fs::MetadataExt;
+                metadata.uid() as i64
+            };
+            #[cfg(not(unix))]
+            let owner_uid: i64 = 0;
+
+            let critical = is_critical_path(&path_str);
+
+            // Check if baseline exists
+            let existing: Option<(String, String)> = conn
+                .query_row(
+                    "SELECT id, file_hash FROM watchtower_baselines WHERE file_path = ?",
+                    rusqlite::params![path_str],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .ok();
+
+            if let Some((existing_id, old_hash)) = existing {
+                if old_hash != hash {
+                    let (severity, desc) = classify_event("modified", &path_str, critical);
+                    let event_id = Uuid::new_v4().to_string();
+                    conn.execute(
+                        "INSERT INTO watchtower_events (id, event_type, file_path, old_hash, new_hash, severity, description)
+                         VALUES (?, 'modified', ?, ?, ?, ?, ?)",
+                        rusqlite::params![event_id, path_str, old_hash, hash, severity, desc],
+                    )?;
+                    conn.execute(
+                        "UPDATE watchtower_baselines SET file_hash = ?, file_size = ?, file_mode = ?, owner_uid = ?, last_checked = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                        rusqlite::params![hash, file_size, file_mode, owner_uid, existing_id],
+                    )?;
+                } else {
+                    conn.execute(
+                        "UPDATE watchtower_baselines SET last_checked = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                        rusqlite::params![existing_id],
+                    )?;
+                }
+            } else {
+                let id = Uuid::new_v4().to_string();
+                conn.execute(
+                    "INSERT INTO watchtower_baselines (id, file_path, file_hash, file_size, file_mode, owner_uid, is_critical)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    rusqlite::params![id, path_str, hash, file_size, file_mode, owner_uid, if critical { 1 } else { 0 }],
+                )?;
+                let (severity, desc) = classify_event("created", &path_str, critical);
+                let event_id = Uuid::new_v4().to_string();
+                conn.execute(
+                    "INSERT INTO watchtower_events (id, event_type, file_path, new_hash, severity, description)
+                     VALUES (?, 'created', ?, ?, ?, ?)",
+                    rusqlite::params![event_id, path_str, hash, severity, desc],
+                )?;
+            }
+
+            count += 1;
+        }
+    }
+
+    // Check for deleted files
+    let deleted: Vec<(String, String, i64)> = {
+        let mut stmt = conn.prepare("SELECT id, file_path, is_critical FROM watchtower_baselines")?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?))
+        })?;
+        rows.filter_map(|r| r.ok()).collect()
+    };
+
+    for (baseline_id, file_path, is_critical) in deleted {
+        if !Path::new(&file_path).exists() {
+            let critical = is_critical != 0;
+            let (severity, desc) = classify_event("deleted", &file_path, critical);
+            let event_id = Uuid::new_v4().to_string();
+            conn.execute(
+                "INSERT INTO watchtower_events (id, event_type, file_path, severity, description)
+                 VALUES (?, 'deleted', ?, ?, ?)",
+                rusqlite::params![event_id, file_path, severity, desc],
+            )?;
+            conn.execute(
+                "DELETE FROM watchtower_baselines WHERE id = ?",
+                rusqlite::params![baseline_id],
+            )?;
+        }
+    }
+
+    Ok(count)
+}
+
+/// Synchronous process snapshot.
+pub fn snapshot_processes_sync(db: &EngineDb) -> Result<i64> {
+    let mut sys = System::new_all();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+    std::thread::sleep(Duration::from_millis(200));
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+
+    let conn = db.conn_blocking();
+    let mut count = 0i64;
+
+    let existing_pids: std::collections::HashSet<i64> = {
+        let mut stmt = conn.prepare("SELECT DISTINCT pid FROM watchtower_processes")?;
+        let rows = stmt.query_map([], |row| Ok(row.get::<_, i64>(0)?))?;
+        rows.filter_map(|r| r.ok()).collect()
+    };
+
+    for (pid, process) in sys.processes() {
+        let pid_i64 = pid.as_u32() as i64;
+        let name = process.name().to_string_lossy().to_string();
+        let exe_path = process.exe().map(|p| p.to_string_lossy().to_string());
+        let cmdline = Some(process.cmd().iter().map(|c| c.to_string_lossy()).collect::<Vec<_>>().join(" "));
+        let ppid = process.parent().map(|p| p.as_u32() as i64);
+        let cpu = process.cpu_usage() as f64;
+        let mem_mb = process.memory() as f64 / 1024.0 / 1024.0;
+
+        let (is_suspicious, reason) = detect_suspicious_process(
+            &name, exe_path.as_deref(), cmdline.as_deref(), cpu, mem_mb,
+        );
+
+        let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
+
+        if existing_pids.contains(&pid_i64) {
+            conn.execute(
+                "UPDATE watchtower_processes SET name = ?, exe_path = ?, cmdline = ?, cpu_percent = ?, memory_mb = ?, last_seen = ?, is_suspicious = ?, suspicion_reason = ? WHERE pid = ?",
+                rusqlite::params![name, exe_path, cmdline, cpu, mem_mb, now, if is_suspicious { 1 } else { 0 }, reason, pid_i64],
+            )?;
+        } else {
+            let id = Uuid::new_v4().to_string();
+            conn.execute(
+                "INSERT INTO watchtower_processes (id, pid, ppid, name, exe_path, cmdline, user_name, cpu_percent, memory_mb, is_suspicious, suspicion_reason)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                rusqlite::params![id, pid_i64, ppid, name, exe_path, cmdline, None::<String>, cpu, mem_mb, if is_suspicious { 1 } else { 0 }, reason],
+            )?;
+        }
+        count += 1;
+    }
+
+    // Mark exited processes
+    let current_pids: std::collections::HashSet<i64> = sys.processes()
+        .keys().map(|p| p.as_u32() as i64).collect();
+
+    let stale: Vec<i64> = {
+        let mut stmt = conn.prepare("SELECT pid FROM watchtower_processes")?;
+        let rows = stmt.query_map([], |row| Ok(row.get::<_, i64>(0)?))?;
+        rows.filter_map(|r| r.ok()).filter(|pid| !current_pids.contains(pid)).collect()
+    };
+
+    for stale_pid in stale {
+        conn.execute("DELETE FROM watchtower_processes WHERE pid = ?", rusqlite::params![stale_pid])?;
+    }
+
+    Ok(count)
+}
+
+/// Synchronous connection snapshot.
+pub fn snapshot_connections_sync(db: &EngineDb) -> Result<i64> {
+    let conn = db.conn_blocking();
+    let mut count = 0i64;
+
+    let mut sys = System::new_all();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+    std::thread::sleep(Duration::from_millis(100));
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+
+    let pid_names: HashMap<u32, String> = sys.processes()
+        .iter()
+        .map(|(pid, proc)| (pid.as_u32(), proc.name().to_string_lossy().to_string()))
+        .collect();
+
+    match current_os() {
+        OsType::Linux => {
+            for proto_file in &[&"/proc/net/tcp", &"/proc/net/tcp6"] {
+                let content = match fs::read_to_string(proto_file) {
+                    Ok(c) => c,
+                    Err(_) => continue,
+                };
+                let protocol = if proto_file.ends_with("6") { "tcp6" } else { "tcp" };
+
+                for line in content.lines().skip(1) {
+                    let fields: Vec<&str> = line.split_whitespace().collect();
+                    if fields.len() < 10 { continue; }
+
+                    let local_addr = parse_hex_addr(fields[1]);
+                    let remote_addr = parse_hex_addr(fields[2]);
+                    let state = fields[3];
+
+                    let inode = fields[9].parse::<u64>().unwrap_or(0);
+                    let proc_pid = find_pid_by_inode(inode, &pid_names);
+                    let proc_name = proc_pid.and_then(|p| pid_names.get(&p).cloned());
+
+                    let (local_ip, local_port) = parse_addr_port(&local_addr);
+                    let (remote_ip, remote_port) = parse_addr_port(&remote_addr);
+
+                    if remote_ip == "0.0.0.0" || remote_ip == "::" || remote_ip.is_empty() {
+                        if state != "0A" { continue; }
+                    }
+
+                    let is_suspicious = detect_suspicious_connection(&remote_ip, remote_port, proc_name.as_deref());
+                    let reason = if is_suspicious.0 { is_suspicious.1 } else { None };
+
+                    let existing: Option<String> = conn
+                        .query_row(
+                            "SELECT id FROM watchtower_connections WHERE local_addr = ? AND local_port = ? AND remote_addr = ? AND remote_port = ?",
+                            rusqlite::params![local_ip, local_port, remote_ip, remote_port],
+                            |row| Ok(row.get::<_, String>(0)?),
+                        )
+                        .ok();
+
+                    if let Some(existing_id) = existing {
+                        conn.execute(
+                            "UPDATE watchtower_connections SET last_seen = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), is_suspicious = ?, suspicion_reason = ? WHERE id = ?",
+                            rusqlite::params![if is_suspicious.0 { 1 } else { 0 }, reason, existing_id],
+                        )?;
+                    } else {
+                        let id = Uuid::new_v4().to_string();
+                        conn.execute(
+                            "INSERT INTO watchtower_connections (id, local_addr, local_port, remote_addr, remote_port, protocol, pid, process_name, is_suspicious, suspicion_reason)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            rusqlite::params![id, local_ip, local_port, remote_ip, remote_port, protocol, proc_pid.map(|p| p as i64), proc_name, if is_suspicious.0 { 1 } else { 0 }, reason],
+                        )?;
+                    }
+                    count += 1;
+                }
+            }
+        }
+        OsType::Windows => {
+            let output = std::process::Command::new("powershell")
+                .args(["-Command",
+                    "Get-NetTCPConnection -ErrorAction SilentlyContinue | \
+                     Select-Object LocalAddress,LocalPort,RemoteAddress,RemotePort,State,OwningProcess | \
+                     ConvertTo-Json -Compress"])
+                .output();
+
+            if let Ok(output) = output {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                if let Ok(connections) = serde_json::from_str::<Vec<serde_json::Value>>(&stdout) {
+                    for conn_obj in connections {
+                        let local_addr = conn_obj["LocalAddress"].as_str().unwrap_or("").to_string();
+                        let local_port = conn_obj["LocalPort"].as_i64().unwrap_or(0);
+                        let remote_addr = conn_obj["RemoteAddress"].as_str().unwrap_or("").to_string();
+                        let remote_port = conn_obj["RemotePort"].as_i64().unwrap_or(0);
+                        let pid = conn_obj["OwningProcess"].as_i64();
+                        let proc_name = pid.and_then(|p| pid_names.get(&(p as u32)).cloned());
+
+                        let is_suspicious = detect_suspicious_connection(&remote_addr, remote_port, proc_name.as_deref());
+                        let reason = if is_suspicious.0 { is_suspicious.1 } else { None };
+
+                        let existing: Option<String> = conn
+                            .query_row(
+                                "SELECT id FROM watchtower_connections WHERE local_addr = ? AND local_port = ? AND remote_addr = ? AND remote_port = ?",
+                                rusqlite::params![local_addr, local_port, remote_addr, remote_port],
+                                |row| Ok(row.get::<_, String>(0)?),
+                            )
+                            .ok();
+
+                        if let Some(existing_id) = existing {
+                            conn.execute(
+                                "UPDATE watchtower_connections SET last_seen = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), is_suspicious = ?, suspicion_reason = ? WHERE id = ?",
+                                rusqlite::params![if is_suspicious.0 { 1 } else { 0 }, reason, existing_id],
+                            )?;
+                        } else {
+                            let id = Uuid::new_v4().to_string();
+                            conn.execute(
+                                "INSERT INTO watchtower_connections (id, local_addr, local_port, remote_addr, remote_port, protocol, pid, process_name, is_suspicious, suspicion_reason)
+                                 VALUES (?, ?, ?, ?, ?, 'tcp', ?, ?, ?, ?)",
+                                rusqlite::params![id, local_addr, local_port, remote_addr, remote_port, pid, proc_name, if is_suspicious.0 { 1 } else { 0 }, reason],
+                            )?;
+                        }
+                        count += 1;
+                    }
+                }
+            }
+        }
+        _ => {
+            log::warn!("[Watchtower] Connection snapshot not supported on this platform");
+        }
+    }
+
+    conn.execute(
+        "DELETE FROM watchtower_connections WHERE last_seen < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-5 minutes')",
+        [],
+    )?;
+
+    Ok(count)
+}
+
+/// Full synchronous scan: baselines + processes + connections.
+/// Called from spawn_blocking in commands.rs — no nested async.
+pub fn full_scan_sync(db: &EngineDb) -> Result<(i64, i64, i64)> {
+    let files = scan_baselines_sync(db)?;
+    let procs = snapshot_processes_sync(db)?;
+    let conns = snapshot_connections_sync(db)?;
     Ok((files, procs, conns))
 }

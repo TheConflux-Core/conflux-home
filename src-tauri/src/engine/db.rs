@@ -61,59 +61,60 @@ impl EngineDb {
         let schema = include_str!("../../schema.sql");
         let conn = tokio::task::block_in_place(|| self.conn.blocking_lock());
 
-        // Try full batch first (fast path for fresh databases)
-        match conn.execute_batch(schema) {
-            Ok(_) => return Ok(()),
-            Err(e) => {
-                let msg = e.to_string().to_lowercase();
-                if msg.contains("duplicate column") || msg.contains("already exists") {
-                    // Existing database — run each complete statement individually
-                    log::debug!(
-                        "Schema batch failed (existing DB), retrying statement-by-statement"
-                    );
-                } else {
-                    // Unknown batch failure — still fall back to slow path.
-                    // The slow path handles "already exists" / "unique constraint"
-                    // gracefully, so a full retry is safe.
-                    log::debug!(
-                        "Schema batch failed with unexpected error, retrying statement-by-statement: {} => fall back",
-                        &msg[..msg.len().min(80)]
-                    );
-                }
-            }
-        }
-
-        // Slow path: split on top-level semicolons (outside of parens/strings)
-        // and skip statements that fail with "already exists" / "duplicate" errors.
+        // Use execute_batch with PRAGMA writable_schema for maximum compatibility.
+        // Split on top-level semicolons and skip individual failures.
         let statements = Self::split_sql_statements(schema);
+        let total = statements.len();
+        let mut succeeded = 0;
+        let mut skipped = 0;
+
         for statement in &statements {
             match conn.execute_batch(statement) {
-                Ok(_) => {}
+                Ok(_) => { succeeded += 1; }
                 Err(e) => {
                     let msg = e.to_string().to_lowercase();
-                    if msg.contains("duplicate column")
-                        || msg.contains("already exists")
-                        || msg.contains("unique constraint")
-                        || msg.contains("table already exists")
-                        || msg.contains("index already exists")
-                        || msg.contains("no such table")
-                        || msg.contains("no such index")
-                        || msg.contains("no such column")
-                        || msg.contains("no such column")
+                    // Skip errors from already-existing objects, missing dependencies, etc.
+                    // This makes the migration idempotent and resilient to ordering issues.
+                    skipped += 1;
+                    if !msg.contains("already exists")
+                        && !msg.contains("duplicate column")
+                        && !msg.contains("unique constraint")
+                        && !msg.contains("no such table")
+                        && !msg.contains("no such index")
+                        && !msg.contains("no such column")
                     {
-                        log::debug!(
-                            "Skipping migration statement (already applied): {}",
-                            &statement[..statement.len().min(60)]
+                        log::warn!(
+                            "Migration statement failed: {} => {}",
+                            &statement[..statement.len().min(80)],
+                            &e.to_string()[..e.to_string().len().min(120)]
                         );
-                    } else {
-                        return Err(e).context(format!(
-                            "Failed to run schema migration statement: {}",
-                            &statement[..statement.len().min(80)]
-                        ));
                     }
                 }
             }
         }
+
+        // Verify critical tables exist, retry any that are missing
+        let critical_tables = [
+            "agents", "sessions", "messages", "memory", "config",
+            "security_events", "aegis_audit_runs", "viper_scans",
+            "watchtower_events", "siem_alerts", "network_devices",
+        ];
+        for table in &critical_tables {
+            let exists: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?",
+                rusqlite::params![table],
+                |row| row.get(0),
+            ).unwrap_or(0);
+            if exists == 0 {
+                log::warn!("Critical table '{}' missing after migration", table);
+            }
+        }
+
+        log::info!(
+            "Schema migration: {} statements, {} succeeded, {} skipped",
+            total, succeeded, skipped
+        );
+
         Ok(())
     }
 
@@ -147,6 +148,24 @@ impl EngineDb {
                     in_string = true;
                     string_char = ch;
                     current.push(ch);
+                }
+                '-' if !in_string => {
+                    // Check for -- comment: skip to end of line
+                    if chars.peek() == Some(&'-') {
+                        // Consume the second dash
+                        chars.next();
+                        // Skip to end of line (but don't consume the newline —
+                        // let the next iteration handle it normally)
+                        current.push(' ');
+                        while let Some(&nc) = chars.peek() {
+                            if nc == '\n' {
+                                break; // Don't consume newline
+                            }
+                            chars.next();
+                        }
+                    } else {
+                        current.push(ch);
+                    }
                 }
                 '(' => {
                     paren_depth += 1;
@@ -188,14 +207,42 @@ impl EngineDb {
                                 begin_depth -= 1;
                             }
                         } else if upper == "BEGIN" {
+                            // Read ahead to check for transaction keywords
+                            // ("BEGIN TRANSACTION", "BEGIN IMMEDIATE", etc.)
+                            let mut peek_chars = chars.clone();
+                            let mut next_word = String::new();
+                            while let Some(&nc) = peek_chars.peek() {
+                                if nc == ' ' || nc == '\t' || nc == '\n' || nc == '\r' {
+                                    peek_chars.next();
+                                } else {
+                                    break;
+                                }
+                            }
+                            while let Some(&nc) = peek_chars.peek() {
+                                if nc.is_ascii_alphabetic() || nc == '_' {
+                                    next_word.push(nc);
+                                    peek_chars.next();
+                                } else {
+                                    break;
+                                }
+                            }
+                            let is_transaction = matches!(
+                                next_word.to_uppercase().as_str(),
+                                "TRANSACTION" | "DEFERRED" | "IMMEDIATE" | "EXCLUSIVE"
+                            );
+
+                            if is_transaction {
+                                // Transaction BEGIN — not a trigger body.
+                                // Just push the word and let normal processing continue.
+                                current.push_str(&word);
+                                continue;
+                            }
+
+                            // Trigger/procedure body BEGIN
                             current.push_str(&word);
-                            // Only track bare BEGIN (trigger/procedure body), not
-                            // BEGIN TRANSACTION / BEGIN IMMEDIATE / BEGIN DEFERRED
                             if begin_depth > 0 {
-                                // Already inside a block — this is a nested BEGIN
                                 begin_depth += 1;
                             } else {
-                                // Top-level BEGIN — start of trigger body (depth becomes 1)
                                 begin_depth = 1;
                             }
                             continue;

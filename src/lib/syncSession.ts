@@ -38,14 +38,11 @@ export async function syncSessionToEngine(): Promise<boolean> {
         console.log("[syncSessionToEngine] Token expiring soon, refreshing...");
         const { data: { session: refreshed }, error } = await supabase.auth.refreshSession();
         if (error) {
-          console.warn("[syncSessionToEngine] Failed to refresh session:", error.message);
-          await supabase.auth.signOut();
-          return false;
-        }
-        session = refreshed;
-        if (!session?.access_token || !session?.user?.id) {
-          console.warn("[syncSessionToEngine] No active session after refresh");
-          return false;
+          // Refresh failed — but DON'T sign out. The current token may still work.
+          // Only warn; let the engine call proceed with the existing token.
+          console.warn("[syncSessionToEngine] Refresh failed, using existing token:", error.message);
+        } else if (refreshed?.access_token) {
+          session = refreshed;
         }
       }
     }
