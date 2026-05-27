@@ -3225,9 +3225,12 @@ fn execute_command(args: &Value) -> Result<ToolResult> {
     }
 
     #[cfg(target_os = "windows")]
-    let shell_result = std::process::Command::new("cmd")
-        .args(["/C", &command])
-        .output();
+    let shell_result = {
+        use std::os::windows::process::CommandExt;
+        let mut cmd = std::process::Command::new("cmd");
+        cmd.args(["/C", &command]).creation_flags(0x08000000); // CREATE_NO_WINDOW
+        cmd.output()
+    };
 
     #[cfg(not(target_os = "windows"))]
     let shell_result = std::process::Command::new("sh")

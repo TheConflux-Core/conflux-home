@@ -1033,33 +1033,31 @@ fn scan_software_versions() -> Result<Vec<FindingInput>> {
                 }
             } else {
                 // Fall back to PowerShell Windows Update check
-                if let Ok(output) = Command::new("powershell")
-                    .args(["-Command", r"(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().SearchUpdates('IsInstalled=0').Count"])
-                    .output()
-                {
-                    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                    if let Ok(pending) = stdout.parse::<i64>() {
-                        if pending > 0 {
-                            findings.push(FindingInput {
-                                category: "software".into(),
-                                check_name: "windows_updates_available".into(),
-                                severity: "warning".into(),
-                                title: format!("{} Windows Updates Pending", pending),
-                                description: "Uninstalled Windows updates available.".into(),
-                                recommendation: Some("Run Windows Update: Settings > Windows Update".into()),
-                                raw_data: Some(serde_json::json!({"pending": pending})),
-                            });
-                        } else {
-                            findings.push(FindingInput {
-                                category: "software".into(),
-                                check_name: "windows_updates_available".into(),
-                                severity: "pass".into(),
-                                title: "Windows Updates Current".into(),
-                                description: "No pending Windows updates.".into(),
-                                recommendation: None,
-                                raw_data: None,
-                            });
-                        }
+                let stdout = run_cmd_hidden("powershell", &[
+                    "-Command",
+                    r"(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().SearchUpdates('IsInstalled=0').Count",
+                ]);
+                if let Ok(pending) = stdout.parse::<i64>() {
+                    if pending > 0 {
+                        findings.push(FindingInput {
+                            category: "software".into(),
+                            check_name: "windows_updates_available".into(),
+                            severity: "warning".into(),
+                            title: format!("{} Windows Updates Pending", pending),
+                            description: "Uninstalled Windows updates available.".into(),
+                            recommendation: Some("Run Windows Update: Settings > Windows Update".into()),
+                            raw_data: Some(serde_json::json!({"pending": pending})),
+                        });
+                    } else {
+                        findings.push(FindingInput {
+                            category: "software".into(),
+                            check_name: "windows_updates_available".into(),
+                            severity: "pass".into(),
+                            title: "Windows Updates Current".into(),
+                            description: "No pending Windows updates.".into(),
+                            recommendation: None,
+                            raw_data: None,
+                        });
                     }
                 }
             }
@@ -1212,32 +1210,20 @@ fn scan_cron_jobs() -> Result<Vec<FindingInput>> {
         }
         OsType::Windows => {
             // Check Windows Task Scheduler
-            let output = Command::new("powershell")
-                .args(["-Command", "Get-ScheduledTask | Select-Object -First 20 | ConvertTo-Json"])
-                .output();
-            if let Ok(output) = output {
-                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if !stdout.is_empty() && !stdout.contains("Cannot find") {
-                    findings.push(FindingInput {
-                        category: "cron".into(),
-                        check_name: "windows_scheduled_tasks".into(),
-                        severity: "info".into(),
-                        title: "Windows Scheduled Tasks Found".into(),
-                        description: "Task Scheduler tasks retrieved via PowerShell.".into(),
-                        recommendation: None,
-                        raw_data: Some(serde_json::json!({"tasks": stdout})),
-                    });
-                } else {
-                    findings.push(FindingInput {
-                        category: "cron".into(),
-                        check_name: "windows_scheduled_tasks".into(),
-                        severity: "info".into(),
-                        title: "No Scheduled Tasks Found".into(),
-                        description: "No Windows scheduled tasks detected.".into(),
-                        recommendation: None,
-                        raw_data: None,
-                    });
-                }
+            let stdout = run_cmd_hidden("powershell", &[
+                "-Command",
+                "Get-ScheduledTask | Select-Object -First 20 | ConvertTo-Json",
+            ]);
+            if !stdout.is_empty() && !stdout.contains("Cannot find") {
+                findings.push(FindingInput {
+                    category: "cron".into(),
+                    check_name: "windows_scheduled_tasks".into(),
+                    severity: "info".into(),
+                    title: "Windows Scheduled Tasks Found".into(),
+                    description: "Task Scheduler tasks retrieved via PowerShell.".into(),
+                    recommendation: None,
+                    raw_data: Some(serde_json::json!({"tasks": stdout})),
+                });
             }
         }
         OsType::Unknown => {
@@ -1402,7 +1388,7 @@ fn scan_general() -> Result<Vec<FindingInput>> {
         }
         OsType::Windows => {
             // Check Windows Defender status
-            let defender = Command::new("powershell")
+            let defender = hidden_command("powershell")
                 .args(["-Command", "Get-MpComputerStatus | Select-Object -ExpandProperty AntivirusEnabled"])
                 .output();
             if let Ok(output) = defender {

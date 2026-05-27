@@ -653,149 +653,139 @@ fn scan_misconfig() -> Result<Vec<FindingInput>> {
             }
 
             // Check if RDP is enabled
-            let rdp = Command::new("powershell")
-                .args(["-Command", r"Get-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty fDenyTSConnections"])
-                .output();
-            if let Ok(output) = rdp {
-                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if stdout == "0" {
-                    findings.push(FindingInput {
-                        category: "misconfig".into(),
-                        check_name: "rdp_enabled".into(),
-                        severity: "critical".into(),
-                        title: "Remote Desktop (RDP) is Enabled".into(),
-                        description: "RDP is enabled and accessible. This is a common attack vector.".into(),
-                        remediation: Some("Disable RDP if not needed, or enforce NLA and strong passwords.".into()),
-                        cve_ids: None,
-                        raw_data: Some(serde_json::json!({"rdp_enabled": true})),
-                    });
-                } else {
-                    findings.push(FindingInput {
-                        category: "misconfig".into(),
-                        check_name: "rdp_enabled".into(),
-                        severity: "pass".into(),
-                        title: "Remote Desktop (RDP) Disabled".into(),
-                        description: "RDP is not enabled. Attack surface reduced.".into(),
-                        remediation: None,
-                        cve_ids: None,
-                        raw_data: None,
-                    });
-                }
+            let stdout = run_cmd_hidden("powershell", &[
+                "-Command",
+                r"Get-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty fDenyTSConnections",
+            ]);
+            if stdout == "0" {
+                findings.push(FindingInput {
+                    category: "misconfig".into(),
+                    check_name: "rdp_enabled".into(),
+                    severity: "critical".into(),
+                    title: "Remote Desktop (RDP) is Enabled".into(),
+                    description: "RDP is enabled and accessible. This is a common attack vector.".into(),
+                    remediation: Some("Disable RDP if not needed, or enforce NLA and strong passwords.".into()),
+                    cve_ids: None,
+                    raw_data: Some(serde_json::json!({"rdp_enabled": true})),
+                });
+            } else {
+                findings.push(FindingInput {
+                    category: "misconfig".into(),
+                    check_name: "rdp_enabled".into(),
+                    severity: "pass".into(),
+                    title: "Remote Desktop (RDP) Disabled".into(),
+                    description: "RDP is not enabled. Attack surface reduced.".into(),
+                    remediation: None,
+                    cve_ids: None,
+                    raw_data: None,
+                });
             }
 
             // Check UAC status
-            let uac = Command::new("powershell")
-                .args(["-Command", r"Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'EnableLUA' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty EnableLUA"])
-                .output();
-            if let Ok(output) = uac {
-                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if stdout != "1" {
-                    findings.push(FindingInput {
-                        category: "misconfig".into(),
-                        check_name: "uac_disabled".into(),
-                        severity: "critical".into(),
-                        title: "UAC (User Account Control) is Disabled".into(),
-                        description: "UAC is turned off. Applications can run with full administrator privileges.".into(),
-                        remediation: Some("Enable UAC via Control Panel > User Accounts > User Accounts > Change UAC settings".into()),
-                        cve_ids: None,
-                        raw_data: Some(serde_json::json!({"uac_enabled": false})),
-                    });
-                } else {
-                    findings.push(FindingInput {
-                        category: "misconfig".into(),
-                        check_name: "uac_disabled".into(),
-                        severity: "pass".into(),
-                        title: "UAC Enabled".into(),
-                        description: "User Account Control is active, limiting application privileges.".into(),
-                        remediation: None,
-                        cve_ids: None,
-                        raw_data: None,
-                    });
-                }
+            let stdout = run_cmd_hidden("powershell", &[
+                "-Command",
+                r"Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'EnableLUA' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty EnableLUA",
+            ]);
+            if stdout != "1" {
+                findings.push(FindingInput {
+                    category: "misconfig".into(),
+                    check_name: "uac_disabled".into(),
+                    severity: "critical".into(),
+                    title: "UAC (User Account Control) is Disabled".into(),
+                    description: "UAC is turned off. Applications can run with full administrator privileges.".into(),
+                    remediation: Some("Enable UAC via Control Panel > User Accounts > User Accounts > Change UAC settings".into()),
+                    cve_ids: None,
+                    raw_data: Some(serde_json::json!({"uac_enabled": false})),
+                });
+            } else {
+                findings.push(FindingInput {
+                    category: "misconfig".into(),
+                    check_name: "uac_disabled".into(),
+                    severity: "pass".into(),
+                    title: "UAC Enabled".into(),
+                    description: "User Account Control is active, limiting application privileges.".into(),
+                    remediation: None,
+                    cve_ids: None,
+                    raw_data: None,
+                });
             }
 
             // Check Windows Defender real-time protection
-            let defender = Command::new("powershell")
-                .args(["-Command", r"Get-MpComputerStatus | Select-Object -ExpandProperty RealTimeProtectionEnabled"])
-                .output();
-            if let Ok(output) = defender {
-                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if stdout == "True" {
+            let stdout = run_cmd_hidden("powershell", &[
+                "-Command",
+                r"Get-MpComputerStatus | Select-Object -ExpandProperty RealTimeProtectionEnabled",
+            ]);
+            if stdout == "True" {
+                findings.push(FindingInput {
+                    category: "misconfig".into(),
+                    check_name: "defender_realtime".into(),
+                    severity: "pass".into(),
+                    title: "Windows Defender Real-Time Protection Active".into(),
+                    description: "Windows Defender is actively monitoring for threats.".into(),
+                    remediation: None,
+                    cve_ids: None,
+                    raw_data: None,
+                });
+            } else {
+                findings.push(FindingInput {
+                    category: "misconfig".into(),
+                    check_name: "defender_realtime".into(),
+                    severity: "critical".into(),
+                    title: "Windows Defender Real-Time Protection Disabled".into(),
+                    description: "Windows Defender real-time scanning is off. The system is vulnerable to live threats.".into(),
+                    remediation: Some("Open Windows Security > Virus & threat protection > Turn on Real-time protection.".into()),
+                    cve_ids: None,
+                    raw_data: None,
+                });
+            }
+
+            // Check Windows Update status
+            let stdout = run_cmd_hidden("powershell", &[
+                "-Command",
+                r"(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().SearchUpdates('IsInstalled=0').Count",
+            ]);
+            if let Ok(pending) = stdout.trim().parse::<i64>() {
+                if pending > 0 {
                     findings.push(FindingInput {
                         category: "misconfig".into(),
-                        check_name: "defender_realtime".into(),
-                        severity: "pass".into(),
-                        title: "Windows Defender Real-Time Protection Active".into(),
-                        description: "Windows Defender is actively monitoring for threats.".into(),
-                        remediation: None,
+                        check_name: "pending_windows_updates".into(),
+                        severity: "warning".into(),
+                        title: format!("{} Pending Windows Updates", pending),
+                        description: "Uninstalled updates leave known vulnerabilities unpatched.".into(),
+                        remediation: Some("Run Windows Update: Settings > Windows Update > Check for updates.".into()),
                         cve_ids: None,
-                        raw_data: None,
+                        raw_data: Some(serde_json::json!({"pending": pending})),
                     });
                 } else {
                     findings.push(FindingInput {
                         category: "misconfig".into(),
-                        check_name: "defender_realtime".into(),
-                        severity: "critical".into(),
-                        title: "Windows Defender Real-Time Protection Disabled".into(),
-                        description: "Windows Defender real-time scanning is off. The system is vulnerable to live threats.".into(),
-                        remediation: Some("Open Windows Security > Virus & threat protection > Turn on Real-time protection.".into()),
+                        check_name: "pending_windows_updates".into(),
+                        severity: "pass".into(),
+                        title: "Windows Updates Current".into(),
+                        description: "No pending Windows updates detected.".into(),
+                        remediation: None,
                         cve_ids: None,
                         raw_data: None,
                     });
-                }
-            }
-
-            // Check Windows Update status
-            let updates = Command::new("powershell")
-                .args(["-Command", r"(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().SearchUpdates('IsInstalled=0').Count"])
-                .output();
-            if let Ok(output) = updates {
-                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if let Ok(pending) = stdout.parse::<i64>() {
-                    if pending > 0 {
-                        findings.push(FindingInput {
-                            category: "misconfig".into(),
-                            check_name: "pending_windows_updates".into(),
-                            severity: "warning".into(),
-                            title: format!("{} Pending Windows Updates", pending),
-                            description: "Uninstalled updates leave known vulnerabilities unpatched.".into(),
-                            remediation: Some("Run Windows Update: Settings > Windows Update > Check for updates.".into()),
-                            cve_ids: None,
-                            raw_data: Some(serde_json::json!({"pending": pending})),
-                        });
-                    } else {
-                        findings.push(FindingInput {
-                            category: "misconfig".into(),
-                            check_name: "pending_windows_updates".into(),
-                            severity: "pass".into(),
-                            title: "Windows Updates Current".into(),
-                            description: "No pending Windows updates detected.".into(),
-                            remediation: None,
-                            cve_ids: None,
-                            raw_data: None,
-                        });
-                    }
                 }
             }
 
             // Check Guest account status
-            let guest = Command::new("powershell")
-                .args(["-Command", r"Get-LocalUser -Name 'Guest' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Enabled"])
-                .output();
-            if let Ok(output) = guest {
-                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if stdout == "True" {
-                    findings.push(FindingInput {
-                        category: "misconfig".into(),
-                        check_name: "guest_account_enabled".into(),
-                        severity: "warning".into(),
-                        title: "Guest Account Enabled".into(),
-                        description: "The Guest account allows unauthenticated access. Disable if not needed.".into(),
-                        remediation: Some("Disable: net user Guest /active:no".into()),
-                        cve_ids: None,
-                        raw_data: None,
-                    });
-                }
+            let stdout = run_cmd_hidden("powershell", &[
+                "-Command",
+                r"Get-LocalUser -Name 'Guest' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Enabled",
+            ]);
+            if stdout == "True" {
+                findings.push(FindingInput {
+                    category: "misconfig".into(),
+                    check_name: "guest_account_enabled".into(),
+                    severity: "warning".into(),
+                    title: "Guest Account Enabled".into(),
+                    description: "The Guest account allows unauthenticated access. Disable if not needed.".into(),
+                    remediation: Some("Disable: net user Guest /active:no".into()),
+                    cve_ids: None,
+                    raw_data: None,
+                });
             }
         }
 
@@ -887,7 +877,7 @@ fn scan_network() -> Result<Vec<FindingInput>> {
             }
         }
         OsType::Windows => {
-            let output = Command::new("powershell")
+            let output = hidden_command("powershell")
                 .args(["-Command", r"Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object {$_.PromiscuousMode -eq $true} | Select-Object -ExpandProperty Name"])
                 .output();
             if let Ok(output) = output {
@@ -1016,7 +1006,7 @@ fn scan_network() -> Result<Vec<FindingInput>> {
     // ── DNS server exposure (cross-platform) ──
     match current_os() {
         OsType::Windows => {
-            let output = Command::new("powershell")
+            let output = hidden_command("powershell")
                 .args(["-Command", r"Get-DnsClientServerAddress | Select-Object -ExpandProperty ServerAddresses | Where-Object {$_ -match '^\d'} | Select-Object -First 5"])
                 .output();
             if let Ok(output) = output {
@@ -1427,7 +1417,7 @@ fn scan_passwords() -> Result<Vec<FindingInput>> {
         }
         OsType::Windows => {
             // Check password policy via PowerShell
-            if let Ok(output) = std::process::Command::new("powershell")
+            if let Ok(output) = hidden_command("powershell")
                 .args(["-Command", "net accounts"])
                 .output()
             {
@@ -1483,7 +1473,7 @@ fn scan_passwords() -> Result<Vec<FindingInput>> {
             }
 
             // Check for accounts with no password required
-            if let Ok(output) = std::process::Command::new("powershell")
+            if let Ok(output) = hidden_command("powershell")
                 .args(["-Command", "Get-LocalUser | Where-Object {$_.PasswordRequired -eq $false} | Select-Object -ExpandProperty Name"])
                 .output()
             {
@@ -1504,7 +1494,7 @@ fn scan_passwords() -> Result<Vec<FindingInput>> {
             }
 
             // Check for accounts with password never expires
-            if let Ok(output) = std::process::Command::new("powershell")
+            if let Ok(output) = hidden_command("powershell")
                 .args(["-Command", "Get-LocalUser | Where-Object {$_.PasswordNeverExpires -eq $true} | Select-Object -ExpandProperty Name"])
                 .output()
             {
@@ -1853,7 +1843,7 @@ fn scan_general() -> Result<Vec<FindingInput>> {
         }
         OsType::Windows => {
             // Check for pending Windows updates (same as misconfig check)
-            if let Ok(output) = std::process::Command::new("powershell")
+            if let Ok(output) = hidden_command("powershell")
                 .args(["-Command", r"(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().SearchUpdates('IsInstalled=0').Count"])
                 .output()
             {
@@ -1875,7 +1865,7 @@ fn scan_general() -> Result<Vec<FindingInput>> {
             }
 
             // Check core dumps (Windows Error Reporting LocalDumps)
-            if let Ok(output) = std::process::Command::new("powershell")
+            if let Ok(output) = hidden_command("powershell")
                 .args(["-Command", r"Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps'"])
                 .output()
             {
@@ -1895,7 +1885,7 @@ fn scan_general() -> Result<Vec<FindingInput>> {
             }
 
             // Check admin accounts
-            if let Ok(output) = std::process::Command::new("powershell")
+            if let Ok(output) = hidden_command("powershell")
                 .args(["-Command", "Get-LocalGroupMember -Group Administrators | Select-Object -ExpandProperty Name"])
                 .output()
             {
