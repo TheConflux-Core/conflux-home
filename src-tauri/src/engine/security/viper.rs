@@ -639,6 +639,17 @@ fn scan_misconfig() -> Result<Vec<FindingInput>> {
                     cve_ids: None,
                     raw_data: Some(serde_json::json!({"product": product_name})),
                 });
+            } else {
+                findings.push(FindingInput {
+                    category: "misconfig".into(),
+                    check_name: "windows_firewall".into(),
+                    severity: "pass".into(),
+                    title: "Windows Firewall Enabled".into(),
+                    description: format!("{} is active.", product_name),
+                    remediation: None,
+                    cve_ids: None,
+                    raw_data: Some(serde_json::json!({"product": product_name})),
+                });
             }
 
             // Check if RDP is enabled
@@ -657,6 +668,17 @@ fn scan_misconfig() -> Result<Vec<FindingInput>> {
                         remediation: Some("Disable RDP if not needed, or enforce NLA and strong passwords.".into()),
                         cve_ids: None,
                         raw_data: Some(serde_json::json!({"rdp_enabled": true})),
+                    });
+                } else {
+                    findings.push(FindingInput {
+                        category: "misconfig".into(),
+                        check_name: "rdp_enabled".into(),
+                        severity: "pass".into(),
+                        title: "Remote Desktop (RDP) Disabled".into(),
+                        description: "RDP is not enabled. Attack surface reduced.".into(),
+                        remediation: None,
+                        cve_ids: None,
+                        raw_data: None,
                     });
                 }
             }
@@ -677,6 +699,101 @@ fn scan_misconfig() -> Result<Vec<FindingInput>> {
                         remediation: Some("Enable UAC via Control Panel > User Accounts > User Accounts > Change UAC settings".into()),
                         cve_ids: None,
                         raw_data: Some(serde_json::json!({"uac_enabled": false})),
+                    });
+                } else {
+                    findings.push(FindingInput {
+                        category: "misconfig".into(),
+                        check_name: "uac_disabled".into(),
+                        severity: "pass".into(),
+                        title: "UAC Enabled".into(),
+                        description: "User Account Control is active, limiting application privileges.".into(),
+                        remediation: None,
+                        cve_ids: None,
+                        raw_data: None,
+                    });
+                }
+            }
+
+            // Check Windows Defender real-time protection
+            let defender = Command::new("powershell")
+                .args(["-Command", r"Get-MpComputerStatus | Select-Object -ExpandProperty RealTimeProtectionEnabled"])
+                .output();
+            if let Ok(output) = defender {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if stdout == "True" {
+                    findings.push(FindingInput {
+                        category: "misconfig".into(),
+                        check_name: "defender_realtime".into(),
+                        severity: "pass".into(),
+                        title: "Windows Defender Real-Time Protection Active".into(),
+                        description: "Windows Defender is actively monitoring for threats.".into(),
+                        remediation: None,
+                        cve_ids: None,
+                        raw_data: None,
+                    });
+                } else {
+                    findings.push(FindingInput {
+                        category: "misconfig".into(),
+                        check_name: "defender_realtime".into(),
+                        severity: "critical".into(),
+                        title: "Windows Defender Real-Time Protection Disabled".into(),
+                        description: "Windows Defender real-time scanning is off. The system is vulnerable to live threats.".into(),
+                        remediation: Some("Open Windows Security > Virus & threat protection > Turn on Real-time protection.".into()),
+                        cve_ids: None,
+                        raw_data: None,
+                    });
+                }
+            }
+
+            // Check Windows Update status
+            let updates = Command::new("powershell")
+                .args(["-Command", r"(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().SearchUpdates('IsInstalled=0').Count"])
+                .output();
+            if let Ok(output) = updates {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if let Ok(pending) = stdout.parse::<i64>() {
+                    if pending > 0 {
+                        findings.push(FindingInput {
+                            category: "misconfig".into(),
+                            check_name: "pending_windows_updates".into(),
+                            severity: "warning".into(),
+                            title: format!("{} Pending Windows Updates", pending),
+                            description: "Uninstalled updates leave known vulnerabilities unpatched.".into(),
+                            remediation: Some("Run Windows Update: Settings > Windows Update > Check for updates.".into()),
+                            cve_ids: None,
+                            raw_data: Some(serde_json::json!({"pending": pending})),
+                        });
+                    } else {
+                        findings.push(FindingInput {
+                            category: "misconfig".into(),
+                            check_name: "pending_windows_updates".into(),
+                            severity: "pass".into(),
+                            title: "Windows Updates Current".into(),
+                            description: "No pending Windows updates detected.".into(),
+                            remediation: None,
+                            cve_ids: None,
+                            raw_data: None,
+                        });
+                    }
+                }
+            }
+
+            // Check Guest account status
+            let guest = Command::new("powershell")
+                .args(["-Command", r"Get-LocalUser -Name 'Guest' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Enabled"])
+                .output();
+            if let Ok(output) = guest {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if stdout == "True" {
+                    findings.push(FindingInput {
+                        category: "misconfig".into(),
+                        check_name: "guest_account_enabled".into(),
+                        severity: "warning".into(),
+                        title: "Guest Account Enabled".into(),
+                        description: "The Guest account allows unauthenticated access. Disable if not needed.".into(),
+                        remediation: Some("Disable: net user Guest /active:no".into()),
+                        cve_ids: None,
+                        raw_data: None,
                     });
                 }
             }
@@ -702,67 +819,111 @@ fn scan_misconfig() -> Result<Vec<FindingInput>> {
 fn scan_network() -> Result<Vec<FindingInput>> {
     let mut findings = Vec::new();
 
-    // Check for services listening on 0.0.0.0 (exposed to all interfaces)
-    let output = Command::new("ss")
-        .args(["-tlnp"])
-        .output()
-        .or_else(|_| Command::new("netstat").args(["-tlnp"]).output());
+    // ── Exposed services (cross-platform via platform::get_listening_ports) ──
+    let ports = get_listening_ports();
+    let exposed: Vec<_> = ports
+        .iter()
+        .filter(|(_, _, _, bind)| {
+            bind.starts_with("0.0.0.0:") || bind.starts_with("*:") || bind == "0.0.0.0"
+        })
+        .collect();
 
-    if let Ok(output) = output {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let exposed: Vec<&str> = stdout
-            .lines()
-            .filter(|l| {
-                l.contains("LISTEN")
-                    && (l.contains("0.0.0.0:") || l.contains("*:"))
-                    && !l.contains("127.0.0.1")
-                    && !l.contains("::1")
-            })
-            .collect();
-
-        if !exposed.is_empty() {
-            findings.push(FindingInput {
-                category: "network".into(),
-                check_name: "exposed_services".into(),
-                severity: "warning".into(),
-                title: format!(
-                    "{} Services Listening on All Interfaces",
-                    exposed.len()
-                ),
-                description: "Services bound to 0.0.0.0 or * are accessible from any network interface, including external.".into(),
-                remediation: Some("Bind services to 127.0.0.1 if only local access is needed. Use firewall rules for external services.".into()),
-                cve_ids: None,
-                raw_data: Some(serde_json::json!({
-                    "count": exposed.len(),
-                    "services": exposed.iter().take(15).map(|l| l.trim().to_string()).collect::<Vec<_>>(),
-                })),
-            });
-        }
+    if !exposed.is_empty() {
+        findings.push(FindingInput {
+            category: "network".into(),
+            check_name: "exposed_services".into(),
+            severity: "warning".into(),
+            title: format!("{} Services Listening on All Interfaces", exposed.len()),
+            description: "Services bound to 0.0.0.0 or * are accessible from any network interface, including external.".into(),
+            remediation: Some("Bind services to 127.0.0.1 if only local access is needed. Use firewall rules for external services.".into()),
+            cve_ids: None,
+            raw_data: Some(serde_json::json!({
+                "count": exposed.len(),
+                "services": exposed.iter().take(15).map(|(port, proto, proc, bind)| format!("{} {} {}", proc, proto, bind)).collect::<Vec<_>>(),
+            })),
+        });
+    } else {
+        findings.push(FindingInput {
+            category: "network".into(),
+            check_name: "exposed_services".into(),
+            severity: "pass".into(),
+            title: "No Services Exposed on All Interfaces".into(),
+            description: "All listening services are bound to localhost or specific interfaces.".into(),
+            remediation: None,
+            cve_ids: None,
+            raw_data: None,
+        });
     }
 
-    // Check for promiscuous mode interfaces
-    if let Ok(output) = Command::new("ip").args(["link"]).output() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let promisc: Vec<&str> = stdout.lines().filter(|l| l.contains("PROMISC")).collect();
-
-        if !promisc.is_empty() {
+    // ── Promiscuous mode interfaces (platform-specific) ──
+    match current_os() {
+        OsType::Linux => {
+            if let Ok(output) = Command::new("ip").args(["link"]).output() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let promisc: Vec<&str> = stdout.lines().filter(|l| l.contains("PROMISC")).collect();
+                if !promisc.is_empty() {
+                    findings.push(FindingInput {
+                        category: "network".into(),
+                        check_name: "promiscuous_mode".into(),
+                        severity: "critical".into(),
+                        title: "Network Interface in Promiscuous Mode".into(),
+                        description: "A network interface is in PROMISC mode, capturing all traffic (possible sniffing/packet capture).".into(),
+                        remediation: Some("Investigate: ip link show. Disable promiscuous mode if not intentionally capturing.".into()),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"interfaces": promisc.iter().map(|l| l.trim().to_string()).collect::<Vec<_>>()})),
+                    });
+                } else {
+                    findings.push(FindingInput {
+                        category: "network".into(),
+                        check_name: "promiscuous_mode".into(),
+                        severity: "pass".into(),
+                        title: "No Promiscuous Mode Interfaces".into(),
+                        description: "No network interfaces are in promiscuous mode.".into(),
+                        remediation: None,
+                        cve_ids: None,
+                        raw_data: None,
+                    });
+                }
+            }
+        }
+        OsType::Windows => {
+            let output = Command::new("powershell")
+                .args(["-Command", r"Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object {$_.PromiscuousMode -eq $true} | Select-Object -ExpandProperty Name"])
+                .output();
+            if let Ok(output) = output {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !stdout.is_empty() {
+                    findings.push(FindingInput {
+                        category: "network".into(),
+                        check_name: "promiscuous_mode".into(),
+                        severity: "critical".into(),
+                        title: "Network Adapter in Promiscuous Mode".into(),
+                        description: format!("Adapter '{}' is capturing all traffic.", stdout),
+                        remediation: Some("Investigate why promiscuous mode is active. Disable if not intentional.".into()),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"adapter": stdout})),
+                    });
+                } else {
+                    findings.push(FindingInput {
+                        category: "network".into(),
+                        check_name: "promiscuous_mode".into(),
+                        severity: "pass".into(),
+                        title: "No Promiscuous Mode Adapters".into(),
+                        description: "No network adapters are in promiscuous mode.".into(),
+                        remediation: None,
+                        cve_ids: None,
+                        raw_data: None,
+                    });
+                }
+            }
+        }
+        _ => {
             findings.push(FindingInput {
                 category: "network".into(),
                 check_name: "promiscuous_mode".into(),
-                severity: "critical".into(),
-                title: "Network Interface in Promiscuous Mode".into(),
-                description: "A network interface is in PROMISC mode, capturing all traffic (possible sniffing/packet capture).".into(),
-                remediation: Some("Investigate: ip link show. Disable promiscuous mode if not intentionally capturing.".into()),
-                cve_ids: None,
-                raw_data: Some(serde_json::json!({"interfaces": promisc.iter().map(|l| l.trim().to_string()).collect::<Vec<_>>()})),
-            });
-        } else {
-            findings.push(FindingInput {
-                category: "network".into(),
-                check_name: "promiscuous_mode".into(),
-                severity: "pass".into(),
-                title: "No Promiscuous Mode Interfaces".into(),
-                description: "No network interfaces are in promiscuous mode.".into(),
+                severity: "info".into(),
+                title: "Promiscuous Mode Check Unavailable".into(),
+                description: "Platform-specific promiscuous mode check not implemented.".into(),
                 remediation: None,
                 cve_ids: None,
                 raw_data: None,
@@ -770,8 +931,12 @@ fn scan_network() -> Result<Vec<FindingInput>> {
         }
     }
 
-    // Check /etc/hosts for suspicious entries
-    if let Ok(content) = std::fs::read_to_string("/etc/hosts") {
+    // ── Suspicious hosts entries (cross-platform) ──
+    let hosts_path = match current_os() {
+        OsType::Windows => r"C:\Windows\System32\drivers\etc\hosts",
+        _ => "/etc/hosts",
+    };
+    if let Ok(content) = std::fs::read_to_string(hosts_path) {
         let suspicious_patterns = ["pastebin.com", "ngrok.io", "serveo.net", "burpcollaborator"];
         let mut found = Vec::new();
         for line in content.lines() {
@@ -787,62 +952,340 @@ fn scan_network() -> Result<Vec<FindingInput>> {
                 category: "network".into(),
                 check_name: "suspicious_hosts_entries".into(),
                 severity: "critical".into(),
-                title: "Suspicious Entries in /etc/hosts".into(),
-                description:
-                    "/etc/hosts contains entries pointing to known C2/exfiltration domains.".into(),
-                remediation: Some(
-                    "Remove suspicious lines from /etc/hosts. Investigate how they were added."
-                        .into(),
-                ),
+                title: format!("Suspicious Entries in {}", hosts_path),
+                description: format!("{} contains entries pointing to known C2/exfiltration domains.", hosts_path),
+                remediation: Some(format!("Remove suspicious lines from {}. Investigate how they were added.", hosts_path)),
                 cve_ids: None,
                 raw_data: Some(serde_json::json!({"entries": found})),
+            });
+        } else {
+            findings.push(FindingInput {
+                category: "network".into(),
+                check_name: "suspicious_hosts_entries".into(),
+                severity: "pass".into(),
+                title: "Hosts File Clean".into(),
+                description: format!("No suspicious entries in {}.", hosts_path),
+                remediation: None,
+                cve_ids: None,
+                raw_data: None,
             });
         }
     }
 
-    // Check for IP forwarding
-    for iface in ["all", "default"] {
-        let path = format!("/proc/sys/net/ipv4/conf/{}/ip_forward", iface);
-        if let Ok(val) = std::fs::read_to_string(&path) {
-            if val.trim() == "1" {
+    // ── IP forwarding (Linux only) ──
+    if current_os() == OsType::Linux {
+        for iface in ["all", "default"] {
+            let path = format!("/proc/sys/net/ipv4/conf/{}/ip_forward", iface);
+            if let Ok(val) = std::fs::read_to_string(&path) {
+                if val.trim() == "1" {
+                    findings.push(FindingInput {
+                        category: "network".into(),
+                        check_name: format!("ip_forwarding_{}", iface),
+                        severity: "info".into(),
+                        title: "IP Forwarding Enabled".into(),
+                        description: format!("net.ipv4.conf.{}.ip_forward=1 — this machine routes packets between interfaces.", iface),
+                        remediation: Some("Disable if not a router: echo 0 | sudo tee /proc/sys/net/ipv4/conf/all/ip_forward".into()),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"iface": iface, "value": 1})),
+                    });
+                }
+            }
+        }
+
+        // Check for mDNS/Avahi (Linux only)
+        if let Ok(output) = Command::new("systemctl")
+            .args(["is-active", "avahi-daemon"])
+            .output()
+        {
+            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if stdout == "active" {
                 findings.push(FindingInput {
                     category: "network".into(),
-                    check_name: format!("ip_forwarding_{}", iface),
+                    check_name: "avahi_running".into(),
                     severity: "info".into(),
-                    title: "IP Forwarding Enabled".into(),
-                    description: format!(
-                        "net.ipv4.conf.{}.ip_forward=1 — this machine routes packets between interfaces.",
-                        iface
-                    ),
-                    remediation: Some(
-                        "Disable if not a router: echo 0 | sudo tee /proc/sys/net/ipv4/conf/all/ip_forward"
-                            .into(),
-                    ),
+                    title: "mDNS/Avahi Discovery Active".into(),
+                    description: "avahi-daemon is running, advertising services on the local network via mDNS.".into(),
+                    remediation: Some("Disable if not needed: sudo systemctl disable --now avahi-daemon".into()),
                     cve_ids: None,
-                    raw_data: Some(serde_json::json!({"iface": iface, "value": 1})),
+                    raw_data: None,
                 });
             }
         }
     }
 
-    // Check for mDNS/Avahi (local network discovery)
-    if let Ok(output) = Command::new("systemctl")
-        .args(["is-active", "avahi-daemon"])
-        .output()
-    {
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if stdout == "active" {
+    // ── DNS server exposure (cross-platform) ──
+    match current_os() {
+        OsType::Windows => {
+            let output = Command::new("powershell")
+                .args(["-Command", r"Get-DnsClientServerAddress | Select-Object -ExpandProperty ServerAddresses | Where-Object {$_ -match '^\d'} | Select-Object -First 5"])
+                .output();
+            if let Ok(output) = output {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                let dns_servers: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
+                // Flag if using non-standard DNS (not Google/Cloudflare/ISP)
+                let public_dns = ["8.8.8.8", "8.8.4.4", "1.1.1.1", "1.0.0.1", "9.9.9.9"];
+                let suspicious: Vec<&&str> = dns_servers.iter()
+                    .filter(|s| !public_dns.contains(s) && !s.starts_with("192.168.") && !s.starts_with("10."))
+                    .collect();
+                if !suspicious.is_empty() {
+                    findings.push(FindingInput {
+                        category: "network".into(),
+                        check_name: "custom_dns_servers".into(),
+                        severity: "info".into(),
+                        title: "Non-Standard DNS Servers Configured".into(),
+                        description: format!("DNS servers: {}", dns_servers.join(", ")),
+                        remediation: Some("Verify these DNS servers are trusted. Untrusted DNS can redirect traffic.".into()),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"servers": dns_servers})),
+                    });
+                }
+            }
+        }
+        OsType::Linux => {
+            if let Ok(content) = std::fs::read_to_string("/etc/resolv.conf") {
+                let dns_servers: Vec<&str> = content.lines()
+                    .filter(|l| l.starts_with("nameserver"))
+                    .filter_map(|l| l.split_whitespace().nth(1))
+                    .collect();
+                if !dns_servers.is_empty() {
+                    findings.push(FindingInput {
+                        category: "network".into(),
+                        check_name: "dns_servers".into(),
+                        severity: "info".into(),
+                        title: "DNS Configuration".into(),
+                        description: format!("DNS servers: {}", dns_servers.join(", ")),
+                        remediation: None,
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"servers": dns_servers})),
+                    });
+                }
+            }
+        }
+        _ => {}
+    }
+
+    Ok(findings)
+}
+
+fn scan_browser() -> Result<Vec<FindingInput>> {
+    let mut findings = Vec::new();
+
+    match current_os() {
+        OsType::Linux | OsType::MacOS => {
+            let home = match std::env::var("HOME") {
+                Ok(h) => h,
+                Err(_) => return Ok(findings),
+            };
+
+            // Check Firefox profiles for saved passwords (key4.db / logins.json)
+            let ff_base = format!("{}/.mozilla/firefox", home);
+            if let Ok(entries) = std::fs::read_dir(&ff_base) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_dir() {
+                        let logins = path.join("logins.json");
+                        if logins.exists() {
+                            // Check if passwords are stored
+                            if let Ok(content) = std::fs::read_to_string(&logins) {
+                                if content.contains("\"encryptedPassword\"") {
+                                    findings.push(FindingInput {
+                                        category: "browser".into(),
+                                        check_name: "firefox_saved_passwords".into(),
+                                        severity: "info".into(),
+                                        title: "Firefox Stores Saved Passwords".into(),
+                                        description: format!(
+                                            "Firefox profile {:?} has saved passwords. If master password is not set, they can be extracted.",
+                                            path.file_name().unwrap_or_default()
+                                        ),
+                                        remediation: Some(
+                                            "Set a Firefox master password: Settings > Privacy & Security > Use a Primary Password."
+                                                .into(),
+                                        ),
+                                        cve_ids: None,
+                                        raw_data: Some(serde_json::json!({"profile": path.to_string_lossy()})),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Check Chrome/Chromium for login data
+            let chrome_paths = [
+                format!("{}/.config/google-chrome/Default/Login Data", home),
+                format!("{}/.config/chromium/Default/Login Data", home),
+            ];
+            for path in &chrome_paths {
+                if std::path::Path::new(path).exists() {
+                    findings.push(FindingInput {
+                        category: "browser".into(),
+                        check_name: "chrome_saved_passwords".into(),
+                        severity: "info".into(),
+                        title: "Chrome/Chromium Stores Saved Passwords".into(),
+                        description: "Chrome/Chromium has a Login Data file with saved credentials.".into(),
+                        remediation: Some(
+                            "Use a dedicated password manager instead of browser-stored passwords.".into(),
+                        ),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"path": path})),
+                    });
+                }
+            }
+
+            // Check for browser extensions with excessive permissions
+            let ext_dirs = [
+                format!("{}/.config/google-chrome/Default/Extensions", home),
+                format!("{}/.config/chromium/Default/Extensions", home),
+                format!("{}/.mozilla/firefox", home),
+            ];
+            let mut ext_count = 0;
+            for dir in &ext_dirs {
+                if let Ok(entries) = std::fs::read_dir(dir) {
+                    for entry in entries.flatten() {
+                        if entry.path().is_dir() {
+                            ext_count += 1;
+                        }
+                    }
+                }
+            }
+            if ext_count > 15 {
+                findings.push(FindingInput {
+                    category: "browser".into(),
+                    check_name: "excessive_browser_extensions".into(),
+                    severity: "warning".into(),
+                    title: format!("{} Browser Extensions Installed", ext_count),
+                    description:
+                        "Many browser extensions increase the attack surface. Each extension has access to browsing data."
+                            .into(),
+                    remediation: Some(
+                        "Audit extensions: remove unused ones, review permissions of remaining.".into(),
+                    ),
+                    cve_ids: None,
+                    raw_data: Some(serde_json::json!({"count": ext_count})),
+                });
+            } else if ext_count > 0 {
+                findings.push(FindingInput {
+                    category: "browser".into(),
+                    check_name: "browser_extensions".into(),
+                    severity: "info".into(),
+                    title: format!("{} Browser Extensions Found", ext_count),
+                    description: "Browser extensions detected.".into(),
+                    remediation: None,
+                    cve_ids: None,
+                    raw_data: Some(serde_json::json!({"count": ext_count})),
+                });
+            }
+        }
+        OsType::Windows => {
+            let app_data = std::env::var("APPDATA").unwrap_or_default();
+            let local_app_data = std::env::var("LOCALAPPDATA").unwrap_or_default();
+
+            // Check Firefox profiles for saved passwords
+            let ff_base = format!(r"{}\Mozilla\Firefox\Profiles", app_data);
+            if let Ok(entries) = std::fs::read_dir(&ff_base) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_dir() {
+                        let logins = path.join("logins.json");
+                        if logins.exists() {
+                            if let Ok(content) = std::fs::read_to_string(&logins) {
+                                if content.contains("\"encryptedPassword\"") {
+                                    findings.push(FindingInput {
+                                        category: "browser".into(),
+                                        check_name: "firefox_saved_passwords".into(),
+                                        severity: "info".into(),
+                                        title: "Firefox Stores Saved Passwords".into(),
+                                        description: format!(
+                                            "Firefox profile {:?} has saved passwords.",
+                                            path.file_name().unwrap_or_default()
+                                        ),
+                                        remediation: Some(
+                                            "Set a Firefox master password: Settings > Privacy & Security > Use a Primary Password."
+                                                .into(),
+                                        ),
+                                        cve_ids: None,
+                                        raw_data: Some(serde_json::json!({"profile": path.to_string_lossy()})),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Check Chrome/Edge for login data
+            let browser_paths = [
+                format!(r"{}\Google\Chrome\User Data\Default\Login Data", local_app_data),
+                format!(r"{}\Microsoft\Edge\User Data\Default\Login Data", local_app_data),
+            ];
+            for path in &browser_paths {
+                if std::path::Path::new(path).exists() {
+                    let browser_name = if path.contains("Chrome") { "Chrome" } else { "Edge" };
+                    findings.push(FindingInput {
+                        category: "browser".into(),
+                        check_name: format!("{}_saved_passwords", browser_name.to_lowercase()),
+                        severity: "info".into(),
+                        title: format!("{} Stores Saved Passwords", browser_name),
+                        description: format!("{} has a Login Data file with saved credentials.", browser_name),
+                        remediation: Some(
+                            "Use a dedicated password manager instead of browser-stored passwords.".into(),
+                        ),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"path": path})),
+                    });
+                }
+            }
+
+            // Check for browser extensions
+            let ext_dirs = [
+                format!(r"{}\Google\Chrome\User Data\Default\Extensions", local_app_data),
+                format!(r"{}\Microsoft\Edge\User Data\Default\Extensions", local_app_data),
+            ];
+            let mut ext_count = 0;
+            for dir in &ext_dirs {
+                if let Ok(entries) = std::fs::read_dir(dir) {
+                    for entry in entries.flatten() {
+                        if entry.path().is_dir() {
+                            ext_count += 1;
+                        }
+                    }
+                }
+            }
+            if ext_count > 15 {
+                findings.push(FindingInput {
+                    category: "browser".into(),
+                    check_name: "excessive_browser_extensions".into(),
+                    severity: "warning".into(),
+                    title: format!("{} Browser Extensions Installed", ext_count),
+                    description: "Many browser extensions increase the attack surface.".into(),
+                    remediation: Some(
+                        "Audit extensions: remove unused ones, review permissions of remaining.".into(),
+                    ),
+                    cve_ids: None,
+                    raw_data: Some(serde_json::json!({"count": ext_count})),
+                });
+            } else if ext_count > 0 {
+                findings.push(FindingInput {
+                    category: "browser".into(),
+                    check_name: "browser_extensions".into(),
+                    severity: "info".into(),
+                    title: format!("{} Browser Extensions Found", ext_count),
+                    description: "Browser extensions detected.".into(),
+                    remediation: None,
+                    cve_ids: None,
+                    raw_data: Some(serde_json::json!({"count": ext_count})),
+                });
+            }
+        }
+        _ => {
             findings.push(FindingInput {
-                category: "network".into(),
-                check_name: "avahi_running".into(),
+                category: "browser".into(),
+                check_name: "browser_unknown_platform".into(),
                 severity: "info".into(),
-                title: "mDNS/Avahi Discovery Active".into(),
-                description:
-                    "avahi-daemon is running, advertising services on the local network via mDNS."
-                        .into(),
-                remediation: Some(
-                    "Disable if not needed: sudo systemctl disable --now avahi-daemon".into(),
-                ),
+                title: "Browser Check Unavailable".into(),
+                description: "Platform-specific browser check not implemented.".into(),
+                remediation: None,
                 cve_ids: None,
                 raw_data: None,
             });
@@ -852,247 +1295,251 @@ fn scan_network() -> Result<Vec<FindingInput>> {
     Ok(findings)
 }
 
-fn scan_browser() -> Result<Vec<FindingInput>> {
-    let mut findings = Vec::new();
-
-    let home = match std::env::var("HOME") {
-        Ok(h) => h,
-        Err(_) => return Ok(findings),
-    };
-
-    // Check Firefox profiles for saved passwords (key4.db / logins.json)
-    let ff_base = format!("{}/.mozilla/firefox", home);
-    if let Ok(entries) = std::fs::read_dir(&ff_base) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                let logins = path.join("logins.json");
-                if logins.exists() {
-                    // Check if passwords are stored
-                    if let Ok(content) = std::fs::read_to_string(&logins) {
-                        if content.contains("\"encryptedPassword\"") {
-                            findings.push(FindingInput {
-                                category: "browser".into(),
-                                check_name: "firefox_saved_passwords".into(),
-                                severity: "info".into(),
-                                title: "Firefox Stores Saved Passwords".into(),
-                                description: format!(
-                                    "Firefox profile {:?} has saved passwords. If master password is not set, they can be extracted.",
-                                    path.file_name().unwrap_or_default()
-                                ),
-                                remediation: Some(
-                                    "Set a Firefox master password: Settings > Privacy & Security > Use a Primary Password."
-                                        .into(),
-                                ),
-                                cve_ids: None,
-                                raw_data: Some(serde_json::json!({"profile": path.to_string_lossy()})),
-                            });
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Check Chrome/Chromium for login data
-    let chrome_paths = [
-        format!("{}/.config/google-chrome/Default/Login Data", home),
-        format!("{}/.config/chromium/Default/Login Data", home),
-    ];
-    for path in &chrome_paths {
-        if std::path::Path::new(path).exists() {
-            findings.push(FindingInput {
-                category: "browser".into(),
-                check_name: "chrome_saved_passwords".into(),
-                severity: "info".into(),
-                title: "Chrome/Chromium Stores Saved Passwords".into(),
-                description: "Chrome/Chromium has a Login Data file with saved credentials.".into(),
-                remediation: Some(
-                    "Use a dedicated password manager instead of browser-stored passwords.".into(),
-                ),
-                cve_ids: None,
-                raw_data: Some(serde_json::json!({"path": path})),
-            });
-        }
-    }
-
-    // Check for browser extensions with excessive permissions
-    let ext_dirs = [
-        format!("{}/.config/google-chrome/Default/Extensions", home),
-        format!("{}/.config/chromium/Default/Extensions", home),
-        format!("{}/.mozilla/firefox", home),
-    ];
-    let mut ext_count = 0;
-    for dir in &ext_dirs {
-        if let Ok(entries) = std::fs::read_dir(dir) {
-            for entry in entries.flatten() {
-                if entry.path().is_dir() {
-                    ext_count += 1;
-                }
-            }
-        }
-    }
-    if ext_count > 15 {
-        findings.push(FindingInput {
-            category: "browser".into(),
-            check_name: "excessive_browser_extensions".into(),
-            severity: "warning".into(),
-            title: format!("{} Browser Extensions Installed", ext_count),
-            description:
-                "Many browser extensions increase the attack surface. Each extension has access to browsing data."
-                    .into(),
-            remediation: Some(
-                "Audit extensions: remove unused ones, review permissions of remaining.".into(),
-            ),
-            cve_ids: None,
-            raw_data: Some(serde_json::json!({"count": ext_count})),
-        });
-    } else if ext_count > 0 {
-        findings.push(FindingInput {
-            category: "browser".into(),
-            check_name: "browser_extensions".into(),
-            severity: "info".into(),
-            title: format!("{} Browser Extensions Found", ext_count),
-            description: "Browser extensions detected.".into(),
-            remediation: None,
-            cve_ids: None,
-            raw_data: Some(serde_json::json!({"count": ext_count})),
-        });
-    }
-
-    Ok(findings)
-}
-
 fn scan_passwords() -> Result<Vec<FindingInput>> {
     let mut findings = Vec::new();
 
-    // Check /etc/shadow for accounts with no password
-    if let Ok(content) = std::fs::read_to_string("/etc/shadow") {
-        let no_password: Vec<&str> = content
-            .lines()
-            .filter(|l| {
-                let parts: Vec<&str> = l.split(':').collect();
-                parts.len() > 2 && (parts[1].is_empty() || parts[1] == "!")
-            })
-            .collect();
+    match current_os() {
+        OsType::Linux => {
+            // Check /etc/shadow for accounts with no password
+            if let Ok(content) = std::fs::read_to_string("/etc/shadow") {
+                let no_password: Vec<&str> = content
+                    .lines()
+                    .filter(|l| {
+                        let parts: Vec<&str> = l.split(':').collect();
+                        parts.len() > 2 && (parts[1].is_empty() || parts[1] == "!")
+                    })
+                    .collect();
 
-        if !no_password.is_empty() {
-            let names: Vec<&str> = no_password
-                .iter()
-                .map(|l| l.split(':').next().unwrap_or("?"))
-                .collect();
-            findings.push(FindingInput {
-                category: "passwords".into(),
-                check_name: "accounts_no_password".into(),
-                severity: "warning".into(),
-                title: format!(
-                    "{} Accounts Without Passwords",
-                    no_password.len()
-                ),
-                description: format!(
-                    "These accounts have no password set: {}. Locked system accounts are normal.",
-                    names.join(", ")
-                ),
-                remediation: Some(
-                    "Lock unused accounts: sudo passwd -l <user>. Ensure real accounts have passwords."
-                        .into(),
-                ),
-                cve_ids: None,
-                raw_data: Some(serde_json::json!({"accounts": names})),
-            });
-        }
-    }
+                if !no_password.is_empty() {
+                    let names: Vec<&str> = no_password
+                        .iter()
+                        .map(|l| l.split(':').next().unwrap_or("?"))
+                        .collect();
+                    findings.push(FindingInput {
+                        category: "passwords".into(),
+                        check_name: "accounts_no_password".into(),
+                        severity: "warning".into(),
+                        title: format!(
+                            "{} Accounts Without Passwords",
+                            no_password.len()
+                        ),
+                        description: format!(
+                            "These accounts have no password set: {}. Locked system accounts are normal.",
+                            names.join(", ")
+                        ),
+                        remediation: Some(
+                            "Lock unused accounts: sudo passwd -l <user>. Ensure real accounts have passwords."
+                                .into(),
+                        ),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"accounts": names})),
+                    });
+                }
+            }
 
-    // Check for password reuse indicators (same hash in /etc/shadow)
-    if let Ok(content) = std::fs::read_to_string("/etc/shadow") {
-        use std::collections::HashMap;
-        let mut hash_map: HashMap<String, Vec<String>> = HashMap::new();
-        for line in content.lines() {
-            let parts: Vec<&str> = line.split(':').collect();
-            if parts.len() > 2 {
-                let hash = parts[1].to_string();
-                let user = parts[0].to_string();
-                if !hash.is_empty() && hash != "!" && hash != "*" && hash != "!!" {
-                    hash_map.entry(hash).or_default().push(user);
+            // Check for password reuse indicators (same hash in /etc/shadow)
+            if let Ok(content) = std::fs::read_to_string("/etc/shadow") {
+                use std::collections::HashMap;
+                let mut hash_map: HashMap<String, Vec<String>> = HashMap::new();
+                for line in content.lines() {
+                    let parts: Vec<&str> = line.split(':').collect();
+                    if parts.len() > 2 {
+                        let hash = parts[1].to_string();
+                        let user = parts[0].to_string();
+                        if !hash.is_empty() && hash != "!" && hash != "*" && hash != "!!" {
+                            hash_map.entry(hash).or_default().push(user);
+                        }
+                    }
+                }
+                let reused: Vec<(&String, &Vec<String>)> = hash_map
+                    .iter()
+                    .filter(|(_, users)| users.len() > 1)
+                    .collect();
+
+                if !reused.is_empty() {
+                    findings.push(FindingInput {
+                        category: "passwords".into(),
+                        check_name: "password_reuse".into(),
+                        severity: "critical".into(),
+                        title: "Password Reuse Detected".into(),
+                        description: format!(
+                            "{} groups of accounts share the same password hash.",
+                            reused.len()
+                        ),
+                        remediation: Some(
+                            "Change passwords so each account has a unique password.".into(),
+                        ),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({
+                            "reused_groups": reused.iter().map(|(_, users)| users.clone()).collect::<Vec<_>>()
+                        })),
+                    });
+                }
+            }
+
+            // Check for password aging policies
+            if let Ok(content) = std::fs::read_to_string("/etc/login.defs") {
+                let mut max_days = 0i64;
+                let mut min_days = 0i64;
+                for line in content.lines() {
+                    let trimmed = line.trim();
+                    if trimmed.starts_with("PASS_MAX_DAYS") {
+                        max_days = trimmed
+                            .split_whitespace()
+                            .last()
+                            .unwrap_or("0")
+                            .parse()
+                            .unwrap_or(0);
+                    }
+                    if trimmed.starts_with("PASS_MIN_DAYS") {
+                        min_days = trimmed
+                            .split_whitespace()
+                            .last()
+                            .unwrap_or("0")
+                            .parse()
+                            .unwrap_or(0);
+                    }
+                }
+                if max_days == 0 || max_days > 365 {
+                    findings.push(FindingInput {
+                        category: "passwords".into(),
+                        check_name: "password_no_aging".into(),
+                        severity: "warning".into(),
+                        title: "No Password Expiration Policy".into(),
+                        description: format!(
+                            "PASS_MAX_DAYS is {} — passwords never expire or expire after {} days.",
+                            if max_days == 0 {
+                                "unlimited".into()
+                            } else {
+                                max_days.to_string()
+                            },
+                            max_days
+                        ),
+                        remediation: Some(
+                            "Set PASS_MAX_DAYS 90 in /etc/login.defs to enforce periodic password changes."
+                                .into(),
+                        ),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"max_days": max_days, "min_days": min_days})),
+                    });
                 }
             }
         }
-        let reused: Vec<(&String, &Vec<String>)> = hash_map
-            .iter()
-            .filter(|(_, users)| users.len() > 1)
-            .collect();
+        OsType::Windows => {
+            // Check password policy via PowerShell
+            if let Ok(output) = std::process::Command::new("powershell")
+                .args(["-Command", "net accounts"])
+                .output()
+            {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let mut min_length = 0i64;
+                let mut max_age = 0i64;
+                let mut lockout_threshold = 0i64;
+                
+                for line in stdout.lines() {
+                    let lower = line.to_lowercase();
+                    if lower.contains("minimum password length") {
+                        if let Some(val) = line.split(':').last() {
+                            min_length = val.trim().parse().unwrap_or(0);
+                        }
+                    }
+                    if lower.contains("maximum password age") {
+                        if let Some(val) = line.split(':').last() {
+                            max_age = val.trim().parse().unwrap_or(0);
+                        }
+                    }
+                    if lower.contains("lockout threshold") {
+                        if let Some(val) = line.split(':').last() {
+                            lockout_threshold = val.trim().parse().unwrap_or(0);
+                        }
+                    }
+                }
+                
+                if min_length < 8 {
+                    findings.push(FindingInput {
+                        category: "passwords".into(),
+                        check_name: "windows_weak_password_policy".into(),
+                        severity: "warning".into(),
+                        title: format!("Minimum Password Length Too Short ({})", min_length),
+                        description: "Password policy allows very short passwords.".into(),
+                        remediation: Some("Set minimum password length to 8+: net accounts /minpwlen:8".into()),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"min_length": min_length})),
+                    });
+                }
+                
+                if lockout_threshold == 0 {
+                    findings.push(FindingInput {
+                        category: "passwords".into(),
+                        check_name: "windows_no_lockout".into(),
+                        severity: "warning".into(),
+                        title: "No Account Lockout Policy".into(),
+                        description: "Accounts are never locked after failed login attempts. This enables brute-force attacks.".into(),
+                        remediation: Some("Set lockout threshold: net accounts /lockoutthreshold:5".into()),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"lockout_threshold": lockout_threshold})),
+                    });
+                }
+            }
 
-        if !reused.is_empty() {
+            // Check for accounts with no password required
+            if let Ok(output) = std::process::Command::new("powershell")
+                .args(["-Command", "Get-LocalUser | Where-Object {$_.PasswordRequired -eq $false} | Select-Object -ExpandProperty Name"])
+                .output()
+            {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let no_pw_accounts: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
+                if !no_pw_accounts.is_empty() {
+                    findings.push(FindingInput {
+                        category: "passwords".into(),
+                        check_name: "windows_accounts_no_password".into(),
+                        severity: "critical".into(),
+                        title: format!("{} Accounts Without Passwords", no_pw_accounts.len()),
+                        description: format!("These accounts don't require a password: {}", no_pw_accounts.join(", ")),
+                        remediation: Some("Set passwords for all accounts or disable them.".into()),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"accounts": no_pw_accounts})),
+                    });
+                }
+            }
+
+            // Check for accounts with password never expires
+            if let Ok(output) = std::process::Command::new("powershell")
+                .args(["-Command", "Get-LocalUser | Where-Object {$_.PasswordNeverExpires -eq $true} | Select-Object -ExpandProperty Name"])
+                .output()
+            {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let never_expires: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
+                if !never_expires.is_empty() {
+                    findings.push(FindingInput {
+                        category: "passwords".into(),
+                        check_name: "windows_password_never_expires".into(),
+                        severity: "info".into(),
+                        title: format!("{} Accounts With Password Never Expires", never_expires.len()),
+                        description: format!("These accounts have non-expiring passwords: {}", never_expires.join(", ")),
+                        remediation: None,
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"accounts": never_expires})),
+                    });
+                }
+            }
+        }
+        _ => {
             findings.push(FindingInput {
                 category: "passwords".into(),
-                check_name: "password_reuse".into(),
-                severity: "critical".into(),
-                title: "Password Reuse Detected".into(),
-                description: format!(
-                    "{} groups of accounts share the same password hash.",
-                    reused.len()
-                ),
-                remediation: Some(
-                    "Change passwords so each account has a unique password.".into(),
-                ),
+                check_name: "passwords_unknown_platform".into(),
+                severity: "info".into(),
+                title: "Password Check Unavailable".into(),
+                description: "Platform-specific password check not implemented.".into(),
+                remediation: None,
                 cve_ids: None,
-                raw_data: Some(serde_json::json!({
-                    "reused_groups": reused.iter().map(|(_, users)| users.clone()).collect::<Vec<_>>()
-                })),
-            });
-        }
-    }
-
-    // Check for password aging policies
-    if let Ok(content) = std::fs::read_to_string("/etc/login.defs") {
-        let mut max_days = 0i64;
-        let mut min_days = 0i64;
-        for line in content.lines() {
-            let trimmed = line.trim();
-            if trimmed.starts_with("PASS_MAX_DAYS") {
-                max_days = trimmed
-                    .split_whitespace()
-                    .last()
-                    .unwrap_or("0")
-                    .parse()
-                    .unwrap_or(0);
-            }
-            if trimmed.starts_with("PASS_MIN_DAYS") {
-                min_days = trimmed
-                    .split_whitespace()
-                    .last()
-                    .unwrap_or("0")
-                    .parse()
-                    .unwrap_or(0);
-            }
-        }
-        if max_days == 0 || max_days > 365 {
-            findings.push(FindingInput {
-                category: "passwords".into(),
-                check_name: "password_no_aging".into(),
-                severity: "warning".into(),
-                title: "No Password Expiration Policy".into(),
-                description: format!(
-                    "PASS_MAX_DAYS is {} — passwords never expire or expire after {} days.",
-                    if max_days == 0 {
-                        "unlimited".into()
-                    } else {
-                        max_days.to_string()
-                    },
-                    max_days
-                ),
-                remediation: Some(
-                    "Set PASS_MAX_DAYS 90 in /etc/login.defs to enforce periodic password changes."
-                        .into(),
-                ),
-                cve_ids: None,
-                raw_data: Some(serde_json::json!({"max_days": max_days, "min_days": min_days})),
+                raw_data: None,
             });
         }
     }
 
     // Check for common/default passwords via login attempts (non-invasive: just check config)
-    let home = std::env::var("HOME").unwrap_or_default();
+    let home = std::env::var("HOME").unwrap_or_else(|_| std::env::var("USERPROFILE").unwrap_or_default());
     let ssh_config = format!("{}/.ssh/config", home);
     if let Ok(content) = std::fs::read_to_string(&ssh_config) {
         if content
@@ -1120,16 +1567,26 @@ fn scan_passwords() -> Result<Vec<FindingInput>> {
 
 fn scan_code_config() -> Result<Vec<FindingInput>> {
     let mut findings = Vec::new();
-    let home = std::env::var("HOME").unwrap_or_default();
+    let home = std::env::var("HOME").unwrap_or_else(|_| std::env::var("USERPROFILE").unwrap_or_default());
 
     // Check for hardcoded credentials in common config files
-    let check_paths: Vec<String> = vec![
+    let mut check_paths: Vec<String> = vec![
         format!("{}/.env", home),
-        format!("{}/.openclaw/.env", home),
         format!("{}/.aws/credentials", home),
         format!("{}/.npmrc", home),
         format!("{}/.pypirc", home),
     ];
+    
+    // Platform-specific paths
+    match current_os() {
+        OsType::Windows => {
+            let app_data = std::env::var("APPDATA").unwrap_or_default();
+            check_paths.push(format!(r"{}\npm\.npmrc", app_data));
+        }
+        _ => {
+            check_paths.push(format!("{}/.conflux/.env", home));
+        }
+    }
 
     for path in &check_paths {
         if let Ok(content) = std::fs::read_to_string(path) {
@@ -1160,27 +1617,32 @@ fn scan_code_config() -> Result<Vec<FindingInput>> {
         }
     }
 
-    // Check for .git directories exposed
-    let git_check_dirs = ["/var/www", "/srv", "/opt"];
-    for dir in &git_check_dirs {
-        let git_dir = format!("{}/.git", dir);
-        if std::path::Path::new(&git_dir).is_dir() {
-            // Check if there's a web server serving this
-            findings.push(FindingInput {
-                category: "code".into(),
-                check_name: format!("git_exposed_{}", dir.replace('/', "_")),
-                severity: "info".into(),
-                title: format!(".git Directory in {}", dir),
-                description: format!("{} contains a .git directory. If served by a web server, source code may be exposed.", dir),
-                remediation: Some("Block .git access in web server config, or move .git outside the web root.".into()),
-                cve_ids: None,
-                raw_data: Some(serde_json::json!({"path": git_dir})),
-            });
+    // Check for .git directories exposed (Linux/Mac only)
+    if current_os() == OsType::Linux || current_os() == OsType::MacOS {
+        let git_check_dirs = ["/var/www", "/srv", "/opt"];
+        for dir in &git_check_dirs {
+            let git_dir = format!("{}/.git", dir);
+            if std::path::Path::new(&git_dir).is_dir() {
+                findings.push(FindingInput {
+                    category: "code".into(),
+                    check_name: format!("git_exposed_{}", dir.replace('/', "_")),
+                    severity: "info".into(),
+                    title: format!(".git Directory in {}", dir),
+                    description: format!("{} contains a .git directory. If served by a web server, source code may be exposed.", dir),
+                    remediation: Some("Block .git access in web server config, or move .git outside the web root.".into()),
+                    cve_ids: None,
+                    raw_data: Some(serde_json::json!({"path": git_dir})),
+                });
+            }
         }
     }
 
     // Check Docker daemon config
-    if let Ok(content) = std::fs::read_to_string("/etc/docker/daemon.json") {
+    let docker_config = match current_os() {
+        OsType::Windows => format!(r"{}\.docker\daemon.json", home),
+        _ => "/etc/docker/daemon.json".to_string(),
+    };
+    if let Ok(content) = std::fs::read_to_string(&docker_config) {
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
             if json["live-restore"] != true {
                 findings.push(FindingInput {
@@ -1189,7 +1651,7 @@ fn scan_code_config() -> Result<Vec<FindingInput>> {
                     severity: "info".into(),
                     title: "Docker live-restore Not Enabled".into(),
                     description: "Docker daemon doesn't have live-restore enabled. Containers stop when daemon restarts.".into(),
-                    remediation: Some("\"live-restore\": true in /etc/docker/daemon.json".into()),
+                    remediation: Some(format!("\"live-restore\": true in {}", docker_config)),
                     cve_ids: None,
                     raw_data: None,
                 });
@@ -1201,7 +1663,7 @@ fn scan_code_config() -> Result<Vec<FindingInput>> {
                     severity: "warning".into(),
                     title: "Docker User Namespace Remapping Not Enabled".into(),
                     description: "Containers run with root inside by default. User namespace remapping isolates container UIDs.".into(),
-                    remediation: Some("Add \"userns-remap\": \"default\" to /etc/docker/daemon.json".into()),
+                    remediation: Some(format!("Add \"userns-remap\": \"default\" to {}", docker_config)),
                     cve_ids: None,
                     raw_data: None,
                 });
@@ -1209,18 +1671,18 @@ fn scan_code_config() -> Result<Vec<FindingInput>> {
         }
     }
 
-    // Check for world-readable private keys
-    let ssh_dir = format!("{}/.ssh", home);
-    if let Ok(entries) = std::fs::read_dir(&ssh_dir) {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().to_string();
-            if name.ends_with(".pem")
-                || name.ends_with("_rsa")
-                || name.ends_with("_ed25519")
-                || name == "id_rsa"
-                || name == "id_ed25519"
-            {
-                #[cfg(unix)]
+    // Check for world-readable private keys (Linux/Mac only - Windows handles ACLs differently)
+    #[cfg(unix)]
+    {
+        let ssh_dir = format!("{}/.ssh", home);
+        if let Ok(entries) = std::fs::read_dir(&ssh_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.ends_with(".pem")
+                    || name.ends_with("_rsa")
+                    || name.ends_with("_ed25519")
+                    || name == "id_rsa"
+                    || name == "id_ed25519"
                 {
                     if let Ok(metadata) = std::fs::metadata(entry.path()) {
                         use std::os::unix::fs::PermissionsExt;
@@ -1249,143 +1711,211 @@ fn scan_code_config() -> Result<Vec<FindingInput>> {
 fn scan_general() -> Result<Vec<FindingInput>> {
     let mut findings = Vec::new();
 
-    // Check for known vulnerable packages (apt)
-    if let Ok(output) = Command::new("apt")
-        .args(["list", "--upgradable"])
-        .env("LANG", "C")
-        .output()
-    {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let security_updates: Vec<&str> = stdout
-            .lines()
-            .filter(|l| l.contains("security") || l.contains("ubuntu-security"))
-            .collect();
+    match current_os() {
+        OsType::Linux => {
+            // Check for known vulnerable packages (apt)
+            if let Ok(output) = std::process::Command::new("apt")
+                .args(["list", "--upgradable"])
+                .env("LANG", "C")
+                .output()
+            {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let security_updates: Vec<&str> = stdout
+                    .lines()
+                    .filter(|l| l.contains("security") || l.contains("ubuntu-security"))
+                    .collect();
 
-        if !security_updates.is_empty() {
-            findings.push(FindingInput {
-                category: "general".into(),
-                check_name: "pending_security_updates".into(),
-                severity: "critical".into(),
-                title: format!("{} Security Updates Pending", security_updates.len()),
-                description: "Packages with known security vulnerabilities have updates available.".into(),
-                remediation: Some("sudo apt update && sudo apt upgrade -y".into()),
-                cve_ids: None,
-                raw_data: Some(serde_json::json!({
-                    "count": security_updates.len(),
-                    "packages": security_updates.iter().take(20).map(|l| l.trim().to_string()).collect::<Vec<_>>(),
-                })),
-            });
+                if !security_updates.is_empty() {
+                    findings.push(FindingInput {
+                        category: "general".into(),
+                        check_name: "pending_security_updates".into(),
+                        severity: "critical".into(),
+                        title: format!("{} Security Updates Pending", security_updates.len()),
+                        description: "Packages with known security vulnerabilities have updates available.".into(),
+                        remediation: Some("sudo apt update && sudo apt upgrade -y".into()),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({
+                            "count": security_updates.len(),
+                            "packages": security_updates.iter().take(20).map(|l| l.trim().to_string()).collect::<Vec<_>>(),
+                        })),
+                    });
+                }
+            }
+
+            // Check for core dumps enabled
+            if let Ok(val) = std::fs::read_to_string("/proc/sys/kernel/core_pattern") {
+                if !val.trim().starts_with("|") && val.trim() != "core" {
+                    findings.push(FindingInput {
+                        category: "general".into(),
+                        check_name: "core_dumps_to_files".into(),
+                        severity: "info".into(),
+                        title: "Core Dumps Written to Disk".into(),
+                        description: format!("kernel.core_pattern = {} — core dumps are saved to files which may contain sensitive data.", val.trim()),
+                        remediation: Some("Set kernel.core_pattern to pipe to systemd-coredump or disable: sysctl -w kernel.core_pattern=|/bin/false".into()),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"pattern": val.trim()})),
+                    });
+                }
+            }
+
+            // Check for accounts with UID 0 (should only be root)
+            if let Ok(content) = std::fs::read_to_string("/etc/passwd") {
+                let uid0: Vec<&str> = content
+                    .lines()
+                    .filter(|l| {
+                        let parts: Vec<&str> = l.split(':').collect();
+                        parts.len() > 2 && parts[2] == "0"
+                    })
+                    .collect();
+
+                if uid0.len() > 1 {
+                    let names: Vec<&str> = uid0
+                        .iter()
+                        .map(|l| l.split(':').next().unwrap_or("?"))
+                        .collect();
+                    findings.push(FindingInput {
+                        category: "general".into(),
+                        check_name: "multiple_uid0".into(),
+                        severity: "critical".into(),
+                        title: "Multiple Accounts with UID 0".into(),
+                        description: format!(
+                            "Found {} accounts with UID 0 (root): {}. Only 'root' should have UID 0.",
+                            uid0.len(),
+                            names.join(", ")
+                        ),
+                        remediation: Some(
+                            "Remove or change UID of non-root UID 0 accounts immediately.".into(),
+                        ),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"accounts": names})),
+                    });
+                } else {
+                    findings.push(FindingInput {
+                        category: "general".into(),
+                        check_name: "multiple_uid0".into(),
+                        severity: "pass".into(),
+                        title: "Only root Has UID 0".into(),
+                        description: "No rogue UID 0 accounts found.".into(),
+                        remediation: None,
+                        cve_ids: None,
+                        raw_data: None,
+                    });
+                }
+            }
+
+            // Check for unowned files in system dirs
+            if let Ok(output) = std::process::Command::new("find")
+                .args(["/etc", "/usr", "-nouser", "-o", "-nogroup"])
+                .output()
+            {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                let unowned: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
+                if !unowned.is_empty() {
+                    findings.push(FindingInput {
+                        category: "general".into(),
+                        check_name: "unowned_files".into(),
+                        severity: "warning".into(),
+                        title: format!("{} Unowned Files in System Dirs", unowned.len()),
+                        description: "Files with no valid user/group owner found in /etc and /usr. These may indicate removed accounts or tampering.".into(),
+                        remediation: Some("Investigate unowned files: find /etc /usr -nouser -nogroup. Chown to appropriate users.".into()),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"count": unowned.len(), "files": unowned.iter().take(15).map(|f| f.to_string()).collect::<Vec<_>>()})),
+                    });
+                }
+            }
+
+            // Check for writable systemd service files
+            if let Ok(output) = std::process::Command::new("find")
+                .args([
+                    "/etc/systemd/system",
+                    "/lib/systemd/system",
+                    "-writable",
+                    "-name",
+                    "*.service",
+                ])
+                .output()
+            {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                let writable: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
+                if !writable.is_empty() {
+                    findings.push(FindingInput {
+                        category: "general".into(),
+                        check_name: "writable_systemd_services".into(),
+                        severity: "critical".into(),
+                        title: format!("{} Writable Systemd Service Files", writable.len()),
+                        description: "Systemd service files are writable by non-root users. This allows persistence via service modification.".into(),
+                        remediation: Some("chmod 644 <service-file> and investigate how permissions were changed.".into()),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"files": writable.iter().take(10).map(|f| f.to_string()).collect::<Vec<_>>()})),
+                    });
+                }
+            }
         }
-    }
+        OsType::Windows => {
+            // Check for pending Windows updates (same as misconfig check)
+            if let Ok(output) = std::process::Command::new("powershell")
+                .args(["-Command", r"(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().SearchUpdates('IsInstalled=0').Count"])
+                .output()
+            {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if let Ok(pending) = stdout.parse::<i64>() {
+                    if pending > 0 {
+                        findings.push(FindingInput {
+                            category: "general".into(),
+                            check_name: "pending_security_updates_windows".into(),
+                            severity: "critical".into(),
+                            title: format!("{} Pending Windows Updates", pending),
+                            description: "Uninstalled updates leave known vulnerabilities unpatched.".into(),
+                            remediation: Some("Run Windows Update: Settings > Windows Update > Check for updates.".into()),
+                            cve_ids: None,
+                            raw_data: Some(serde_json::json!({"pending": pending})),
+                        });
+                    }
+                }
+            }
 
-    // Check for core dumps enabled
-    if let Ok(val) = std::fs::read_to_string("/proc/sys/kernel/core_pattern") {
-        if !val.trim().starts_with("|") && val.trim() != "core" {
-            // Core dumps going to files
-            findings.push(FindingInput {
-                category: "general".into(),
-                check_name: "core_dumps_to_files".into(),
-                severity: "info".into(),
-                title: "Core Dumps Written to Disk".into(),
-                description: format!("kernel.core_pattern = {} — core dumps are saved to files which may contain sensitive data.", val.trim()),
-                remediation: Some("Set kernel.core_pattern to pipe to systemd-coredump or disable: sysctl -w kernel.core_pattern=|/bin/false".into()),
-                cve_ids: None,
-                raw_data: Some(serde_json::json!({"pattern": val.trim()})),
-            });
+            // Check core dumps (Windows Error Reporting LocalDumps)
+            if let Ok(output) = std::process::Command::new("powershell")
+                .args(["-Command", r"Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps'"])
+                .output()
+            {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if stdout == "True" {
+                    findings.push(FindingInput {
+                        category: "general".into(),
+                        check_name: "windows_core_dumps_configured".into(),
+                        severity: "info".into(),
+                        title: "Windows Error Reporting LocalDumps Configured".into(),
+                        description: "Core dumps may be stored and could contain sensitive data.".into(),
+                        remediation: Some("Review LocalDump settings if not needed for debugging.".into()),
+                        cve_ids: None,
+                        raw_data: None,
+                    });
+                }
+            }
+
+            // Check admin accounts
+            if let Ok(output) = std::process::Command::new("powershell")
+                .args(["-Command", "Get-LocalGroupMember -Group Administrators | Select-Object -ExpandProperty Name"])
+                .output()
+            {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let admin_accounts: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
+                if admin_accounts.len() > 2 {
+                    findings.push(FindingInput {
+                        category: "general".into(),
+                        check_name: "multiple_admin_accounts".into(),
+                        severity: "warning".into(),
+                        title: format!("{} Administrator Accounts", admin_accounts.len()),
+                        description: format!("Multiple accounts in Administrators group: {}", admin_accounts.join(", ")),
+                        remediation: Some("Review admin accounts. Remove unnecessary ones to reduce attack surface.".into()),
+                        cve_ids: None,
+                        raw_data: Some(serde_json::json!({"accounts": admin_accounts})),
+                    });
+                }
+            }
         }
-    }
-
-    // Check for accounts with UID 0 (should only be root)
-    if let Ok(content) = std::fs::read_to_string("/etc/passwd") {
-        let uid0: Vec<&str> = content
-            .lines()
-            .filter(|l| {
-                let parts: Vec<&str> = l.split(':').collect();
-                parts.len() > 2 && parts[2] == "0"
-            })
-            .collect();
-
-        if uid0.len() > 1 {
-            let names: Vec<&str> = uid0
-                .iter()
-                .map(|l| l.split(':').next().unwrap_or("?"))
-                .collect();
-            findings.push(FindingInput {
-                category: "general".into(),
-                check_name: "multiple_uid0".into(),
-                severity: "critical".into(),
-                title: "Multiple Accounts with UID 0".into(),
-                description: format!(
-                    "Found {} accounts with UID 0 (root): {}. Only 'root' should have UID 0.",
-                    uid0.len(),
-                    names.join(", ")
-                ),
-                remediation: Some(
-                    "Remove or change UID of non-root UID 0 accounts immediately.".into(),
-                ),
-                cve_ids: None,
-                raw_data: Some(serde_json::json!({"accounts": names})),
-            });
-        } else {
-            findings.push(FindingInput {
-                category: "general".into(),
-                check_name: "multiple_uid0".into(),
-                severity: "pass".into(),
-                title: "Only root Has UID 0".into(),
-                description: "No rogue UID 0 accounts found.".into(),
-                remediation: None,
-                cve_ids: None,
-                raw_data: None,
-            });
-        }
-    }
-
-    // Check for unowned files in system dirs
-    if let Ok(output) = Command::new("find")
-        .args(["/etc", "/usr", "-nouser", "-o", "-nogroup"])
-        .output()
-    {
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let unowned: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
-        if !unowned.is_empty() {
-            findings.push(FindingInput {
-                category: "general".into(),
-                check_name: "unowned_files".into(),
-                severity: "warning".into(),
-                title: format!("{} Unowned Files in System Dirs", unowned.len()),
-                description: "Files with no valid user/group owner found in /etc and /usr. These may indicate removed accounts or tampering.".into(),
-                remediation: Some("Investigate unowned files: find /etc /usr -nouser -nogroup. Chown to appropriate users.".into()),
-                cve_ids: None,
-                raw_data: Some(serde_json::json!({"count": unowned.len(), "files": unowned.iter().take(15).map(|f| f.to_string()).collect::<Vec<_>>()})),
-            });
-        }
-    }
-
-    // Check for writable systemd service files
-    if let Ok(output) = Command::new("find")
-        .args([
-            "/etc/systemd/system",
-            "/lib/systemd/system",
-            "-writable",
-            "-name",
-            "*.service",
-        ])
-        .output()
-    {
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let writable: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
-        if !writable.is_empty() {
-            findings.push(FindingInput {
-                category: "general".into(),
-                check_name: "writable_systemd_services".into(),
-                severity: "critical".into(),
-                title: format!("{} Writable Systemd Service Files", writable.len()),
-                description: "Systemd service files are writable by non-root users. This allows persistence via service modification.".into(),
-                remediation: Some("chmod 644 <service-file> and investigate how permissions were changed.".into()),
-                cve_ids: None,
-                raw_data: Some(serde_json::json!({"files": writable.iter().take(10).map(|f| f.to_string()).collect::<Vec<_>>()})),
-            });
-        }
+        _ => {}
     }
 
     Ok(findings)
@@ -1401,4 +1931,115 @@ fn calculate_risk_score(pass: i64, info: i64, warn: i64, critical: i64) -> i64 {
     }
     let risk = (critical * 25) + (warn * 8) + (info * 1);
     risk.min(100)
+}
+
+// ── Synchronous wrappers (for spawn_blocking) ─────────────
+
+/// Synchronous scan runner using conn_blocking().
+/// Called from spawn_blocking in commands.rs — no nested async.
+pub fn run_full_scan_sync(db: &EngineDb) -> Result<String> {
+    run_scan_sync(db, "full")
+}
+
+pub fn run_quick_scan_sync(db: &EngineDb) -> Result<String> {
+    run_scan_sync(db, "quick")
+}
+
+fn run_scan_sync(db: &EngineDb, scan_type: &str) -> Result<String> {
+    let scan_id = Uuid::new_v4().to_string();
+    let conn = db.conn_blocking();
+
+    conn.execute(
+        "INSERT INTO viper_scans (id, scan_type, status) VALUES (?1, ?2, 'running')",
+        rusqlite::params![&scan_id, scan_type],
+    )?;
+
+    log::info!("[Viper] Starting {} scan: {} (sync)", scan_type, scan_id);
+
+    let mut all_findings: Vec<FindingInput> = Vec::new();
+
+    match scan_misconfig() {
+        Ok(mut f) => all_findings.append(&mut f),
+        Err(e) => log::warn!("[Viper] Misconfig scan failed: {}", e),
+    }
+    match scan_network() {
+        Ok(mut f) => all_findings.append(&mut f),
+        Err(e) => log::warn!("[Viper] Network scan failed: {}", e),
+    }
+
+    if scan_type == "full" {
+        match scan_browser() {
+            Ok(mut f) => all_findings.append(&mut f),
+            Err(e) => log::warn!("[Viper] Browser scan failed: {}", e),
+        }
+        match scan_passwords() {
+            Ok(mut f) => all_findings.append(&mut f),
+            Err(e) => log::warn!("[Viper] Password scan failed: {}", e),
+        }
+        match scan_code_config() {
+            Ok(mut f) => all_findings.append(&mut f),
+            Err(e) => log::warn!("[Viper] Code scan failed: {}", e),
+        }
+        match scan_general() {
+            Ok(mut f) => all_findings.append(&mut f),
+            Err(e) => log::warn!("[Viper] General scan failed: {}", e),
+        }
+    }
+
+    // Persist findings
+    let mut pass_count = 0i64;
+    let mut info_count = 0i64;
+    let mut warn_count = 0i64;
+    let mut critical_count = 0i64;
+
+    for f in &all_findings {
+        let finding_id = Uuid::new_v4().to_string();
+        let cve_json = f.cve_ids.as_ref().map(|v| serde_json::to_string(v).unwrap_or_default());
+        conn.execute(
+            "INSERT INTO viper_findings (id, scan_id, category, check_name, severity, title, description, remediation, cve_ids, raw_data)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            rusqlite::params![
+                finding_id, &scan_id, &f.category, &f.check_name, &f.severity,
+                &f.title, &f.description, &f.remediation, cve_json,
+                f.raw_data.as_ref().map(|v| v.to_string()),
+            ],
+        )?;
+        match f.severity.as_str() {
+            "pass" => pass_count += 1,
+            "info" => info_count += 1,
+            "warning" => warn_count += 1,
+            "critical" => critical_count += 1,
+            _ => {}
+        }
+    }
+
+    let total = all_findings.len() as i64;
+    let risk_score = calculate_risk_score(pass_count, info_count, warn_count, critical_count);
+    let now = crate::engine::db::EngineDb::now();
+
+    conn.execute(
+        "UPDATE viper_scans SET status = 'completed', risk_score = ?1, total_checks = ?2,
+         pass_count = ?3, info_count = ?4, warn_count = ?5, critical_count = ?6, completed_at = ?7 WHERE id = ?8",
+        rusqlite::params![risk_score, total, pass_count, info_count, warn_count, critical_count, now, &scan_id],
+    )?;
+
+    // Log to SIEM directly (skip async log_security_event)
+    let _ = conn.execute(
+        "INSERT INTO security_events (id, agent_id, session_id, event_type, category, tool_name, target, details, risk_score, was_allowed)
+         VALUES (?1, 'viper', NULL, 'anomaly', ?2, 'viper_scan', ?3, ?4, ?5, 1)",
+        rusqlite::params![
+            Uuid::new_v4().to_string(),
+            if critical_count > 0 { "critical" } else if warn_count > 0 { "warning" } else { "info" },
+            format!("{} scan", scan_type),
+            format!("{{\"scan_id\":\"{}\",\"risk\":{},\"pass\":{},\"info\":{},\"warn\":{},\"critical\":{}}}", scan_id, risk_score, pass_count, info_count, warn_count, critical_count),
+            if critical_count > 0 { 85 } else if warn_count > 0 { 45 } else { 0 },
+        ],
+    );
+
+    log::info!(
+        "[Viper] Scan {} complete (sync): risk={}, pass={}, info={}, warn={}, critical={}",
+        scan_id, risk_score, pass_count, info_count, warn_count, critical_count
+    );
+
+    Ok(scan_id)
 }

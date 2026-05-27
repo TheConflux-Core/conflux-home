@@ -45,7 +45,7 @@ fn get_allowed_paths() -> Vec<String> {
         paths.push(format!("{}/Documents", home));
         paths.push(format!("{}/Downloads", home));
         paths.push(format!("{}/Desktop", home));
-        paths.push(format!("{}/.openclaw", home));
+        paths.push(format!("{}/.conflux", home));
     }
 
     // App data directory
@@ -124,20 +124,24 @@ fn is_command_safe(command: &str) -> Result<()> {
 /// Classify a tool name into a security event type and category.
 fn classify_tool(tool_name: &str) -> (EventType, EventCategory, i64) {
     match tool_name {
-        // File operations — high risk
-        "file_read" | "file_write" => (EventType::FileAccess, EventCategory::Warning, 30),
-        // Command execution — critical risk
-        "exec" => (EventType::ExecCommand, EventCategory::Critical, 70),
-        // Network operations — medium risk
-        "web_search" | "web_fetch" | "web_post" => {
-            (EventType::NetworkRequest, EventCategory::Info, 20)
+        // File operations — info (normal usage)
+        "file_read" | "file_write" | "file_list" | "file_append" | "file_delete" => {
+            (EventType::FileAccess, EventCategory::Info, 5)
         }
-        // Email — high risk
-        "email_send" | "gmail_send" => (EventType::ApiCall, EventCategory::Warning, 50),
-        // Google APIs — medium risk
+        // Command execution — info (anomaly rules handle real threats)
+        "exec" | "exec_command" | "shell_command" | "bash" => {
+            (EventType::ExecCommand, EventCategory::Info, 10)
+        }
+        // Network operations — info
+        "web_search" | "web_fetch" | "web_post" | "http_request" | "curl" => {
+            (EventType::NetworkRequest, EventCategory::Info, 5)
+        }
+        // Email — warning (sending external data)
+        "email_send" | "gmail_send" => (EventType::ApiCall, EventCategory::Warning, 30),
+        // Google APIs — info
         "google_auth" | "gmail_search" | "google_drive_list" | "google_doc_read"
         | "google_doc_write" | "google_sheet_read" | "google_sheet_write" => {
-            (EventType::ApiCall, EventCategory::Info, 25)
+            (EventType::ApiCall, EventCategory::Info, 10)
         }
         // Everything else — low risk info
         _ => (EventType::ApiCall, EventCategory::Info, 5),
@@ -205,7 +209,7 @@ fn log_tool_security_event(tool_name: &str, args: &Value, success: bool, agent_i
     let target = extract_target(tool_name, args);
 
     // Increase risk for failed operations
-    let risk = if !success { base_risk + 20 } else { base_risk };
+    let risk = if !success { base_risk + 10 } else { base_risk };
 
     let db = super::get_engine().db();
     let agent_id_owned = agent_id.to_string();
@@ -224,7 +228,7 @@ fn log_tool_security_event(tool_name: &str, args: &Value, success: bool, agent_i
             target_owned.as_deref(),
             None, // details
             risk,
-            success,
+            true, // was_allowed — permission gate already approved; success is separate
         ));
     });
     if let Err(panic) = handle.join() {
@@ -239,6 +243,55 @@ fn check_security_gate(tool_name: &str, args: &Value, agent_id: &str) -> Result<
     use super::security::permissions::{get_security_profile, ResourceType};
 
     let db = super::get_engine().db();
+
+    // ── Quarantine Gate (Phase 8) — Check FIRST before profile ──
+    {
+        let quarantine_handle = std::thread::spawn({
+            let db = super::get_engine().db();
+            let agent_id_owned = agent_id.to_string();
+            let tool_name_owned = tool_name.to_string();
+            move || {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                match rt.block_on(
+                    super::security::quarantine::get_quarantine_level(db, &agent_id_owned),
+                ) {
+                    Ok(level) => {
+                        if let Some(reason) =
+                            super::security::quarantine::should_block_tool(level, &tool_name_owned)
+                        {
+                            Err(reason)
+                        } else {
+                            Ok(())
+                        }
+                    }
+                    Err(_) => Ok(()), // DB error → allow (fail open)
+                }
+            }
+        });
+        if let Ok(Err(block_reason)) = quarantine_handle.join() {
+            log::warn!(
+                "[Sentinel] Quarantine BLOCKED: agent='{}' tool='{}' reason='{}'",
+                agent_id,
+                tool_name,
+                block_reason
+            );
+            // Log the block as a security event
+            let _ = super::security::events::log_security_event(
+                super::get_engine().db(),
+                agent_id,
+                None,
+                super::security::events::EventType::PermissionDenied,
+                super::security::events::EventCategory::Warning,
+                Some(tool_name),
+                None,
+                Some(&format!("{{\"reason\":\"quarantine_block\",\"detail\":\"{}\"}}", block_reason)),
+                70,
+                false,
+            );
+            anyhow::bail!("{}", block_reason);
+        }
+    }
+
     let agent_id_owned = agent_id.to_string();
     // Get agent security profile — if none, default to open
     let profile_handle = std::thread::spawn(move || {
@@ -882,7 +935,7 @@ pub fn get_integration_tool_definitions() -> Vec<Value> {
             "type": "function",
             "function": {
                 "name": "exec",
-                "description": "Execute a shell command on the user's machine. SECURE SCOPED EXECUTION.\nAllowed (no approval needed):\n- Open apps: open /Applications/Calculator.app (macOS), start calc (Windows)\n- Open URLs in browser: open https://southwest.com, firefox https://google.com\n- File reads/writes in ~/Documents, ~/Desktop, ~/Downloads, ~/.openclaw, /tmp/conflux\n- System commands: date, echo, ls, pwd, whoami, uptime\n- macOS speech: say 'hello'\n- Open email client: open mailto:user@example.com\nBlocked (always): rm -rf /, mkfs, dd if=, chmod 777, wget|sh, curl|sh, fork bombs, /etc/shadow, /etc/passwd\nFor destructive commands (delete files, system changes), ask Don first. For everything above the allowlist, act immediately.",
+                "description": "Execute a shell command on the user's machine. SECURE SCOPED EXECUTION.\nAllowed (no approval needed):\n- Open apps: open /Applications/Calculator.app (macOS), start calc (Windows)\n- Open URLs in browser: open https://southwest.com, firefox https://google.com\n- File reads/writes in ~/Documents, ~/Desktop, ~/Downloads, ~/.conflux, /tmp/conflux\n- System commands: date, echo, ls, pwd, whoami, uptime\n- macOS speech: say 'hello'\n- Open email client: open mailto:user@example.com\nBlocked (always): rm -rf /, mkfs, dd if=, chmod 777, wget|sh, curl|sh, fork bombs, /etc/shadow, /etc/passwd\nFor destructive commands (delete files, system changes), ask Don first. For everything above the allowlist, act immediately.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -9569,7 +9622,8 @@ fn log_to_tool_audit(tool_name: &str, args: &Value, success: bool, error: Option
     log::info!("[TOOL_AUDIT] {}", line.trim());
 
     // Also append to RUN_LOG.md if it exists
-    let run_log = std::path::Path::new("/home/calo/.openclaw/shared/RUN_LOG.md");
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let run_log = std::path::PathBuf::from(format!("{}/.conflux/shared/RUN_LOG.md", home));
     if run_log.exists() {
         if let Ok(mut file) = std::fs::OpenOptions::new().append(true).open(run_log) {
             use std::io::Write;

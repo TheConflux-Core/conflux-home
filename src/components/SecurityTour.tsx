@@ -1,5 +1,5 @@
 // Conflux Home — Security Guided Tour
-// 4 steps: Hero Score → Scan Controls → Tabs → Pending Requests
+// 4 steps: Hero Score → Scan Controls → 9 Tabs → Pending Requests
 
 import { useState, useEffect, useRef } from 'react';
 import TourSpotlight from './TourSpotlight';
@@ -22,7 +22,7 @@ const TOUR_STEPS = [
   {
     id: 'tabs',
     title: 'Navigate Security Views',
-    body: 'Seven views: Overview for a quick health check, Aegis and Viper for deep scans, Watchtower for alert correlations, Activity for agent events, Permissions for agent access controls, and Pending for requests awaiting your approval.',
+    body: 'Nine views: Overview for a quick health check, Aegis and Viper for deep scans, Watchtower for continuous monitoring with files/processes/network panels, Sentinel for agent quarantine and isolation, Network for discovering devices on your WiFi, Activity for agent events, Permissions for agent access controls, and Pending for requests awaiting your approval.',
     target: '.sec-tabs',
   },
   {

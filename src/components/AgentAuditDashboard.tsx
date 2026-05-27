@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
 // ── Timeout wrapper — prevents invoke calls from hanging forever ──
-function invokeTimeout<T>(cmd: string, args?: Record<string, unknown>, ms = 5000): Promise<T> {
+function invokeTimeout<T>(cmd: string, args?: Record<string, unknown>, ms = 30000): Promise<T> {
   return Promise.race([
     invoke<T>(cmd, args),
     new Promise<never>((_, reject) =>

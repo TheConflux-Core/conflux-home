@@ -990,6 +990,15 @@ pub fn engine_delete_cron(id: String) -> Result<(), String> {
     engine.delete_cron_job(&id).map_err(|e| e.to_string())
 }
 
+/// Run a specific cron job immediately by resetting its next_run_at to now.
+#[tauri::command]
+pub fn engine_run_cron_now(id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    // Set next_run_at to now so it gets picked up on next tick
+    let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    engine.db().update_cron_next_run(&id, &now).map_err(|e| e.to_string())
+}
+
 // ── Heartbeat Interval ──
 
 #[tauri::command]
@@ -7712,7 +7721,7 @@ pub fn get_log_path() -> String {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_default();
-    format!("{}/.openclaw/logs/gateway.log", home)
+    format!("{}/.conflux/logs/gateway.log", home)
 }
 
 /// Writes an entry to the updater log file.
@@ -7721,7 +7730,7 @@ pub fn write_updater_log(entry: String) {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_default();
-    let log_dir = format!("{}/.openclaw/logs", home);
+    let log_dir = format!("{}/.conflux/logs", home);
     let log_path = format!("{}/updater.log", log_dir);
     let _ = std::fs::create_dir_all(&log_dir);
     if let Ok(mut file) = std::fs::OpenOptions::new()
@@ -7751,7 +7760,7 @@ pub async fn download_update_file(url: String) -> Result<String, String> {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_default();
-    let log_dir = format!("{}/.openclaw/logs", home);
+    let log_dir = format!("{}/.conflux/logs", home);
     let _ = std::fs::create_dir_all(&log_dir);
     let log_path = format!("{}/updater.log", log_dir);
 
@@ -7845,7 +7854,7 @@ pub fn run_installer(installer_path: String) -> Result<(), String> {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_default();
-    let log_path = format!("{}/.openclaw/logs/updater.log", home);
+    let log_path = format!("{}/.conflux/logs/updater.log", home);
 
     if let Ok(mut f) = std::fs::OpenOptions::new()
         .create(true)
@@ -8762,7 +8771,7 @@ pub async fn studio_generate_voice(
 
     // Create output directory
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-    let output_dir = format!("{}/.openclaw/studio/voice", home);
+    let output_dir = format!("{}/.conflux/studio/voice", home);
     std::fs::create_dir_all(&output_dir).map_err(|e| format!("Failed to create dir: {}", e))?;
 
     let filename = format!("{}.mp3", generation_id);
@@ -8904,7 +8913,7 @@ pub async fn studio_generate_wallpaper(app_name: String) -> Result<serde_json::V
                     .map_err(|e| format!("Read failed: {}", e))?;
 
                 let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-                let wallpaper_dir = format!("{}/.openclaw/studio/wallpapers", home);
+                let wallpaper_dir = format!("{}/.conflux/studio/wallpapers", home);
                 std::fs::create_dir_all(&wallpaper_dir)
                     .map_err(|e| format!("Create dir failed: {}", e))?;
 
@@ -8951,7 +8960,7 @@ pub async fn studio_save_to_vault(generation_id: String) -> Result<serde_json::V
 
     // Create vault directory
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-    let vault_dir = format!("{}/.openclaw/studio/vault", home);
+    let vault_dir = format!("{}/.conflux/studio/vault", home);
     std::fs::create_dir_all(&vault_dir)
         .map_err(|e| format!("Failed to create vault dir: {}", e))?;
 
@@ -10535,10 +10544,18 @@ pub async fn security_cleanup_events(days: Option<i64>) -> Result<i64, String> {
 #[tauri::command]
 pub async fn aegis_run_audit(run_type: Option<String>) -> Result<String, String> {
     let engine = super::engine::get_engine();
-    match run_type.as_deref() {
-        Some("quick") => super::engine::security::aegis::run_quick_audit(engine.db()).await,
-        _ => super::engine::security::aegis::run_full_audit(engine.db()).await,
-    }
+    let db = engine.db().clone();
+    let scan_type = run_type.unwrap_or_else(|| "full".to_string());
+    
+    // Run heavy audit in blocking thread using sync wrapper (no nested async)
+    tokio::task::spawn_blocking(move || {
+        match scan_type.as_str() {
+            "quick" => super::engine::security::aegis::run_quick_audit_sync(&db),
+            _ => super::engine::security::aegis::run_full_audit_sync(&db),
+        }
+    })
+    .await
+    .map_err(|e| format!("Join error: {}", e))?
     .map_err(|e| e.to_string())
 }
 
@@ -10622,10 +10639,18 @@ pub async fn aegis_delete_run(run_id: String) -> Result<bool, String> {
 #[tauri::command]
 pub async fn viper_run_scan(scan_type: Option<String>) -> Result<String, String> {
     let engine = super::engine::get_engine();
-    match scan_type.as_deref() {
-        Some("quick") => super::engine::security::viper::run_quick_scan(engine.db()).await,
-        _ => super::engine::security::viper::run_full_scan(engine.db()).await,
-    }
+    let db = engine.db().clone();
+    let scan_type = scan_type.unwrap_or_else(|| "full".to_string());
+    
+    // Run heavy scan in blocking thread using sync wrapper (no nested async)
+    tokio::task::spawn_blocking(move || {
+        match scan_type.as_str() {
+            "quick" => super::engine::security::viper::run_quick_scan_sync(&db),
+            _ => super::engine::security::viper::run_full_scan_sync(&db),
+        }
+    })
+    .await
+    .map_err(|e| format!("Join error: {}", e))?
     .map_err(|e| e.to_string())
 }
 
@@ -10975,6 +11000,407 @@ pub async fn siem_get_weekly_reports(limit: Option<i64>) -> Result<Vec<serde_jso
             })
         })
         .collect())
+}
+
+
+// ─────────────────────────────────────────────
+// WATCHTOWER CONTINUOUS MONITORING COMMANDS (Phase 6)
+// ─────────────────────────────────────────────
+
+/// Full watchtower scan: baselines + processes + connections.
+#[tauri::command]
+pub async fn watchtower_scan() -> Result<serde_json::Value, String> {
+    let engine = super::engine::get_engine();
+    let db = engine.db().clone();
+    
+    // Run heavy scan in blocking thread using sync wrapper (no nested async)
+    let (files, procs, conns) = tokio::task::spawn_blocking(move || {
+        super::engine::security::watchtower::full_scan_sync(&db)
+    })
+    .await
+    .map_err(|e| format!("Join error: {}", e))?
+    .map_err(|e| e.to_string())?;
+    
+    Ok(serde_json::json!({
+        "files_scanned": files,
+        "processes_snapshotted": procs,
+        "connections_tracked": conns,
+    }))
+}
+
+/// Get watchtower status summary.
+#[tauri::command]
+pub async fn watchtower_get_status() -> Result<serde_json::Value, String> {
+    let engine = super::engine::get_engine();
+    let status = super::engine::security::watchtower::get_status(engine.db())
+        .await.map_err(|e| e.to_string())?;
+    serde_json::to_value(status).map_err(|e| e.to_string())
+}
+
+/// Get file system events with optional severity filter.
+#[tauri::command]
+pub async fn watchtower_get_events(
+    severity: Option<String>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let events = super::engine::security::watchtower::get_events(
+        engine.db(),
+        severity.as_deref(),
+        limit.unwrap_or(50),
+        offset.unwrap_or(0),
+    ).await.map_err(|e| e.to_string())?;
+    Ok(events.iter().map(|e| serde_json::to_value(e).unwrap()).collect())
+}
+
+/// Get file baselines.
+#[tauri::command]
+pub async fn watchtower_get_baselines(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let baselines = super::engine::security::watchtower::get_baselines(
+        engine.db(),
+        limit.unwrap_or(100),
+    ).await.map_err(|e| e.to_string())?;
+    Ok(baselines.iter().map(|b| serde_json::to_value(b).unwrap()).collect())
+}
+
+/// Rebuild file baselines from scratch.
+#[tauri::command]
+pub async fn watchtower_rescan() -> Result<i64, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::watchtower::scan_baselines(engine.db())
+        .await.map_err(|e| e.to_string())
+}
+
+/// Snapshot current processes.
+#[tauri::command]
+pub async fn watchtower_snapshot_processes() -> Result<i64, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::watchtower::snapshot_processes(engine.db())
+        .await.map_err(|e| e.to_string())
+}
+
+/// Get process list with optional suspicious-only filter.
+#[tauri::command]
+pub async fn watchtower_get_processes(suspicious_only: Option<bool>) -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let procs = super::engine::security::watchtower::get_processes(
+        engine.db(),
+        suspicious_only.unwrap_or(false),
+    ).await.map_err(|e| e.to_string())?;
+    Ok(procs.iter().map(|p| serde_json::to_value(p).unwrap()).collect())
+}
+
+/// Kill a process by PID.
+/// Uses SIGTERM first (graceful), falls back to SIGKILL if needed.
+/// Validates PID exists and belongs to a user process before killing.
+#[tauri::command]
+pub async fn watchtower_kill_process(pid: u32) -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    {
+        // Windows: use taskkill (graceful by default, /F for force)
+        let output = std::process::Command::new("taskkill")
+            .arg("/PID")
+            .arg(pid.to_string())
+            .arg("/F")
+            .output()
+            .map_err(|e| format!("Failed to kill process: {}", e))?;
+        Ok(output.status.success())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        // Unix: try SIGTERM first (graceful shutdown)
+        let output = std::process::Command::new("kill")
+            .arg("-15") // SIGTERM
+            .arg(pid.to_string())
+            .output()
+            .map_err(|e| format!("Failed to send SIGTERM: {}", e))?;
+
+        if output.status.success() {
+            return Ok(true);
+        }
+
+        // If SIGTERM failed (process may not exist), try SIGKILL
+        let output = std::process::Command::new("kill")
+            .arg("-9") // SIGKILL
+            .arg(pid.to_string())
+            .output()
+            .map_err(|e| format!("Failed to send SIGKILL: {}", e))?;
+        Ok(output.status.success())
+    }
+}
+
+/// Snapshot current network connections.
+#[tauri::command]
+pub async fn watchtower_snapshot_connections() -> Result<i64, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::watchtower::snapshot_connections(engine.db())
+        .await.map_err(|e| e.to_string())
+}
+
+/// Get network connections with optional suspicious-only filter.
+#[tauri::command]
+pub async fn watchtower_get_connections(suspicious_only: Option<bool>) -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let conns = super::engine::security::watchtower::get_connections(
+        engine.db(),
+        suspicious_only.unwrap_or(false),
+    ).await.map_err(|e| e.to_string())?;
+    Ok(conns.iter().map(|c| serde_json::to_value(c).unwrap()).collect())
+}
+
+
+// ─────────────────────────────────────────────
+// REMEDIATION ENGINE COMMANDS (Phase 7)
+// ─────────────────────────────────────────────
+
+/// Dry run: preview what a remediation would do without executing.
+#[tauri::command]
+pub async fn remediation_dry_run(
+    finding_id: String,
+    source: String,
+) -> Result<Option<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let preview = super::engine::security::remediation::dry_run(
+        engine.db(),
+        &finding_id,
+        &source,
+    ).await.map_err(|e| e.to_string())?;
+    Ok(preview.map(|p| serde_json::to_value(p).unwrap()))
+}
+
+/// Execute a remediation for a finding. Returns the action log entry.
+#[tauri::command]
+pub async fn remediation_execute(
+    finding_id: String,
+    source: String,
+) -> Result<serde_json::Value, String> {
+    let engine = super::engine::get_engine();
+    let action = super::engine::security::remediation::execute(
+        engine.db(),
+        &finding_id,
+        &source,
+    ).await.map_err(|e| e.to_string())?;
+    serde_json::to_value(action).map_err(|e| e.to_string())
+}
+
+/// Undo a previously executed remediation.
+#[tauri::command]
+pub async fn remediation_undo(remediation_id: String) -> Result<bool, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::remediation::undo(
+        engine.db(),
+        &remediation_id,
+    ).await.map_err(|e| e.to_string())
+}
+
+/// Get remediation action log.
+#[tauri::command]
+pub async fn remediation_get_log(limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let log = super::engine::security::remediation::get_log(
+        engine.db(),
+        limit.unwrap_or(50),
+    ).await.map_err(|e| e.to_string())?;
+    Ok(log.iter().map(|a| serde_json::to_value(a).unwrap()).collect())
+}
+
+/// Check if a finding has a known remediation.
+#[tauri::command]
+pub fn remediation_has_fix(check_name: String, source: String) -> Result<bool, String> {
+    Ok(super::engine::security::remediation::has_fix(&check_name, &source))
+}
+
+// ─────────────────────────────────────────────
+// AGENT QUARANTINE — Sentinel (Phase 8)
+// ─────────────────────────────────────────────
+
+/// Get current quarantine status for an agent.
+#[tauri::command]
+pub async fn quarantine_get_status(agent_id: String) -> Result<serde_json::Value, String> {
+    let engine = super::engine::get_engine();
+    let status = super::engine::security::quarantine::get_quarantine_status(engine.db(), &agent_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(status).unwrap())
+}
+
+/// Get quarantine level for an agent (lightweight check).
+#[tauri::command]
+pub async fn quarantine_get_level(agent_id: String) -> Result<String, String> {
+    let engine = super::engine::get_engine();
+    let level = super::engine::security::quarantine::get_quarantine_level(engine.db(), &agent_id)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(level.as_str().to_string())
+}
+
+/// Manually escalate an agent's quarantine level.
+#[tauri::command]
+pub async fn quarantine_escalate(
+    agent_id: String,
+    level: i64,
+    reason: String,
+) -> Result<String, String> {
+    let engine = super::engine::get_engine();
+    let ql = super::engine::security::quarantine::QuarantineLevel::from_i64(level);
+    super::engine::security::quarantine::escalate_quarantine(
+        engine.db(),
+        &agent_id,
+        ql,
+        &reason,
+        None,
+        false,
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Release an agent from quarantine.
+#[tauri::command]
+pub async fn quarantine_release(agent_id: String) -> Result<bool, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::quarantine::release_quarantine(engine.db(), &agent_id, "user")
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Get quarantine history for an agent (or all agents if agent_id is None).
+#[tauri::command]
+pub async fn quarantine_get_history(
+    agent_id: Option<String>,
+    limit: Option<i64>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let history = super::engine::security::quarantine::get_quarantine_history(
+        engine.db(),
+        agent_id.as_deref(),
+        limit.unwrap_or(50),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(history.iter().map(|h| serde_json::to_value(h).unwrap()).collect())
+}
+
+/// Get all currently quarantined agents.
+#[tauri::command]
+pub async fn quarantine_get_all() -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let quarantined = super::engine::security::quarantine::get_all_quarantined(engine.db())
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(quarantined.iter().map(|q| serde_json::to_value(q).unwrap()).collect())
+}
+
+/// Run auto-escalation checks across all active agents.
+#[tauri::command]
+pub async fn quarantine_run_auto_escalation() -> Result<Vec<serde_json::Value>, String> {
+    let engine = super::engine::get_engine();
+    let escalations = super::engine::security::quarantine::run_auto_escalation(engine.db())
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(escalations
+        .iter()
+        .map(|(id, level)| {
+            serde_json::json!({
+                "agent_id": id,
+                "new_level": *level as i64,
+                "level_name": level.label(),
+                "level_emoji": level.emoji(),
+            })
+        })
+        .collect())
+}
+
+/// Check if an agent can respond (not Suspended/Frozen).
+#[tauri::command]
+pub async fn quarantine_can_respond(agent_id: String) -> Result<bool, String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::quarantine::can_agent_respond(engine.db(), &agent_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+
+// ─────────────────────────────────────────────
+// NETWORK DISCOVERY COMMANDS (Phase 9)
+// "Who's on my WiFi?" — ARP scan, device fingerprinting
+// ─────────────────────────────────────────────
+
+/// Run a full network scan: ARP + hostname resolution + port scan.
+#[tauri::command]
+pub async fn network_scan() -> Result<serde_json::Value, String> {
+    let engine = super::engine::get_engine();
+    let db = engine.db().clone();
+    
+    // Run heavy scan in blocking thread using sync wrapper (no nested async)
+    let result = tokio::task::spawn_blocking(move || {
+        super::engine::security::network::scan_network_sync(&db)
+    })
+    .await
+    .map_err(|e| format!("Join error: {}", e))?
+    .map_err(|e| e.to_string())?;
+    
+    serde_json::to_value(result).map_err(|e| e.to_string())
+}
+
+/// Get all known network devices.
+#[tauri::command]
+pub async fn network_get_devices() -> Result<serde_json::Value, String> {
+    let engine = super::engine::get_engine();
+    let devices = super::engine::security::network::get_devices(engine.db())
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(devices).map_err(|e| e.to_string())
+}
+
+/// Get network events (device join/leave).
+#[tauri::command]
+pub async fn network_get_events(limit: Option<i64>) -> Result<serde_json::Value, String> {
+    let engine = super::engine::get_engine();
+    let events = super::engine::security::network::get_events(engine.db(), limit.unwrap_or(50))
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(events).map_err(|e| e.to_string())
+}
+
+/// Get the full network map data (local IP, gateway, devices).
+#[tauri::command]
+pub async fn network_get_map() -> Result<serde_json::Value, String> {
+    let engine = super::engine::get_engine();
+    let map = super::engine::security::network::get_network_map(engine.db())
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(map).map_err(|e| e.to_string())
+}
+
+/// Rename a device (give it a nickname).
+#[tauri::command]
+pub async fn network_rename_device(device_id: String, nickname: String) -> Result<(), String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::network::rename_device(engine.db(), &device_id, &nickname)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Mark a device as known/trusted.
+#[tauri::command]
+pub async fn network_mark_known(device_id: String) -> Result<(), String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::network::mark_known(engine.db(), &device_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Delete a device from the database.
+#[tauri::command]
+pub async fn network_delete_device(device_id: String) -> Result<(), String> {
+    let engine = super::engine::get_engine();
+    super::engine::security::network::delete_device(engine.db(), &device_id)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 

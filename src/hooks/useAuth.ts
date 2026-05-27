@@ -37,43 +37,52 @@ export function useAuth(): UseAuthReturn {
     // Check existing session and refresh if needed
     const checkSession = async () => {
       try {
-        // First, try to get a fresh session by refreshing
-        // This handles expired tokens from reinstall or long idle
-        const { data: { session: freshSession }, error: refreshError } = await supabase.auth.refreshSession()
-        
-        if (refreshError) {
-          console.log('[useAuth] Refresh failed, trying to get stored session...')
-          // Fallback to stored session
-          const { data: { session: s }, error: getSessionError } = await supabase.auth.getSession()
-          if (getSessionError) {
-            console.error('[useAuth] Failed to get session:', getSessionError.message)
-          }
-          
-          // If we have a stored session but can't refresh it, it's likely expired
-          // Clear it so the user can re-authenticate
-          if (s?.access_token) {
-            console.log('[useAuth] Stored session found but refresh failed - likely expired')
-            console.log('[useAuth] Clearing stale session to force re-authentication')
-            await supabase.auth.signOut()
-            setSession(null)
-            setUser(null)
+        // Try to get the current stored session first
+        const { data: { session: storedSession } } = await supabase.auth.getSession()
+
+        if (storedSession?.access_token) {
+          // We have a stored token — check if it's expired or expiring soon
+          const expiresAtMs = (storedSession.expires_at ?? 0) * 1000
+          const remainingMs = expiresAtMs - Date.now()
+
+          if (remainingMs > 60_000) {
+            // Token is still valid — use it, no refresh needed yet
+            console.log('[useAuth] Stored session valid, expires in', Math.round(remainingMs / 1000), 's')
+            setSession(storedSession)
+            setUser(storedSession.user ?? null)
             setLoading(false)
-          } else {
-            setSession(s)
-            setUser(s?.user ?? null)
-            setLoading(false)
+            return
           }
-        } else {
-          // Successfully refreshed
-          console.log('[useAuth] Session refreshed successfully')
-          setSession(freshSession)
-          setUser(freshSession?.user ?? null)
+
+          // Token is expiring soon — try to refresh
+          console.log('[useAuth] Token expiring soon, refreshing...')
+          const { data: { session: freshSession }, error: refreshError } = await supabase.auth.refreshSession()
+
+          if (!refreshError && freshSession) {
+            console.log('[useAuth] Session refreshed successfully')
+            setSession(freshSession)
+            setUser(freshSession?.user ?? null)
+            setLoading(false)
+            return
+          }
+
+          // Refresh failed but we still have a stored token — keep using it
+          // Don't sign out on transient failures; the token may still be valid
+          console.warn('[useAuth] Refresh failed, keeping stored session:', refreshError?.message)
+          setSession(storedSession)
+          setUser(storedSession.user ?? null)
           setLoading(false)
+          return
         }
-      } catch (err) {
-        console.error('[useAuth] Session check error:', err)
+
+        // No stored session at all
+        console.log('[useAuth] No stored session found')
         setSession(null)
         setUser(null)
+        setLoading(false)
+      } catch (err) {
+        console.error('[useAuth] Session check error:', err)
+        // On error, don't clear session — try to keep whatever we had
         setLoading(false)
       }
     }

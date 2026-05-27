@@ -10,3 +10,7 @@ pub mod permissions;
 pub mod platform;
 pub mod siem;
 pub mod viper;
+pub mod watchtower;
+pub mod remediation;
+pub mod quarantine;
+pub mod network;
