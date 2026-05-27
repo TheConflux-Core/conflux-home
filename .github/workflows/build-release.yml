@@ -438,17 +438,19 @@ jobs:
       - name: Generate updates.json
         env:
           GH_TOKEN: ${{ github.token }}
+          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL }}
         run: |
           VERSION="${{ github.event.inputs.version || github.ref_name }}"
           VER="${VERSION#v}"
-          REPO="${{ github.repository }}"
           TAG="${{ env.RELEASE_TAG }}"
+          # R2 public URL for binary downloads (e.g. https://pub-xxx.r2.dev or custom domain)
+          # Falls back to GitHub releases if not set
+          BASE_URL="${R2_PUBLIC_URL:-https://github.com/${{ github.repository }}/releases/download/${TAG}}"
 
           DEB_SIG=$(cat /tmp/sigs/*.deb.sig 2>/dev/null | head -1 || echo "")
           NSIS_SIG=$(cat /tmp/sigs/*.exe.sig 2>/dev/null | head -1 || echo "")
 
           # macOS updater artifacts: .app.tar.gz.sig (one per arch)
-          # Try to get x64 and aarch64 sigs separately by matching naming convention
           MAC_X64_SIG=$(find /tmp/sigs/ -name '*x64*.app.tar.gz.sig' -exec cat {} \; 2>/dev/null | head -1 || echo "")
           MAC_ARM_SIG=$(find /tmp/sigs/ -name '*aarch64*.app.tar.gz.sig' -exec cat {} \; 2>/dev/null | head -1 || echo "")
           # Fallback: if naming doesn't distinguish, use whatever .app.tar.gz.sig files exist
@@ -458,27 +460,33 @@ jobs:
             MAC_ARM_SIG="${ALL_MAC_SIGS[1]:-${ALL_MAC_SIGS[0]:-}}"
           fi
 
+          # Strip any trailing whitespace/newlines from sigs
+          DEB_SIG=$(echo "$DEB_SIG" | tr -d '\n\r ')
+          NSIS_SIG=$(echo "$NSIS_SIG" | tr -d '\n\r ')
+          MAC_X64_SIG=$(echo "$MAC_X64_SIG" | tr -d '\n\r ')
+          MAC_ARM_SIG=$(echo "$MAC_ARM_SIG" | tr -d '\n\r ')
+
           cat > updates.json << EOF
           {
             "version": "${VERSION}",
-            "notes": "See release notes",
+            "notes": "Conflux Home ${VERSION} — see release notes",
             "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "platforms": {
               "linux-x86_64": {
                 "signature": "${DEB_SIG}",
-                "url": "https://github.com/${REPO}/releases/download/${TAG}/Conflux.Home_amd64.deb"
+                "url": "${BASE_URL}/Conflux.Home_amd64.deb"
               },
               "windows-x86_64": {
                 "signature": "${NSIS_SIG}",
-                "url": "https://github.com/${REPO}/releases/download/${TAG}/Conflux.Home_x64-setup.exe"
+                "url": "${BASE_URL}/Conflux.Home_x64-setup.exe"
               },
               "darwin-x86_64": {
                 "signature": "${MAC_X64_SIG}",
-                "url": "https://github.com/${REPO}/releases/download/${TAG}/Conflux.Home_x64.app.tar.gz"
+                "url": "${BASE_URL}/Conflux.Home_x64.app.tar.gz"
               },
               "darwin-aarch64": {
                 "signature": "${MAC_ARM_SIG}",
-                "url": "https://github.com/${REPO}/releases/download/${TAG}/Conflux.Home_aarch64.app.tar.gz"
+                "url": "${BASE_URL}/Conflux.Home_aarch64.app.tar.gz"
               }
             }
           }
