@@ -178,7 +178,7 @@ fn discover_model_path() -> Option<PathBuf> {
     // 2. Legacy dev path fallback
     let home = std::env::var("HOME").unwrap_or_default();
     let legacy = PathBuf::from(format!(
-        "{}/.openclaw/workspace/conflux-home/src-tauri/models/conflux-toolrouter-q4.gguf",
+        "{}/.conflux/workspace/conflux-home/src-tauri/models/conflux-toolrouter-q4.gguf",
         home
     ));
     if legacy.exists() {
@@ -789,7 +789,7 @@ pub async fn local_ai_start(
         res.join("models").join(&model_path)
     } else {
         let home = std::env::var("HOME").unwrap_or_default();
-        PathBuf::from(format!("{}/.openclaw/workspace/conflux-home/src-tauri/models/{}", home, model_path))
+        PathBuf::from(format!("{}/.conflux/workspace/conflux-home/src-tauri/models/{}", home, model_path))
     };
 
     let config = ServerConfig {

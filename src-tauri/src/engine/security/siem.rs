@@ -587,7 +587,7 @@ async fn correlate_breach_with_vuln(db: &EngineDb) -> Result<Vec<CorrelationInpu
     Ok(correlations)
 }
 
-/// Rule 2: Same agent denied 3+ times in an hour
+/// Rule 2: Same agent denied 10+ times in an hour
 async fn correlate_repeated_denials(db: &EngineDb) -> Result<Vec<CorrelationInput>> {
     let conn = db.conn_async().await;
     let mut correlations = Vec::new();
@@ -597,7 +597,7 @@ async fn correlate_repeated_denials(db: &EngineDb) -> Result<Vec<CorrelationInpu
          FROM security_events
          WHERE event_type = 'permission_denied' AND created_at >= datetime('now', '-1 hour')
          GROUP BY agent_id
-         HAVING COUNT(*) >= 3",
+         HAVING COUNT(*) >= 10",
     )?;
 
     let results: Vec<(String, i64, String)> = stmt
@@ -612,7 +612,7 @@ async fn correlate_repeated_denials(db: &EngineDb) -> Result<Vec<CorrelationInpu
     for (agent_id, count, tools) in results {
         correlations.push(CorrelationInput {
             correlation_type: "repeated_denials".into(),
-            severity: if count >= 5 { "critical" } else { "warning" }.into(),
+            severity: if count >= 20 { "critical" } else { "warning" }.into(),
             title: format!("{} permission denials in 1 hour for {}", count, agent_id),
             description: format!(
                 "Agent {} was denied {} times in the past hour. Tools attempted: {}. This may indicate an agent trying to escalate privileges or access restricted resources.",
@@ -623,7 +623,7 @@ async fn correlate_repeated_denials(db: &EngineDb) -> Result<Vec<CorrelationInpu
             source_2_type: None,
             source_2_id: None,
             agent_ids: vec![agent_id.clone()],
-            risk_score: if count >= 5 { 80 } else { 60 },
+            risk_score: if count >= 20 { 80 } else { 40 },
             raw_data: Some(serde_json::json!({
                 "agent_id": agent_id,
                 "denial_count": count,

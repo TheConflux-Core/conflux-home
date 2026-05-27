@@ -848,6 +848,68 @@ impl ConfluxEngine {
                  d. Log '🧩 Mined trajectory skill: {name}' to the run log. \
               4. Archive trajectory data older than 30 days (delete from tool_trajectories where created_at < date('now', '-30 days')). \
               Only create a skill if the sequence is genuinely new and useful."),
+
+
+            // ── Security Cron Jobs (Phase 10) ──
+            ("sec-quick-aegis", "conflux", "0 */6 * * *", "local",
+             "SECURITY: Quick Aegis system audit. \
+              Run aegis_run_audit with run_type='quick'. \
+              This focuses on firewall status and open ports. \
+              If any critical findings, use memory_write with category 'security-alert' to log. \
+              Keep output to a brief summary — 2-3 sentences. \
+              Do NOT notify the user unless critical."),
+
+            ("sec-full-aegis", "conflux", "0 3 * * *", "local",
+             "SECURITY: Full Aegis system audit. \
+              Run aegis_run_audit with run_type='full'. \
+              This is the comprehensive system hardening check — firewall, ports, SSH, \
+              file permissions, software updates, cron jobs, kernel hardening. \
+              If any critical findings, use memory_write with category 'security-alert'. \
+              Store a brief summary using memory_write with category 'security-status'."),
+
+            ("sec-viper-scan", "conflux", "0 4 * * 1", "local",
+             "SECURITY: Full Viper vulnerability scan. \
+              Run viper_run_scan with scan_type='full'. \
+              This checks system misconfig, network exposure, browser security, \
+              password safety, secrets in config files, and general hardening. \
+              If any critical vulnerabilities found, use memory_write with category 'security-alert'."),
+
+            ("sec-watchtower", "conflux", "*/5 * * * *", "local",
+             "SECURITY: Watchtower continuous monitoring check. \
+              Run watchtower_scan to snapshot file changes, processes, and network connections. \
+              If any suspicious processes or connections are detected, flag them. \
+              If critical file system changes are detected (e.g., system files deleted or modified), \
+              use memory_write with category 'security-alert'. \
+              Keep output minimal — only report anomalies, not clean scans."),
+
+            ("sec-siem-correlate", "conflux", "0 0 * * *", "local",
+             "SECURITY: SIEM correlation and risk assessment. \
+              Run siem_run_correlation to execute all correlation rules. \
+              Run siem_get_risk_overview to check the aggregate risk score. \
+              If the risk score drops below 50 or critical alerts are active, \
+              use memory_write with category 'security-alert' to flag it. \
+              Keep output to the risk score and any new correlations found."),
+
+            ("sec-agent-audit", "conflux", "0 6 * * 1", "local",
+             "SECURITY: Agent-vs-agent security audit. \
+              Run the agent security audit to test all agents against prompt injection, \
+              data exfiltration, privilege escalation, instruction override, and social engineering attacks. \
+              Check the defense scores. If any agent scores below 50, \
+              use memory_write with category 'security-alert' to flag weak agent defenses."),
+
+            ("sec-weekly-report", "conflux", "0 8 * * 1", "local",
+             "SECURITY: Generate weekly SIEM report. \
+              Run siem_generate_weekly_report to compile the week's security data. \
+              Summarize: risk score trend, top alerts, critical events, \
+              aegis score, viper risk, agent defense scores. \
+              Store the full report using memory_write with category 'security-weekly'."),
+
+            ("sec-baseline-refresh", "conflux", "0 2 * * *", "local",
+             "SECURITY: Refresh Watchtower file baselines. \
+              Run watchtower_rescan to rebuild file system baselines. \
+              This detects any files that changed since the last baseline. \
+              If critical system files were modified, use memory_write with category 'security-alert'. \
+              Keep output to count of files scanned and any changes detected."),
         ];
 
         for (name, agent_id, schedule, tz, message) in system_jobs {

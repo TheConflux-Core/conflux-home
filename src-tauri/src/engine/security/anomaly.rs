@@ -324,6 +324,11 @@ pub async fn run_anomaly_scan(db: &EngineDb) -> Result<Vec<TriggeredAnomaly>> {
             all_anomalies.len(),
             agents.len()
         );
+
+        // Phase 8: Run quarantine auto-escalation after anomaly detection
+        if let Err(e) = super::quarantine::run_auto_escalation(db).await {
+            log::error!("[Anomaly] Quarantine auto-escalation failed: {}", e);
+        }
     }
 
     Ok(all_anomalies)

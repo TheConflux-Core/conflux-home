@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::engine::db::EngineDb;
 use crate::engine::security::events::{self, EventCategory, EventType};
+use crate::engine::security::platform::{current_os, OsType};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NetworkDevice {
@@ -130,75 +131,215 @@ fn guess_device_type(hostname: &str, manufacturer: &str) -> &'static str {
 // ── Scanning (all synchronous, called from blocking context) ───
 
 fn get_local_network() -> Result<(String, String)> {
-    let output = Command::new("ip").args(["route", "show", "default"]).output().context("Failed to run 'ip route'")?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut iface = String::new();
-    for line in stdout.lines() {
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() >= 5 && parts[0] == "default" { iface = parts[4].to_string(); break; }
-    }
-    if iface.is_empty() { return Ok(("unknown".into(), "unknown/24".into())); }
-
-    let output = Command::new("ip").args(["addr", "show", &iface]).output().context("Failed to run 'ip addr'")?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    for line in stdout.lines() {
-        let line = line.trim();
-        if line.starts_with("inet ") && !line.contains("127.0.0.1") {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() >= 2 {
-                let cidr = parts[1];
-                let ip_part = cidr.split('/').next().unwrap_or(cidr);
-                let prefix = cidr.split('/').nth(1).unwrap_or("24");
-                return Ok((ip_part.to_string(), format!("{}/{}", ip_part, prefix)));
+    match current_os() {
+        OsType::Linux => {
+            let output = Command::new("ip").args(["route", "show", "default"]).output().context("Failed to run 'ip route'")?;
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let mut iface = String::new();
+            for line in stdout.lines() {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 5 && parts[0] == "default" { iface = parts[4].to_string(); break; }
             }
+            if iface.is_empty() { return Ok(("unknown".into(), "unknown/24".into())); }
+
+            let output = Command::new("ip").args(["addr", "show", &iface]).output().context("Failed to run 'ip addr'")?;
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for line in stdout.lines() {
+                let line = line.trim();
+                if line.starts_with("inet ") && !line.contains("127.0.0.1") {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 2 {
+                        let cidr = parts[1];
+                        let ip_part = cidr.split('/').next().unwrap_or(cidr);
+                        let prefix = cidr.split('/').nth(1).unwrap_or("24");
+                        return Ok((ip_part.to_string(), format!("{}/{}", ip_part, prefix)));
+                    }
+                }
+            }
+            Ok(("unknown".into(), "unknown/24".into()))
         }
+        OsType::Windows => {
+            // Use PowerShell Get-NetIPAddress
+            let output = Command::new("powershell")
+                .args(["-Command", 
+                    "Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias 'Ethernet','Wi-Fi' | \
+                     Where-Object {$_.IPAddress -ne '127.0.0.1'} | \
+                     Select-Object IPAddress,PrefixLength -First 1 | ConvertTo-Json -Compress"])
+                .output();
+            
+            if let Ok(output) = output {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&stdout) {
+                    let ip = json["IPAddress"].as_str().unwrap_or("unknown").to_string();
+                    let prefix = json["PrefixLength"].as_i64().unwrap_or(24);
+                    return Ok((ip.clone(), format!("{}/{}", ip, prefix)));
+                }
+            }
+            Ok(("unknown".into(), "unknown/24".into()))
+        }
+        _ => Ok(("unknown".into(), "unknown/24".into())),
     }
-    Ok(("unknown".into(), "unknown/24".into()))
 }
 
 fn arp_scan(_subnet: &str) -> Result<Vec<(String, Option<String>)>> {
-    match Command::new("arp-scan").args(["--localnet", "--quiet", "--retry=2"]).output() {
-        Ok(out) if out.status.success() => {
-            let stdout = String::from_utf8_lossy(&out.stdout);
+    match current_os() {
+        OsType::Linux => {
+            match Command::new("arp-scan").args(["--localnet", "--quiet", "--retry=2"]).output() {
+                Ok(out) if out.status.success() => {
+                    let stdout = String::from_utf8_lossy(&out.stdout);
+                    Ok(stdout.lines().filter_map(|line| {
+                        let parts: Vec<&str> = line.split_whitespace().collect();
+                        if parts.len() >= 2 {
+                            let ip = parts[0].to_string();
+                            let mac = parts[1].to_string();
+                            if !ip.ends_with(".255") && !ip.ends_with(".0") { return Some((ip, Some(mac))); }
+                        }
+                        None
+                    }).collect())
+                }
+                _ => {
+                    log::warn!("arp-scan not available, falling back to ARP cache");
+                    let content = std::fs::read_to_string("/proc/net/arp").context("Failed to read /proc/net/arp")?;
+                    Ok(content.lines().skip(1).filter_map(|line| {
+                        let parts: Vec<&str> = line.split_whitespace().collect();
+                        if parts.len() >= 4 && parts[3] != "00:00:00:00:00:00" && !parts[0].ends_with(".255") {
+                            return Some((parts[0].to_string(), Some(parts[3].to_string())));
+                        }
+                        None
+                    }).collect())
+                }
+            }
+        }
+        OsType::Windows => {
+            // Use Windows arp -a command
+            let output = Command::new("arp").args(["-a"]).output()?;
+            let stdout = String::from_utf8_lossy(&output.stdout);
             Ok(stdout.lines().filter_map(|line| {
                 let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 2 {
-                    let ip = parts[0].to_string();
-                    let mac = parts[1].to_string();
-                    if !ip.ends_with(".255") && !ip.ends_with(".0") { return Some((ip, Some(mac))); }
-                }
-                None
+                if parts.len() >= 3 && parts[0].contains('.') && parts[1] != "ff-ff-ff-ff-ff-ff" {
+                    let mac = parts[1].replace('-', ":").to_uppercase();
+                    Some((parts[0].to_string(), Some(mac)))
+                } else { None }
             }).collect())
         }
-        _ => {
-            log::warn!("arp-scan not available, falling back to ARP cache");
-            let content = std::fs::read_to_string("/proc/net/arp").context("Failed to read /proc/net/arp")?;
-            Ok(content.lines().skip(1).filter_map(|line| {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 4 && parts[3] != "00:00:00:00:00:00" && !parts[0].ends_with(".255") {
-                    return Some((parts[0].to_string(), Some(parts[3].to_string())));
-                }
-                None
-            }).collect())
-        }
+        _ => Ok(vec![]),
     }
 }
 
 fn resolve_hostname(ip: &str) -> Option<String> {
-    Command::new("getent").args(["hosts", ip]).output().ok().and_then(|out| {
-        if out.status.success() {
-            String::from_utf8_lossy(&out.stdout).split_whitespace().nth(1).map(|s| s.to_string())
-        } else { None }
-    })
+    match current_os() {
+        OsType::Linux => {
+            Command::new("getent").args(["hosts", ip]).output().ok().and_then(|out| {
+                if out.status.success() {
+                    String::from_utf8_lossy(&out.stdout).split_whitespace().nth(1).map(|s| s.to_string())
+                } else { None }
+            })
+        }
+        OsType::Windows => {
+            Command::new("nslookup").arg(ip).output().ok().and_then(|out| {
+                String::from_utf8_lossy(&out.stdout).lines()
+                    .find(|l| l.contains("Name:"))
+                    .and_then(|l| l.split(':').nth(1))
+                    .map(|s| s.trim().to_string())
+            })
+        }
+        _ => None,
+    }
 }
 
-const TOP_PORTS: &[u16] = &[22, 80, 443, 445, 515, 631, 8080, 8443, 9100, 5353, 548, 5900, 3389, 139, 1883];
+const TOP_PORTS: &[u16] = &[22, 80, 443, 445, 3389]; // 5 critical ports only
+const MAX_DEVICES_TO_PORT_SCAN: usize = 5;
+
+/// Fast port scan: parse `netstat -an` once instead of N Test-NetConnection calls.
+/// Returns set of (ip, port) pairs that are LISTENING.
+fn parse_netstat_listening() -> std::collections::HashSet<(String, u16)> {
+    let mut listening = std::collections::HashSet::new();
+    let output = match current_os() {
+        OsType::Windows => Command::new("powershell")
+            .args(["-Command", "netstat -an"])
+            .output(),
+        _ => Command::new("netstat").args(["-an"]).output(),
+    };
+    if let Ok(out) = output {
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        for line in stdout.lines() {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 4 && parts[0].starts_with("tcp") {
+                let state = parts[3];
+                if state == "LISTENING" || state == "LISTEN" {
+                    if let Some((addr, port_str)) = parts[1].rsplit_once(':') {
+                        if let Ok(port) = port_str.parse::<u16>() {
+                            // Normalize addr — strip IPv6 prefix if present
+                            let ip = if addr.starts_with('[') && addr.ends_with(']') {
+                                &addr[1..addr.len()-1]
+                            } else {
+                                addr
+                            };
+                            listening.insert((ip.to_string(), port));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    listening
+}
 
 fn scan_ports(ip: &str) -> Vec<u16> {
     TOP_PORTS.iter().filter_map(|&port| {
-        Command::new("nc").args(["-z", "-w1", ip, &port.to_string()])
-            .output().ok().and_then(|out| if out.status.success() { Some(port) } else { None })
+        let success = match current_os() {
+            OsType::Windows => {
+                Command::new("powershell")
+                    .args(["-Command", &format!("Test-NetConnection -ComputerName {} -Port {} -InformationLevel Quiet", ip, port)])
+                    .output().ok()
+                    .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "True")
+                    .unwrap_or(false)
+            }
+            _ => Command::new("nc")
+                .args(["-z", "-w1", ip, &port.to_string()])
+                .output().ok().map(|o| o.status.success()).unwrap_or(false),
+        };
+        if success { Some(port) } else { None }
     }).collect()
+}
+
+/// Fast port scan using pre-parsed netstat output.
+/// Falls back to nc for ports not found in netstat.
+fn scan_ports_fast(ip: &str, netstat: &std::collections::HashSet<(String, u16)>) -> Vec<u16> {
+    let mut open_ports = Vec::new();
+    // Check netstat first for all critical ports
+    for &port in TOP_PORTS {
+        if netstat.contains(&(ip.to_string(), port)) {
+            open_ports.push(port);
+            continue;
+        }
+        // Also check 0.0.0.0 and [::] wildcard listeners
+        if netstat.contains(&("0.0.0.0".to_string(), port))
+            || netstat.contains(&("[::]".to_string(), port))
+            || netstat.contains(&("*".to_string(), port))
+        {
+            open_ports.push(port);
+            continue;
+        }
+        // For remote devices, netstat won't show their listening ports.
+        // Only do the slow probe for the critical 5 ports (not 15).
+        let success = match current_os() {
+            OsType::Windows => {
+                Command::new("powershell")
+                    .args(["-Command", &format!("Test-NetConnection -ComputerName {} -Port {} -InformationLevel Quiet", ip, port)])
+                    .output().ok()
+                    .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "True")
+                    .unwrap_or(false)
+            }
+            _ => Command::new("nc")
+                .args(["-z", "-w1", ip, &port.to_string()])
+                .output().ok().map(|o| o.status.success()).unwrap_or(false),
+        };
+        if success {
+            open_ports.push(port);
+        }
+    }
+    open_ports
 }
 
 // ── DB Operations (all synchronous within conn scope) ───────────
@@ -228,6 +369,9 @@ fn run_scan(conn: &rusqlite::Connection) -> Result<NetworkScanResult> {
     let (_local_ip, subnet) = get_local_network()?;
     let arp_results = arp_scan(&subnet)?;
 
+    // Parse netstat once for all devices (avoids N*15 PowerShell calls)
+    let netstat = parse_netstat_listening();
+
     conn.execute("UPDATE network_devices SET is_online = 0", [])?;
 
     let mut devices_found = 0usize;
@@ -236,7 +380,12 @@ fn run_scan(conn: &rusqlite::Connection) -> Result<NetworkScanResult> {
 
     for (ip, mac) in &arp_results {
         let hostname = resolve_hostname(ip);
-        let ports = if devices_found < 10 { scan_ports(ip) } else { Vec::new() };
+        // Only port-scan first N devices, use fast netstat-based scan
+        let ports = if devices_found < MAX_DEVICES_TO_PORT_SCAN {
+            scan_ports_fast(ip, &netstat)
+        } else {
+            Vec::new()
+        };
         let ports_json = serde_json::to_string(&ports)?;
 
         // Check existing by MAC
@@ -346,8 +495,18 @@ pub async fn scan_network(db: &EngineDb) -> Result<NetworkScanResult> {
 
 pub async fn get_network_map(db: &EngineDb) -> Result<NetworkMapData> {
     let (local_ip, subnet) = get_local_network().unwrap_or_else(|_| ("unknown".into(), "unknown/24".into()));
-    let gateway = Command::new("ip").args(["route", "show", "default"]).output().ok()
-        .and_then(|o| String::from_utf8_lossy(&o.stdout).split_whitespace().nth(2).map(|s| s.to_string()));
+    let gateway = match current_os() {
+        OsType::Windows => {
+            Command::new("powershell")
+                .args(["-Command", "(Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Select-Object -First 1).NextHop"])
+                .output().ok()
+                .and_then(|o| String::from_utf8_lossy(&o.stdout).trim().to_string().into())
+        }
+        _ => {
+            Command::new("ip").args(["route", "show", "default"]).output().ok()
+                .and_then(|o| String::from_utf8_lossy(&o.stdout).split_whitespace().nth(2).map(|s| s.to_string()))
+        }
+    };
     let devices = get_devices(db).await?;
     Ok(NetworkMapData { local_ip, gateway_ip: gateway, subnet, devices, scan_result: None })
 }
@@ -369,4 +528,23 @@ pub async fn delete_device(db: &EngineDb, device_id: &str) -> Result<()> {
     conn.execute("DELETE FROM network_events WHERE device_id=?1", [device_id])?;
     conn.execute("DELETE FROM network_devices WHERE id=?1", [device_id])?;
     Ok(())
+}
+
+// ── Synchronous wrapper (for spawn_blocking) ─────────────────
+
+/// Synchronous network scan using conn_blocking().
+/// Called from spawn_blocking in commands.rs — no nested async.
+pub fn scan_network_sync(db: &EngineDb) -> Result<NetworkScanResult> {
+    let conn = db.conn_blocking();
+    let result = run_scan(&conn)?;
+    // Log event directly to DB (matching security_events schema)
+    let _ = conn.execute(
+        "INSERT INTO security_events (id, agent_id, session_id, event_type, category, tool_name, target, details, risk_score, was_allowed)
+         VALUES (?1, 'system', NULL, 'network_scan', 'info', NULL, NULL, ?2, 0, 1)",
+        rusqlite::params![
+            Uuid::new_v4().to_string(),
+            format!("Network scan: {} devices ({} new, {} left)", result.devices_found, result.devices_new, result.devices_left)
+        ],
+    );
+    Ok(result)
 }
