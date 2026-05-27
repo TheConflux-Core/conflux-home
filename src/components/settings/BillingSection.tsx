@@ -306,32 +306,22 @@ export default function BillingSection() {
             </div>
           </div>
 
-          {/* Credit usage bar */}
+          {/* Credit usage bar — real monthly data from get_credit_balance */}
           <div className="settings-row">
             <span className="settings-label">Credits Used</span>
             <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 13 }}>
-                <span>{creditsUsed.toLocaleString()} / {creditsIncluded.toLocaleString()} credits</span>
-                <span style={{ opacity: 0.6 }}>{Math.round(creditPercent)}%</span>
-              </div>
-              <div
-                style={{
-                  height: 8,
-                  borderRadius: 4,
-                  background: 'var(--bg-muted, rgba(255,255,255,0.08))',
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    height: '100%',
-                    width: `${creditPercent}%`,
-                    borderRadius: 4,
-                    background: creditPercent > 90 ? '#ef4444' : creditPercent > 70 ? '#f59e0b' : 'var(--accent, #0071e3)',
-                    transition: 'width 0.3s ease',
-                  }}
-                />
-              </div>
+              {creditBalance && creditBalance.monthly_credits > 0 ? (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 13 }}>
+                    <span>{(creditBalance.monthly_credits - creditBalance.monthly_used).toLocaleString()} of {creditBalance.monthly_credits.toLocaleString()} monthly</span>
+                    <span style={{ opacity: 0.6 }}>{Math.round((creditBalance.monthly_used / creditBalance.monthly_credits) * 100)}%</span>
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize: 13 }}>
+                  {creditBalance ? creditBalance.total_available.toLocaleString() + ' credits available' : 'Loading credits…'}
+                </div>
+              )}
             </div>
           </div>
 
@@ -394,7 +384,7 @@ export default function BillingSection() {
                 fontWeight: 600,
               }}
             >
-              Yearly <span style={{ fontSize: 11, color: '#22c55e' }}>Save ~17%</span>
+              Yearly
             </button>
           </div>
 
