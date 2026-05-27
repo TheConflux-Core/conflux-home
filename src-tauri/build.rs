@@ -2,6 +2,10 @@ fn main() {
     // Embed API keys at compile time so they're available via option_env! at runtime.
     // CI passes these via env vars to `tauri build`, which sets them in the shell env.
     println!(
+        "cargo:rustc-env=STRIPE_SECRET_KEY={}",
+        std::env::var("STRIPE_SECRET_KEY").unwrap_or_default()
+    );
+    println!(
         "cargo:rustc-env=FINNHUB_API_KEY={}",
         std::env::var("FINNHUB_API_KEY").unwrap_or_default()
     );
