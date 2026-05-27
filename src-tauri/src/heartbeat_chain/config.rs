@@ -1,5 +1,5 @@
 // Heartbeat Chain — Configuration Loading
-// Loads and validates heartbeat_chain.json from ~/.openclaw/
+// Loads and validates heartbeat_chain.json from ~/.conflux/
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -61,7 +61,7 @@ pub fn default_chain() -> HeartbeatChainConfig {
 /// Path to the heartbeat chain config file.
 pub fn config_path() -> PathBuf {
     let base = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
-    base.join(".openclaw").join("heartbeat_chain.json")
+    base.join(".conflux").join("heartbeat_chain.json")
 }
 
 /// Load the config file. Returns default chain if missing or invalid.

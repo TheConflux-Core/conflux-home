@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::engine::db::EngineDb;
+use crate::engine::security::platform::{current_os, OsType};
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -58,6 +59,14 @@ struct FixDef {
 }
 
 fn get_fix_for_aegis(check_name: &str) -> Option<FixDef> {
+    match current_os() {
+        OsType::Linux | OsType::MacOS => get_fix_for_aegis_unix(check_name),
+        OsType::Windows => get_fix_for_aegis_windows(check_name),
+        _ => None,
+    }
+}
+
+fn get_fix_for_aegis_unix(check_name: &str) -> Option<FixDef> {
     match check_name {
         "firewall_status" | "firewall_enabled" | "ufw_active" => Some(FixDef {
             action_type: "firewall_enable",
@@ -119,7 +128,61 @@ fn get_fix_for_aegis(check_name: &str) -> Option<FixDef> {
     }
 }
 
+fn get_fix_for_aegis_windows(check_name: &str) -> Option<FixDef> {
+    match check_name {
+        "windows_firewall" => Some(FixDef {
+            action_type: "firewall_enable",
+            description: "Enable Windows Defender Firewall for all profiles",
+            command: "netsh advfirewall set allprofiles state on",
+            undo_command: Some("netsh advfirewall set allprofiles state off"),
+            risk_level: "medium",
+            requires_root: true,
+        }),
+        "rdp_enabled" => Some(FixDef {
+            action_type: "rdp_disable",
+            description: "Disable Remote Desktop (RDP) to reduce attack surface",
+            command: r#"reg add "HKLM\System\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 1 /f"#,
+            undo_command: Some(r#"reg add "HKLM\System\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f"#),
+            risk_level: "medium",
+            requires_root: true,
+        }),
+        "uac_disabled" => Some(FixDef {
+            action_type: "uac_enable",
+            description: "Enable User Account Control (UAC)",
+            command: r#"reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v EnableLUA /t REG_DWORD /d 1 /f"#,
+            undo_command: Some(r#"reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v EnableLUA /t REG_DWORD /d 0 /f"#),
+            risk_level: "medium",
+            requires_root: true,
+        }),
+        "defender_realtime" => Some(FixDef {
+            action_type: "defender_enable",
+            description: "Enable Windows Defender real-time protection",
+            command: "Set-MpPreference -DisableRealtimeMonitoring $false",
+            undo_command: Some("Set-MpPreference -DisableRealtimeMonitoring $true"),
+            risk_level: "low",
+            requires_root: true,
+        }),
+        "guest_account_enabled" => Some(FixDef {
+            action_type: "guest_disable",
+            description: "Disable the Guest account",
+            command: "net user Guest /active:no",
+            undo_command: Some("net user Guest /active:yes"),
+            risk_level: "low",
+            requires_root: true,
+        }),
+        _ => None,
+    }
+}
+
 fn get_fix_for_viper(check_name: &str) -> Option<FixDef> {
+    match current_os() {
+        OsType::Linux | OsType::MacOS => get_fix_for_viper_unix(check_name),
+        OsType::Windows => get_fix_for_viper_windows(check_name),
+        _ => None,
+    }
+}
+
+fn get_fix_for_viper_unix(check_name: &str) -> Option<FixDef> {
     match check_name {
         "shadow_perms" | "shadow_readable" => Some(FixDef {
             action_type: "shadow_permissions",
@@ -165,6 +228,36 @@ fn get_fix_for_viper(check_name: &str) -> Option<FixDef> {
             action_type: "disable_promiscuous",
             description: "Disable promiscuous mode on network interfaces",
             command: "ip link | grep PROMISC | awk '{print $2}' | tr -d ':' | xargs -I{} ip link set {} promisc off",
+            undo_command: None,
+            risk_level: "low",
+            requires_root: true,
+        }),
+        _ => None,
+    }
+}
+
+fn get_fix_for_viper_windows(check_name: &str) -> Option<FixDef> {
+    match check_name {
+        "windows_weak_password_policy" => Some(FixDef {
+            action_type: "password_policy",
+            description: "Set minimum password length to 8 characters",
+            command: "net accounts /minpwlen:8",
+            undo_command: Some("net accounts /minpwlen:0"),
+            risk_level: "low",
+            requires_root: true,
+        }),
+        "windows_no_lockout" => Some(FixDef {
+            action_type: "lockout_policy",
+            description: "Set account lockout threshold to 5 failed attempts",
+            command: "net accounts /lockoutthreshold:5",
+            undo_command: Some("net accounts /lockoutthreshold:0"),
+            risk_level: "medium",
+            requires_root: true,
+        }),
+        "promiscuous_mode" => Some(FixDef {
+            action_type: "disable_promiscuous",
+            description: "Disable promiscuous mode on network adapters",
+            command: "Get-NetAdapter -Physical | Where-Object {$_.PromiscuousMode -eq $true} | Set-NetAdapter -PromiscuousMode $false",
             undo_command: None,
             risk_level: "low",
             requires_root: true,
@@ -232,11 +325,17 @@ pub async fn execute(
 
     let id = Uuid::new_v4().to_string();
 
-    // Execute the command
-    let output = std::process::Command::new("sh")
-        .arg("-c")
-        .arg(&preview.command)
-        .output()?;
+    // Execute the command — use PowerShell on Windows, sh on Unix
+    let output = if cfg!(target_os = "windows") {
+        std::process::Command::new("powershell")
+            .args(["-Command", &preview.command])
+            .output()?
+    } else {
+        std::process::Command::new("sh")
+            .arg("-c")
+            .arg(&preview.command)
+            .output()?
+    };
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -319,11 +418,17 @@ pub async fn undo(db: &EngineDb, remediation_id: &str) -> Result<bool> {
     let undo_cmd = undo_cmd
         .ok_or_else(|| anyhow::anyhow!("No undo command available for this remediation"))?;
 
-    // Execute the undo command
-    let output = std::process::Command::new("sh")
-        .arg("-c")
-        .arg(&undo_cmd)
-        .output()?;
+    // Execute the undo command — use PowerShell on Windows, sh on Unix
+    let output = if cfg!(target_os = "windows") {
+        std::process::Command::new("powershell")
+            .args(["-Command", &undo_cmd])
+            .output()?
+    } else {
+        std::process::Command::new("sh")
+            .arg("-c")
+            .arg(&undo_cmd)
+            .output()?
+    };
 
     let undo_success = output.status.success();
 

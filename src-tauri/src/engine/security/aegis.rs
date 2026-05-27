@@ -800,125 +800,152 @@ fn scan_permissions() -> Result<Vec<FindingInput>> {
         });
     }
 
-    // Check for world-writable files in sensitive locations
-    let check_dirs: Vec<(&str, &str)> = vec![
-        ("/etc", "System config"),
-        ("/usr/bin", "System binaries"),
-        ("/usr/local/bin", "Local binaries"),
-    ];
+    match current_os() {
+        OsType::Linux | OsType::MacOS => {
+            // Check for world-writable files in sensitive locations
+            let check_dirs: Vec<(&str, &str)> = vec![
+                ("/etc", "System config"),
+                ("/usr/bin", "System binaries"),
+                ("/usr/local/bin", "Local binaries"),
+            ];
 
-    for (dir, label) in &check_dirs {
-        if let Ok(output) = Command::new("find")
-            .args([dir, "-maxdepth", "2", "-perm", "-0002", "-type", "f"])
-            .output()
-        {
-            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            let files: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
+            for (dir, label) in &check_dirs {
+                if let Ok(output) = Command::new("find")
+                    .args([dir, "-maxdepth", "2", "-perm", "-0002", "-type", "f"])
+                    .output()
+                {
+                    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    let files: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
 
-            if !files.is_empty() {
+                    if !files.is_empty() {
+                        findings.push(FindingInput {
+                            category: "permissions".into(),
+                            check_name: format!("world_writable_{}", dir.replace('/', "_")),
+                            severity: "critical".into(),
+                            title: format!("{} World-Writable Files in {}", files.len(), label),
+                            description: format!("Found {} world-writable files in {}. Any user can modify these.", files.len(), dir),
+                            recommendation: Some("Remove world-write permission: chmod o-w <file>. Investigate why they're writable.".into()),
+                            raw_data: Some(serde_json::json!({"dir": dir, "files": files.iter().take(20).map(|f| f.to_string()).collect::<Vec<_>>(), "total": files.len()})),
+                        });
+                    } else {
+                        findings.push(FindingInput {
+                            category: "permissions".into(),
+                            check_name: format!("world_writable_{}", dir.replace('/', "_")),
+                            severity: "pass".into(),
+                            title: format!("No World-Writable Files in {}", label),
+                            description: format!("{} has no world-writable files.", dir),
+                            recommendation: None,
+                            raw_data: None,
+                        });
+                    }
+                }
+            }
+
+            // Check for SUID/SGID binaries
+            if let Ok(output) = Command::new("find")
+                .args(["/usr/bin", "/usr/sbin", "-perm", "/4000", "-type", "f"])
+                .output()
+            {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                let suid_files: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
+
+                let known_suid: Vec<&str> = vec![
+                    "/usr/bin/sudo",
+                    "/usr/bin/passwd",
+                    "/usr/bin/su",
+                    "/usr/bin/chsh",
+                    "/usr/bin/chfn",
+                    "/usr/bin/newgrp",
+                    "/usr/bin/gpasswd",
+                    "/usr/bin/mount",
+                    "/usr/bin/umount",
+                    "/usr/bin/pkexec",
+                    "/usr/bin/crontab",
+                ];
+
+                let unexpected: Vec<&&str> = suid_files
+                    .iter()
+                    .filter(|f| !known_suid.iter().any(|k| f.ends_with(k)))
+                    .collect();
+
+                if !unexpected.is_empty() {
+                    findings.push(FindingInput {
+                        category: "permissions".into(),
+                        check_name: "suid_binaries".into(),
+                        severity: "warning".into(),
+                        title: format!("{} Unexpected SUID Binaries", unexpected.len()),
+                        description: format!("Found {} SUID binaries not in the known-safe list. SUID binaries run with owner privileges and are common attack targets.", unexpected.len()),
+                        recommendation: Some("Review each SUID binary. Remove SUID bit with chmod u-s if not needed.".into()),
+                        raw_data: Some(serde_json::json!({
+                            "total_suid": suid_files.len(),
+                            "unexpected": unexpected.iter().take(20).map(|f| f.to_string()).collect::<Vec<_>>(),
+                        })),
+                    });
+                }
+
                 findings.push(FindingInput {
                     category: "permissions".into(),
-                    check_name: format!("world_writable_{}", dir.replace('/', "_")),
-                    severity: "critical".into(),
-                    title: format!("{} World-Writable Files in {}", files.len(), label),
-                    description: format!("Found {} world-writable files in {}. Any user can modify these.", files.len(), dir),
-                    recommendation: Some("Remove world-write permission: chmod o-w <file>. Investigate why they're writable.".into()),
-                    raw_data: Some(serde_json::json!({"dir": dir, "files": files.iter().take(20).map(|f| f.to_string()).collect::<Vec<_>>(), "total": files.len()})),
-                });
-            } else {
-                findings.push(FindingInput {
-                    category: "permissions".into(),
-                    check_name: format!("world_writable_{}", dir.replace('/', "_")),
-                    severity: "pass".into(),
-                    title: format!("No World-Writable Files in {}", label),
-                    description: format!("{} has no world-writable files.", dir),
+                    check_name: "suid_binaries_summary".into(),
+                    severity: "info".into(),
+                    title: format!("{} Total SUID Binaries", suid_files.len()),
+                    description: format!("System has {} SUID binaries.", suid_files.len()),
                     recommendation: None,
-                    raw_data: None,
+                    raw_data: Some(serde_json::json!({"count": suid_files.len()})),
                 });
             }
+
+            // Check /tmp permissions
+            #[cfg(unix)]
+            {
+                if let Ok(metadata) = std::fs::metadata("/tmp") {
+                    use std::os::unix::fs::PermissionsExt;
+                    let mode = metadata.permissions().mode();
+                    if mode & 0o1000 == 0 {
+                        findings.push(FindingInput {
+                            category: "permissions".into(),
+                            check_name: "tmp_sticky_bit".into(),
+                            severity: "warning".into(),
+                            title: "/tmp Missing Sticky Bit".into(),
+                            description: format!("/tmp has mode {:o} — the sticky bit (1000) is not set. Users can delete each other's files.", mode & 0o777),
+                            recommendation: Some("chmod +t /tmp".into()),
+                            raw_data: Some(serde_json::json!({"mode": format!("{:o}", mode & 0o777)})),
+                        });
+                    } else {
+                        findings.push(FindingInput {
+                            category: "permissions".into(),
+                            check_name: "tmp_sticky_bit".into(),
+                            severity: "pass".into(),
+                            title: "/tmp Has Sticky Bit".into(),
+                            description: "/tmp has the sticky bit set correctly.".into(),
+                            recommendation: None,
+                            raw_data: None,
+                        });
+                    }
+                }
+            }
         }
-    }
-
-    // Check for SUID/SGID binaries
-    if let Ok(output) = Command::new("find")
-        .args(["/usr/bin", "/usr/sbin", "-perm", "/4000", "-type", "f"])
-        .output()
-    {
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let suid_files: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
-
-        let known_suid: Vec<&str> = vec![
-            "/usr/bin/sudo",
-            "/usr/bin/passwd",
-            "/usr/bin/su",
-            "/usr/bin/chsh",
-            "/usr/bin/chfn",
-            "/usr/bin/newgrp",
-            "/usr/bin/gpasswd",
-            "/usr/bin/mount",
-            "/usr/bin/umount",
-            "/usr/bin/pkexec",
-            "/usr/bin/crontab",
-        ];
-
-        let unexpected: Vec<&&str> = suid_files
-            .iter()
-            .filter(|f| !known_suid.iter().any(|k| f.ends_with(k)))
-            .collect();
-
-        if !unexpected.is_empty() {
+        OsType::Windows => {
+            // Windows ACL model differs — produce a pass finding explaining this
             findings.push(FindingInput {
                 category: "permissions".into(),
-                check_name: "suid_binaries".into(),
-                severity: "warning".into(),
-                title: format!("{} Unexpected SUID Binaries", unexpected.len()),
-                description: format!("Found {} SUID binaries not in the known-safe list. SUID binaries run with owner privileges and are common attack targets.", unexpected.len()),
-                recommendation: Some("Review each SUID binary. Remove SUID bit with chmod u-s if not needed.".into()),
-                raw_data: Some(serde_json::json!({
-                    "total_suid": suid_files.len(),
-                    "unexpected": unexpected.iter().take(20).map(|f| f.to_string()).collect::<Vec<_>>(),
-                })),
+                check_name: "windows_acl_model".into(),
+                severity: "info".into(),
+                title: "Windows ACL Model — Use icacls for Detailed Analysis".into(),
+                description: "Windows uses ACLs instead of Unix permissions. Run icacls on specific directories for detailed permission analysis.".into(),
+                recommendation: Some("Use: icacls C:\\Windows\\System32 to check system file permissions.".into()),
+                raw_data: None,
             });
         }
-
-        findings.push(FindingInput {
-            category: "permissions".into(),
-            check_name: "suid_binaries_summary".into(),
-            severity: "info".into(),
-            title: format!("{} Total SUID Binaries", suid_files.len()),
-            description: format!("System has {} SUID binaries.", suid_files.len()),
-            recommendation: None,
-            raw_data: Some(serde_json::json!({"count": suid_files.len()})),
-        });
-    }
-
-    // Check /tmp permissions
-    #[cfg(unix)]
-    {
-        if let Ok(metadata) = std::fs::metadata("/tmp") {
-            use std::os::unix::fs::PermissionsExt;
-            let mode = metadata.permissions().mode();
-            if mode & 0o1000 == 0 {
-                findings.push(FindingInput {
-                    category: "permissions".into(),
-                    check_name: "tmp_sticky_bit".into(),
-                    severity: "warning".into(),
-                    title: "/tmp Missing Sticky Bit".into(),
-                    description: format!("/tmp has mode {:o} — the sticky bit (1000) is not set. Users can delete each other's files.", mode & 0o777),
-                    recommendation: Some("chmod +t /tmp".into()),
-                    raw_data: Some(serde_json::json!({"mode": format!("{:o}", mode & 0o777)})),
-                });
-            } else {
-                findings.push(FindingInput {
-                    category: "permissions".into(),
-                    check_name: "tmp_sticky_bit".into(),
-                    severity: "pass".into(),
-                    title: "/tmp Has Sticky Bit".into(),
-                    description: "/tmp has the sticky bit set correctly.".into(),
-                    recommendation: None,
-                    raw_data: None,
-                });
-            }
+        _ => {
+            findings.push(FindingInput {
+                category: "permissions".into(),
+                check_name: "permissions_unknown_platform".into(),
+                severity: "info".into(),
+                title: "Permissions Check Unavailable".into(),
+                description: "Platform-specific permissions check not implemented.".into(),
+                recommendation: None,
+                raw_data: None,
+            });
         }
     }
 
@@ -928,45 +955,119 @@ fn scan_permissions() -> Result<Vec<FindingInput>> {
 fn scan_software_versions() -> Result<Vec<FindingInput>> {
     let mut findings = Vec::new();
 
-    // Check for available security updates (apt-based systems)
-    if let Ok(output) = Command::new("apt")
-        .args(["list", "--upgradable"])
-        .env("LANG", "C")
-        .output()
-    {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let upgrades: Vec<&str> = stdout
-            .lines()
-            .filter(|l| l.contains('/') && !l.starts_with("Listing"))
-            .collect();
+    match current_os() {
+        OsType::Linux => {
+            // Check for available security updates (apt-based systems)
+            if let Ok(output) = Command::new("apt")
+                .args(["list", "--upgradable"])
+                .env("LANG", "C")
+                .output()
+            {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let upgrades: Vec<&str> = stdout
+                    .lines()
+                    .filter(|l| l.contains('/') && !l.starts_with("Listing"))
+                    .collect();
 
-        if !upgrades.is_empty() {
-            findings.push(FindingInput {
-                category: "software".into(),
-                check_name: "apt_upgrades_available".into(),
-                severity: "warning".into(),
-                title: format!("{} Package Updates Available", upgrades.len()),
-                description: format!("{} packages have pending upgrades. Unpatched software is a common attack vector.", upgrades.len()),
-                recommendation: Some("Run: sudo apt update && sudo apt upgrade".into()),
-                raw_data: Some(serde_json::json!({
-                    "count": upgrades.len(),
-                    "packages": upgrades.iter().take(30).map(|l| l.trim().to_string()).collect::<Vec<_>>(),
-                })),
-            });
-        } else {
-            findings.push(FindingInput {
-                category: "software".into(),
-                check_name: "apt_upgrades_available".into(),
-                severity: "pass".into(),
-                title: "System Packages Up to Date".into(),
-                description: "No pending package upgrades.".into(),
-                recommendation: None,
-                raw_data: None,
-            });
+                if !upgrades.is_empty() {
+                    findings.push(FindingInput {
+                        category: "software".into(),
+                        check_name: "apt_upgrades_available".into(),
+                        severity: "warning".into(),
+                        title: format!("{} Package Updates Available", upgrades.len()),
+                        description: format!("{} packages have pending upgrades. Unpatched software is a common attack vector.", upgrades.len()),
+                        recommendation: Some("Run: sudo apt update && sudo apt upgrade".into()),
+                        raw_data: Some(serde_json::json!({
+                            "count": upgrades.len(),
+                            "packages": upgrades.iter().take(30).map(|l| l.trim().to_string()).collect::<Vec<_>>(),
+                        })),
+                    });
+                } else {
+                    findings.push(FindingInput {
+                        category: "software".into(),
+                        check_name: "apt_upgrades_available".into(),
+                        severity: "pass".into(),
+                        title: "System Packages Up to Date".into(),
+                        description: "No pending package upgrades.".into(),
+                        recommendation: None,
+                        raw_data: None,
+                    });
+                }
+            }
         }
+        OsType::Windows => {
+            // Try winget first, fall back to PowerShell
+            if let Ok(output) = Command::new("winget")
+                .args(["upgrade"])
+                .output()
+            {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let upgrades: Vec<&str> = stdout
+                    .lines()
+                    .filter(|l| !l.trim().is_empty() && !l.starts_with("Name") && !l.starts_with("---"))
+                    .collect();
+
+                if !upgrades.is_empty() {
+                    findings.push(FindingInput {
+                        category: "software".into(),
+                        check_name: "winget_upgrades_available".into(),
+                        severity: "warning".into(),
+                        title: format!("{} Package Updates Available (winget)", upgrades.len()),
+                        description: format!("{} packages have pending upgrades via winget.", upgrades.len()),
+                        recommendation: Some("Run: winget upgrade --all".into()),
+                        raw_data: Some(serde_json::json!({
+                            "count": upgrades.len(),
+                            "packages": upgrades.iter().take(30).map(|l| l.trim().to_string()).collect::<Vec<_>>(),
+                        })),
+                    });
+                } else {
+                    findings.push(FindingInput {
+                        category: "software".into(),
+                        check_name: "winget_upgrades_available".into(),
+                        severity: "pass".into(),
+                        title: "System Packages Up to Date (winget)".into(),
+                        description: "No pending package upgrades via winget.".into(),
+                        recommendation: None,
+                        raw_data: None,
+                    });
+                }
+            } else {
+                // Fall back to PowerShell Windows Update check
+                if let Ok(output) = Command::new("powershell")
+                    .args(["-Command", r"(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().SearchUpdates('IsInstalled=0').Count"])
+                    .output()
+                {
+                    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    if let Ok(pending) = stdout.parse::<i64>() {
+                        if pending > 0 {
+                            findings.push(FindingInput {
+                                category: "software".into(),
+                                check_name: "windows_updates_available".into(),
+                                severity: "warning".into(),
+                                title: format!("{} Windows Updates Pending", pending),
+                                description: "Uninstalled Windows updates available.".into(),
+                                recommendation: Some("Run Windows Update: Settings > Windows Update".into()),
+                                raw_data: Some(serde_json::json!({"pending": pending})),
+                            });
+                        } else {
+                            findings.push(FindingInput {
+                                category: "software".into(),
+                                check_name: "windows_updates_available".into(),
+                                severity: "pass".into(),
+                                title: "Windows Updates Current".into(),
+                                description: "No pending Windows updates.".into(),
+                                recommendation: None,
+                                raw_data: None,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        _ => {}
     }
 
-    // Check key software versions
+    // Check key software versions (cross-platform — just try to run binaries)
     let check_bins: Vec<(&str, &str)> = vec![
         ("openssl", "OpenSSL"),
         ("bash", "Bash"),
@@ -1386,4 +1487,116 @@ fn calculate_score(pass: i64, warn: i64, critical: i64) -> i64 {
     // Start at 100, deduct for issues
     let score = 100 - (warn * 5) - (critical * 20);
     score.max(0).min(100)
+}
+
+// ── Synchronous wrappers (for spawn_blocking) ─────────────
+
+/// Synchronous audit runner using conn_blocking().
+/// Called from spawn_blocking in commands.rs — no nested async.
+pub fn run_full_audit_sync(db: &EngineDb) -> Result<String> {
+    run_audit_sync(db, "full")
+}
+
+pub fn run_quick_audit_sync(db: &EngineDb) -> Result<String> {
+    run_audit_sync(db, "quick")
+}
+
+fn run_audit_sync(db: &EngineDb, run_type: &str) -> Result<String> {
+    let run_id = Uuid::new_v4().to_string();
+    let conn = db.conn_blocking();
+
+    conn.execute(
+        "INSERT INTO aegis_audit_runs (id, run_type, status) VALUES (?1, ?2, 'running')",
+        rusqlite::params![&run_id, run_type],
+    )?;
+
+    log::info!("[Aegis] Starting {} audit run: {} (sync)", run_type, run_id);
+
+    let mut all_findings: Vec<FindingInput> = Vec::new();
+
+    match scan_firewall() {
+        Ok(mut findings) => all_findings.append(&mut findings),
+        Err(e) => log::warn!("[Aegis] Firewall scan failed: {}", e),
+    }
+    match scan_ports() {
+        Ok(mut findings) => all_findings.append(&mut findings),
+        Err(e) => log::warn!("[Aegis] Port scan failed: {}", e),
+    }
+    match scan_ssh() {
+        Ok(mut findings) => all_findings.append(&mut findings),
+        Err(e) => log::warn!("[Aegis] SSH scan failed: {}", e),
+    }
+    match scan_permissions() {
+        Ok(mut findings) => all_findings.append(&mut findings),
+        Err(e) => log::warn!("[Aegis] Permission scan failed: {}", e),
+    }
+
+    if run_type == "full" {
+        match scan_software_versions() {
+            Ok(mut findings) => all_findings.append(&mut findings),
+            Err(e) => log::warn!("[Aegis] Software version scan failed: {}", e),
+        }
+        match scan_cron_jobs() {
+            Ok(mut findings) => all_findings.append(&mut findings),
+            Err(e) => log::warn!("[Aegis] Cron scan failed: {}", e),
+        }
+        match scan_general() {
+            Ok(mut findings) => all_findings.append(&mut findings),
+            Err(e) => log::warn!("[Aegis] General scan failed: {}", e),
+        }
+    }
+
+    // Persist findings
+    let mut pass_count = 0i64;
+    let mut warn_count = 0i64;
+    let mut critical_count = 0i64;
+
+    for f in &all_findings {
+        let finding_id = Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO aegis_findings (id, run_id, category, check_name, severity, title, description, recommendation, raw_data)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            rusqlite::params![
+                finding_id, &run_id, &f.category, &f.check_name, &f.severity,
+                &f.title, &f.description, &f.recommendation,
+                f.raw_data.as_ref().map(|v| v.to_string()),
+            ],
+        )?;
+        match f.severity.as_str() {
+            "pass" => pass_count += 1,
+            "warning" | "info" => warn_count += 1,
+            "critical" => critical_count += 1,
+            _ => {}
+        }
+    }
+
+    let total = all_findings.len() as i64;
+    let score = calculate_score(pass_count, warn_count, critical_count);
+    let now = crate::engine::db::EngineDb::now();
+
+    conn.execute(
+        "UPDATE aegis_audit_runs SET status = 'completed', overall_score = ?1, total_checks = ?2,
+         pass_count = ?3, warn_count = ?4, critical_count = ?5, completed_at = ?6 WHERE id = ?7",
+        rusqlite::params![score, total, pass_count, warn_count, critical_count, now, &run_id],
+    )?;
+
+    // Log to SIEM directly (skip async log_security_event)
+    let _ = conn.execute(
+        "INSERT INTO security_events (id, agent_id, session_id, event_type, category, tool_name, target, details, risk_score, was_allowed)
+         VALUES (?1, 'aegis', NULL, 'anomaly', ?2, 'aegis_audit', ?3, ?4, ?5, 1)",
+        rusqlite::params![
+            Uuid::new_v4().to_string(),
+            if critical_count > 0 { "critical" } else if warn_count > 0 { "warning" } else { "info" },
+            format!("{} audit", run_type),
+            format!("{{\"run_id\":\"{}\",\"score\":{},\"pass\":{},\"warn\":{},\"critical\":{}}}", run_id, score, pass_count, warn_count, critical_count),
+            if critical_count > 0 { 80 } else if warn_count > 0 { 40 } else { 0 },
+        ],
+    );
+
+    log::info!(
+        "[Aegis] Audit {} complete (sync): score={}, pass={}, warn={}, critical={}",
+        run_id, score, pass_count, warn_count, critical_count
+    );
+
+    Ok(run_id)
 }
