@@ -5,7 +5,10 @@ use serde::{Deserialize, Serialize};
 
 fn get_stripe_key() -> Result<String, String> {
     std::env::var("STRIPE_SECRET_KEY")
-        .map_err(|_| "STRIPE_SECRET_KEY not set. Add it to .env".to_string())
+        .ok()
+        .filter(|k| !k.is_empty())
+        .or_else(|| option_env!("STRIPE_SECRET_KEY").map(|s| s.to_string()))
+        .ok_or_else(|| "STRIPE_SECRET_KEY not set. Add it to .env or embed via build.rs".to_string())
 }
 
 // ── Types ──
