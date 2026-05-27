@@ -9135,6 +9135,7 @@ pub async fn studio_export_generations_zip(
 // Voice Input — Local speech capture & transcription
 // ═══════════════════════════════════════════════════════
 
+#[cfg(not(target_os = "android"))]
 pub mod voice_cmds {
     use crate::engine;
     use crate::voice;
@@ -9519,57 +9520,56 @@ pub mod voice_cmds {
 }
 
 // Re-export voice commands — desktop uses real impl, Android gets stubs
+#[cfg(not(target_os = "android"))]
 pub use voice_cmds::*;
 
 #[cfg(target_os = "android")]
-#[tauri::command]
-pub fn voice_capture_start() -> Result<String, String> {
-    Err("Voice input is not available on Android".to_string())
-}
-#[cfg(target_os = "android")]
-#[tauri::command]
-pub fn voice_capture_stop() -> Result<serde_json::Value, String> {
-    Err("Voice input is not available on Android".to_string())
-}
-#[cfg(target_os = "android")]
-#[tauri::command]
-pub fn voice_transcribe(_app: tauri::AppHandle) -> Result<String, String> {
-    Err("Voice input is not available on Android".to_string())
-}
-#[cfg(target_os = "android")]
-#[tauri::command]
-pub async fn voice_capture_and_transcribe(
-    _app: tauri::AppHandle,
-    _max_duration_ms: Option<u64>,
-) -> Result<String, String> {
-    Err("Voice input is not available on Android".to_string())
-}
-#[cfg(target_os = "android")]
-#[tauri::command]
-pub fn voice_get_status() -> Result<serde_json::Value, String> {
-    Ok(serde_json::json!({ "available": false, "platform": "android" }))
-}
-#[cfg(target_os = "android")]
-#[tauri::command]
-pub fn voice_list_devices() -> Result<Vec<String>, String> {
-    Ok(vec![])
-}
-#[cfg(target_os = "android")]
-#[tauri::command]
-pub fn voice_check_microphone() -> Result<serde_json::Value, String> {
-    Ok(
-        serde_json::json!({ "available": false, "guidance": "Voice input is not available on Android." }),
-    )
-}
-#[cfg(target_os = "android")]
-#[tauri::command]
-pub fn voice_get_config() -> Result<Vec<serde_json::Value>, String> {
-    Ok(vec![])
-}
-#[cfg(target_os = "android")]
-#[tauri::command]
-pub fn voice_set_config(_key: String, _value: String) -> Result<(), String> {
-    Err("Voice input is not available on Android".to_string())
+pub mod voice_cmds {
+    use super::*;
+
+    #[tauri::command]
+    pub fn voice_capture_start() -> Result<String, String> {
+        Err("Voice input is not available on Android".to_string())
+    }
+    #[tauri::command]
+    pub fn voice_capture_stop() -> Result<serde_json::Value, String> {
+        Err("Voice input is not available on Android".to_string())
+    }
+    #[tauri::command]
+    pub fn voice_transcribe(_app: tauri::AppHandle) -> Result<String, String> {
+        Err("Voice input is not available on Android".to_string())
+    }
+    #[tauri::command]
+    pub async fn voice_capture_and_transcribe(
+        _app: tauri::AppHandle,
+        _max_duration_ms: Option<u64>,
+    ) -> Result<String, String> {
+        Err("Voice input is not available on Android".to_string())
+    }
+    #[tauri::command]
+    pub fn voice_get_status() -> Result<serde_json::Value, String> {
+        Ok(serde_json::json!({ "available": false, "platform": "android" }))
+    }
+    #[tauri::command]
+    pub fn voice_list_devices() -> Result<Vec<String>, String> {
+        Ok(vec![])
+    }
+    #[tauri::command]
+    pub fn voice_check_microphone() -> Result<serde_json::Value, String> {
+        Ok(serde_json::json!({ "available": false, "guidance": "Voice input is not available on Android." }))
+    }
+    #[tauri::command]
+    pub fn voice_get_config() -> Result<Vec<serde_json::Value>, String> {
+        Ok(vec![])
+    }
+    #[tauri::command]
+    pub fn voice_set_config(_key: String, _value: String) -> Result<(), String> {
+        Err("Voice input is not available on Android".to_string())
+    }
+    #[tauri::command]
+    pub fn debug_audio_buffer_state() -> Result<serde_json::Value, String> {
+        Ok(serde_json::json!({ "available": false }))
+    }
 }
 /*
 #[cfg(target_os = "android")]
@@ -11613,3 +11613,127 @@ pub fn pulse_increment_session_count(session_id: String) -> Result<(), String> {
     .map_err(|e| e.to_string())?;
     Ok(())
 }
+
+// ─────────────────────────────────────────────
+// ANDROID STUBS — Desktop security commands not available on mobile
+// ─────────────────────────────────────────────
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn watchtower_scan() -> Result<serde_json::Value, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn watchtower_get_status() -> Result<serde_json::Value, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn watchtower_get_events(_severity: Option<String>, _limit: Option<i64>, _offset: Option<i64>) -> Result<Vec<serde_json::Value>, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn watchtower_get_baselines(_limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn watchtower_rescan() -> Result<i64, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn watchtower_snapshot_processes() -> Result<i64, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn watchtower_get_processes(_suspicious_only: Option<bool>) -> Result<Vec<serde_json::Value>, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn watchtower_kill_process(_pid: u32) -> Result<bool, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn watchtower_snapshot_connections() -> Result<i64, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn watchtower_get_connections(_suspicious_only: Option<bool>) -> Result<Vec<serde_json::Value>, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn remediation_dry_run(_finding_id: String, _source: String) -> Result<Option<serde_json::Value>, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn remediation_execute(_finding_id: String, _source: String) -> Result<serde_json::Value, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn remediation_undo(_remediation_id: String) -> Result<bool, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn remediation_get_log(_limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn remediation_has_fix(_check_name: String, _source: String) -> Result<bool, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn quarantine_get_status(_agent_id: String) -> Result<serde_json::Value, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn quarantine_get_level(_agent_id: String) -> Result<String, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn quarantine_escalate(_agent_id: String, _level: i64, _reason: String) -> Result<String, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn quarantine_release(_agent_id: String) -> Result<bool, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn quarantine_get_history(_agent_id: Option<String>, _limit: Option<i64>) -> Result<Vec<serde_json::Value>, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn quarantine_get_all() -> Result<Vec<serde_json::Value>, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn quarantine_run_auto_escalation() -> Result<Vec<serde_json::Value>, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn quarantine_can_respond(_agent_id: String) -> Result<bool, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn network_scan() -> Result<serde_json::Value, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn network_get_devices() -> Result<serde_json::Value, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn network_get_events(_limit: Option<i64>) -> Result<serde_json::Value, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn network_get_map() -> Result<serde_json::Value, String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn network_rename_device(_device_id: String, _nickname: String) -> Result<(), String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn network_mark_known(_device_id: String) -> Result<(), String> { Err("Not available on Android".into()) }
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn network_delete_device(_device_id: String) -> Result<(), String> { Err("Not available on Android".into()) }
