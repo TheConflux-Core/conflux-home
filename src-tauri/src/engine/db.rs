@@ -2226,6 +2226,7 @@ impl EngineDb {
         emoji: &str,
         version: &str,
         author: Option<&str>,
+        skill_type: &str,
         instructions: &str,
         triggers: Option<&str>,
         agents: &str,
@@ -2236,13 +2237,13 @@ impl EngineDb {
         let conn = self.conn_blocking();
         let now = Self::now();
         conn.execute(
-            "INSERT INTO skills (id, name, description, emoji, version, author, instructions, triggers, agents, permissions, install_source, manifest_json, installed_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?13)
+            "INSERT INTO skills (id, name, description, emoji, version, author, skill_type, instructions, triggers, agents, permissions, install_source, manifest_json, installed_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?14)
              ON CONFLICT(id) DO UPDATE SET
                 name = ?2, description = ?3, emoji = ?4, version = ?5, author = ?6,
-                instructions = ?7, triggers = ?8, agents = ?9, permissions = ?10,
-                install_source = ?11, manifest_json = ?12, is_active = 1, updated_at = ?13",
-            params![id, name, description, emoji, version, author, instructions, triggers, agents, permissions, source, manifest, now],
+                skill_type = ?7, instructions = ?8, triggers = ?9, agents = ?10, permissions = ?11,
+                install_source = ?12, manifest_json = ?13, is_active = 1, updated_at = ?14",
+            params![id, name, description, emoji, version, author, skill_type, instructions, triggers, agents, permissions, source, manifest, now],
         )?;
         Ok(())
     }
@@ -2258,7 +2259,7 @@ impl EngineDb {
         let fragments: Vec<serde_json::Value> = stmt
             .query_map([&cutoff], |row| {
                 Ok(serde_json::json!({
-                    "id": row.get::<_, i64>(0)?,
+                    "id": row.get::<_, String>(0)?,
                     "category": row.get::<_, String>(1)?,
                     "lesson": row.get::<_, String>(2)?,
                     "created_at": row.get::<_, String>(3)?,
@@ -2274,7 +2275,7 @@ impl EngineDb {
             let fallback: Vec<serde_json::Value> = stmt2
                 .query_map([], |row| {
                     Ok(serde_json::json!({
-                        "id": row.get::<_, i64>(0)?,
+                        "id": row.get::<_, String>(0)?,
                         "category": row.get::<_, String>(1)?,
                         "lesson": row.get::<_, String>(2)?,
                         "created_at": row.get::<_, String>(3)?,
@@ -2285,6 +2286,31 @@ impl EngineDb {
             return Ok(fallback);
         }
         Ok(fragments)
+    }
+
+    /// Log a tool call sequence for trajectory mining.
+    /// Upserts into trajectory_patterns: increments call_count if hash exists.
+    pub fn log_tool_trajectory(&self, agent_id: &str, tool_names: &[String]) -> Result<()> {
+        if tool_names.len() < 2 { return Ok(()); }  // need at least 2 tools for a pattern
+        let conn = self.conn_blocking();
+        let sequence_json = serde_json::to_string(tool_names)?;
+        use sha2::{Sha256, Digest};
+        let mut hasher = Sha256::new();
+        hasher.update(sequence_json.as_bytes());
+        let hash = format!("{:x}", hasher.finalize());
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = Self::now();
+
+        // Upsert: if sequence_hash exists for this agent, increment count
+        conn.execute(
+            "INSERT INTO trajectory_patterns (id, agent_id, sequence_hash, tool_sequence, call_count, last_used, created_at)
+             VALUES (?1, ?2, ?3, ?4, 1, ?5, ?5)
+             ON CONFLICT(agent_id, sequence_hash) DO UPDATE SET
+                call_count = call_count + 1,
+                last_used = ?5",
+            params![id, agent_id, hash, sequence_json, now],
+        )?;
+        Ok(())
     }
 
     pub fn get_trajectory_patterns(&self, agent_id: &str, min_count: i64) -> Result<Vec<serde_json::Value>> {
@@ -2305,6 +2331,49 @@ impl EngineDb {
         Ok(patterns)
     }
 
+    // ============================================================
+    // SKILL EVENTS — Timeline tracking
+    // ============================================================
+
+    pub fn log_skill_event(
+        &self,
+        skill_id: &str,
+        skill_name: &str,
+        event_type: &str,
+        detail: Option<&str>,
+        agent_id: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.conn_blocking();
+        let id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT INTO skill_events (id, skill_id, skill_name, event_type, detail, agent_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, skill_id, skill_name, event_type, detail, agent_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_skill_events(&self, limit: i64) -> Result<Vec<serde_json::Value>> {
+        let conn = self.conn_blocking();
+        let mut stmt = conn.prepare(
+            "SELECT id, skill_id, skill_name, event_type, detail, agent_id, created_at FROM skill_events ORDER BY created_at DESC LIMIT ?1",
+        )?;
+        let events: Vec<serde_json::Value> = stmt
+            .query_map([limit], |row| {
+                Ok(serde_json::json!({
+                    "id": row.get::<_, String>(0)?,
+                    "skill_id": row.get::<_, String>(1)?,
+                    "skill_name": row.get::<_, String>(2)?,
+                    "event_type": row.get::<_, String>(3)?,
+                    "detail": row.get::<_, Option<String>>(4)?,
+                    "agent_id": row.get::<_, Option<String>>(5)?,
+                    "created_at": row.get::<_, String>(6)?,
+                }))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(events)
+    }
+
     pub fn get_today_lessons(&self, agent_id: &str) -> Result<Vec<serde_json::Value>> {
         let conn = self.conn_blocking();
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
@@ -2323,6 +2392,196 @@ impl EngineDb {
             .filter_map(|r| r.ok())
             .collect();
         Ok(lessons)
+    }
+
+    // ============================================================
+    // PHASE 5 — Backend Intelligence
+    // ============================================================
+
+    /// Get trajectory patterns with full tool_sequence data (for mining).
+    /// Optionally filter by agent_id; pass None for all agents.
+    pub fn get_trajectory_patterns_full(
+        &self,
+        agent_id: Option<&str>,
+        min_count: i64,
+    ) -> Result<Vec<serde_json::Value>> {
+        let conn = self.conn_blocking();
+        let (query, params_vec): (&str, Vec<Box<dyn rusqlite::types::ToSql>>) = match agent_id {
+            Some(aid) => (
+                "SELECT id, agent_id, sequence_hash, tool_sequence, call_count, last_used FROM trajectory_patterns WHERE agent_id = ?1 AND call_count >= ?2 ORDER BY call_count DESC LIMIT 50",
+                vec![Box::new(aid.to_string()), Box::new(min_count)],
+            ),
+            None => (
+                "SELECT id, agent_id, sequence_hash, tool_sequence, call_count, last_used FROM trajectory_patterns WHERE call_count >= ?1 ORDER BY call_count DESC LIMIT 50",
+                vec![Box::new(min_count)],
+            ),
+        };
+        let mut stmt = conn.prepare(query)?;
+        let params_refs: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+        let patterns: Vec<serde_json::Value> = stmt
+            .query_map(params_refs.as_slice(), |row| {
+                Ok(serde_json::json!({
+                    "id": row.get::<_, String>(0)?,
+                    "agent_id": row.get::<_, String>(1)?,
+                    "sequence_hash": row.get::<_, String>(2)?,
+                    "tool_sequence": row.get::<_, String>(3)?,
+                    "call_count": row.get::<_, i64>(4)?,
+                    "last_used": row.get::<_, String>(5)?,
+                }))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(patterns)
+    }
+
+    /// Check if any existing skill's instructions/triggers reference the given tool sequence.
+    pub fn skill_covers_tools(&self, tool_names: &[String]) -> Result<bool> {
+        let conn = self.conn_blocking();
+        // Check if any active skill's triggers or instructions mention the dominant tool
+        let dominant = tool_names.first().cloned().unwrap_or_default();
+        let mut stmt = conn.prepare(
+            "SELECT COUNT(*) FROM skills WHERE is_active = 1 AND (triggers LIKE ?1 OR instructions LIKE ?1)",
+        )?;
+        let pattern = format!("%{}%", dominant);
+        let count: i64 = stmt.query_row(params![pattern], |row| row.get(0))?;
+        Ok(count > 0)
+    }
+
+    /// Count skills grouped by agent (for the UI agent filter dropdown).
+    pub fn get_skill_count_by_agent(&self) -> Result<Vec<serde_json::Value>> {
+        let conn = self.conn_blocking();
+        let mut stmt = conn.prepare(
+            "SELECT agents, COUNT(*) as cnt FROM skills WHERE is_active = 1 GROUP BY agents ORDER BY cnt DESC",
+        )?;
+        let counts: Vec<serde_json::Value> = stmt
+            .query_map([], |row| {
+                let agents_raw: String = row.get(0)?;
+                let cnt: i64 = row.get(1)?;
+                Ok(serde_json::json!({
+                    "agents": agents_raw,
+                    "count": cnt,
+                }))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(counts)
+    }
+
+    /// Get the agent that discovered a skill (from skill_events).
+    pub fn get_skill_discoverer(&self, skill_id: &str) -> Result<Option<String>> {
+        let conn = self.conn_blocking();
+        let mut stmt = conn.prepare(
+            "SELECT agent_id FROM skill_events WHERE skill_id = ?1 AND event_type = 'created' AND agent_id IS NOT NULL ORDER BY created_at ASC LIMIT 1",
+        )?;
+        let result = stmt.query_row(params![skill_id], |row| row.get::<_, Option<String>>(0));
+        match result {
+            Ok(Some(aid)) => Ok(Some(aid)),
+            _ => Ok(None),
+        }
+    }
+
+    // ── Skill Compositions ──
+
+    /// Create a composition link between two skills.
+    pub fn create_composition(
+        &self,
+        parent_skill_id: &str,
+        child_skill_id: &str,
+        step_order: i64,
+    ) -> Result<()> {
+        let conn = self.conn_blocking();
+        let id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            "INSERT OR IGNORE INTO skill_compositions (id, parent_skill_id, child_skill_id, step_order) VALUES (?1, ?2, ?3, ?4)",
+            params![id, parent_skill_id, child_skill_id, step_order],
+        )?;
+        Ok(())
+    }
+
+    /// Get the full composition chain starting from a skill.
+    pub fn get_composition_chain(&self, skill_id: &str) -> Result<Vec<serde_json::Value>> {
+        let conn = self.conn_blocking();
+        let mut stmt = conn.prepare(
+            "SELECT sc.id, sc.parent_skill_id, sc.child_skill_id, sc.step_order, sc.created_at,
+                    s.name as child_name, s.emoji as child_emoji, s.description as child_desc
+             FROM skill_compositions sc
+             JOIN skills s ON s.id = sc.child_skill_id
+             WHERE sc.parent_skill_id = ?1
+             ORDER BY sc.step_order ASC",
+        )?;
+        let chain: Vec<serde_json::Value> = stmt
+            .query_map(params![skill_id], |row| {
+                Ok(serde_json::json!({
+                    "id": row.get::<_, String>(0)?,
+                    "parent_skill_id": row.get::<_, String>(1)?,
+                    "child_skill_id": row.get::<_, String>(2)?,
+                    "step_order": row.get::<_, i64>(3)?,
+                    "created_at": row.get::<_, String>(4)?,
+                    "child_name": row.get::<_, String>(5)?,
+                    "child_emoji": row.get::<_, String>(6)?,
+                    "child_desc": row.get::<_, Option<String>>(7)?,
+                }))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(chain)
+    }
+
+    /// Get reverse composition chain: skills that chain INTO this skill.
+    pub fn get_composition_parents(&self, skill_id: &str) -> Result<Vec<serde_json::Value>> {
+        let conn = self.conn_blocking();
+        let mut stmt = conn.prepare(
+            "SELECT sc.id, sc.parent_skill_id, sc.step_order,
+                    s.name as parent_name, s.emoji as parent_emoji
+             FROM skill_compositions sc
+             JOIN skills s ON s.id = sc.parent_skill_id
+             WHERE sc.child_skill_id = ?1
+             ORDER BY sc.step_order ASC",
+        )?;
+        let parents: Vec<serde_json::Value> = stmt
+            .query_map(params![skill_id], |row| {
+                Ok(serde_json::json!({
+                    "id": row.get::<_, String>(0)?,
+                    "parent_skill_id": row.get::<_, String>(1)?,
+                    "step_order": row.get::<_, i64>(2)?,
+                    "parent_name": row.get::<_, String>(3)?,
+                    "parent_emoji": row.get::<_, String>(4)?,
+                }))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(parents)
+    }
+
+    /// Get all compositions (for cron analysis).
+    pub fn get_all_compositions(&self) -> Result<Vec<serde_json::Value>> {
+        let conn = self.conn_blocking();
+        let mut stmt = conn.prepare(
+            "SELECT id, parent_skill_id, child_skill_id, step_order, created_at FROM skill_compositions ORDER BY created_at DESC LIMIT 100",
+        )?;
+        let comps: Vec<serde_json::Value> = stmt
+            .query_map([], |row| {
+                Ok(serde_json::json!({
+                    "id": row.get::<_, String>(0)?,
+                    "parent_skill_id": row.get::<_, String>(1)?,
+                    "child_skill_id": row.get::<_, String>(2)?,
+                    "step_order": row.get::<_, i64>(3)?,
+                    "created_at": row.get::<_, String>(4)?,
+                }))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(comps)
+    }
+
+    /// Update the agents field of a skill (for tagging mined skills with discoverer).
+    pub fn update_skill_agents(&self, skill_id: &str, agents_json: &str) -> Result<()> {
+        let conn = self.conn_blocking();
+        conn.execute(
+            "UPDATE skills SET agents = ?2, updated_at = ?3 WHERE id = ?1",
+            params![skill_id, agents_json, Self::now()],
+        )?;
+        Ok(())
     }
 
     pub fn toggle_skill(&self, id: &str, active: bool) -> Result<()> {

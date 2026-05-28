@@ -673,7 +673,14 @@ pub async fn process_turn(
     // 11. Session compaction (if over threshold)
     let _ = maybe_compact_session(db, session_id, agent_id).await;
 
-    // 12. Guided Skill Creation Check
+    // 11b. Log tool trajectory for cross-session pattern mining
+    if all_tool_names.len() >= 2 {
+        use crate::engine::get_engine;
+        let engine = get_engine();
+        let _ = engine.log_tool_trajectory(agent_id, &all_tool_names);
+    }
+
+    // 12. Auto-Skill Creation (auto-approve — no user prompt needed)
     if total_tool_calls_in_turn >= 5 && !all_tool_names.is_empty() {
         use std::collections::HashMap;
         let mut freq = HashMap::new();
@@ -698,27 +705,36 @@ pub async fn process_turn(
             tool_sequence
         );
 
-        let draft = serde_json::json!({
-            "skill_name": skill_name,
-            "description": description,
-            "triggers": triggers,
-            "procedure": procedure,
-            "tool_sequence": tool_sequence,
-            "total_tool_calls": total_tool_calls_in_turn,
-        });
-        let _ = db.set_config("pending_skill_draft", &serde_json::to_string(&draft).unwrap_or_default());
-        log::info!("[Engine] Generated skill draft '{}' from {} tool calls", skill_name, total_tool_calls_in_turn);
-
-        // Emit skill-prompt event via engine's emit_tauri_event (no AppHandle parameter needed)
+        // Auto-install the skill (no user approval needed)
         use crate::engine::get_engine;
-        get_engine().emit_tauri_event("conflux:skill-prompt", serde_json::json!({
-            "skill_name": skill_name,
-            "description": description,
-            "triggers": triggers,
-            "procedure": procedure,
-            "tool_sequence": tool_sequence,
-            "total_tool_calls": total_tool_calls_in_turn,
-        }));
+        let engine = get_engine();
+        match engine.write_and_install_skill(
+            &skill_name,
+            &description,
+            &triggers,
+            &procedure,
+            "learned",
+        ) {
+            Ok(skill_id) => {
+                log::info!("[Engine] Auto-installed skill '{}' (id: {})", skill_name, skill_id);
+                // Emit skill-created event for bloom animation + toast
+                engine.emit_tauri_event("conflux:skill-created", serde_json::json!({
+                    "skill_name": skill_name,
+                    "skill_id": skill_id,
+                }));
+                // Log skill event for timeline
+                let _ = engine.log_skill_event(
+                    &skill_id,
+                    &skill_name,
+                    "created",
+                    Some(&format!("Auto-learned from tool pattern: {}", tool_sequence)),
+                    None,
+                );
+            }
+            Err(e) => {
+                log::warn!("[Engine] Failed to auto-install skill '{}': {}", skill_name, e);
+            }
+        }
     }
 
     Ok(response)
