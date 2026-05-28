@@ -40,6 +40,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   current: { icon: '📰', label: 'Current' },
   radar: { icon: '📡', label: 'Radar' },
   games: { icon: '🎮', label: 'Games' },
+  grove: { icon: '🌿', label: 'Grove' },
 };
 
 const DEFAULT_PINNED: View[] = ['chat', 'family', 'hearth', 'pulse', 'settings'];

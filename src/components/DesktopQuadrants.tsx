@@ -54,6 +54,7 @@ const CATEGORIES: CategoryDef[] = [
     apps: [
       { id: 'marketplace', icon: '🛒', label: 'Marketplace', preview: 'Browse & install agents' },
       { id: 'agents', icon: '🧩', label: 'Agents', preview: 'Meet & manage your AI team' },
+      { id: 'grove', icon: '🌿', label: 'Grove', preview: 'Watch your AI grow' },
       { id: 'games', icon: '🎮', label: 'Games', preview: 'Play & compete' },
     ],
   },

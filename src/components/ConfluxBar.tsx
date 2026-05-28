@@ -48,6 +48,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   api: { icon: '📊', label: 'API' },
   radar: { icon: '📡', label: 'Radar' },
   games: { icon: '🎮', label: 'Games' },
+  grove: { icon: '🌿', label: 'Grove' },
 };
 
 
