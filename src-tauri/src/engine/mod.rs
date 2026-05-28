@@ -656,10 +656,10 @@ impl ConfluxEngine {
             self.db.update_cron_next_run(&id, &next_str)?;
         }
 
-        // Emit event
+        // Emit event (no source_agent to avoid FK constraint)
         self.db.emit_event(
             "cron_created",
-            Some("system"),
+            None,
             None,
             Some(&serde_json::json!({"id": id, "name": name}).to_string()),
         )?;
@@ -832,22 +832,25 @@ impl ConfluxEngine {
                  b. Write a SKILL.md to /tmp/conflux-skills/auto/{name}/SKILL.md with YAML frontmatter (name, description, version: 1.0.0, skill_type: synthesized, triggers, agents: [conflux]) and a Procedure section. \
                  c. Call engine_write_lesson_skill with the skill details to install it. \
                  d. Log '🧩 Synthesized skill: {name}' to the run log. \
-              3. For groups with fewer than 3 lessons, store as skill fragments — no action needed. \
-              4. If you synthesized any skills, emit conflux:skill-created for each. \
+              3. Also check trajectory patterns: call engine_get_trajectory_patterns_full with agent_id=null and min_count=5. For high-frequency patterns (5+), if 2+ patterns share a common tool, suggest a composition using engine_create_skill_composition. \
+              4. Check for skill maturity: if a skill has 5+ associated lessons in skill_events, log a 'matured' event using engine_log_skill_event. \
+              5. For groups with fewer than 3 lessons, store as skill fragments — no action needed. \
+              6. If you synthesized any skills, emit conflux:skill-created for each. \
               Be concise — this cron must complete within its timeout window."),
 
 
             ("trajectory-mine", "conflux", "50 23 * * *", "local",
-             "Trajectory Mining — find reusable tool sequences. \
-              1. Use engine_get_trajectory_patterns with agent_id='conflux' and min_count=3 to find tool sequences seen 3+ times. \
-              2. For each pattern, check that no existing skill covers the same tool sequence. \
-              3. For genuinely new patterns: \
-                 a. Generate a skill name from the dominant tool (e.g., 'budget-query-week'). \
-                 b. Write a SKILL.md to /tmp/conflux-skills/mined/{name}/SKILL.md. \
-                 c. Call engine_write_lesson_skill to install it. \
-                 d. Log '🧩 Mined trajectory skill: {name}' to the run log. \
-              4. Archive trajectory data older than 30 days (delete from tool_trajectories where created_at < date('now', '-30 days')). \
-              Only create a skill if the sequence is genuinely new and useful."),
+             "Trajectory Mining — automated skill discovery from tool sequences. \
+              1. Call engine_mine_trajectory_skills with agent_id=null and min_count=3. \
+                 This automatically mines trajectory patterns into skills. \
+                 It checks for existing skills, generates names, and installs. \
+              2. Call engine_mine_agent_skills for each active agent: conflux, helix, forge, pulse, quanta, prism, catalyst. \
+                 This ensures agent-specific patterns are discovered. \
+              3. Check for skill compositions: use engine_get_trajectory_patterns_full with min_count=5. \
+                 If pattern A's last tool matches pattern B's first tool, create a composition via engine_create_skill_composition. \
+              4. Archive trajectory data older than 30 days. \
+              5. Log results: '🧩 Mined X new skills, Y compositions' to the run log. \
+              Be concise — this cron must complete within its timeout window."),
 
 
             // ── Security Cron Jobs (Phase 10) ──
@@ -1258,6 +1261,8 @@ impl ConfluxEngine {
                 }
             });
 
+        let skill_type = manifest["skill_type"].as_str().unwrap_or("prompt");
+
         self.db.install_skill(
             id,
             name,
@@ -1265,6 +1270,7 @@ impl ConfluxEngine {
             emoji,
             version,
             author,
+            skill_type,
             instructions,
             triggers.as_deref(),
             &agents,
@@ -1273,10 +1279,10 @@ impl ConfluxEngine {
             Some(json),
         )?;
 
-        // Emit event
+        // Emit event (no source_agent to avoid FK constraint — "system" is not in agents table)
         self.db.emit_event(
             "skill_installed",
-            Some("system"),
+            None,
             None,
             Some(&serde_json::json!({"id": id, "name": name}).to_string()),
         )?;
@@ -1350,6 +1356,197 @@ impl ConfluxEngine {
 
     pub fn uninstall_skill(&self, id: &str) -> Result<()> {
         self.db.uninstall_skill(id)
+    }
+
+    /// Log a tool call sequence for trajectory mining.
+    pub fn log_tool_trajectory(&self, agent_id: &str, tool_names: &[String]) -> Result<()> {
+        self.db.log_tool_trajectory(agent_id, tool_names)
+    }
+
+    /// Get trajectory patterns for an agent (for cron mining).
+    pub fn get_trajectory_patterns(&self, agent_id: &str, min_count: i64) -> Result<Vec<serde_json::Value>> {
+        self.db.get_trajectory_patterns(agent_id, min_count)
+    }
+
+    /// Write a skill to disk and install it in one step.
+    /// Used by auto-skill creation and dream synthesis.
+    pub fn write_and_install_skill(
+        &self,
+        name: &str,
+        description: &str,
+        triggers: &str,
+        procedure: &str,
+        skill_type: &str,
+    ) -> Result<String> {
+        use std::fs;
+
+        let slug = name.to_lowercase().replace(' ', "-").replace('_', "-");
+        let subdir = match skill_type {
+            "synthesized" => "auto",
+            "mined" => "mined",
+            _ => "learned",
+        };
+        let dir = std::path::Path::new("/tmp/conflux-skills").join(subdir).join(&slug);
+        fs::create_dir_all(&dir)?;
+
+        let content = format!(
+            r#"---
+name: {name}
+description: {description}
+version: 1.0.0
+skill_type: {skill_type}
+triggers: {triggers}
+agents: [conflux]
+emoji: 🧩
+---
+
+# {name}
+
+## When to Use
+{triggers}
+
+## Procedure
+{procedure}
+"#,
+            name = name,
+            description = description,
+            skill_type = skill_type,
+            triggers = triggers,
+            procedure = procedure,
+        );
+
+        let path = dir.join("SKILL.md");
+        fs::write(&path, &content)?;
+        log::info!("[Skill] Wrote skill to {}", path.display());
+
+        let skill_id = self.install_skill_from_file(&path.to_string_lossy())?;
+        Ok(skill_id)
+    }
+
+    pub fn log_skill_event(
+        &self,
+        skill_id: &str,
+        skill_name: &str,
+        event_type: &str,
+        detail: Option<&str>,
+        agent_id: Option<&str>,
+    ) -> Result<()> {
+        self.db.log_skill_event(skill_id, skill_name, event_type, detail, agent_id)
+    }
+
+    pub fn get_skill_events(&self, limit: i64) -> Result<Vec<serde_json::Value>> {
+        self.db.get_skill_events(limit)
+    }
+
+    // ── Phase 5: Backend Intelligence ──
+
+    /// Get trajectory patterns with full tool_sequence data.
+    pub fn get_trajectory_patterns_full(
+        &self,
+        agent_id: Option<&str>,
+        min_count: i64,
+    ) -> Result<Vec<serde_json::Value>> {
+        self.db.get_trajectory_patterns_full(agent_id, min_count)
+    }
+
+    /// Mine trajectory patterns into skills.
+    /// For each pattern with call_count >= min_count, check if a skill already covers it.
+    /// If not, generate a skill from the dominant tool and install it.
+    pub fn mine_trajectory_skills(
+        &self,
+        agent_id: Option<&str>,
+        min_count: i64,
+    ) -> Result<Vec<String>> {
+        let patterns = self.db.get_trajectory_patterns_full(agent_id, min_count)?;
+        let mut created = Vec::new();
+
+        for p in &patterns {
+            let tool_seq_str = p["tool_sequence"].as_str().unwrap_or("[]");
+            let tools: Vec<String> = serde_json::from_str(tool_seq_str).unwrap_or_default();
+            if tools.is_empty() {
+                continue;
+            }
+
+            // Check if existing skill covers this tool sequence
+            if self.db.skill_covers_tools(&tools)? {
+                continue;
+            }
+
+            // Generate skill name from dominant tool
+            let dominant = &tools[0];
+            let suffix = if tools.len() > 1 {
+                format!("-{}", tools.len())
+            } else {
+                String::new()
+            };
+            let name = format!("auto-{}{}", dominant.replace('_', "-"), suffix);
+            let description = format!(
+                "Auto-mined skill: tool sequence [{}] seen {} times.",
+                tools.join(" → "),
+                p["call_count"].as_i64().unwrap_or(1)
+            );
+            let triggers = serde_json::to_string(&tools).unwrap_or_default();
+            let procedure = format!(
+                "Execute the following tool sequence in order:\n{}",
+                tools.iter()
+                    .enumerate()
+                    .map(|(i, t)| format!("{}. {}", i + 1, t))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
+
+            let mining_agent = p["agent_id"].as_str().unwrap_or("conflux");
+
+            match self.write_and_install_skill(&name, &description, &triggers, &procedure, "mined") {
+                Ok(skill_id) => {
+                    // Tag the skill with the discovering agent
+                    let agents_json = format!("[\"{}\"]", mining_agent);
+                    let _ = self.db.update_skill_agents(&skill_id, &agents_json);
+
+                    // Log skill event
+                    let _ = self.log_skill_event(
+                        &skill_id,
+                        &name,
+                        "created",
+                        Some(&format!("Auto-mined from trajectory pattern (agent: {})", mining_agent)),
+                        Some(mining_agent),
+                    );
+                    created.push(skill_id);
+                }
+                Err(e) => {
+                    log::warn!("[Grove] Failed to mine skill '{}': {}", name, e);
+                }
+            }
+        }
+        Ok(created)
+    }
+
+    /// Count skills grouped by agent (for UI).
+    pub fn get_skill_count_by_agent(&self) -> Result<Vec<serde_json::Value>> {
+        self.db.get_skill_count_by_agent()
+    }
+
+    /// Get which agent discovered a skill.
+    pub fn get_skill_discoverer(&self, skill_id: &str) -> Result<Option<String>> {
+        self.db.get_skill_discoverer(skill_id)
+    }
+
+    // ── Skill Compositions ──
+
+    pub fn create_composition(&self, parent_id: &str, child_id: &str, step_order: i64) -> Result<()> {
+        self.db.create_composition(parent_id, child_id, step_order)
+    }
+
+    pub fn get_composition_chain(&self, skill_id: &str) -> Result<Vec<serde_json::Value>> {
+        self.db.get_composition_chain(skill_id)
+    }
+
+    pub fn get_composition_parents(&self, skill_id: &str) -> Result<Vec<serde_json::Value>> {
+        self.db.get_composition_parents(skill_id)
+    }
+
+    pub fn get_all_compositions(&self) -> Result<Vec<serde_json::Value>> {
+        self.db.get_all_compositions()
     }
 
     pub async fn test_provider(&self) -> Result<router::ModelResponse> {
