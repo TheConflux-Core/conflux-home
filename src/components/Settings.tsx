@@ -7,7 +7,6 @@ import NotificationSettings from './settings/NotificationSettings';
 import CronManager from './settings/CronManager';
 import TaskView from './settings/TaskView';
 import WebhookManager from './settings/WebhookManager';
-import SkillGarden from './settings/SkillGarden';
 import BillingSection from './settings/BillingSection';
 import UsageSection from './settings/UsageSection';
 import SoundSection from './settings/SoundSection';
@@ -422,7 +421,7 @@ const CATEGORY_META: Record<string, { icon: string; title: string; desc: string 
   security:   { icon: '🛡️', title: 'Security',        desc: 'Permissions, sandboxing, and anomaly detection' },
   data:       { icon: '📦', title: 'Data & Privacy',  desc: 'Export, clear, and control your data' },
   // Advanced
-  automation: { icon: '⚙️', title: 'Autopilot',       desc: 'Cron jobs, webhooks, heartbeat chains, and skill garden' },
+  automation: { icon: '⚙️', title: 'Autopilot',       desc: 'Cron jobs, webhooks, and heartbeat chains' },
   // Footer
   about:      { icon: 'ℹ️', title: 'About',         desc: 'Version, links, and log path' },
 };
@@ -557,7 +556,6 @@ export default function Settings() {
               <TaskView />
               <WebhookManager />
               <HeartbeatChainSettings />
-              <SkillGarden />
             </>
           )}
         </div>

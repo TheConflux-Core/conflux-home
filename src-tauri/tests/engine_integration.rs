@@ -427,6 +427,7 @@ mod integration_tests {
             "🧪",
             "1.0.0",
             Some("Test Author"),
+            "learned",
             "When testing, do this.",
             Some("[\"test\"]"),
             "[\"catalyst\"]",
