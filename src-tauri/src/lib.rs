@@ -461,7 +461,18 @@ pub fn run() {
             commands::engine_dismiss_skill_prompt,
             commands::engine_get_skill_fragments,
             commands::engine_get_trajectory_patterns,
+            commands::engine_log_tool_trajectory,
+            commands::engine_log_skill_event,
+            commands::engine_get_skill_events,
             commands::engine_get_today_lessons,
+            // Phase 5: Backend Intelligence
+            commands::engine_mine_trajectory_skills,
+            commands::engine_mine_agent_skills,
+            commands::engine_get_skill_count_by_agent,
+            commands::engine_get_skill_discoverer,
+            commands::engine_create_skill_composition,
+            commands::engine_get_skill_composition,
+            commands::engine_get_trajectory_patterns_full,
             // Notifications
             commands::engine_send_notification,
             // Email Config

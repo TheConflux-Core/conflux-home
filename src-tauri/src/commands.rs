@@ -1216,12 +1216,34 @@ pub fn engine_install_skill(manifest_json: String) -> Result<String, String> {
 #[tauri::command]
 pub fn engine_toggle_skill(id: String, active: bool) -> Result<(), String> {
     let engine = engine::get_engine();
-    engine.toggle_skill(&id, active).map_err(|e| e.to_string())
+    engine.toggle_skill(&id, active).map_err(|e| e.to_string())?;
+    // Log skill event for timeline
+    if let Ok(Some(skill)) = engine.get_skill(&id) {
+        let event_type = if active { "resumed" } else { "paused" };
+        let _ = engine.log_skill_event(
+            &id,
+            &skill.name,
+            event_type,
+            None,
+            None,
+        );
+    }
+    Ok(())
 }
 
 #[tauri::command]
 pub fn engine_uninstall_skill(id: String) -> Result<(), String> {
     let engine = engine::get_engine();
+    // Log deletion event before removing
+    if let Ok(Some(skill)) = engine.get_skill(&id) {
+        let _ = engine.log_skill_event(
+            &id,
+            &skill.name,
+            "deleted",
+            Some(&format!("Skill '{}' uninstalled", skill.name)),
+            None,
+        );
+    }
     engine.uninstall_skill(&id).map_err(|e| e.to_string())
 }
 
@@ -1440,45 +1462,11 @@ pub fn engine_accept_skill_prompt(
     triggers: String,
     procedure: String,
 ) -> Result<String, String> {
-    use std::fs;
     let engine = engine::get_engine();
 
-    // Slugify the skill name
-    let slug = skill_name.to_lowercase().replace(" ", "-").replace("_", "-");
-    let dir = std::path::Path::new("/tmp/conflux-skills").join(&slug);
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-
-
-    let content = format!(
-        r#"---
-name: {name}
-description: {description}
-version: 1.0.0
-skill_type: learned
-triggers: {triggers}
-agents: [conflux]
-emoji: 🧩
----
-
-# {name}
-
-## When to Use
-{procedure}
-"#,
-        name = skill_name,
-        description = description,
-        procedure = procedure,
-        triggers = triggers,
-    );
-
-    let path = dir.join("SKILL.md");
-    fs::write(&path, &content).map_err(|e| e.to_string())?;
-    log::info!("[SkillPrompt] Wrote skill to {}", path.display());
-
     let skill_id = engine
-        .install_skill_from_file(&path.to_string_lossy())
+        .write_and_install_skill(&skill_name, &description, &triggers, &procedure, "learned")
         .map_err(|e| e.to_string())?;
-
 
     // Emit skill-created event
     engine.emit_tauri_event("conflux:skill-created", serde_json::json!({
@@ -1488,7 +1476,6 @@ emoji: 🧩
 
     // Clear pending draft
     let _ = engine.db().set_config("pending_skill_draft", "");
-
 
     Ok(skill_id)
 }
@@ -1525,6 +1512,15 @@ pub fn engine_get_trajectory_patterns(
 }
 
 #[tauri::command]
+pub fn engine_log_tool_trajectory(
+    agent_id: String,
+    tool_names: Vec<String>,
+) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine.log_tool_trajectory(&agent_id, &tool_names).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn engine_get_today_lessons(agent_id: String) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
     let lessons = engine
@@ -1547,66 +1543,134 @@ pub fn engine_write_lesson_skill(
     procedure: String,
     skill_type: String,
 ) -> Result<String, String> {
-    use std::fs;
     let engine = engine::get_engine();
 
-
-    // Determine subdir based on skill_type
-    let subdir = match skill_type.as_str() {
-        "synthesized" => "auto",
-        "mined" => "mined",
-        _ => "learned",
-    };
-
-
-    let slug = name.to_lowercase().replace(" ", "-").replace("_", "-");
-    let dir = std::path::Path::new("/tmp/conflux-skills").join(subdir).join(&slug);
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-
-    let content = format!(
-        r#"---
-name: {name}
-description: {description}
-version: 1.0.0
-skill_type: {skill_type}
-triggers: {triggers}
-agents: [conflux]
-emoji: 🧩
----
-
-# {name}
-
-## When to Use
-{trigger_text}
-
-## Procedure
-{procedure}
-"#,
-        name = name,
-        description = description,
-        skill_type = skill_type,
-        triggers = triggers,
-        trigger_text = triggers,
-        procedure = procedure,
-    );
-
-
-    let path = dir.join("SKILL.md");
-    fs::write(&path, &content).map_err(|e| e.to_string())?;
-    log::info!("[SkillSynthesis] Wrote skill to {}", path.display());
-
     let installed_id = engine
-        .install_skill_from_file(&path.to_string_lossy())
+        .write_and_install_skill(&name, &description, &triggers, &procedure, &skill_type)
         .map_err(|e| e.to_string())?;
 
-
-    // Emit skill-created for bloom animation
+    // Emit skill-created for bloom animation + toast
     engine.emit_tauri_event("conflux:skill-created", serde_json::json!({
         "skill_name": name,
         "skill_id": installed_id,
     }));
 
+    // Log skill event for timeline
+    let _ = engine.log_skill_event(
+        &installed_id,
+        &name,
+        "created",
+        Some(&format!("Skill type: {}", skill_type)),
+        None,
+    );
+
     Ok(installed_id)
+}
+
+#[tauri::command]
+pub fn engine_log_skill_event(
+    skill_id: String,
+    skill_name: String,
+    event_type: String,
+    detail: Option<String>,
+    agent_id: Option<String>,
+) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine
+        .log_skill_event(
+            &skill_id,
+            &skill_name,
+            &event_type,
+            detail.as_deref(),
+            agent_id.as_deref(),
+        )
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_get_skill_events(limit: Option<i64>) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let events = engine
+        .get_skill_events(limit.unwrap_or(100))
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(events).map_err(|e| e.to_string())?)
+}
+
+// ── Phase 5: Backend Intelligence ──
+
+#[tauri::command]
+pub fn engine_mine_trajectory_skills(
+    agent_id: Option<String>,
+    min_count: Option<i64>,
+) -> Result<Vec<String>, String> {
+    let engine = engine::get_engine();
+    engine
+        .mine_trajectory_skills(agent_id.as_deref(), min_count.unwrap_or(3))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_mine_agent_skills(agent_id: String) -> Result<Vec<String>, String> {
+    let engine = engine::get_engine();
+    engine
+        .mine_trajectory_skills(Some(&agent_id), 3)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_get_skill_count_by_agent() -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let counts = engine
+        .get_skill_count_by_agent()
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(counts).map_err(|e| e.to_string())?)
+}
+
+#[tauri::command]
+pub fn engine_get_skill_discoverer(skill_id: String) -> Result<Option<String>, String> {
+    let engine = engine::get_engine();
+    engine
+        .get_skill_discoverer(&skill_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_create_skill_composition(
+    parent_skill_id: String,
+    child_skill_id: String,
+    step_order: i64,
+) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine
+        .create_composition(&parent_skill_id, &child_skill_id, step_order)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn engine_get_skill_composition(skill_id: String) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let chain = engine
+        .get_composition_chain(&skill_id)
+        .map_err(|e| e.to_string())?;
+    let parents = engine
+        .get_composition_parents(&skill_id)
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({
+        "chain": chain,
+        "parents": parents,
+    }))
+}
+
+#[tauri::command]
+pub fn engine_get_trajectory_patterns_full(
+    agent_id: Option<String>,
+    min_count: Option<i64>,
+) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let patterns = engine
+        .get_trajectory_patterns_full(agent_id.as_deref(), min_count.unwrap_or(3))
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::to_value(patterns).map_err(|e| e.to_string())?)
 }
 
 // ── Health ──

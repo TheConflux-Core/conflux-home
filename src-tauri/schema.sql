@@ -684,6 +684,59 @@ CREATE TABLE IF NOT EXISTS lessons_learned (
 );
 
 -- ============================================================
+-- TOOL TRAJECTORIES — Track tool call sequences for skill mining
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS tool_trajectories (
+    id              TEXT PRIMARY KEY,
+    session_id      TEXT REFERENCES sessions(id) ON DELETE CASCADE,
+    agent_id        TEXT NOT NULL REFERENCES agents(id),
+    tool_sequence   TEXT NOT NULL,       -- JSON array: ["web_search", "file_write", ...]
+    sequence_hash   TEXT NOT NULL,       -- hash of the sequence for dedup
+    call_count      INTEGER NOT NULL DEFAULT 1,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_traj_agent ON tool_trajectories(agent_id);
+CREATE INDEX IF NOT EXISTS idx_traj_hash ON tool_trajectories(sequence_hash);
+
+-- ============================================================
+-- TOOL TRAJECTORY PATTERNS — Aggregated sequence patterns
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS trajectory_patterns (
+    id              TEXT PRIMARY KEY,
+    agent_id        TEXT NOT NULL REFERENCES agents(id),
+    sequence_hash   TEXT NOT NULL,
+    tool_sequence   TEXT NOT NULL,       -- JSON array of tool names
+    call_count      INTEGER NOT NULL DEFAULT 1,
+    last_used       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    UNIQUE(agent_id, sequence_hash)
+);
+
+CREATE INDEX IF NOT EXISTS idx_trajpat_agent ON trajectory_patterns(agent_id);
+CREATE INDEX IF NOT EXISTS idx_trajpat_count ON trajectory_patterns(call_count DESC);
+
+-- ============================================================
+-- SKILL EVENTS — Track skill lifecycle for Timeline
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS skill_events (
+    id              TEXT PRIMARY KEY,
+    skill_id        TEXT NOT NULL,
+    skill_name      TEXT NOT NULL,
+    event_type      TEXT NOT NULL,       -- 'created', 'matured', 'updated', 'deleted', 'paused', 'resumed'
+    detail          TEXT,                -- human-readable description
+    agent_id        TEXT,                -- which agent triggered it (nullable)
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_skillevent_skill ON skill_events(skill_id);
+CREATE INDEX IF NOT EXISTS idx_skillevent_type ON skill_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_skillevent_time ON skill_events(created_at DESC);
+
+-- ============================================================
 -- TOOL PERMISSIONS — Extend from Phase 1
 -- ============================================================
 -- ============================================================
@@ -2656,3 +2709,20 @@ VALUES (
     1,
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 );
+
+-- ============================================================
+-- SKILL COMPOSITIONS — Chain Skills Together
+-- Phase 5D: Track which skills are used in sequence
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS skill_compositions (
+    id              TEXT PRIMARY KEY,
+    parent_skill_id TEXT NOT NULL,
+    child_skill_id  TEXT NOT NULL,
+    step_order      INTEGER NOT NULL,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    UNIQUE(parent_skill_id, child_skill_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_comp_parent ON skill_compositions(parent_skill_id);
+CREATE INDEX IF NOT EXISTS idx_comp_child ON skill_compositions(child_skill_id);
