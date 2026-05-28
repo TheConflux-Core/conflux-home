@@ -277,8 +277,63 @@ pub fn config_path() -> PathBuf {
     base.join(".conflux").join("heartbeat_chain.json")
 }
 
+/// Merge an old config (v1/v2) with the new v3 defaults.
+/// Preserves user customizations (delay_sec, voice_id, enabled state)
+/// while adding new fields (prompt, tools, schedule, priority) and new agents.
+fn merge_config_upgrade(old: &HeartbeatChainConfig) -> HeartbeatChainConfig {
+    let defaults = default_chain();
+
+    // Build a lookup of old steps by agent name for quick matching
+    let old_steps: std::collections::HashMap<&str, &ChainStep> =
+        old.chain.iter().map(|s| (s.agent.as_str(), s)).collect();
+
+    let mut merged_chain: Vec<ChainStep> = Vec::new();
+
+    // Walk the new default chain — merge with old where agent matches
+    for default_step in &defaults.chain {
+        if let Some(old_step) = old_steps.get(default_step.agent.as_str()) {
+            // Merge: keep user's delay + voice, adopt new prompt/tools/schedule/priority
+            let mut merged = default_step.clone();
+            merged.delay_sec = old_step.delay_sec;
+            if old_step.voice_id.is_some() {
+                merged.voice_id = old_step.voice_id.clone();
+            }
+            // Preserve user's prompt customization if they changed it from a prior default
+            // (v1/v2 had empty prompts, so only keep non-empty old prompts)
+            if !old_step.prompt.is_empty() {
+                merged.prompt = old_step.prompt.clone();
+            }
+            // Preserve user's tool list if they customized it
+            if !old_step.tools.is_empty() {
+                merged.tools = old_step.tools.clone();
+            }
+            merged_chain.push(merged);
+        } else {
+            // New agent in default chain — add it
+            merged_chain.push(default_step.clone());
+        }
+    }
+
+    // Preserve any old agents not in the new defaults (user-added custom agents)
+    for old_step in &old.chain {
+        if !defaults.chain.iter().any(|d| d.agent == old_step.agent) {
+            merged_chain.push(old_step.clone());
+        }
+    }
+
+    HeartbeatChainConfig {
+        version: 3,
+        chain: merged_chain,
+        // Preserve user's global config settings
+        config: ChainGlobalConfig {
+            enabled: old.config.enabled,
+            interrupt_on_app_close: old.config.interrupt_on_app_close,
+        },
+    }
+}
+
 /// Load the config file. Returns default chain if missing or invalid.
-/// Auto-upgrades from v1 to v2 (adds prompt/tools fields).
+/// Auto-upgrades from v1/v2 to v3 — merges user customizations into new defaults.
 pub fn load_config() -> HeartbeatChainConfig {
     let path = config_path();
     match std::fs::read_to_string(&path) {
@@ -289,10 +344,13 @@ pub fn load_config() -> HeartbeatChainConfig {
             });
             // Version migration: v1 configs lack prompt/tools, v2 lacks scheduling
             if config.version < 3 {
-                log::info!("[HeartbeatChain] Upgrading config from v{} to v3 — using new default chain with smart scheduling", config.version);
-                let new_config = default_chain();
-                let _ = save_config(&new_config);
-                return new_config;
+                log::info!(
+                    "[HeartbeatChain] Upgrading config from v{} to v3 — merging with new defaults",
+                    config.version
+                );
+                let merged = merge_config_upgrade(&config);
+                let _ = save_config(&merged);
+                return merged;
             }
             config
         }

@@ -1283,9 +1283,11 @@ pub async fn process_heartbeat_turn(
     );
 
     // 6. First LLM call — with tools
+    // Clone once: first call consumes the clone, we mutate original for tool results
+    let messages_for_first_call = messages.clone();
     let response = match cloud_chat_with_fallback(
         Some(&agent.model_alias),
-        messages.clone(),
+        messages_for_first_call,
         max_tokens,
         if tool_defs.is_empty() {
             None
@@ -1371,9 +1373,10 @@ pub async fn process_heartbeat_turn(
         }
 
         // Final LLM call — no tools, just synthesize the response
+        // Take ownership of messages (no clone needed — we're done with it)
         match cloud_chat_with_fallback(
             Some(&agent.model_alias),
-            messages.clone(),
+            messages,
             max_tokens,
             None,
         )

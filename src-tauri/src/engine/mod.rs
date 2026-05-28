@@ -757,8 +757,8 @@ impl ConfluxEngine {
     }
 
     /// Ensure all heartbeat chain agents exist in the DB with full souls.
-    /// Called once at startup — idempotent (INSERT OR IGNORE for new agents,
-    /// UPDATE for existing ones to keep souls/instructions current).
+    /// Called once at startup — idempotent (INSERT OR IGNORE for new agents).
+    /// Existing agents are NOT updated to preserve user customizations.
     pub fn ensure_system_agents(&self) -> Result<()> {
         let conn = self.db.conn_blocking();
 
@@ -816,7 +816,6 @@ impl ConfluxEngine {
         ];
 
         let mut created = 0;
-        let mut updated = 0;
 
         for (id, name, emoji, role, soul, instructions, model_alias) in &agents {
             // Try INSERT first (new agents)
@@ -831,30 +830,16 @@ impl ConfluxEngine {
                     log::info!("[SystemAgents] Created agent '{}' ({})", name, id);
                 }
                 Ok(_) => {
-                    // Agent already exists (INSERT OR IGNORE) — update soul/instructions
-                    // to keep them current across app updates
-                    let update_result = conn.execute(
-                        "UPDATE agents SET soul = ?1, instructions = ?2, model_alias = ?3,
-                         emoji = ?4, role = ?5, is_active = 1, updated_at = datetime('now')
-                         WHERE id = ?6",
-                        rusqlite::params![soul, instructions, model_alias, emoji, role, id],
-                    );
-                    match update_result {
-                        Ok(rows) if rows > 0 => {
-                            updated += 1;
-                            log::debug!("[SystemAgents] Updated agent '{}' ({})", name, id);
-                        }
-                        Ok(_) => { /* no change needed */ }
-                        Err(e) => log::warn!("[SystemAgents] Failed to update agent '{}': {}", id, e),
-                    }
+                    // Agent already exists — skip to preserve user customizations
+                    log::debug!("[SystemAgents] Agent '{}' ({}) already exists — skipping", name, id);
                 }
                 Err(e) => log::warn!("[SystemAgents] Failed to insert agent '{}': {}", id, e),
             }
         }
 
         log::info!(
-            "[SystemAgents] Heartbeat agents ready: {} created, {} updated, {} total",
-            created, updated, agents.len()
+            "[SystemAgents] Heartbeat agents ready: {} created, {} total",
+            created, agents.len()
         );
         Ok(())
     }

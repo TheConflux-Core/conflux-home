@@ -203,17 +203,8 @@ fn emit_notification(app_handle: &tauri::AppHandle, title: &str, body: &str, age
         log::warn!("[HeartbeatChain] Failed to emit notification: {}", e);
     }
 
-    // Also fire OS desktop notification
-    #[cfg(desktop)]
-    {
-        use tauri_plugin_notification::NotificationExt;
-        let _ = app_handle
-            .notification()
-            .builder()
-            .title(title)
-            .body(body)
-            .show();
-    }
+    // OS notification is handled by the frontend via useNotificationListener
+    // which catches 'conflux:agent-notification' — no direct call here to avoid doubles.
 }
 
 /// Call tts_speak for the chain_summary step.
