@@ -24,7 +24,7 @@ import ConfluxOrbit from './components/ConfluxOrbit';
 import LoginScreen from './components/LoginScreen';
 import AuthCallback from './components/AuthCallback';
 import Settings from './components/Settings';
-import SkillCreationPrompt from './components/settings/SkillCreationPrompt';
+import GroveView from './components/GroveView';
 import SplashScreen from './components/SplashScreen';
 import ToastContainer from './components/Toast';
 import UpdateBanner from './components/UpdateBanner';
@@ -84,6 +84,7 @@ import { trackEvent } from './lib/telemetry';
 import './styles/animations.css';
 import './styles-global-ai-input.css';
 import './styles/tour.css';
+import './styles/grove.css';
 
 // Background images for immersive views
 const VIEW_BACKGROUNDS: Record<string, string> = {
@@ -100,6 +101,7 @@ const VIEW_BACKGROUNDS: Record<string, string> = {
   vault: '/backgrounds/vault-bg.webp',
   studio: '/backgrounds/studio-bg.webp',
   settings: '/backgrounds/settings-bg.webp',
+  grove: '',  // Grove renders its own dark forest background
   dashboard: '/backgrounds/dashboard-bg.webp',
   'api-dashboard': '/backgrounds/dashboard-bg.webp', // Re-using an existing dashboard background
   security: '/backgrounds/themes/aegis.png',
@@ -278,6 +280,15 @@ export default function App() {
     return () => window.removeEventListener('conflux:toast', handler);
   }, []);
 
+  // Listen for skill-created events → show toast notification
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    listen<{ skill_name: string; skill_id: string }>('conflux:skill-created', (event) => {
+      toastRef.current(`🧩 New skill learned: ${event.payload.skill_name}`, 'success');
+    }).then(fn => { unlisten = fn; }).catch(() => {});
+    return () => { unlisten?.(); };
+  }, []);
+
   // Listen for custom events from Settings
   useEffect(() => {
     const onThemeChange = (_e: Event) => {
@@ -436,12 +447,6 @@ export default function App() {
         }
       }).catch(e => console.warn('[App] listen conflux:ui-action error:', e));
 
-      // Listen for skill-prompt events (Phase 4 Guided Skill Creation)
-      listen<{skill_name: string; description: string; triggers: string; procedure: string; tool_sequence: string; total_tool_calls: number}>('conflux:skill-prompt', (event) => {
-        console.log('[App] skill-prompt event:', event.payload);
-        setSkillPromptDraft(event.payload);
-      }).catch(e => console.warn('[App] listen conflux:skill-prompt error:', e));
-
 
     });
     return () => {
@@ -454,7 +459,6 @@ export default function App() {
 
   const [isOnboarded, setIsOnboarded] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
-  const [skillPromptDraft, setSkillPromptDraft] = useState<any>(null);
   const [showIntroductions, setShowIntroductions] = useState(true);
   const [showBootCards, setShowBootCards] = useState(() => {
     // Disabled by ZigBot on 2026-04-06 per Don's request
@@ -1310,10 +1314,8 @@ const [activeSnake, setActiveSnake] = useState(false);
           {immersiveView === 'mirror' && <EchoView />}
           {immersiveView === 'vault' && <VaultView />}
           {immersiveView === 'studio' && <StudioView />}
-          {immersiveView === 'settings' && skillPromptDraft && (
-            <SkillCreationPrompt draft={skillPromptDraft} onClose={() => setSkillPromptDraft(null)} />
-          )}
           {immersiveView === 'settings' && <Settings />}
+          {immersiveView === 'grove' && <GroveView />}
           {immersiveView === 'security' && <SecurityDashboard />}
           {immersiveView === 'aegis' && <AegisDashboard />}
           {immersiveView === 'viper' && <ViperDashboard />}
@@ -1519,6 +1521,7 @@ const [activeSnake, setActiveSnake] = useState(false);
       <UpdateBanner />
 
       {/* Toast notifications */}
+      {/* Skill creation prompt — global overlay, fires on any view */}
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
     </AuthProvider>
