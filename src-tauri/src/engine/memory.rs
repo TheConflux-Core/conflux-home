@@ -192,3 +192,106 @@ pub async fn extract_and_store(
 
     Ok(())
 }
+
+// ── Heartbeat Memory Extraction ──
+
+/// Lightweight heartbeat memory extraction — no LLM call needed.
+/// Analyzes the agent's heartbeat response and stores noteworthy findings
+/// as memories with a 7-day expiry.
+///
+/// Returns true if a memory was stored, false if the response was routine.
+pub fn extract_heartbeat_finding(
+    db: &EngineDb,
+    agent_id: &str,
+    action: &str,
+    response: &str,
+    tools_used: &[String],
+) -> bool {
+    let lower = response.to_lowercase();
+
+    // Determine if this response is worth remembering
+    let is_warning = lower.contains("⚠️")
+        || lower.contains("alert")
+        || lower.contains("attention")
+        || lower.contains("at risk")
+        || lower.contains("overdue")
+        || lower.contains("expiring")
+        || lower.contains("warning")
+        || lower.contains("critical")
+        || lower.contains("urgent")
+        || lower.contains("over budget")
+        || lower.contains("behind");
+
+    let has_data = response.len() > 100
+        && (lower.contains("$")
+            || lower.contains("task")
+            || lower.contains("goal")
+            || lower.contains("milestone")
+            || lower.contains("streak")
+            || lower.contains("inventory")
+            || lower.contains("port")
+            || lower.contains("process")
+            || lower.contains("stock")
+            || lower.contains("index")
+            || lower.contains("budget")
+            || lower.contains("spending")
+            || lower.contains("habit"));
+
+    let is_noteworthy = is_warning || has_data;
+
+    if !is_noteworthy {
+        return false;
+    }
+
+    // Determine memory type and key
+    let (memory_type, key) = if is_warning {
+        (
+            "heartbeat-alert",
+            Some(format!("heartbeat-alert-{}-{}", agent_id, chrono::Utc::now().format("%Y%m%d%H"))),
+        )
+    } else {
+        (
+            "heartbeat-finding",
+            Some(format!("heartbeat-{}-{}", agent_id, chrono::Utc::now().format("%Y%m%d%H"))),
+        )
+    };
+
+    // Truncate content to a reasonable memory size (first 500 chars)
+    let content = if response.len() > 500 {
+        let end = response.char_indices().nth(500).map(|(i, _)| i).unwrap_or(response.len());
+        format!("{}...", &response[..end])
+    } else {
+        response.to_string()
+    };
+
+    // Source tag: heartbeat:<agent_id>:<action>
+    let source = format!("heartbeat:{}:{}", agent_id, action);
+
+    // Expiry: 7 days from now
+    let expires_at = (chrono::Utc::now() + chrono::Duration::days(7)).format("%Y-%m-%dT%H:%M:%SZ").to_string();
+
+    // Store with expiry
+    match db.store_memory_with_expiry(
+        agent_id,
+        memory_type,
+        key.as_deref(),
+        &content,
+        Some(&source),
+        &expires_at,
+    ) {
+        Ok(id) => {
+            log::info!(
+                "[HeartbeatMemory] Stored {} for {}: {} (tools: {:?})",
+                memory_type,
+                agent_id,
+                &content[..content.len().min(100)],
+                tools_used
+            );
+            true
+        }
+        Err(e) => {
+            log::warn!("[HeartbeatMemory] Failed to store memory for {}: {}", agent_id, e);
+            false
+        }
+    }
+}

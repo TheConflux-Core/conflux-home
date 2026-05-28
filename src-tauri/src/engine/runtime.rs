@@ -1183,6 +1183,232 @@ fn build_system_prompt(
     prompt
 }
 
+// ── Heartbeat Turn ──
+
+/// Result of a single heartbeat chain step's LLM call.
+pub struct HeartbeatTurnResult {
+    /// The agent's response text (the beat detail).
+    pub response: String,
+    /// Tool calls that were made during this turn.
+    pub tool_calls_made: Vec<String>,
+    /// Whether the LLM call succeeded (false = fallback was used).
+    pub success: bool,
+}
+
+/// Lightweight LLM turn for heartbeat chain steps.
+/// Simplified from process_turn(): no conversation history, max 1 tool iteration,
+/// no session storage, no memory extraction, no telemetry.
+pub async fn process_heartbeat_turn(
+    db: &EngineDb,
+    agent_id: &str,
+    prompt: &str,
+    allowed_tools: &[String],
+    max_tokens: Option<i64>,
+) -> HeartbeatTurnResult {
+    // 1. Load agent config
+    let agent = match db.get_agent(agent_id) {
+        Ok(Some(a)) => a,
+        Ok(None) => {
+            log::warn!("[HeartbeatTurn] Agent '{}' not found in DB", agent_id);
+            return HeartbeatTurnResult {
+                response: format!("Agent {} not found — skipping.", agent_id),
+                tool_calls_made: vec![],
+                success: false,
+            };
+        }
+        Err(e) => {
+            log::warn!("[HeartbeatTurn] DB error loading agent '{}': {}", agent_id, e);
+            return HeartbeatTurnResult {
+                response: format!("Database error loading agent {} — skipping.", agent_id),
+                tool_calls_made: vec![],
+                success: false,
+            };
+        }
+    };
+
+    // 2. Load relevant memories (last 5)
+    let memories = db.search_memory(agent_id, prompt, 5).unwrap_or_default();
+    let memory_context = if !memories.is_empty() {
+        let mem_lines: Vec<String> = memories
+            .iter()
+            .map(|m| format!("[{}] {}", m.memory_type, m.content))
+            .collect();
+        format!("\n\nRelevant memories:\n{}", mem_lines.join("\n"))
+    } else {
+        String::new()
+    };
+
+    // 3. Build system prompt (reuses existing builder — includes soul, instructions, knowledge base)
+    let system_prompt = build_system_prompt(db, &agent, &memory_context, "");
+
+    // 4. Build messages array — system + user prompt only (no history)
+    let mut messages: Vec<OpenAIMessage> = Vec::new();
+    messages.push(OpenAIMessage {
+        role: "system".to_string(),
+        content: Some(system_prompt),
+        tool_call_id: None,
+        tool_calls: None,
+    });
+    messages.push(OpenAIMessage {
+        role: "user".to_string(),
+        content: Some(prompt.to_string()),
+        tool_call_id: None,
+        tool_calls: None,
+    });
+
+    // 5. Filter tool definitions to only the allowed tools for this step
+    let tool_defs = if allowed_tools.is_empty() {
+        Vec::new()
+    } else {
+        let mut all_tools = tools::get_tool_definitions();
+        all_tools.extend(tools::get_integration_tool_definitions());
+        all_tools.extend(tools::get_app_tool_definitions());
+        all_tools
+            .into_iter()
+            .filter(|t| {
+                t.get("function")
+                    .and_then(|f| f.get("name"))
+                    .and_then(|n| n.as_str())
+                    .map(|name| allowed_tools.iter().any(|a| a == name))
+                    .unwrap_or(false)
+            })
+            .collect::<Vec<_>>()
+    };
+
+    log::info!(
+        "[HeartbeatTurn] Agent '{}': {} tools allowed, {} matched",
+        agent_id,
+        allowed_tools.len(),
+        tool_defs.len()
+    );
+
+    // 6. First LLM call — with tools
+    let response = match cloud_chat_with_fallback(
+        Some(&agent.model_alias),
+        messages.clone(),
+        max_tokens,
+        if tool_defs.is_empty() {
+            None
+        } else {
+            Some(tool_defs.clone())
+        },
+    )
+    .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            log::warn!("[HeartbeatTurn] LLM call failed for '{}': {}", agent_id, e);
+            return HeartbeatTurnResult {
+                response: format!(
+                    "{} couldn't reach the server — will try again next cycle.",
+                    agent.name
+                ),
+                tool_calls_made: vec![],
+                success: false,
+            };
+        }
+    };
+
+    let mut tool_calls_made: Vec<String> = Vec::new();
+
+    // 7. If the LLM made tool calls, execute them and get a final response
+    if !response.tool_calls.is_empty() {
+        // Execute each tool call
+        for tool_call in &response.tool_calls {
+            tool_calls_made.push(tool_call.name.clone());
+
+            let args: serde_json::Value = serde_json::from_str(&tool_call.arguments)
+                .unwrap_or_else(|_| serde_json::json!({}));
+
+            // Get user_id for tool execution (heartbeat uses system context)
+            let user_id = db
+                .get_config("supabase_user_id")
+                .ok()
+                .flatten()
+                .filter(|id| !id.is_empty())
+                .unwrap_or_else(|| "system".to_string());
+
+            log::info!(
+                "[HeartbeatTurn] Executing tool: {}({})",
+                tool_call.name,
+                &tool_call.arguments[..tool_call.arguments.len().min(200)]
+            );
+
+            let tool_result = match tools::execute_tool(&tool_call.name, &args, &user_id).await {
+                Ok(result) => {
+                    if result.success {
+                        result.output
+                    } else {
+                        format!("Error: {}", result.error.unwrap_or_else(|| result.output.clone()))
+                    }
+                }
+                Err(e) => {
+                    log::warn!("[HeartbeatTurn] Tool '{}' failed: {}", tool_call.name, e);
+                    format!("Tool execution error: {}", e)
+                }
+            };
+
+            // Add assistant message with tool_calls + tool result to messages
+            messages.push(OpenAIMessage {
+                role: "assistant".to_string(),
+                content: response.content.clone().into(),
+                tool_call_id: None,
+                tool_calls: Some(vec![serde_json::json!({
+                    "id": tool_call.id,
+                    "type": "function",
+                    "function": {
+                        "name": tool_call.name,
+                        "arguments": tool_call.arguments,
+                    }
+                })]),
+            });
+            messages.push(OpenAIMessage {
+                role: "tool".to_string(),
+                content: Some(tool_result),
+                tool_call_id: Some(tool_call.id.clone()),
+                tool_calls: None,
+            });
+        }
+
+        // Final LLM call — no tools, just synthesize the response
+        match cloud_chat_with_fallback(
+            Some(&agent.model_alias),
+            messages.clone(),
+            max_tokens,
+            None,
+        )
+        .await
+        {
+            Ok(final_resp) => HeartbeatTurnResult {
+                response: final_resp.content,
+                tool_calls_made,
+                success: true,
+            },
+            Err(e) => {
+                log::warn!("[HeartbeatTurn] Final LLM call failed for '{}': {}", agent_id, e);
+                // Fall back to the initial response content if available
+                let fallback = if response.content.is_empty() {
+                    format!("{} had trouble processing results — will retry next cycle.", agent.name)
+                } else {
+                    response.content
+                };
+                HeartbeatTurnResult {
+                    response: fallback,
+                    tool_calls_made,
+                    success: false,
+                }
+            }
+        }
+    } else {
+        // No tool calls — the response is the final answer
+        HeartbeatTurnResult {
+            response: response.content,
+            tool_calls_made,
+            success: true,
+        }
+    }
+}
+
 // ── Offline System Prompt ──
 
 /// Build a minimal system prompt for offline/local mode.

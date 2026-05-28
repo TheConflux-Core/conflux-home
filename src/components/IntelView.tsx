@@ -1,12 +1,13 @@
 // IntelView — live agent activity monitor (INTEL section of desktop)
 // Shows: agent activity indicators, live beat timeline, system stats
 // Wired to BeatEventBus — every beat fires visibly
+// Session 4: Expandable beat cards, severity colors, agent activity feed
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { ConfluxPresence } from './conflux';
 import { triggerFairyNudge } from '../lib/triggerFairyNudge';
-import { AGENTS, useBeatTimeline, useAgentActivity, emitBeat, startDemoBeats, type BeatEvent } from '../lib/beatBus';
+import { AGENTS, useBeatTimeline, useAgentActivity, emitBeat, type BeatEvent } from '../lib/beatBus';
 import ChainTimeline from './ChainTimeline';
 import './IntelView.css';
 
@@ -55,157 +56,116 @@ function AgentRow({ agent }: { agent: DisplayAgent }) {
   );
 }
 
-// ── Per-agent creative status log ──────────────────────────────────────────────
-// Creative, clever, personality-driven status lines for each agent.
-// Each agent cycles through fun micro-updates every 18 seconds.
-// Fires on beatBus so it appears alongside real heartbeat events.
-const AGENT_LOG_LINES: Record<string, string[]> = {
-  conflux: [
-    "🧠 Processing 47 conversation threads...",
-    "👁️ Scanning for new opportunities...",
-    "⚡ Routing neural pathways...",
-    "🔮 99.7% uptime this week",
-    "🌐 Syncing agent family state...",
-    "💭 3 user habits identified today",
-  ],
-  helix: [
-    "📊 Crunching market signals...",
-    "🔬 12 new companies flagged today",
-    "📈 AAPL+1.2% · TSLA+2.8% · NVDA+4.1%",
-    "🧪 Research mode: deep dive initiated",
-    "📰 847 articles scanned this hour",
-    "🎯 Pattern match: 3 high-confidence signals",
-  ],
-  pulse: [
-    "💚 Tracking financial pulse...",
-    "📉 $127 remaining of $500 budget",
-    "🔔 You've hit 78% of monthly goals",
-    "💸 Last transaction: $45 groceries",
-    "📋 3 budget anomalies flagged",
-    "🎉 Net worth trending up 2.3% this month",
-  ],
-  hearth: [
-    "🔥 Warming up the kitchen...",
-    "🥗 12 recipes matched to your week",
-    "📦 3 pantry items running low",
-    "🛒 Kroger cart: 8 items ready",
-    "🍳 Meal prep: 5 dinners planned",
-    "🌿 Reducing food waste: 23% vs last week",
-  ],
-  echo: [
-    "🫂 Holding space for your thoughts...",
-    "💜 Emotional resonance: 94%",
-    "📝 Journal entries: 14 this month",
-    "🌱 Growth patterns: 3 positive trends",
-    "🧘 Grounding exercise ready when you are",
-    "💬 6 conversations this week",
-  ],
-  aegis: [
-    "🛡️ Shield raised · all clear",
-    "🔍 1,247 auth events scanned today",
-    "✅ Zero anomalies detected",
-    "🔐 Security posture: strong",
-    "📡 Monitoring 4 access channels",
-    "🛡️ Threat intel: no active risks",
-  ],
-  viper: [
-    "🐍 Hunting anomalies...",
-    "👁️ 2 unusual login patterns noted",
-    "⚠️ Rate-limit triggered: 1 location",
-    "🕵️ Forensic log: 99.8% clean",
-    "🐍 Venom ready · eyes sharp",
-    "📋 Red team: no exposure found",
-  ],
-  forge: [
-    "🔨 Forging new capabilities...",
-    "⚙️ Background tasks: 4 complete",
-    "📦 Product v2.4: spec exported",
-    "🔧 3 PRs reviewed · 0 critical issues",
-    "🏗️ Build pipeline: running clean",
-    "⚡ Latency: 12ms avg response",
-  ],
-  orbit: [
-    "🧠 Orbiting your tasks...",
-    "✅ 3 tasks completed today",
-    "🎯 Focus mode: 2 deep-work blocks",
-    "📅 Tomorrow: 4 tasks queued",
-    "⏰ 2 habits streak: 7 days",
-    "🌙 Evening review: 8 items prepped",
-  ],
-  horizon: [
-    "🎯 Summit in sight...",
-    "🏔️ Milestone 3/7: 43% to next peak",
-    "🔥 Quit Smoking: 7-day streak 🎉",
-    "📈 Goal velocity: +18% this month",
-    "🌅 New dream: filed for review",
-    "🏆 Achievement unlocked: consistency champion",
-  ],
-};
+// ── Agent last-activity row (replaces fake AGENT_LOG_LINES) ───────────────────
+// Shows the most recent real beat event for each agent.
+function AgentActivityRow({ agentId, emoji, color, events }: {
+  agentId: string;
+  emoji: string;
+  color: string;
+  events: BeatEvent[];
+}) {
+  const lastBeat = events.find(e => e.agentId === agentId);
 
-function AgentLogRow({ agentId, emoji, color }: { agentId: string; emoji: string; color: string }) {
-  const [lineIndex, setLineIndex] = useState(() => Math.floor(Math.random() * (AGENT_LOG_LINES[agentId]?.length ?? 1)));
-  const [visible, setVisible] = useState(true);
+  if (!lastBeat) {
+    return (
+      <div className="intel-agent-log-row visible" style={{ '--agent-color': color } as React.CSSProperties}>
+        <span className="intel-log-emoji">{emoji}</span>
+        <span className="intel-log-text" style={{ opacity: 0.4 }}>No activity yet</span>
+      </div>
+    );
+  }
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setVisible(false);
-      setTimeout(() => {
-        const lines = AGENT_LOG_LINES[agentId] ?? ["⚡ Running checks..."];
-        setLineIndex(i => (i + 1) % lines.length);
-        setVisible(true);
-      }, 350);
-    }, 18000);
-    return () => clearInterval(interval);
-  }, [agentId]);
-
-  const lines = AGENT_LOG_LINES[agentId] ?? ["⚡ Running..."];
-  const line = lines[lineIndex % lines.length];
+  const ago = timeAgo(lastBeat.timestamp);
+  const summary = lastBeat.action;
+  const detail = lastBeat.detail ? truncate(lastBeat.detail, 80) : '';
 
   return (
-    <div
-      className={`intel-agent-log-row ${visible ? 'visible' : 'hidden'}`}
-      style={{ '--agent-color': color } as React.CSSProperties}
-    >
+    <div className={`intel-agent-log-row visible intel-activity-${lastBeat.type}`}
+      style={{ '--agent-color': color } as React.CSSProperties}>
       <span className="intel-log-emoji">{emoji}</span>
-      <span className="intel-log-text">{line}</span>
+      <div className="intel-activity-content">
+        <span className="intel-activity-action">{summary}</span>
+        {detail && <span className="intel-activity-detail">{detail}</span>}
+      </div>
+      <span className="intel-activity-time">{ago}</span>
     </div>
   );
 }
 
-// ── Beat event row ─────────────────────────────────────────────────────────────
+// ── Beat event row — EXPANDABLE with severity colors ──────────────────────────
 function BeatRow({ event, index }: { event: BeatEvent; index: number }) {
   const agent = AGENTS.find(a => a.id === event.agentId);
   const ago = timeAgo(event.timestamp);
   const [playing, setPlaying] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
-  const handlePlay = useCallback(async () => {
+  const handlePlay = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (playing) return;
     const text = `${event.agentLabel}: ${event.action}. ${event.detail ?? ''}`;
     setPlaying(true);
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       await invoke('voice_synthesize', { text });
-    } catch (e) {
-      console.warn('[BeatRow] TTS failed:', e);
+    } catch (err) {
+      console.warn('[BeatRow] TTS failed:', err);
     } finally {
       setPlaying(false);
     }
   }, [playing, event]);
 
+  const handleToggle = useCallback(() => {
+    // Only expand if there's meaningful detail to show
+    if (event.detail && event.detail.length > 80) {
+      setExpanded(prev => !prev);
+    }
+  }, [event.detail]);
+
+  const hasExpandableDetail = event.detail && event.detail.length > 80;
+
+  // Severity badge
+  const severityLabel = event.type === 'warn' ? '⚠️ Alert'
+    : event.type === 'success' ? '✓ Clear'
+    : '● Info';
+
   return (
     <div
-      className={`intel-beat intel-beat-${event.type}`}
+      className={`intel-beat intel-beat-${event.type} ${expanded ? 'intel-beat-expanded' : ''} ${hasExpandableDetail ? 'intel-beat-expandable' : ''}`}
       style={{ animationDelay: `${index * 0.04}s` }}
+      onClick={handleToggle}
     >
+      {/* Severity accent bar (left side) */}
+      <div className={`intel-beat-accent intel-accent-${event.type}`} />
+
       <div className="intel-beat-agent-icon" style={{ color: agent?.color ?? '#fff' }}>
         {agent?.emoji ?? '⚡'}
       </div>
       <div className="intel-beat-body">
-        <span className="intel-beat-action">
-          <strong>{event.agentLabel}</strong> {event.action}
-        </span>
+        <div className="intel-beat-header">
+          <span className="intel-beat-action">
+            <strong>{event.agentLabel}</strong> {event.action}
+          </span>
+          <span className={`intel-beat-severity intel-severity-${event.type}`}>
+            {severityLabel}
+          </span>
+        </div>
         {event.detail && (
-          <span className="intel-beat-detail">{event.detail}</span>
+          <span className={`intel-beat-detail ${expanded ? 'intel-beat-detail-full' : ''}`}>
+            {expanded ? event.detail : truncate(event.detail, 80)}
+          </span>
+        )}
+        {/* Tool usage indicators (Session 6) */}
+        {event.toolsUsed && event.toolsUsed.length > 0 && (
+          <div className="intel-beat-tools">
+            {event.toolsUsed.map((tool, i) => (
+              <span key={i} className="intel-beat-tool-tag">{tool}</span>
+            ))}
+          </div>
+        )}
+        {hasExpandableDetail && (
+          <span className="intel-beat-expand-hint">
+            {expanded ? '▲ less' : '▼ more'}
+          </span>
         )}
       </div>
       <div className="intel-beat-actions">
@@ -272,6 +232,8 @@ function StatsBar({ events }: { events: BeatEvent[] }) {
   const topAgent = Object.entries(agentCounts).sort((a, b) => b[1] - a[1])[0];
   const topAgentDef = AGENTS.find(a => a.id === topAgent?.[0]);
 
+  const warnCount = todayEvents.filter(e => e.type === 'warn').length;
+
   return (
     <div className="intel-stats">
       <div className="intel-stat">
@@ -283,6 +245,15 @@ function StatsBar({ events }: { events: BeatEvent[] }) {
         <span className="intel-stat-value">{events.length > 0 ? timeAgo(events[0].timestamp) : '—'}</span>
         <span className="intel-stat-label">last beat</span>
       </div>
+      {warnCount > 0 && (
+        <>
+          <div className="intel-stat-divider" />
+          <div className="intel-stat">
+            <span className="intel-stat-value" style={{ color: '#fbbf24' }}>{warnCount}</span>
+            <span className="intel-stat-label">alerts</span>
+          </div>
+        </>
+      )}
       <div className="intel-stat-divider" />
       <div className="intel-stat">
         <span className="intel-stat-value" style={{ color: topAgentDef?.color }}>
@@ -300,10 +271,7 @@ const DEFAULT_ACTIVE_AGENTS = ['conflux', 'helix', 'pulse', 'hearth', 'echo', 'a
 // ── Main IntelView ─────────────────────────────────────────────────────────────
 export default function IntelView() {
   const events = useBeatTimeline();
-  // Real heartbeats flow in via beatBus — no demo beat init needed.
-  // Load from localStorage synchronously — same pattern as DesktopQuadrants.
-  // This prevents the "all agents offline" flash on first render by initialising
-  // state before paint, matching whatever is already in localStorage.
+  // Load from localStorage synchronously
   const [activeAgents, setActiveAgents] = useState<AgentFromDB[]>(() => {
     try {
       const stored = localStorage.getItem('conflux-selected-agents');
@@ -339,6 +307,9 @@ export default function IntelView() {
   });
   const [loading, setLoading] = useState(false);
 
+  // Agent filter for the feed — null = show all
+  const [agentFilter, setAgentFilter] = useState<string | null>(null);
+
   // Sync with AgentsView toggle events
   useEffect(() => {
     const handler = () => {
@@ -365,10 +336,6 @@ export default function IntelView() {
     return () => window.removeEventListener('conflux:agents-selected', handler);
   }, []);
 
-  // Demo beats disabled — real chain events flow through beatBus from heartbeatGlobal.ts
-
-  // Real heartbeats from Rust also flow in via the beatBus (heartbeatGlobal.ts emits on each tick).
-
   // Pulse counter for NeuralBrain
   const beatCountRef = useRef(0);
   const [beatPulse, setBeatPulse] = useState(0);
@@ -389,10 +356,17 @@ export default function IntelView() {
     }
   }, [events.length]);
 
-  // Build a lookup from AGENTS for display metadata (emoji, color)
-  const agentMeta = Object.fromEntries(AGENTS.map(a => [a.id, a])) as Record<string, typeof AGENTS[number]>;
-  // or simpler: just use find() in the map
-  const getMeta = (id: string) => AGENTS.find(a => a.id === id);
+  // Filtered events for the feed
+  const filteredEvents = useMemo(() => {
+    if (!agentFilter) return events;
+    return events.filter(e => e.agentId === agentFilter);
+  }, [events, agentFilter]);
+
+  // Agents that have at least one beat event (for filter pills)
+  const agentsWithActivity = useMemo(() => {
+    const ids = new Set(events.map(e => e.agentId));
+    return AGENTS.filter(a => ids.has(a.id));
+  }, [events]);
 
   return (
     <div className="intel-view">
@@ -441,33 +415,60 @@ export default function IntelView() {
         )}
       </div>
 
-      {/* Per-agent creative log — "what they're up to right now" */}
+      {/* Per-agent activity — real last-activity from beat events */}
       <div className="intel-section-label">SHIFT LOG</div>
       <div className="intel-shift-log">
         {activeAgents.slice(0, 6).map(agent => {
           const meta = AGENTS.find(a => a.id === agent.id);
           if (!meta) return null;
           return (
-            <AgentLogRow
+            <AgentActivityRow
               key={agent.id}
               agentId={agent.id}
               emoji={meta.emoji}
               color={meta.color}
+              events={events}
             />
           );
         })}
       </div>
 
-      {/* Beat timeline */}
+      {/* Beat timeline — with agent filter pills */}
       <div className="intel-section-label">HEARTBEAT</div>
+
+      {/* Agent filter pills */}
+      {agentsWithActivity.length > 1 && (
+        <div className="intel-filter-pills">
+          <button
+            className={`intel-filter-pill ${agentFilter === null ? 'intel-filter-active' : ''}`}
+            onClick={() => setAgentFilter(null)}
+          >
+            All
+          </button>
+          {agentsWithActivity.map(agent => (
+            <button
+              key={agent.id}
+              className={`intel-filter-pill ${agentFilter === agent.id ? 'intel-filter-active' : ''}`}
+              style={{ '--pill-color': agent.color } as React.CSSProperties}
+              onClick={() => setAgentFilter(agentFilter === agent.id ? null : agent.id)}
+            >
+              {agent.emoji} {agent.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="intel-feed">
-        {events.length === 0 ? (
+        {filteredEvents.length === 0 ? (
           <div className="intel-empty">
             <span className="intel-empty-spinner" />
-            Waiting for agent activity...
+            {agentFilter
+              ? `No activity from ${AGENTS.find(a => a.id === agentFilter)?.label ?? 'this agent'} yet...`
+              : 'Waiting for agent activity...'
+            }
           </div>
         ) : (
-          events.slice(0, 12).map((event, i) => (
+          filteredEvents.slice(0, 12).map((event, i) => (
             <BeatRow key={event.id} event={event} index={i} />
           ))
         )}
@@ -482,5 +483,14 @@ function timeAgo(ts: number): string {
   if (diff < 5) return 'just now';
   if (diff < 60) return `${diff}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+function truncate(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text;
+  // Try to break at word boundary
+  const truncated = text.slice(0, maxLen);
+  const lastSpace = truncated.lastIndexOf(' ');
+  return (lastSpace > maxLen * 0.7 ? truncated.slice(0, lastSpace) : truncated) + '…';
 }

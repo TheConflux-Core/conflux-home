@@ -1001,6 +1001,108 @@ impl EngineDb {
         Ok(())
     }
 
+    /// Store a memory with an expiration date. Used for heartbeat findings
+    /// that should auto-expire after a set number of days.
+    pub fn store_memory_with_expiry(
+        &self,
+        agent_id: &str,
+        memory_type: &str,
+        key: Option<&str>,
+        content: &str,
+        source: Option<&str>,
+        expires_at: &str,
+    ) -> Result<String> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let conn = self.conn_blocking();
+
+        conn.execute(
+            "INSERT INTO memory (id, agent_id, memory_type, key, content, source, expires_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![id, agent_id, memory_type, key, content, source, expires_at],
+        )?;
+
+        Ok(id)
+    }
+
+    /// Delete heartbeat memories older than their expiration date.
+    /// Returns the number of memories cleaned up.
+    pub fn cleanup_expired_heartbeat_memories(&self) -> Result<usize> {
+        let conn = self.conn_blocking();
+        let now = Self::now();
+        let deleted = conn.execute(
+            "DELETE FROM memory WHERE source LIKE 'heartbeat:%' AND expires_at IS NOT NULL AND expires_at < ?1",
+            params![now],
+        )?;
+        if deleted > 0 {
+            log::info!("[Memory] Cleaned up {} expired heartbeat memories", deleted);
+        }
+        Ok(deleted)
+    }
+
+    /// Get recent heartbeat memories across ALL agents (for Conflux summary step).
+    /// Returns the last N heartbeat findings from any agent, ordered by recency.
+    pub fn get_recent_heartbeat_memories(&self, limit: i64) -> Result<Vec<super::types::Memory>> {
+        let conn = self.conn_blocking();
+        let mut stmt = conn.prepare(
+            "SELECT id, agent_id, memory_type, key, content, source, confidence,
+                    access_count, last_accessed, created_at, updated_at, expires_at
+             FROM memory
+             WHERE source LIKE 'heartbeat:%'
+             ORDER BY created_at DESC
+             LIMIT ?1",
+        )?;
+
+        let memories = stmt.query_map(params![limit], |row| {
+            Ok(super::types::Memory {
+                id: row.get(0)?,
+                agent_id: row.get(1)?,
+                memory_type: row.get(2)?,
+                key: row.get(3)?,
+                content: row.get(4)?,
+                source: row.get(5)?,
+                confidence: row.get(6)?,
+                access_count: row.get(7)?,
+                last_accessed: row.get(8)?,
+                created_at: row.get(9)?,
+                updated_at: row.get(10)?,
+                expires_at: row.get(11)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for m in memories {
+            result.push(m?);
+        }
+        Ok(result)
+    }
+
+    /// Get the most recent heartbeat memory for each agent.
+    /// Returns a map of agent_id → latest finding content.
+    /// Used by Conflux to summarize what each agent found in the current cycle.
+    pub fn get_latest_heartbeat_per_agent(&self) -> Result<std::collections::HashMap<String, String>> {
+        let conn = self.conn_blocking();
+        let mut stmt = conn.prepare(
+            "SELECT agent_id, content FROM memory
+             WHERE source LIKE 'heartbeat:%'
+             AND id IN (
+                 SELECT id FROM (
+                     SELECT id, agent_id, ROW_NUMBER() OVER (PARTITION BY agent_id ORDER BY created_at DESC) as rn
+                     FROM memory WHERE source LIKE 'heartbeat:%'
+                 ) WHERE rn = 1
+             )",
+        )?;
+
+        let mut result = std::collections::HashMap::new();
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        for row in rows {
+            let (agent_id, content) = row?;
+            result.insert(agent_id, content);
+        }
+        Ok(result)
+    }
+
     // ── Session Compaction ──
 
     /// Count messages in a session.

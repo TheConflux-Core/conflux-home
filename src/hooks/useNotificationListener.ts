@@ -19,6 +19,8 @@ interface NotificationPrefs {
     cronFired: boolean;
     webhookReceived: boolean;
     agentNeedsAttention: boolean;
+    heartbeatCheckIn: boolean;
+    heartbeatFindingsOnly: boolean;
   };
   quietHours: {
     enabled: boolean;
@@ -42,6 +44,8 @@ function getPrefs(): NotificationPrefs {
       cronFired: false,
       webhookReceived: false,
       agentNeedsAttention: true,
+      heartbeatCheckIn: true,
+      heartbeatFindingsOnly: false,
     },
     quietHours: { enabled: false, start: '22:00', end: '08:00' },
   };
@@ -69,8 +73,33 @@ function shouldShowNotification(title: string, body: string): boolean {
   if (!prefs.masterEnabled) return false;
   if (isInQuietHours(prefs.quietHours)) return false;
 
-  // Classify by content keywords → event type toggle
   const lower = `${title} ${body}`.toLowerCase();
+
+  // Heartbeat notifications (agent emoji + name, or "Team Check-in" / "Team Alert")
+  const isHeartbeat =
+    lower.includes('team check-in') ||
+    lower.includes('team alert') ||
+    lower.includes('🛡️') || lower.includes('aegis') ||
+    lower.includes('🔬') || lower.includes('helix') ||
+    lower.includes('💚') || lower.includes('pulse') ||
+    lower.includes('🐍') || lower.includes('viper') ||
+    lower.includes('🎯') || lower.includes('horizon') ||
+    lower.includes('🧠') || lower.includes('orbit') ||
+    lower.includes('🔥') || lower.includes('hearth') ||
+    lower.includes('🫂') || lower.includes('echo') ||
+    (lower.includes('🤖') && lower.includes('conflux'));
+
+  if (isHeartbeat) {
+    if (!prefs.events.heartbeatCheckIn) return false;
+    // If "findings only" is on, suppress routine "all clear" notifications
+    if (prefs.events.heartbeatFindingsOnly) {
+      const isRoutine = lower.includes('all clear') || lower.includes('all reported in') || lower.includes('no issues');
+      if (isRoutine) return false;
+    }
+    return true;
+  }
+
+  // Classify by content keywords → event type toggle
   if (lower.includes('error') || lower.includes('failed') || lower.includes('critical')) {
     return prefs.events.agentError;
   }

@@ -1,8 +1,10 @@
 // Heartbeat Chain — Chain State Persistence
 // Lightweight state file for tracking chain progress.
 // Per spec: no mid-chain resume — restart on app reopen.
+// Session 5: Added per-agent last-run tracking for smart scheduling.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -19,6 +21,13 @@ pub struct ChainState {
     /// True if a chain is currently in-flight.
     #[serde(rename = "chainActive")]
     pub chain_active: bool,
+    /// Per-agent last-run timestamps (agent_id → wall clock ms).
+    /// Used for smart scheduling — skip agents that ran recently.
+    #[serde(rename = "agentLastRun", default)]
+    pub agent_last_run: HashMap<String, i64>,
+    /// Total LLM tokens used in the last chain cycle.
+    #[serde(rename = "lastCycleTokens", default)]
+    pub last_cycle_tokens: u64,
 }
 
 impl ChainState {
@@ -35,6 +44,19 @@ impl ChainState {
     /// Mark chain as complete (or stopped).
     pub fn end_chain(&mut self) {
         self.chain_active = false;
+    }
+
+    /// Record that an agent just ran.
+    pub fn record_agent_run(&mut self, agent_id: &str) {
+        self.agent_last_run.insert(
+            agent_id.to_string(),
+            chrono::Utc::now().timestamp_millis(),
+        );
+    }
+
+    /// Get the last-run timestamp for an agent.
+    pub fn get_agent_last_run(&self, agent_id: &str) -> Option<i64> {
+        self.agent_last_run.get(agent_id).copied()
     }
 }
 

@@ -50,6 +50,8 @@ async function registerTauriListener() {
       action: raw.action ?? '',
       detail: raw.detail ?? '',
       type: (raw.event_type ?? raw.type ?? 'info') as 'info' | 'success' | 'warn',
+      toolsUsed: raw.toolsUsed ?? raw.tools_used ?? [],
+      hadFindings: raw.hadFindings ?? raw.had_findings ?? false,
     });
   }).catch(e => console.warn('[HeartbeatGlobal] Tauri listener error:', e));
 

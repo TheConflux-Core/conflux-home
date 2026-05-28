@@ -12,6 +12,10 @@ export interface BeatEvent {
   detail?: string;
   type: 'info' | 'success' | 'warn';
   timestamp: number;
+  /** Which tools the agent called during this step (Session 6) */
+  toolsUsed?: string[];
+  /** Whether the agent found something noteworthy (Session 6) */
+  hadFindings?: boolean;
 }
 
 export const AGENTS = [
@@ -109,42 +113,4 @@ export function useAgentActivity(agentId: string) {
   return { lastActive, isActive };
 }
 
-// ── Demo beat generator ────────────────────────────────────────────────────────
-const DEMO_BEATS: Omit<BeatEvent, 'id' | 'timestamp'>[] = [
-  { agentId: 'helix',   agentLabel: 'Helix',   action: 'checked market signals',      detail: 'AAPL +1.8% · TSLA +3.2%',        type: 'info' },
-  { agentId: 'helix',   agentLabel: 'Helix',   action: 'scanned startup ecosystem',   detail: '17 new companies today',         type: 'info' },
-  { agentId: 'forge',   agentLabel: 'Forge',   action: 'completed background task',   detail: 'Product spec v2.4 exported',   type: 'success' },
-  { agentId: 'forge',   agentLabel: 'Forge',   action: 'ran code review',             detail: '3 PRs · 0 critical issues',     type: 'success' },
-  { agentId: 'aegis',   agentLabel: 'Aegis',   action: 'verified system integrity',   detail: 'All systems nominal',           type: 'success' },
-  { agentId: 'aegis',   agentLabel: 'Aegis',   action: 'monitored access logs',      detail: '0 anomalies detected',         type: 'info' },
-  { agentId: 'pulse',   agentLabel: 'Pulse',   action: 'tracked daily spending',      detail: '$127 of $500 budget remaining', type: 'info' },
-  { agentId: 'pulse',   agentLabel: 'Pulse',   action: 'detected budget opportunity', detail: 'You saved $40 vs last month',  type: 'success' },
-  { agentId: 'hearth',  agentLabel: 'Hearth',  action: 'checked pantry status',       detail: '3 items running low',          type: 'warn' },
-  { agentId: 'hearth',  agentLabel: 'Hearth',  action: 'suggested this week\'s meals', detail: '12 recipes matched your prefs', type: 'info' },
-  { agentId: 'orbit',   agentLabel: 'Orbit',   action: 'logged task completions',    detail: '3 tasks done today',            type: 'success' },
-  { agentId: 'orbit',   agentLabel: 'Orbit',   action: 'sent evening nudge',         detail: '2 tasks pending for tomorrow', type: 'info' },
-  { agentId: 'horizon', agentLabel: 'Horizon', action: 'updated dream progress',     detail: 'Milestone 3/7 complete',       type: 'success' },
-  { agentId: 'horizon', agentLabel: 'Horizon', action: 'celebrated streak',         detail: '7-day streak intact 🎉',       type: 'success' },
-];
-
-let _demoBeatTimer: ReturnType<typeof setTimeout> | null = null;
-let _demoBeatIndex = 0;
-
-export function startDemoBeats(intervalMs = 45000) {
-  if (_demoBeatTimer) return;
-  function fire() {
-    const beat = DEMO_BEATS[_demoBeatIndex % DEMO_BEATS.length];
-    _demoBeatIndex++;
-    emitBeat({ ...beat } as Omit<BeatEvent, 'id' | 'timestamp'>);
-    _demoBeatTimer = setTimeout(fire, intervalMs + Math.random() * 30000);
-  }
-  // First beat fires quickly, then settles into rhythm
-  _demoBeatTimer = setTimeout(fire, 4000);
-}
-
-export function stopDemoBeats() {
-  if (_demoBeatTimer) {
-    clearTimeout(_demoBeatTimer);
-    _demoBeatTimer = null;
-  }
-}
+// Demo beat generator removed — real chain events flow through heartbeatGlobal.ts
