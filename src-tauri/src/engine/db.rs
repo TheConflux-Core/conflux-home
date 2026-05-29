@@ -2783,33 +2783,60 @@ impl EngineDb {
     ) -> Result<super::types::BudgetSummary> {
         let conn = self.conn_blocking();
 
-        let total_income: f64 = conn.query_row(
+        // 1. Income from budget_settings (the configured income amount)
+        let settings_income: f64 = conn.query_row(
+            "SELECT COALESCE(income_amount, 0) FROM budget_settings WHERE user_id = ?1 LIMIT 1",
+            params![member_id], |row| row.get(0)
+        ).unwrap_or(0.0);
+
+        // 2. Actual income entries for the month (if any logged)
+        let entry_income: f64 = conn.query_row(
             "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id = ?1 AND entry_type = 'income' AND strftime('%Y-%m', date) = ?2",
             params![member_id, month], |row| row.get(0)
         ).unwrap_or(0.0);
 
+        // Use configured income if no manual entries exist
+        let total_income = if entry_income > 0.0 { entry_income } else { settings_income };
+
+        // 3. Actual expenses from budget_entries for the month
         let total_expenses: f64 = conn.query_row(
             "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id = ?1 AND entry_type = 'expense' AND strftime('%Y-%m', date) = ?2",
             params![member_id, month], |row| row.get(0)
         ).unwrap_or(0.0);
 
+        // 4. Savings from budget_entries for the month
         let total_savings: f64 = conn.query_row(
             "SELECT COALESCE(SUM(amount), 0) FROM budget_entries WHERE member_id = ?1 AND entry_type = 'savings' AND strftime('%Y-%m', date) = ?2",
             params![member_id, month], |row| row.get(0)
         ).unwrap_or(0.0);
 
-        let mut cat_stmt = conn.prepare(
-            "SELECT category, SUM(amount) as total FROM budget_entries
-             WHERE entry_type = 'expense' AND strftime('%Y-%m', date) = ?1
-             GROUP BY category ORDER BY total DESC",
+        // 5. Bucket allocations from budget_buckets (planned spending)
+        let mut bucket_stmt = conn.prepare(
+            "SELECT name, COALESCE(monthly_goal, 0) FROM budget_buckets WHERE user_id = ?1 AND is_active = 1 ORDER BY monthly_goal DESC",
         )?;
-        let cat_rows = cat_stmt.query_map(params![month], |row| {
+        let bucket_rows = bucket_stmt.query_map(params![member_id], |row| {
             Ok(super::types::CategoryTotal {
                 category: row.get(0)?,
                 total: row.get(1)?,
             })
         })?;
-        let mut categories = Vec::new();
+        let mut categories: Vec<super::types::CategoryTotal> = Vec::new();
+        for r in bucket_rows {
+            categories.push(r?);
+        }
+
+        // 6. Expense categories from budget_entries (actual spending)
+        let mut cat_stmt = conn.prepare(
+            "SELECT category, SUM(amount) as total FROM budget_entries
+             WHERE member_id = ?1 AND entry_type = 'expense' AND strftime('%Y-%m', date) = ?2
+             GROUP BY category ORDER BY total DESC",
+        )?;
+        let cat_rows = cat_stmt.query_map(params![member_id, month], |row| {
+            Ok(super::types::CategoryTotal {
+                category: row.get(0)?,
+                total: row.get(1)?,
+            })
+        })?;
         for r in cat_rows {
             categories.push(r?);
         }
@@ -7121,14 +7148,15 @@ impl EngineDb {
             })
         };
         let mut result = Vec::new();
+        // Match dreams by member_id directly, OR by family_members linked to this user
         if let Some(s) = status {
-            let mut stmt = conn.prepare("SELECT id, member_id, title, description, category, target_date, status, progress, ai_plan, ai_next_actions, created_at, updated_at FROM dreams WHERE (member_id = ?1 OR member_id IS NULL) AND status = ?2 ORDER BY created_at DESC")?;
+            let mut stmt = conn.prepare("SELECT id, member_id, title, description, category, target_date, status, progress, ai_plan, ai_next_actions, created_at, updated_at FROM dreams WHERE (member_id = ?1 OR member_id IN (SELECT id FROM family_members WHERE user_id = ?1) OR member_id IS NULL) AND status = ?2 ORDER BY created_at DESC")?;
             let rows = stmt.query_map(params![member_id, s], mapper)?;
             for r in rows {
                 result.push(r?);
             }
         } else {
-            let mut stmt = conn.prepare("SELECT id, member_id, title, description, category, target_date, status, progress, ai_plan, ai_next_actions, created_at, updated_at FROM dreams WHERE (member_id = ?1 OR member_id IS NULL) ORDER BY created_at DESC")?;
+            let mut stmt = conn.prepare("SELECT id, member_id, title, description, category, target_date, status, progress, ai_plan, ai_next_actions, created_at, updated_at FROM dreams WHERE (member_id = ?1 OR member_id IN (SELECT id FROM family_members WHERE user_id = ?1) OR member_id IS NULL) ORDER BY created_at DESC")?;
             let rows = stmt.query_map(params![member_id], mapper)?;
             for r in rows {
                 result.push(r?);
@@ -7160,14 +7188,15 @@ impl EngineDb {
             })
         };
         let mut result = Vec::new();
+        // Match dreams by member_id directly, OR by family_members linked to this user
         if let Some(s) = status {
-            let mut stmt = conn.prepare("SELECT id, member_id, title, description, category, target_date, status, progress, ai_plan, ai_next_actions, created_at, updated_at FROM dreams WHERE (member_id = ?1 OR member_id IS NULL) AND status = ?2 ORDER BY created_at DESC")?;
+            let mut stmt = conn.prepare("SELECT id, member_id, title, description, category, target_date, status, progress, ai_plan, ai_next_actions, created_at, updated_at FROM dreams WHERE (member_id = ?1 OR member_id IN (SELECT id FROM family_members WHERE user_id = ?1) OR member_id IS NULL) AND status = ?2 ORDER BY created_at DESC")?;
             let rows = stmt.query_map(params![member_id, s], mapper)?;
             for r in rows {
                 result.push(r?);
             }
         } else {
-            let mut stmt = conn.prepare("SELECT id, member_id, title, description, category, target_date, status, progress, ai_plan, ai_next_actions, created_at, updated_at FROM dreams WHERE (member_id = ?1 OR member_id IS NULL) ORDER BY created_at DESC")?;
+            let mut stmt = conn.prepare("SELECT id, member_id, title, description, category, target_date, status, progress, ai_plan, ai_next_actions, created_at, updated_at FROM dreams WHERE (member_id = ?1 OR member_id IN (SELECT id FROM family_members WHERE user_id = ?1) OR member_id IS NULL) ORDER BY created_at DESC")?;
             let rows = stmt.query_map(params![member_id], mapper)?;
             for r in rows {
                 result.push(r?);

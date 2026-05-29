@@ -1,8 +1,9 @@
 // Heartbeat Chain — Chain Execution Engine
 // Runs the staggered sequence of agent steps after a heartbeat fires.
 
-use crate::heartbeat_chain::config::{ChainStep, HeartbeatChainConfig};
+use crate::heartbeat_chain::config::ChainStep;
 use crate::heartbeat_chain::state::ChainState;
+use crate::engine::runtime;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::Emitter;
@@ -47,21 +48,21 @@ impl From<ChainState> for CurrentChainState {
     fn from(state: ChainState) -> Self {
         let config = crate::heartbeat_chain::config::load_config();
         let agents: Vec<String> = config.chain.iter().map(|s| s.agent.clone()).collect();
-        // next_beat_at = lastBeatAt + interval (use 30 min default if unavailable)
-        let interval_ms = chrono::Utc::now().timestamp_millis()
-            - state.last_beat_at.unwrap_or(chrono::Utc::now().timestamp_millis());
-        let next_beat_at = state.last_beat_at.map(|t| {
-            let interval = if interval_ms > 0 { interval_ms } else { 1_800_000 };
-            t + interval
-        });
+        let agents: Vec<String> = agents.into_iter().collect::<std::collections::HashSet<_>>().into_iter().collect();
+        // next_beat_at = lastBeatAt + configured interval (fallback 30 min)
+        let interval_ms = crate::engine::try_get_engine()
+            .and_then(|e| e.db().get_config("heartbeat_interval_ms").ok().flatten())
+            .and_then(|v| v.parse::<i64>().ok())
+            .unwrap_or(1_800_000);
+        let next_beat_at = state.last_beat_at.map(|t| t + interval_ms);
         Self {
             last_beat_at: state.last_beat_at,
             chain_fired_at: state.chain_fired_at,
             next_beat_at,
             chain_active: state.chain_active,
             running: state.chain_active,
-            current_step: None,
-            total_steps: config.chain.len() as u32,
+            current_step: state.current_step,
+            total_steps: state.total_steps.unwrap_or(config.chain.len() as u32),
             enabled: config.config.enabled,
             agents,
         }
@@ -87,8 +88,8 @@ fn agent_info(agent_id: &str) -> (&'static str, &'static str, &'static str) {
     }
 }
 
-/// Build human-readable detail string for each step action.
-fn build_action_detail(action: &str) -> String {
+/// Build fallback detail string for each step action (used when task_message is None or process_turn fails).
+fn build_fallback_detail(action: &str) -> String {
     match action {
         "sync_state"      => "State synchronized".to_string(),
         "security_scan"   => "0 anomalies · all channels nominal".to_string(),
@@ -101,6 +102,134 @@ fn build_action_detail(action: &str) -> String {
         "wellness_check"  => "Emotional check-in complete".to_string(),
         "chain_summary"   => "Summary compiled — briefing delivered".to_string(),
         _ => format!("{} complete", action),
+    }
+}
+
+/// Truncate a string to max_chars, adding "…" if truncated.
+fn truncate_response(s: &str, max_chars: usize) -> String {
+    if s.len() <= max_chars {
+        s.to_string()
+    } else {
+        let end = s.char_indices()
+            .nth(max_chars)
+            .map(|(i, _)| i)
+            .unwrap_or(s.len());
+        format!("{}…", &s[..end])
+    }
+}
+
+/// Execute a single chain step via process_turn, returning the response text.
+/// Returns None if the step has no task_message or the engine is unavailable.
+async fn execute_step(step: &ChainStep) -> Option<String> {
+    let task_message = match &step.task_message {
+        Some(msg) if !msg.is_empty() => msg.clone(),
+        _ => return None,
+    };
+
+    let engine = match crate::engine::try_get_engine() {
+        Some(e) => e,
+        None => {
+            log::warn!("[HeartbeatChain] Engine not available for step '{}'", step.action);
+            return None;
+        }
+    };
+
+    let db = engine.db();
+
+    // Create a fresh session for this step
+    // Use real user_id from config instead of "heartbeat" so tools get correct member_id
+    let real_user_id = db.get_config("supabase_user_id")
+        .ok()
+        .flatten()
+        .filter(|id| !id.is_empty())
+        .unwrap_or_else(|| "default_user".to_string());
+    let session = match db.create_session(&step.agent, &real_user_id) {
+        Ok(s) => s,
+        Err(e) => {
+            log::warn!("[HeartbeatChain] Failed to create session for '{}': {}", step.action, e);
+            return Some(format!("Error: could not create session — {}", e));
+        }
+    };
+
+    // Wrap the task with context preamble including current date
+    let now = chrono::Utc::now();
+    let today = now.format("%Y-%m-%d").to_string();
+    let current_month = now.format("%Y-%m").to_string();
+    let message = format!(
+        "HEARTBEAT TASK ({}):\n{}\n\
+         Current date: {} (month: {}).\n\
+         Be concise. Report actual data only. 2-3 sentences max.",
+        step.action, task_message, today, current_month
+    );
+
+    log::info!("[HeartbeatChain] Executing step '{}' for agent '{}'", step.action, step.agent);
+
+    match runtime::process_turn(db, &session.id, &step.agent, &message, None).await {
+        Ok(response) => {
+            let text = truncate_response(&response.content, 500);
+            log::info!(
+                "[HeartbeatChain] Step '{}' complete — {} chars, {} tokens",
+                step.action, text.len(), response.tokens_used
+            );
+            Some(text)
+        }
+        Err(e) => {
+            log::warn!("[HeartbeatChain] Step '{}' failed: {}", step.action, e);
+            Some(format!("Error: {}", e))
+        }
+    }
+}
+
+/// Compile a natural-language summary from all step responses using process_turn.
+/// Falls back to a hardcoded summary if the engine is unavailable or the LLM call fails.
+async fn compile_chain_summary(step_responses: &[(String, String)]) -> String {
+    let mut results_block = String::new();
+    for (agent, response) in step_responses {
+        results_block.push_str(&format!("- {}: {}\n", agent, response));
+    }
+
+    let summary_prompt = format!(
+        "You are Conflux, the central coordinator. Compile the following heartbeat chain \
+         results into a warm, concise briefing (3-5 sentences). Cover the key findings \
+         from each agent. If any step reported an error, acknowledge it gracefully. \
+         End with one actionable recommendation.\n\n\
+         Heartbeat chain results:\n{}",
+        results_block
+    );
+
+    let engine = match crate::engine::try_get_engine() {
+        Some(e) => e,
+        None => return build_fallback_detail("chain_summary"),
+    };
+
+    let db = engine.db();
+
+    let real_user_id = db.get_config("supabase_user_id")
+        .ok()
+        .flatten()
+        .filter(|id| !id.is_empty())
+        .unwrap_or_else(|| "default_user".to_string());
+    let session = match db.create_session("conflux", &real_user_id) {
+        Ok(s) => s,
+        Err(e) => {
+            log::warn!("[HeartbeatChain] Failed to create summary session: {}", e);
+            return build_fallback_detail("chain_summary");
+        }
+    };
+
+    match runtime::process_turn(db, &session.id, "conflux", &summary_prompt, None).await {
+        Ok(response) => {
+            let text = truncate_response(&response.content, 800);
+            log::info!(
+                "[HeartbeatChain] Summary compiled — {} chars, {} tokens",
+                text.len(), response.tokens_used
+            );
+            text
+        }
+        Err(e) => {
+            log::warn!("[HeartbeatChain] Summary compilation failed: {}", e);
+            build_fallback_detail("chain_summary")
+        }
     }
 }
 
@@ -155,8 +284,10 @@ pub fn start_chain_for_beat(app_handle: tauri::AppHandle, beat_timestamp_ms: i64
 
 async fn run_chain(app_handle: tauri::AppHandle, steps: Vec<ChainStep>) {
     let total = steps.len();
+    // Collect response text from each step for the final summary
+    let mut step_responses: Vec<(String, String)> = Vec::new(); // (agent, response_text)
 
-    for (i, step) in steps.into_iter().enumerate() {
+    for (i, step) in steps.iter().enumerate() {
         let step_num = i as u32;
         let delay = step.delay_sec;
 
@@ -165,21 +296,43 @@ async fn run_chain(app_handle: tauri::AppHandle, steps: Vec<ChainStep>) {
         }
 
         let (agent_label, _emoji, _color) = agent_info(&step.agent);
-        let detail = build_action_detail(&step.action);
-        let event_type = if step.action == "chain_summary" { "success" } else { "info" };
 
-        // Emit chain-event (ChainTimeline listens for this via Tauri IPC → App.tsx → window)
+        // Persist current step so heartbeat_chain_get_state returns real progress
+        {
+            let mut state = ChainState::load();
+            state.current_step = Some(step_num);
+            state.total_steps = Some(total as u32);
+            let _ = state.save();
+        }
+
+        // Emit chain-event with status "running"
         let _ = app_handle.emit("conflux:chain-event", serde_json::json!({
             "step": step_num,
             "agentId": step.agent,
             "agentLabel": agent_label,
             "action": step.action,
-            "detail": detail,
+            "detail": "running…",
             "status": "running",
             "total": total,
         }));
 
-        // Emit beat event via Tauri IPC (beats appear in beatBus/IntelView timeline)
+        // Execute the real task (or fall back to hardcoded detail)
+        let detail = if step.action == "chain_summary" {
+            // Step 9: compile summary from all previous step responses
+            compile_chain_summary(&step_responses).await
+        } else if let Some(response) = execute_step(step).await {
+            step_responses.push((step.agent.clone(), response.clone()));
+            response
+        } else {
+            // No task_message — use fallback detail
+            let fallback = build_fallback_detail(&step.action);
+            step_responses.push((step.agent.clone(), fallback.clone()));
+            fallback
+        };
+
+        let event_type = if step.action == "chain_summary" { "success" } else { "info" };
+
+        // Emit beat event with real detail
         let beat = BeatEventJson {
             id: format!("chain-step-{}-{}", step_num, chrono::Utc::now().timestamp_millis()),
             agent_id: step.agent.clone(),
@@ -191,7 +344,7 @@ async fn run_chain(app_handle: tauri::AppHandle, steps: Vec<ChainStep>) {
         };
         emit_beat(&app_handle, &beat);
 
-        // Emit step-complete (ChainTimeline listens)
+        // Emit step-complete with real detail
         let _ = app_handle.emit("conflux:chain-step-completed", serde_json::json!({
             "step": step_num,
             "agentId": step.agent,
@@ -202,9 +355,12 @@ async fn run_chain(app_handle: tauri::AppHandle, steps: Vec<ChainStep>) {
             "total": total,
         }));
 
-        // TTS for the final chain_summary step — await it properly
+        // TTS for the final chain_summary step — speak the compiled summary
         if step.action == "chain_summary" {
-            let summary_text = "Check-in complete. Your team has finished their cycle. All systems nominal. Next check-in in about 12 hours.";
+            let summary_text = step_responses
+                .last()
+                .map(|(_, text)| text.as_str())
+                .unwrap_or("Check-in complete. All systems nominal.");
             call_tts_speak(summary_text, step.voice_id.as_deref()).await;
 
             let final_beat = BeatEventJson {
