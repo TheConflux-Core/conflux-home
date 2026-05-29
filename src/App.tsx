@@ -4,7 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import { soundManager } from './lib/sound';
 import { playBuildComplete } from './lib/onboarding-sounds';
 import { initHeartbeatGlobal } from './lib/heartbeatGlobal';
-import { startDemoBeats } from './lib/beatBus';
+import { startDemoBeats, stopDemoBeats } from './lib/beatBus';
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
 import { Agent, View } from './types';
 import TopBar from './components/TopBar';
@@ -74,6 +74,7 @@ import { shouldAutoStartTour } from './hooks/useTourState';import { useEngine } 
 import { useToast } from './hooks/useToast';
 import { useFamily } from './hooks/useFamily';
 import { useAuth } from './hooks/useAuth';
+import useNotificationListener from './hooks/useNotificationListener';
 import { useSubscription } from './hooks/useSubscription';
 import { AuthProvider } from './contexts/AuthContext';
 import { useStoryGames, useStoryGame, useStorySeeds } from './hooks/useStoryGame';
@@ -146,6 +147,9 @@ export default function App() {
   const { user, loading: authLoading, signInWithEmail } = useAuth();
   const authenticated = !!user;
   const subscription = useSubscription();
+
+  // Mount global notification listener (desktop notifications from engine)
+  useNotificationListener();
 
   // Handle conflux://auth/callback deep links (fallback for protocol-registered platforms)
   const handleAuthDeepLink = useCallback(async (url: string) => {
@@ -232,9 +236,12 @@ export default function App() {
     });
   }, []);
 
-  // Initialize global heartbeat singleton (demo beats disabled — real chain events flow via heartbeatGlobal.ts)
+  // Initialize global heartbeat singleton
+  // Demo beats disabled — testing real chain beats from Rust via conflux:beat-event → beatBus
   useEffect(() => {
     initHeartbeatGlobal();
+    // startDemoBeats(); // re-enable if chain beats aren't firing
+    // return () => { stopDemoBeats(); };
   }, []);
 
   // Expose bar v2 toggle for console testing
