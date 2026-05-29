@@ -9,13 +9,22 @@ pub use chain::{start_chain_for_beat, stop_chain, get_state, CurrentChainState};
 pub use config::{load_config, save_config, is_enabled, HeartbeatChainConfig, ChainStep};
 pub use state::ChainState;
 
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
+
+/// Reset stale chain state on app startup.
+/// Call this during setup to clear any interrupted chains from previous runs.
+pub fn reset_stale_state() {
+    let mut state = ChainState::load();
+    state.reset_on_startup();
+}
 
 /// Start the heartbeat chain for the current beat.
 /// Called from lib.rs when the CronScheduler fires a heartbeat tick.
 pub fn trigger_chain(app_handle: AppHandle) {
     let now_ms = chrono::Utc::now().timestamp_millis();
+    log::info!("[HeartbeatChain] trigger_chain called at {}", now_ms);
     chain::start_chain_for_beat(app_handle, now_ms);
+    log::info!("[HeartbeatChain] trigger_chain returned");
 }
 
 // ── Tauri Commands ──────────────────────────────────────────────────────────────
@@ -62,32 +71,32 @@ pub fn heartbeat_chain_trigger_test() {
     chain::start_chain_for_beat(handle, test_ms);
 }
 
+/// Frontend config payload — matches what HeartbeatChainSettings sends.
+#[derive(serde::Deserialize)]
+pub struct FrontendConfig {
+    enabled: Option<bool>,
+    agents: Option<Vec<String>>,
+}
+
 #[tauri::command]
-pub fn heartbeat_chain_update_config(config_json: String) -> Result<(), String> {
-    #[derive(serde::Deserialize)]
-    struct FrontendConfig {
-        enabled: Option<bool>,
-        agents: Option<Vec<String>>,
+pub fn heartbeat_chain_update_config(config: FrontendConfig) -> Result<(), String> {
+    let mut chain_config = config::load_config();
+    if let Some(enabled) = config.enabled {
+        chain_config.config.enabled = enabled;
     }
-    let frontend: FrontendConfig = serde_json::from_str(&config_json)
-        .map_err(|e| format!("Invalid config JSON: {}", e))?;
-    let mut config = config::load_config();
-    if let Some(enabled) = frontend.enabled {
-        config.config.enabled = enabled;
-    }
-    if let Some(agents) = frontend.agents {
+    if let Some(agents) = config.agents {
         // Filter chain to only the agents the user enabled; preserve original delays/voice_ids
-        config.chain = config
+        chain_config.chain = chain_config
             .chain
             .into_iter()
             .filter(|step| agents.contains(&step.agent))
             .collect();
     }
-    save_config(&config)?;
+    save_config(&chain_config)?;
     log::info!(
         "[HeartbeatChain] Config updated (enabled={}, agents={:?})",
-        config.config.enabled,
-        config.chain.iter().map(|s| &s.agent).collect::<Vec<_>>()
+        chain_config.config.enabled,
+        chain_config.chain.iter().map(|s| &s.agent).collect::<Vec<_>>()
     );
     Ok(())
 }
