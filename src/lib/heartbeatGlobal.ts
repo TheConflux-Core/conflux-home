@@ -92,12 +92,8 @@ function stopTick() {
 }
 
 function fireBeat(): void {
-  // Don't emit conflux heartbeat beat while chain is running — chain steps go through beatBus
-  if (_chainActive) {
-    syncFromRust();
-    return;
-  }
-
+  // Always fire the frontend timer beat — it's a visual indicator.
+  // Real chain beats from Rust flow through conflux:beat-event and overlay naturally.
   beatCount++;
   config.lastBeatMs = Date.now();
   const ts = config.lastBeatMs;

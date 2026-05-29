@@ -135,6 +135,9 @@ pub fn run() {
             if SCHEDULER_STARTED.swap(true, Ordering::SeqCst) {
                 log::warn!("[Setup] CronScheduler already running, skipping duplicate spawn");
             } else {
+                // Clear any stale chain state from previous runs
+                heartbeat_chain::reset_stale_state();
+
                 log::info!("[Setup] Starting CronScheduler");
                 let app_handle = app.handle().clone();
                 // Channel for instant-interval-change signals from commands

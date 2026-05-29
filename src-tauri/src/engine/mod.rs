@@ -715,10 +715,14 @@ impl ConfluxEngine {
                 job.schedule, job.task_message
             );
 
-            // Execute through the runtime
-            match runtime::process_turn(&self.db, &session.id, &job.agent_id, &message, None).await
-            {
-                Ok(response) => {
+            // Execute through the runtime with timeout (prevent hung jobs from blocking scheduler)
+            let result = tokio::time::timeout(
+                std::time::Duration::from_secs(120),
+                runtime::process_turn(&self.db, &session.id, &job.agent_id, &message, None),
+            ).await;
+
+            match result {
+                Ok(Ok(response)) => {
                     let tokens = response.tokens_used;
                     let _ = self.db.update_cron_run(&job.id, "success", tokens, None);
                     self.db.emit_event(
@@ -742,6 +746,27 @@ impl ConfluxEngine {
                                 .to_string(),
                         ),
                     )?;
+                }
+                Ok(Err(e)) => {
+                    log::error!("[Cron] Job {} error: {}", job.id, e);
+                    let _ = self
+                        .db
+                        .update_cron_run(&job.id, "error", 0, Some(&e.to_string()));
+                    self.db.emit_event(
+                        "cron_error",
+                        Some(&job.agent_id),
+                        None,
+                        Some(
+                            &serde_json::json!({"job_id": job.id, "error": e.to_string()})
+                                .to_string(),
+                        ),
+                    )?;
+                }
+                Err(_timeout) => {
+                    log::error!("[Cron] Job {} timed out after 120s — skipping", job.id);
+                    let _ = self
+                        .db
+                        .update_cron_run(&job.id, "error", 0, Some("Timed out after 120s"));
                 }
             }
 
@@ -877,13 +902,9 @@ impl ConfluxEngine {
               password safety, secrets in config files, and general hardening. \
               If any critical vulnerabilities found, use memory_write with category 'security-alert'."),
 
-            ("sec-watchtower", "conflux", "*/5 * * * *", "local",
-             "SECURITY: Watchtower continuous monitoring check. \
-              Run watchtower_scan to snapshot file changes, processes, and network connections. \
-              If any suspicious processes or connections are detected, flag them. \
-              If critical file system changes are detected (e.g., system files deleted or modified), \
-              use memory_write with category 'security-alert'. \
-              Keep output minimal — only report anomalies, not clean scans."),
+            // sec-watchtower removed — was firing every 5 min (12 LLM sessions/hour).
+            // Watchtower runs via: (1) heartbeat chain security_scan step, (2) sec-full-aegis at 3am,
+            // (3) security-scan cron at 2am. No need for continuous 5-min polling.
 
             ("sec-siem-correlate", "conflux", "0 0 * * *", "local",
              "SECURITY: SIEM correlation and risk assessment. \
@@ -907,12 +928,7 @@ impl ConfluxEngine {
               aegis score, viper risk, agent defense scores. \
               Store the full report using memory_write with category 'security-weekly'."),
 
-            ("sec-baseline-refresh", "conflux", "0 2 * * *", "local",
-             "SECURITY: Refresh Watchtower file baselines. \
-              Run watchtower_rescan to rebuild file system baselines. \
-              This detects any files that changed since the last baseline. \
-              If critical system files were modified, use memory_write with category 'security-alert'. \
-              Keep output to count of files scanned and any changes detected."),
+            // sec-baseline-refresh removed — redundant with security-scan (both at 2am, both call watchtower)
         ];
 
         for (name, agent_id, schedule, tz, message) in system_jobs {
