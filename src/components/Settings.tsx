@@ -12,6 +12,7 @@ import UsageSection from './settings/UsageSection';
 import SoundSection from './settings/SoundSection';
 import SecuritySettings from './settings/SecuritySettings';
 import HeartbeatChainSettings from './settings/HeartbeatChainSettings';
+import FeedbackModal from './FeedbackModal';
 import { useAuth } from '../hooks/useAuth';
 import { playToggleOn, playToggleOff } from '../lib/sound';
 import { useTourState } from '../hooks/useTourState';
@@ -266,11 +267,18 @@ function AboutSection() {
   const [logPath, setLogPath] = useState<string>('');
   const [systemInfo, setSystemInfo] = useState<{ os: string; arch: string; app_version: string } | null>(null);
   const [copyStatus, setCopyStatus] = useState<string>('');
+  const [feedbackType, setFeedbackType] = useState<'bug' | 'feature'>('bug');
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   useEffect(() => {
     invoke<string>('get_log_path').then(setLogPath).catch(() => {});
     invoke<any>('get_system_info').then(setSystemInfo).catch(() => {});
   }, []);
+
+  const openFeedback = (type: 'bug' | 'feature') => {
+    setFeedbackType(type);
+    setFeedbackOpen(true);
+  };
 
   return (
     <div className="settings-section">
@@ -296,10 +304,10 @@ function AboutSection() {
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
-        <button className="settings-button" onClick={() => open('https://github.com/TheConflux-Core/conflux-home/issues/new?template=bug_report.yml&labels=bug&title=%5BBug%5D%20')}>
+        <button className="settings-button" onClick={() => openFeedback('bug')}>
           🐛 Report a Bug
         </button>
-        <button className="settings-button" onClick={() => open('https://github.com/TheConflux-Core/conflux-home/issues/new?template=feature_request.yml')}>
+        <button className="settings-button" onClick={() => openFeedback('feature')}>
           💡 Request a Feature
         </button>
       </div>
@@ -316,6 +324,11 @@ function AboutSection() {
           </div>
         </div>
       )}
+      <FeedbackModal
+        isOpen={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+        defaultType={feedbackType}
+      />
     </div>
   );
 }
@@ -429,6 +442,13 @@ const CATEGORY_META: Record<string, { icon: string; title: string; desc: string 
 // ── Main Settings Components ──
 export default function Settings() {
   const [activeCategory, setActiveCategory] = useState('account');
+  const [feedbackType, setFeedbackType] = useState<'bug' | 'feature'>('bug');
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+
+  const openFeedback = (type: 'bug' | 'feature') => {
+    setFeedbackType(type);
+    setFeedbackOpen(true);
+  };
 
   useEffect(() => {
     const savedAccent = localStorage.getItem('conflux-accent');
@@ -463,14 +483,14 @@ export default function Settings() {
         <div className="mc-report-header">
           <button
             className="mc-report-btn"
-            onClick={() => open('https://github.com/TheConflux-Core/conflux-home/issues/new?labels=bug&title=%5BBug%5D%20')}
+            onClick={() => openFeedback('bug')}
             title="Report a Bug"
           >
             🐛 Report a Bug
           </button>
           <button
             className="mc-report-btn"
-            onClick={() => open('https://github.com/TheConflux-Core/conflux-home/issues/new?labels=enhancement&title=%5BFeature%5D%20')}
+            onClick={() => openFeedback('feature')}
             title="Suggest a Feature"
           >
             💡 Suggest a Feature
@@ -560,6 +580,11 @@ export default function Settings() {
           )}
         </div>
       </div>
+      <FeedbackModal
+        isOpen={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+        defaultType={feedbackType}
+      />
     </div>
   );
 }

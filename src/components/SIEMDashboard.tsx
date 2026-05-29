@@ -98,10 +98,12 @@ export default function SIEMDashboard() {
     }
   }, []);
 
+  useEffect(() => { load(); }, [load]);
+
+  // Re-fetch when heartbeat chain completes (security scan ran as part of chain)
   useEffect(() => {
-    load();
-    const interval = setInterval(load, 15000);
-    return () => clearInterval(interval);
+    const unlisten = listen('conflux:chain-complete', () => { load(); });
+    return () => { unlisten.then(fn => fn()); };
   }, [load]);
 
   // Real-time: listen for new security events

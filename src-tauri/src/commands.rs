@@ -1261,7 +1261,7 @@ pub fn engine_send_notification(
     req: NotificationRequest,
 ) -> Result<(), String> {
     let engine = engine::get_engine();
-    // Emit internal event for logging/UI reactivity + frontend badge update
+    // Write to events table for audit log
     engine
         .db()
         .emit_event(
@@ -1272,21 +1272,14 @@ pub fn engine_send_notification(
         )
         .map_err(|e| e.to_string())?;
 
-    // Fire real OS desktop notification via tauri_plugin_notification
-    #[cfg(desktop)]
-    {
-        use tauri_plugin_notification::NotificationExt;
-        let _ = app_handle
-            .notification()
-            .builder()
-            .title(&req.title)
-            .body(&req.body)
-            .show();
-    }
-    #[cfg(not(desktop))]
-    {
-        let _ = req;
-    }
+    // Emit Tauri event — the frontend useNotificationListener hook handles:
+    // 1. OS desktop notification (with quiet hours filtering)
+    // 2. Bridging to TopBar bell (conflux:agent-notification DOM event)
+    use tauri::Emitter;
+    let _ = app_handle.emit("conflux:notification", serde_json::json!({
+        "title": req.title,
+        "body": req.body,
+    }));
 
     Ok(())
 }

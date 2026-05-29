@@ -537,9 +537,11 @@ export default function SecurityDashboard() {
   }, [selectedAegisRun, selectedViperScan]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Re-fetch when heartbeat chain completes (security scan ran as part of chain)
   useEffect(() => {
-    const interval = setInterval(load, 8000);
-    return () => clearInterval(interval);
+    const unlisten = listen('conflux:chain-complete', () => { load(); });
+    return () => { unlisten.then(fn => fn()); };
   }, [load]);
 
   // Real-time events — track new items for streaming animation
@@ -2674,15 +2676,15 @@ function WatchtowerTab({ alerts, onAlertAction, onRunCorrelation }: {
     loadConnections();
   }, [loadStatus, loadEvents, loadProcesses, loadConnections]);
 
-  // Auto-poll for live updates (every 8 seconds)
+  // No polling — re-fetch on chain-complete (heartbeat security scan)
   useEffect(() => {
-    const interval = setInterval(() => {
+    const unlisten = listen('conflux:chain-complete', () => {
       loadStatus();
       loadEvents();
       loadProcesses();
       loadConnections();
-    }, 8000);
-    return () => clearInterval(interval);
+    });
+    return () => { unlisten.then(fn => fn()); };
   }, [loadStatus, loadEvents, loadProcesses, loadConnections]);
 
   const handleFullScan = async () => {
