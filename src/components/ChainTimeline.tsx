@@ -125,15 +125,7 @@ export default function ChainTimeline() {
     });
   }, []);
 
-  // Auto-refresh state every 30s
-  useEffect(() => {
-    const interval = setInterval(() => {
-      import('@tauri-apps/api/core').then(({ invoke }) => {
-        invoke<ChainState>('heartbeat_chain_get_state').then(setChainState).catch(() => {});
-      });
-    }, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  // No polling — chain-event and chain-complete listeners above handle all updates
 
   // step is 0-indexed from Rust; all display logic uses 1-indexed
   const getStepStatus = (stepIdx: number) => {

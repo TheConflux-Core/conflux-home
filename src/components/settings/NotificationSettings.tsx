@@ -35,6 +35,7 @@ interface NotificationPrefs {
     cronFired: boolean;
     webhookReceived: boolean;
     agentNeedsAttention: boolean;
+    heartbeatCompleted: boolean;
   };
   quietHours: {
     enabled: boolean;
@@ -51,6 +52,7 @@ const DEFAULT_PREFS: NotificationPrefs = {
     cronFired: false,
     webhookReceived: false,
     agentNeedsAttention: true,
+    heartbeatCompleted: true,
   },
   quietHours: {
     enabled: false,
@@ -67,6 +69,7 @@ const EVENT_ITEMS = [
   { key: 'cronFired' as const, label: 'Cron fired', emoji: '⏰' },
   { key: 'webhookReceived' as const, label: 'Webhook received', emoji: '🔗' },
   { key: 'agentNeedsAttention' as const, label: 'Agent needs attention', emoji: '🚨' },
+  { key: 'heartbeatCompleted' as const, label: 'Heartbeat completed', emoji: '💓' },
 ];
 
 // ── Quiet Hours Timeline Bar ──
