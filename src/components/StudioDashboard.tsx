@@ -4,7 +4,7 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useStudio } from '../hooks/useStudio';
-import { STUDIO_MODULES } from '../types';
+import { STUDIO_MODULES, StudioModule } from '../types';
 import ToolPalette from './ToolPalette';
 import AdjustmentPanel from './AdjustmentPanel';
 import HistoryStrip from './HistoryStrip';
@@ -12,6 +12,7 @@ import StudioBackground from './StudioBackground';
 import StudioGallery from './StudioGallery';
 import StudioProject from './StudioProject';
 import StudioAnalytics from './StudioAnalytics';
+import StudioUpgradeModal from './StudioUpgradeModal';
 import '../styles-studio.css';
 
 function getDisplayUrl(gen: { output_url: string | null; output_path: string | null }): string | null {
@@ -27,7 +28,7 @@ function getThumbnailUrl(gen: { output_url: string | null; output_path: string |
   return null;
 }
 
-export default function StudioDashboard() {
+export default function StudioDashboard({ initialModule }: { initialModule?: StudioModule }) {
   const {
     activeModule,
     setActiveModule,
@@ -64,6 +65,31 @@ export default function StudioDashboard() {
   // Analytics panel state
   const [showAnalytics, setShowAnalytics] = useState(false);
 
+  // User tier + upgrade modal
+  const [userTier, setUserTier] = useState('free');
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeFeature, setUpgradeFeature] = useState('');
+
+  // Daily usage tracking (for prompt bar limit indicator)
+  const [dailyCount, setDailyCount] = useState(0);
+  const [dailyLimit, setDailyLimit] = useState(-1);
+
+  const loadDailyUsage = useCallback(async () => {
+    try {
+      const [count, limit] = await Promise.all([
+        invoke<number>('studio_get_daily_count', { module: activeModule }),
+        invoke<number>('studio_get_daily_limit', { module: activeModule }),
+      ]);
+      setDailyCount(count);
+      setDailyLimit(limit);
+    } catch {
+      setDailyCount(0);
+      setDailyLimit(-1);
+    }
+  }, [activeModule]);
+
+  useEffect(() => { loadDailyUsage(); }, [loadDailyUsage]);
+
   // Load credit balance
   const loadCredits = useCallback(async () => {
     try {
@@ -94,7 +120,16 @@ export default function StudioDashboard() {
   useEffect(() => {
     loadCredits();
     loadProjects();
+    // Load user tier
+    invoke<string>('studio_get_user_tier').then(setUserTier).catch(() => {});
   }, [loadCredits, loadProjects]);
+
+  // Apply initial module from parent (e.g. when launched from Creator category)
+  useEffect(() => {
+    if (initialModule) {
+      setActiveModule(initialModule);
+    }
+  }, [initialModule, setActiveModule]);
 
   // Handle reference image upload
   const handleReferenceUpload = useCallback(async () => {
@@ -115,9 +150,9 @@ export default function StudioDashboard() {
   // Wrap generate to also pass reference image and refresh credits
   const handleGenerate = useCallback(async () => {
     await generate();
-    // Refresh credits after generation
-    setTimeout(loadCredits, 2000);
-  }, [generate, loadCredits]);
+    // Refresh credits and daily usage after generation
+    setTimeout(() => { loadCredits(); loadDailyUsage(); }, 2000);
+  }, [generate, loadCredits, loadDailyUsage]);
 
   // Wrap save to refresh after
   const handleSaveToVault = useCallback(async (gen: any) => {
@@ -171,6 +206,18 @@ export default function StudioDashboard() {
               <span className="studio-credits-label">credits</span>
             </div>
           )}
+          <div style={{
+            fontSize: 11,
+            padding: '3px 8px',
+            borderRadius: 6,
+            background: userTier === 'free' ? 'rgba(255,255,255,0.06)' : 'rgba(139, 92, 246, 0.15)',
+            color: userTier === 'free' ? 'rgba(255,255,255,0.4)' : '#8b5cf6',
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+          }}>
+            {userTier === 'free' ? 'Free' : userTier === 'pro' ? 'Pro' : 'BYOK'}
+          </div>
           <button
             className="dashboard-gallery-btn"
             onClick={() => {
@@ -216,6 +263,15 @@ export default function StudioDashboard() {
           onSelect={setActiveModule}
           isCollapsed={toolPaletteCollapsed}
           onToggleCollapse={() => setToolPaletteCollapsed(!toolPaletteCollapsed)}
+          userTier={userTier}
+          onGateModule={(mod) => {
+            const featureNames: Record<string, string> = {
+              video: 'Video Generation',
+              voice: 'Voice Cloning',
+            };
+            setUpgradeFeature(featureNames[mod] || 'Premium Module');
+            setShowUpgradeModal(true);
+          }}
         />
 
         {/* Preview Canvas */}
@@ -248,7 +304,7 @@ export default function StudioDashboard() {
                       transition={{ duration: 0.3 }}
                     />
                   )}
-                  {selectedGeneration.module === 'voice' && getDisplayUrl(selectedGeneration) && (
+                  {(selectedGeneration.module === 'voice' || selectedGeneration.module === 'music') && getDisplayUrl(selectedGeneration) && (
                     <div className="preview-voice">
                       <div className="preview-waveform">
                         {[...Array(20)].map((_, i) => (
@@ -265,7 +321,7 @@ export default function StudioDashboard() {
                   {!getDisplayUrl(selectedGeneration) && (
                     <div className="preview-empty">
                       <div className="preview-empty-icon">
-                        {selectedGeneration.module === 'voice' ? '🗣️' : '🎨'}
+                        {selectedGeneration.module === 'voice' ? '🗣️' : selectedGeneration.module === 'music' ? '🎵' : '🎨'}
                       </div>
                       <div className="preview-empty-title">Generation complete</div>
                       <div className="preview-empty-desc">{selectedGeneration.prompt}</div>
@@ -288,7 +344,13 @@ export default function StudioDashboard() {
         </div>
 
         {/* Adjustment Panel */}
-        <AdjustmentPanel />
+        <AdjustmentPanel
+          userTier={userTier}
+          onGateFeature={(feature) => {
+            setUpgradeFeature(feature);
+            setShowUpgradeModal(true);
+          }}
+        />
       </div>
 
       {/* Reference Image (for image module) */}
@@ -331,15 +393,27 @@ export default function StudioDashboard() {
         <div className="dashboard-prompt-header-left">
           <span className="dashboard-prompt-icon">{moduleInfo.icon}</span>
           <span className="dashboard-prompt-label">{moduleInfo.label}</span>
+          {dailyLimit > 0 && (
+            <span style={{
+              fontSize: 11,
+              color: dailyCount >= dailyLimit ? '#ef4444' : 'var(--text-muted, #888)',
+              marginLeft: 8,
+              fontWeight: dailyCount >= dailyLimit ? 600 : 400,
+            }}>
+              {dailyCount}/{dailyLimit} today
+            </span>
+          )}
         </div>
         <div className="dashboard-prompt-input-wrapper">
           <textarea
             className="dashboard-prompt-textarea"
-            placeholder={`Describe your ${moduleInfo.label.toLowerCase()}...`}
+            placeholder={dailyCount >= dailyLimit && dailyLimit > 0
+              ? `Daily limit reached — upgrade for more ${moduleInfo.label.toLowerCase()}`
+              : `Describe your ${moduleInfo.label.toLowerCase()}...`}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             rows={1}
-            disabled={isGenerating}
+            disabled={isGenerating || (dailyCount >= dailyLimit && dailyLimit > 0)}
           />
         </div>
         <div className="dashboard-prompt-right">
@@ -347,20 +421,27 @@ export default function StudioDashboard() {
           <button
             className="dashboard-generate-btn"
             onClick={handleGenerate}
-            disabled={isGenerating || !prompt.trim()}
+            disabled={isGenerating || !prompt.trim() || (dailyCount >= dailyLimit && dailyLimit > 0)}
           >
-            {isGenerating ? 'Generating…' : 'Generate'}
+            {isGenerating ? 'Generating…' : dailyCount >= dailyLimit && dailyLimit > 0 ? 'Limit Reached' : 'Generate'}
           </button>
           <button
             className="dashboard-generate-btn dashboard-generate-batch"
             onClick={generateBatch}
-            disabled={isGenerating || !prompt.trim()}
+            disabled={isGenerating || !prompt.trim() || (dailyCount >= dailyLimit && dailyLimit > 0)}
             title="Generate 4 variations"
           >
             4
           </button>
         </div>
       </div>
+
+      {/* Upgrade Modal */}
+      <StudioUpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        feature={upgradeFeature}
+      />
     </div>
   );
 }

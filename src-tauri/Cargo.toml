@@ -45,6 +45,7 @@ meval = "0.2"                                               # Math expression ev
 futures-util = "0.3"                                        # Stream utilities
 urlencoding = "2"                                           # URL encoding for search
 base64 = "0.22"                                             # Base64 encoding for Gmail
+hex = "0.4"                                                 # Hex encoding (MiniMax TTS audio)
 open = "5"                                                  # Open URLs in browser
 tauri-plugin-notification = "2"
 tauri-plugin-deep-link = "2"

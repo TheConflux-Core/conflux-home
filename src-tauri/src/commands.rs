@@ -8332,6 +8332,75 @@ pub async fn studio_get_usage(
     engine::db::studio_get_usage(&user_id, &month).map_err(|e| e.to_string())
 }
 
+/// Get today's generation count for a module (for daily free-tier limits).
+#[tauri::command]
+pub fn studio_get_daily_count(module: String) -> Result<i64, String> {
+    engine::db::studio_get_daily_count(&module).map_err(|e| e.to_string())
+}
+
+/// Get the daily limit for a module based on user tier.
+/// Free: 5 images, 10 songs. Pro: 50 images, 100 songs.
+#[tauri::command]
+pub fn studio_get_daily_limit(module: String) -> Result<i64, String> {
+    let engine = engine::get_engine();
+    let tier = engine.db().get_config("user_tier").ok().flatten().unwrap_or_else(|| "free".to_string());
+    let limit = match (module.as_str(), tier.as_str()) {
+        ("image", "free") => 5,
+        ("image", "pro") => 50,
+        ("image", _) => 50,  // byok or paid
+        ("music", "free") => 10,
+        ("music", "pro") => 100,
+        ("music", _) => 100,
+        _ => -1,  // unlimited for other modules
+    };
+    Ok(limit)
+}
+
+/// Get current user tier (free, pro, byok).
+#[tauri::command]
+pub fn studio_get_user_tier() -> Result<String, String> {
+    let engine = engine::get_engine();
+    let tier = engine.db().get_config("user_tier").ok().flatten().unwrap_or_else(|| "free".to_string());
+    Ok(tier)
+}
+
+/// Set user tier (free, pro, byok).
+#[tauri::command]
+pub fn studio_set_user_tier(tier: String) -> Result<(), String> {
+    if !matches!(tier.as_str(), "free" | "pro" | "byok") {
+        return Err("Invalid tier. Must be: free, pro, or byok".to_string());
+    }
+    let engine = engine::get_engine();
+    engine.db().set_config("user_tier", &tier).map_err(|e| e.to_string())
+}
+
+/// Get what features are available for the current tier.
+#[tauri::command]
+pub fn studio_get_tier_features() -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let tier = engine.db().get_config("user_tier").ok().flatten().unwrap_or_else(|| "free".to_string());
+    Ok(match tier.as_str() {
+        "pro" | "byok" => serde_json::json!({
+            "tier": tier,
+            "image_daily": 50,
+            "music_daily": 100,
+            "voice_provider": "elevenlabs",
+            "voice_cloning": true,
+            "video": true,
+            "models": ["dall-e-3", "flux-schnell", "music-2.6", "eleven_multilingual_v2"]
+        }),
+        _ => serde_json::json!({
+            "tier": "free",
+            "image_daily": 5,
+            "music_daily": 10,
+            "voice_provider": "minimax",
+            "voice_cloning": false,
+            "video": false,
+            "models": ["image-01", "music-2.6-free", "speech-01-turbo"]
+        })
+    })
+}
+
 #[tauri::command]
 pub fn studio_create_project(id: String, name: String) -> Result<(), String> {
     engine::db::studio_create_project(&id, &name).map_err(|e| e.to_string())
@@ -8425,7 +8494,114 @@ pub async fn studio_generate_image(
     engine::db::studio_update_generation_status(&generation_id, "generating", None, None, None, 0)
         .map_err(|e| e.to_string())?;
 
-    // ── PRIMARY: DALL-E 3 via OpenAI ──
+    // ── Check daily free-tier limit ──
+    let tier = engine.db().get_config("user_tier").ok().flatten().unwrap_or_else(|| "free".to_string());
+    let daily_limit: i64 = match ("image", tier.as_str()) {
+        (_, "free") => 5,
+        (_, "pro") => 50,
+        _ => 50,
+    };
+    let daily_count = engine::db::studio_get_daily_count("image").unwrap_or(0);
+    if daily_limit > 0 && daily_count >= daily_limit {
+        engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+            .map_err(|e| e.to_string())?;
+        return Err(format!(
+            "Daily limit reached: {}/{} free images used today. Upgrade to Pro for more.",
+            daily_count, daily_limit
+        ));
+    }
+
+    // ── PRIMARY: MiniMax image-01 ──
+    let minimax_key = engine
+        .db()
+        .get_config("minimax_api_key")
+        .ok()
+        .flatten()
+        .filter(|k| !k.is_empty())
+        .or_else(|| std::env::var("MINIMAX_API_KEY").ok().filter(|k| !k.is_empty()));
+
+    if let Some(ref api_key) = minimax_key {
+        let client = reqwest::Client::new();
+        let response = client
+            .post("https://api.minimax.io/v1/image_generation")
+            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Content-Type", "application/json")
+            .json(&serde_json::json!({
+                "model": "image-01",
+                "prompt": prompt,
+                "aspect_ratio": aspect_ratio.as_deref().unwrap_or("1:1"),
+                "response_format": "base64"
+            }))
+            .send()
+            .await;
+
+        match response {
+            Ok(resp) if resp.status().is_success() => {
+                let data: serde_json::Value = resp
+                    .json()
+                    .await
+                    .map_err(|e| format!("Failed to parse MiniMax response: {}", e))?;
+
+                if let Some(images) = data["data"]["image_base64"].as_array() {
+                    if let Some(b64) = images.first().and_then(|v| v.as_str()) {
+                        // Decode base64 and save to disk
+                        use base64::Engine;
+                        let bytes = base64::engine::general_purpose::STANDARD
+                            .decode(b64)
+                            .map_err(|e| format!("Base64 decode failed: {}", e))?;
+
+                        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+                        let out_dir = format!("{}/.conflux/studio/generated", home);
+                        std::fs::create_dir_all(&out_dir).map_err(|e| e.to_string())?;
+                        let filename = format!("minimax_{}.png", &generation_id[..8]);
+                        let out_path = format!("{}/{}", out_dir, filename);
+                        std::fs::write(&out_path, &bytes).map_err(|e| format!("Write failed: {}", e))?;
+
+                        let metadata = serde_json::json!({
+                            "format": "png",
+                            "model": "image-01",
+                            "provider": "minimax"
+                        })
+                        .to_string();
+
+                        engine::db::studio_update_generation_status(
+                            &generation_id,
+                            "complete",
+                            Some(&out_path),
+                            None,
+                            Some(&metadata),
+                            0,
+                        )
+                        .map_err(|e| e.to_string())?;
+
+                        let _ = engine::db::studio_upsert_prompt(&prompt, "image");
+                        let month = chrono::Utc::now().format("%Y-%m").to_string();
+                        let _ = engine::db::studio_update_usage("local", &month, "image", 0);
+
+                        return Ok(serde_json::json!({
+                            "status": "complete",
+                            "output_path": out_path,
+                            "metadata": metadata,
+                            "provider": "minimax",
+                            "model": "image-01"
+                        }));
+                    }
+                }
+                // If we got here, MiniMax returned success but no images
+                log::warn!("[Studio] MiniMax returned success but no images — falling back");
+            }
+            Ok(resp) => {
+                let status = resp.status();
+                let body = resp.text().await.unwrap_or_default();
+                log::warn!("[Studio] MiniMax image error ({}): {} — falling back to DALL-E", status, body);
+            }
+            Err(e) => {
+                log::warn!("[Studio] MiniMax request failed: {} — falling back to DALL-E", e);
+            }
+        }
+    }
+
+    // ── FALLBACK: DALL-E 3 via OpenAI ──
     let openai_key = engine
         .db()
         .get_config("openai_api_key")
@@ -8755,37 +8931,172 @@ pub async fn studio_generate_voice(
     speed: Option<f64>,
     stability: Option<f64>,
 ) -> Result<serde_json::Value, String> {
-    let api_key = {
-        let engine = engine::get_engine();
-        engine
+    let engine = engine::get_engine();
+    let tier = engine.db().get_config("user_tier").ok().flatten().unwrap_or_else(|| "free".to_string());
+
+    // Update status to generating
+    engine::db::studio_update_generation_status(&generation_id, "generating", None, None, None, 0)
+        .map_err(|e| e.to_string())?;
+
+    // ── Free tier: MiniMax TTS (basic, no cloning) ──
+    if tier == "free" {
+        let minimax_key = engine
             .db()
-            .get_config("studio_elevenlabs_key")
+            .get_config("minimax_api_key")
             .ok()
             .flatten()
             .filter(|k| !k.is_empty())
-            .or_else(|| {
-                engine
-                    .db()
-                    .get_config("elevenlabs_key")
-                    .ok()
-                    .flatten()
-                    .filter(|k| !k.is_empty())
-            })
-            .or_else(|| {
-                std::env::var("ELEVENLABS_API_KEY")
-                    .ok()
-                    .filter(|k| !k.is_empty())
-            })
-            .or_else(|| {
-                option_env!("ELEVENLABS_API_KEY")
-                    .map(|s| s.to_string())
-                    .filter(|k| !k.is_empty())
-            })
-            .unwrap_or_default()
-    };
+            .or_else(|| std::env::var("MINIMAX_API_KEY").ok().filter(|k| !k.is_empty()));
+
+        let api_key = match minimax_key {
+            Some(k) => k,
+            None => {
+                engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+                    .map_err(|e| e.to_string())?;
+                return Err("No voice API configured. Add a MiniMax API key in Settings.".to_string());
+            }
+        };
+
+        let client = reqwest::Client::new();
+        let voice_setting = serde_json::json!({
+            "voice_id": voice_id.unwrap_or_else(|| "male-qn-qingse".to_string()),
+            "speed": speed.unwrap_or(1.0),
+            "vol": 1.0,
+            "pitch": 0,
+            "emotion": "neutral"
+        });
+
+        let response = client
+            .post("https://api.minimax.io/v1/t2a_v2")
+            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Content-Type", "application/json")
+            .json(&serde_json::json!({
+                "model": "speech-01-turbo",
+                "text": text,
+                "voice_setting": voice_setting,
+                "audio_setting": {
+                    "sample_rate": 32000,
+                    "bitrate": 128000,
+                    "format": "mp3",
+                    "channel": 1
+                },
+                "language_boost": "auto"
+            }))
+            .send()
+            .await
+            .map_err(|e| format!("MiniMax TTS request failed: {}", e))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+                .map_err(|e| e.to_string())?;
+            return Err(format!("MiniMax TTS error ({}): {}", status, body));
+        }
+
+        let data: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| format!("Failed to parse MiniMax TTS response: {}", e))?;
+
+        // Check base_resp
+        if let Some(base_resp) = data.get("base_resp") {
+            let code = base_resp["status_code"].as_i64().unwrap_or(-1);
+            if code != 0 {
+                let msg = base_resp["status_msg"].as_str().unwrap_or("Unknown error");
+                engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+                    .map_err(|e| e.to_string())?;
+                return Err(format!("MiniMax TTS error ({}): {}", code, msg));
+            }
+        }
+
+        // Response: { "data": { "audio": "<hex_audio>" } }
+        let audio_hex = data
+            .get("data")
+            .and_then(|d| d.get("audio"))
+            .and_then(|a| a.as_str())
+            .unwrap_or("");
+
+        if audio_hex.is_empty() {
+            engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+                .map_err(|e| e.to_string())?;
+            return Err("MiniMax TTS returned no audio.".to_string());
+        }
+
+        // Decode hex to bytes
+        let audio_bytes = hex::decode(audio_hex)
+            .map_err(|e| format!("Hex decode failed: {}", e))?;
+
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        let out_dir = format!("{}/.conflux/studio/generated", home);
+        std::fs::create_dir_all(&out_dir).map_err(|e| e.to_string())?;
+        let filename = format!("voice_{}.mp3", &generation_id[..8]);
+        let out_path = format!("{}/{}", out_dir, filename);
+        std::fs::write(&out_path, &audio_bytes).map_err(|e| format!("Write failed: {}", e))?;
+
+        let metadata = serde_json::json!({
+            "format": "mp3",
+            "model": "speech-01-turbo",
+            "provider": "minimax",
+            "tier": "free"
+        })
+        .to_string();
+
+        engine::db::studio_update_generation_status(
+            &generation_id,
+            "complete",
+            Some(&out_path),
+            None,
+            Some(&metadata),
+            0,
+        )
+        .map_err(|e| e.to_string())?;
+
+        let _ = engine::db::studio_upsert_prompt(&text, "voice");
+        let month = chrono::Utc::now().format("%Y-%m").to_string();
+        let _ = engine::db::studio_update_usage("local", &month, "voice", 0);
+
+        return Ok(serde_json::json!({
+            "status": "complete",
+            "output_path": out_path,
+            "metadata": metadata,
+            "provider": "minimax",
+            "model": "speech-01-turbo",
+            "tier": "free"
+        }));
+    }
+
+    // ── Pro tier: ElevenLabs (voice cloning, premium quality) ──
+    let api_key = engine
+        .db()
+        .get_config("studio_elevenlabs_key")
+        .ok()
+        .flatten()
+        .filter(|k| !k.is_empty())
+        .or_else(|| {
+            engine
+                .db()
+                .get_config("elevenlabs_key")
+                .ok()
+                .flatten()
+                .filter(|k| !k.is_empty())
+        })
+        .or_else(|| {
+            std::env::var("ELEVENLABS_API_KEY")
+                .ok()
+                .filter(|k| !k.is_empty())
+        })
+        .or_else(|| {
+            option_env!("ELEVENLABS_API_KEY")
+                .map(|s| s.to_string())
+                .filter(|k| !k.is_empty())
+        })
+        .unwrap_or_default();
 
     if api_key.is_empty() {
-        return Err("ElevenLabs API key not configured.".to_string());
+        engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+            .map_err(|e| e.to_string())?;
+        return Err("ElevenLabs API key not configured. Add it in Settings → Studio.".to_string());
     }
 
     // Check credits before generating (voice costs 2 credits)
@@ -8897,6 +9208,189 @@ pub async fn studio_generate_voice(
         "output_path": output_path,
         "output_url": output_url,
         "metadata": metadata
+    }))
+}
+
+// ── Studio: Music Generation (MiniMax) ──
+
+#[tauri::command]
+pub async fn studio_generate_music(
+    generation_id: String,
+    prompt: String,
+    lyrics: Option<String>,
+    is_instrumental: Option<bool>,
+    lyrics_optimizer: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+
+    // ── Check daily free-tier limit ──
+    let tier = engine.db().get_config("user_tier").ok().flatten().unwrap_or_else(|| "free".to_string());
+    let daily_limit: i64 = match tier.as_str() {
+        "free" => 10,
+        "pro" => 100,
+        _ => 100,
+    };
+    let daily_count = engine::db::studio_get_daily_count("music").unwrap_or(0);
+    if daily_limit > 0 && daily_count >= daily_limit {
+        engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+            .map_err(|e| e.to_string())?;
+        return Err(format!(
+            "Daily limit reached: {}/{} free songs used today. Upgrade to Pro for more.",
+            daily_count, daily_limit
+        ));
+    }
+
+    // ── Get MiniMax API key ──
+    let minimax_key = engine
+        .db()
+        .get_config("minimax_api_key")
+        .ok()
+        .flatten()
+        .filter(|k| !k.is_empty())
+        .or_else(|| std::env::var("MINIMAX_API_KEY").ok().filter(|k| !k.is_empty()));
+
+    let api_key = match minimax_key {
+        Some(k) => k,
+        None => {
+            engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+                .map_err(|e| e.to_string())?;
+            return Err("MiniMax API key not configured. Add it in Settings → Studio.".to_string());
+        }
+    };
+
+    // Update status to generating
+    engine::db::studio_update_generation_status(&generation_id, "generating", None, None, None, 0)
+        .map_err(|e| e.to_string())?;
+
+    // ── Build request ──
+    let instrumental = is_instrumental.unwrap_or(false);
+    let use_lyrics_optimizer = lyrics_optimizer.unwrap_or(false);
+
+    // Pick model based on tier
+    let model = if tier == "free" { "music-2.6-free" } else { "music-2.6" };
+
+    let mut body = serde_json::json!({
+        "model": model,
+        "prompt": prompt,
+        "output_format": "url",
+        "is_instrumental": instrumental,
+        "audio_setting": {
+            "sample_rate": 44100,
+            "bitrate": 256000,
+            "format": "mp3",
+            "channel": 2
+        }
+    });
+
+    // Add lyrics if provided and not instrumental
+    if !instrumental {
+        if let Some(ref l) = lyrics {
+            if !l.trim().is_empty() {
+                body["lyrics"] = serde_json::json!(l);
+            }
+        }
+        if use_lyrics_optimizer {
+            body["lyrics_optimizer"] = serde_json::json!(true);
+        }
+    }
+
+    // ── Call MiniMax Music API ──
+    let client = reqwest::Client::new();
+    let response = client
+        .post("https://api.minimax.io/v1/music_generation")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to call MiniMax music API: {}", e))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body_text = response.text().await.unwrap_or_default();
+        engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+            .map_err(|e| e.to_string())?;
+        return Err(format!("MiniMax music error ({}): {}", status, body_text));
+    }
+
+    let data: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse MiniMax music response: {}", e))?;
+
+    // Check base_resp for API errors
+    if let Some(base_resp) = data.get("base_resp") {
+        let code = base_resp["status_code"].as_i64().unwrap_or(-1);
+        if code != 0 {
+            let msg = base_resp["status_msg"].as_str().unwrap_or("Unknown error");
+            engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+                .map_err(|e| e.to_string())?;
+            return Err(format!("MiniMax music API error ({}): {}", code, msg));
+        }
+    }
+
+    // ── Extract audio URL from response ──
+    // Response format: { "data": { "audio": "https://..." }, "base_resp": { ... } }
+    let audio_url = data
+        .get("data")
+        .and_then(|d| d.get("audio"))
+        .and_then(|a| a.as_str())
+        .unwrap_or("");
+
+    if audio_url.is_empty() {
+        engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+            .map_err(|e| e.to_string())?;
+        return Err("MiniMax returned no audio data.".to_string());
+    }
+
+    // ── Download audio and save locally ──
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let out_dir = format!("{}/.conflux/studio/generated", home);
+    std::fs::create_dir_all(&out_dir).map_err(|e| e.to_string())?;
+    let filename = format!("music_{}.mp3", &generation_id[..8]);
+    let out_path = format!("{}/{}", out_dir, filename);
+
+    let audio_bytes = client
+        .get(audio_url)
+        .send()
+        .await
+        .map_err(|e| format!("Download failed: {}", e))?
+        .bytes()
+        .await
+        .map_err(|e| format!("Read failed: {}", e))?;
+    std::fs::write(&out_path, &audio_bytes).map_err(|e| format!("Write failed: {}", e))?;
+
+    let metadata = serde_json::json!({
+        "format": "mp3",
+        "model": model,
+        "provider": "minimax",
+        "is_instrumental": instrumental,
+        "has_lyrics": lyrics.is_some() && !instrumental,
+        "file_size": audio_bytes.len()
+    })
+    .to_string();
+
+    engine::db::studio_update_generation_status(
+        &generation_id,
+        "complete",
+        Some(&out_path),
+        Some(audio_url),
+        Some(&metadata),
+        0,
+    )
+    .map_err(|e| e.to_string())?;
+
+    let _ = engine::db::studio_upsert_prompt(&prompt, "music");
+    let month = chrono::Utc::now().format("%Y-%m").to_string();
+    let _ = engine::db::studio_update_usage("local", &month, "music", 0);
+
+    Ok(serde_json::json!({
+        "status": "complete",
+        "output_path": out_path,
+        "output_url": audio_url,
+        "metadata": metadata,
+        "provider": "minimax",
+        "model": model
     }))
 }
 
