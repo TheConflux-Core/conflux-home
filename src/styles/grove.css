@@ -8,11 +8,11 @@
   --grove-bg:            #0a1f14;
   --grove-bg-card:       rgba(15, 40, 25, 0.85);
   --grove-bg-card-hover: rgba(20, 55, 35, 0.9);
-  --grove-border:        rgba(0, 255, 136, 0.08);
-  --grove-border-hover:  rgba(0, 255, 136, 0.2);
+  --grove-border:        rgba(0, 255, 136, 0.12);
+  --grove-border-hover:  rgba(0, 255, 136, 0.25);
   --grove-text:          #e8f5e9;
-  --grove-text-muted:    rgba(200, 235, 210, 0.5);
-  --grove-text-dim:      rgba(200, 235, 210, 0.3);
+  --grove-text-muted:    rgba(200, 235, 210, 0.65);
+  --grove-text-dim:      rgba(200, 235, 210, 0.45);
   --grove-green:         #00ff88;
   --grove-green-dim:     rgba(0, 255, 136, 0.15);
   --grove-amber:         #ffb400;
@@ -58,14 +58,15 @@
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(0, 255, 136, 0.15) transparent;
+  padding-bottom: 150px;
 }
 
 /* ── Hero Section ── */
 .grove-hero {
   position: relative;
-  padding: 32px 24px 0;
+  padding: 32px 140px 0;
   text-align: center;
-  background: linear-gradient(180deg, rgba(0, 255, 136, 0.03) 0%, transparent 100%);
+  background: linear-gradient(180deg, rgba(0, 255, 136, 0.04) 0%, transparent 100%);
 }
 
 /* ── Tree Growth System ── */
@@ -290,31 +291,52 @@
 .grove-filter {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 24px;
+  gap: 10px;
+  padding: 12px 140px;
+  margin-top: 4px;
 }
 .grove-filter-label {
   font-size: 12px;
-  color: var(--grove-text-dim);
+  color: var(--grove-text-muted);
+  white-space: nowrap;
 }
 .grove-filter-select {
-  background: rgba(0, 0, 0, 0.3);
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background: rgba(0, 0, 0, 0.35);
   border: 1px solid var(--grove-border);
-  border-radius: 8px;
-  padding: 5px 10px;
+  border-radius: 10px;
+  padding: 7px 32px 7px 12px;
   font-size: 12px;
+  font-weight: 500;
   color: var(--grove-text);
   cursor: pointer;
   outline: none;
+  transition: all 0.2s ease;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%2300ff88' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  font-family: inherit;
+}
+.grove-filter-select:hover {
+  border-color: var(--grove-border-hover);
+  background-color: rgba(0, 255, 136, 0.05);
 }
 .grove-filter-select:focus {
-  border-color: var(--grove-border-hover);
+  border-color: rgba(0, 255, 136, 0.35);
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.08);
+}
+.grove-filter-select option {
+  background: #0d1f16;
+  color: var(--grove-text);
+  padding: 8px;
 }
 
 /* ── Content Area ── */
 .grove-content {
   flex: 1;
-  padding: 0 24px 32px;
+  padding: 0 140px 32px;
 }
 
 /* ── Garden Sections ── */
@@ -345,7 +367,7 @@
 
 /* ── Empty States ── */
 .grove-empty {
-  padding: 20px;
+  padding: 24px 20px;
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.2);
   border: 1px dashed var(--grove-border);
@@ -441,7 +463,7 @@
 .grove-card-desc {
   font-size: 12px;
   color: var(--grove-text-muted);
-  line-height: 1.4;
+  line-height: 1.5;
 }
 .grove-card-footer {
   display: flex;
@@ -456,11 +478,12 @@
   transition: color 0.2s;
 }
 .grove-card:hover .grove-card-chevron {
-  color: var(--grove-text-muted);
+  color: var(--grove-green);
 }
 .grove-version {
   font-size: 10px;
-  color: var(--grove-text-dim);
+  color: var(--grove-text-muted);
+  opacity: 0.7;
 }
 
 /* ── Badges ── */
@@ -604,26 +627,34 @@
 }
 
 /* ── Browse ── */
+.grove-browse {
+  padding: 0;
+}
 .grove-browse-bar {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 .grove-search {
   width: 100%;
   padding: 10px 14px;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.35);
   border: 1px solid var(--grove-border);
   border-radius: 10px;
   color: var(--grove-text);
   font-size: 13px;
   outline: none;
-  transition: border-color 0.2s;
+  transition: all 0.2s ease;
   box-sizing: border-box;
+  font-family: inherit;
+}
+.grove-search:hover {
+  border-color: var(--grove-border-hover);
 }
 .grove-search:focus {
-  border-color: var(--grove-border-hover);
+  border-color: rgba(0, 255, 136, 0.35);
+  box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.08);
 }
 .grove-search::placeholder {
   color: var(--grove-text-dim);
@@ -872,8 +903,9 @@
   background: rgba(0, 0, 0, 0.75);
   z-index: 2000;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding-top: 8vh;
   animation: grove-fade-in 0.2s ease;
 }
 @keyframes grove-fade-in { from { opacity: 0; } to { opacity: 1; } }
@@ -885,7 +917,7 @@
   padding: 32px;
   max-width: 520px;
   width: 92%;
-  max-height: 80vh;
+  max-height: 72vh;
   overflow-y: auto;
   position: relative;
   animation: grove-slide-up 0.3s ease;

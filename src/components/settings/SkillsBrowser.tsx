@@ -28,12 +28,25 @@ export default function SkillsBrowser() {
   const [showModal, setShowModal] = useState(false);
   const [uninstallConfirm, setUninstallConfirm] = useState<string | null>(null);
   const [installing, setInstalling] = useState<string | null>(null);
+  const [justInstalled, setJustInstalled] = useState<Set<string>>(new Set());
 
   const handleInstall = async (skill: Skill) => {
     setInstalling(skill.id);
     try {
       // Pass the skill id as manifest JSON (engine resolves it)
       await install(JSON.stringify({ id: skill.id }));
+      setJustInstalled(prev => new Set(prev).add(skill.id));
+      window.dispatchEvent(new CustomEvent('conflux:toast', {
+        detail: { message: `🧩 ${skill.name} installed`, type: 'success' },
+      }));
+      // Reset success state after 3 seconds
+      setTimeout(() => {
+        setJustInstalled(prev => {
+          const next = new Set(prev);
+          next.delete(skill.id);
+          return next;
+        });
+      }, 3000);
     } catch (err) {
       window.dispatchEvent(new CustomEvent('conflux:toast', {
         detail: { message: `Failed to install skill: ${err}`, type: 'error' },
@@ -130,20 +143,29 @@ export default function SkillsBrowser() {
                 </div>
                 <button
                   onClick={() => handleInstall(skill)}
-                  disabled={installing === skill.id}
+                  disabled={installing === skill.id || justInstalled.has(skill.id)}
                   style={{
                     marginTop: 'auto',
-                    background: 'rgba(255,255,255,0.06)',
-                    border: 'none',
+                    background: justInstalled.has(skill.id)
+                      ? 'rgba(0,255,136,0.12)'
+                      : 'rgba(255,255,255,0.06)',
+                    border: justInstalled.has(skill.id)
+                      ? '1px solid rgba(0,255,136,0.3)'
+                      : 'none',
                     borderRadius: 6,
                     padding: '5px 10px',
                     fontSize: 11,
                     fontWeight: 600,
-                    cursor: 'pointer',
-                    color: 'var(--text-secondary)',
+                    cursor: justInstalled.has(skill.id) ? 'default' : 'pointer',
+                    color: justInstalled.has(skill.id) ? '#00ff88' : 'var(--text-secondary)',
+                    transition: 'all 0.3s ease',
                   }}
                 >
-                  {installing === skill.id ? 'Installing...' : '⬇️ Install'}
+                  {installing === skill.id
+                    ? 'Installing...'
+                    : justInstalled.has(skill.id)
+                      ? '✅ Installed'
+                      : '⬇️ Install'}
                 </button>
               </div>
             ))}

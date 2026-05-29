@@ -1589,6 +1589,27 @@ pub fn engine_get_skill_events(limit: Option<i64>) -> Result<serde_json::Value, 
     Ok(serde_json::to_value(events).map_err(|e| e.to_string())?)
 }
 
+#[tauri::command]
+pub fn engine_store_lesson(
+    agent_id: Option<String>,
+    category: String,
+    lesson: String,
+    evidence: Option<String>,
+    action_taken: Option<String>,
+) -> Result<String, String> {
+    let engine = engine::get_engine();
+    engine
+        .db()
+        .add_lesson(
+            agent_id.as_deref(),
+            &category,
+            &lesson,
+            evidence.as_deref(),
+            action_taken.as_deref(),
+        )
+        .map_err(|e| e.to_string())
+}
+
 // ── Phase 5: Backend Intelligence ──
 
 #[tauri::command]
