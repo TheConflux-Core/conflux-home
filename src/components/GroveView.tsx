@@ -65,6 +65,18 @@ const AGENT_EMOJI: Record<string, string> = {
   luma: '🚀', catalyst: '⚡',
 };
 
+// Parse the agents field — may be a JSON array string, a plain string, or already an array
+function parseAgents(raw: string[] | string | undefined): string[] {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw !== 'string' || !raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {}
+  // Fallback: strip brackets/quotes and split
+  return raw.replace(/[\[\]"]/g, '').split(',').map(s => s.trim()).filter(Boolean);
+}
+
 // ── Main Component ──
 
 export default function GroveView() {
@@ -113,20 +125,20 @@ export default function GroveView() {
   // ── Derived data ──
 
   const learned = skills.filter(s =>
-    s.skill_type === 'learned' || s.skill_type === 'mined' || s.skill_type === 'synthesized'
+    s.skill_type === 'learned' || s.skill_type === 'mined' || s.skill_type === 'synthesized' || s.skill_type === 'prompt'
   );
   const domain = skills.filter(s => s.skill_type === 'domain');
   const totalSkills = skills.length;
   const totalFragments = fragments.length;
   const activeSkills = skills.filter(s => s.active).length;
 
-  // Agent filter
+  // Agent filter — parse agents JSON properly before checking
   const filteredLearned = agentFilter === 'all'
     ? learned
-    : learned.filter(s => s.agents?.includes(agentFilter));
+    : learned.filter(s => parseAgents(s.agents).includes(agentFilter));
   const filteredDomain = agentFilter === 'all'
     ? domain
-    : domain.filter(s => s.agents?.includes(agentFilter));
+    : domain.filter(s => parseAgents(s.agents).includes(agentFilter));
 
   // ── Tree growth level ──
   const treeLevel = totalSkills === 0 ? 0
@@ -231,8 +243,9 @@ export default function GroveView() {
         >
           <option value="all">All Agents ({skills.length})</option>
           {AGENT_IDS.map(aid => {
+            // agentCounts.agents is a raw TEXT field — parse it to check membership
             const cnt = agentCounts
-              .filter(c => c.agents?.includes(aid))
+              .filter(c => parseAgents(c.agents).includes(aid))
               .reduce((sum, c) => sum + c.count, 0);
             return (
               <option key={aid} value={aid}>
@@ -525,6 +538,11 @@ function GardenTab({
         </div>
         {fragments.length === 0 ? (
           <div className="grove-empty">
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none" style={{ margin: '0 auto 12px', display: 'block', opacity: 0.5 }}>
+              <ellipse cx="32" cy="52" rx="14" ry="4" fill="rgba(0,255,136,0.08)" />
+              <path d="M32 50 C32 50 32 38 32 36 C32 34 28 30 28 28 C28 24 32 20 32 20 C32 20 36 24 36 28 C36 30 32 34 32 36" stroke="rgba(0,255,136,0.25)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+              <circle cx="32" cy="18" r="3" fill="rgba(0,255,136,0.12)" stroke="rgba(0,255,136,0.2)" strokeWidth="1" />
+            </svg>
             <p>No fragments yet. They appear as your AI uses tools and discovers patterns.</p>
           </div>
         ) : (
@@ -555,6 +573,14 @@ function GardenTab({
         </div>
         {learned.length === 0 ? (
           <div className="grove-empty">
+            <svg width="72" height="72" viewBox="0 0 72 72" fill="none" style={{ margin: '0 auto 12px', display: 'block', opacity: 0.5 }}>
+              <ellipse cx="36" cy="60" rx="16" ry="4" fill="rgba(0,255,136,0.08)" />
+              <path d="M36 58 L36 32" stroke="rgba(0,255,136,0.2)" strokeWidth="2" strokeLinecap="round" />
+              <path d="M36 42 C36 42 28 38 26 34" stroke="rgba(0,255,136,0.18)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+              <path d="M36 36 C36 36 44 32 46 28" stroke="rgba(0,255,136,0.18)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+              <ellipse cx="25" cy="32" rx="5" ry="4" fill="rgba(0,255,136,0.1)" stroke="rgba(0,255,136,0.15)" strokeWidth="0.8" />
+              <ellipse cx="47" cy="26" rx="5" ry="4" fill="rgba(0,255,136,0.1)" stroke="rgba(0,255,136,0.15)" strokeWidth="0.8" />
+            </svg>
             <p>No learned skills yet. After repeated tool patterns, your AI will crystallize them into skills.</p>
           </div>
         ) : (
@@ -593,6 +619,16 @@ function GardenTab({
         </div>
         {domain.length === 0 ? (
           <div className="grove-empty">
+            <svg width="80" height="80" viewBox="0 0 80 80" fill="none" style={{ margin: '0 auto 12px', display: 'block', opacity: 0.45 }}>
+              <ellipse cx="40" cy="68" rx="18" ry="4" fill="rgba(0,255,136,0.08)" />
+              <path d="M40 66 L40 28" stroke="rgba(0,255,136,0.2)" strokeWidth="2.5" strokeLinecap="round" />
+              <path d="M40 50 C40 50 28 44 24 38" stroke="rgba(0,255,136,0.15)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+              <path d="M40 42 C40 42 52 36 56 30" stroke="rgba(0,255,136,0.15)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+              <path d="M40 34 C40 34 32 28 30 22" stroke="rgba(0,255,136,0.15)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+              <circle cx="23" cy="36" r="6" fill="rgba(0,255,136,0.06)" stroke="rgba(0,255,136,0.12)" strokeWidth="0.8" />
+              <circle cx="57" cy="28" r="6" fill="rgba(0,255,136,0.06)" stroke="rgba(0,255,136,0.12)" strokeWidth="0.8" />
+              <circle cx="29" cy="20" r="5" fill="rgba(0,255,136,0.06)" stroke="rgba(0,255,136,0.12)" strokeWidth="0.8" />
+            </svg>
             <p>No domain skills installed yet. Browse the marketplace to add expert-level skills.</p>
           </div>
         ) : (
@@ -862,9 +898,15 @@ function BrowseTab({ skills, onRefresh, onExpand }: {
         procedure: template.procedure,
         skillType: 'domain',
       });
+      window.dispatchEvent(new CustomEvent('conflux:toast', {
+        detail: { message: `🌳 ${template.name} installed to your garden`, type: 'success' },
+      }));
       onRefresh();
     } catch (err) {
       console.error('[Grove] Install failed:', err);
+      window.dispatchEvent(new CustomEvent('conflux:toast', {
+        detail: { message: `Failed to install: ${err}`, type: 'error' },
+      }));
     } finally {
       setInstallingSkill(null);
     }
@@ -910,7 +952,7 @@ function BrowseTab({ skills, onRefresh, onExpand }: {
     return matchSearch && matchType;
   });
 
-  const types = ['all', 'learned', 'mined', 'synthesized', 'domain'];
+  const types = ['all', 'learned', 'mined', 'synthesized', 'prompt', 'domain'];
 
   return (
     <div className="grove-browse">
@@ -1092,12 +1134,8 @@ function SkillDetailOverlay({ skill, fragment, onClose, onDelete }: {
   // Skill detail
   const s = skill!;
   const agentsList = (() => {
-    if (Array.isArray(s.agents)) return s.agents;
-    try {
-      return JSON.parse(s.agents || '[]');
-    } catch {
-      return s.agents === '*' ? ['All agents'] : [s.agents];
-    }
+    if (s.agents === '*') return ['All agents'];
+    return parseAgents(s.agents);
   })();
 
   return (

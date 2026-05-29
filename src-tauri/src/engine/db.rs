@@ -2181,6 +2181,40 @@ impl EngineDb {
         }
     }
 
+    /// Get a skill by name (case-insensitive). Used for deduplication.
+    pub fn get_skill_by_name(&self, name: &str) -> Result<Option<super::types::Skill>> {
+        let conn = self.conn_blocking();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, description, emoji, version, author, skill_type, instructions, triggers, agents, permissions, is_active, install_source, manifest_json, installed_at, updated_at
+             FROM skills WHERE LOWER(name) = LOWER(?1) AND is_active = 1 LIMIT 1"
+        )?;
+        let result = stmt.query_row(params![name], |row| {
+            Ok(super::types::Skill {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                description: row.get(2)?,
+                emoji: row.get(3)?,
+                version: row.get(4)?,
+                author: row.get(5)?,
+                skill_type: row.get(6)?,
+                instructions: row.get(7)?,
+                triggers: row.get(8)?,
+                agents: row.get(9)?,
+                permissions: row.get(10)?,
+                is_active: row.get::<_, i64>(11)? != 0,
+                install_source: row.get(12)?,
+                manifest_json: row.get(13)?,
+                installed_at: row.get(14)?,
+                updated_at: row.get(15)?,
+            })
+        });
+        match result {
+            Ok(s) => Ok(Some(s)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
     /// Get skills applicable to a specific agent.
     pub fn get_skills_for_agent(&self, agent_id: &str) -> Result<Vec<super::types::Skill>> {
         let conn = self.conn_blocking();

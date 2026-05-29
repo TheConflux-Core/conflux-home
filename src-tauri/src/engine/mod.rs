@@ -1350,6 +1350,14 @@ impl ConfluxEngine {
             json.insert("name".to_string(), serde_json::Value::String(line[2..].to_string()));
         }
 
+        // Dedup: if an active skill with this name exists, return its id instead
+        if let Some(name_val) = json.get("name").and_then(|v| v.as_str()) {
+            if let Ok(Some(existing)) = self.db.get_skill_by_name(name_val) {
+                log::info!("[Skill] Skipping file install - skill '{}' already exists (id: {})", name_val, existing.id);
+                return Ok(existing.id);
+            }
+        }
+
         let id = uuid::Uuid::new_v4().to_string();
         json.insert("id".to_string(), serde_json::Value::String(id.clone()));
 
@@ -1386,6 +1394,7 @@ impl ConfluxEngine {
 
     /// Write a skill to disk and install it in one step.
     /// Used by auto-skill creation and dream synthesis.
+    /// Deduplicates by name: if an active skill with the same name exists, skips install.
     pub fn write_and_install_skill(
         &self,
         name: &str,
@@ -1396,7 +1405,14 @@ impl ConfluxEngine {
     ) -> Result<String> {
         use std::fs;
 
+        // Dedup: check if an active skill with this name already exists
         let slug = name.to_lowercase().replace(' ', "-").replace('_', "-");
+        if let Ok(existing) = self.db.get_skill_by_name(name) {
+            if existing.is_some() {
+                log::info!("[Skill] Skipping install - skill '{}' already exists", name);
+                return Ok(existing.unwrap().id);
+            }
+        }
         let subdir = match skill_type {
             "synthesized" => "auto",
             "mined" => "mined",
@@ -1483,21 +1499,54 @@ emoji: 🧩
                 continue;
             }
 
+            let call_count = p["call_count"].as_i64().unwrap_or(1);
+            let mining_agent = p["agent_id"].as_str().unwrap_or("conflux");
+
+            // Always create a skill fragment for observed patterns
+            let fragment_lesson = format!(
+                "Tool sequence observed {} times: {}",
+                call_count,
+                tools.join(" → ")
+            );
+            let _ = self.db.add_lesson(
+                Some(mining_agent),
+                "skill-fragment",
+                &fragment_lesson,
+                Some(&serde_json::json!({"tools": tools, "count": call_count}).to_string()),
+                None,
+            );
+
             // Check if existing skill covers this tool sequence
             if self.db.skill_covers_tools(&tools)? {
                 continue;
             }
 
-            // Generate skill name from dominant tool
+            // Generate a human-readable skill name from the tool sequence
             let dominant = &tools[0];
-            let suffix = if tools.len() > 1 {
-                format!("-{}", tools.len())
+            // Create a readable name: "Exec Workflow", "Budget → Kitchen → Life", etc.
+            let name = if tools.len() == 1 {
+                // Single tool: capitalize and format
+                let readable = dominant.replace('_', " ");
+                let readable = readable.split_whitespace()
+                    .map(|w| {
+                        let mut c = w.chars();
+                        match c.next() {
+                            None => String::new(),
+                            Some(f) => f.to_uppercase().to_string() + &c.as_str().to_lowercase(),
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                format!("{} Workflow", readable)
             } else {
-                String::new()
+                // Multi-tool: show first 3 tools as arrows
+                let display: Vec<&str> = tools.iter().take(3).map(|t| t.as_str()).collect();
+                let suffix = if tools.len() > 3 { " → …" } else { "" };
+                let readable = display.join(" → ") + suffix;
+                format!("Auto: {}", readable)
             };
-            let name = format!("auto-{}{}", dominant.replace('_', "-"), suffix);
             let description = format!(
-                "Auto-mined skill: tool sequence [{}] seen {} times.",
+                "Automated workflow: call {} in sequence. Observed {} times.",
                 tools.join(" → "),
                 p["call_count"].as_i64().unwrap_or(1)
             );
@@ -1510,8 +1559,6 @@ emoji: 🧩
                     .collect::<Vec<_>>()
                     .join("\n")
             );
-
-            let mining_agent = p["agent_id"].as_str().unwrap_or("conflux");
 
             match self.write_and_install_skill(&name, &description, &triggers, &procedure, "mined") {
                 Ok(skill_id) => {

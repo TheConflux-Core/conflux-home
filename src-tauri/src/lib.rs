@@ -467,6 +467,7 @@ pub fn run() {
             commands::engine_log_tool_trajectory,
             commands::engine_log_skill_event,
             commands::engine_get_skill_events,
+            commands::engine_store_lesson,
             commands::engine_get_today_lessons,
             // Phase 5: Backend Intelligence
             commands::engine_mine_trajectory_skills,
