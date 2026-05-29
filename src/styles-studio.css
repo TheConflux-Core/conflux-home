@@ -983,7 +983,7 @@
   color: var(--studio-text);
   overflow: hidden;
   position: relative;
-  padding: 0;
+  padding: 0 0 150px; /* 150px bottom for taskbar + bottombar */
 }
 
 .studio-dashboard-container::before {

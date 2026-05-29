@@ -27,7 +27,7 @@ export function useStudio() {
   const [adjustments, setAdjustments] = useState<Record<string, Record<string, any>>>({
     image: { size: '1024x1024', style: 'vivid', quality: 'standard' },
     video: { duration: 5, fps: 24, style: 'cinematic' },
-    music: { genre: 'ambient', duration: 30, mood: 'calm' },
+    music: { genre: 'ambient', duration: 30, mood: 'calm', instrumental: false, lyrics: '' },
     voice: { voiceId: 'JBFqnCBsd6RMkjVDRZzb', speed: 1.0, stability: 0.5 },
     code: { language: 'html', framework: 'vanilla', complexity: 'simple' },
     design: { format: 'png', style: 'modern', colorCount: 3 },
@@ -193,11 +193,37 @@ export function useStudio() {
       return;
     }
 
-    // Mock behavior for music/video (placeholder) — store adjustments in metadata
+    // Music generation via MiniMax
+    if (activeModule === 'music') {
+      try {
+        const { genre, mood, instrumental, lyrics: userLyrics } = adjustments.music;
+        // Build a prompt from adjustments
+        const stylePrompt = [genre, mood].filter(Boolean).join(', ');
+        const enhancedPrompt = stylePrompt ? `${stylePrompt}, ${prompt.trim()}` : prompt.trim();
+
+        const result = await invoke('studio_generate_music', {
+          generationId,
+          prompt: enhancedPrompt,
+          lyrics: userLyrics || null,
+          isInstrumental: instrumental || false,
+          lyricsOptimizer: !userLyrics && !instrumental,  // auto-generate if no lyrics provided
+        });
+        console.log('Music generation complete:', result);
+        await loadHistory();
+      } catch (e) {
+        console.error('Music generation failed:', e);
+        await loadHistory();
+      }
+      setIsGenerating(false);
+      setPrompt('');
+      return;
+    }
+
+    // Mock behavior for video (placeholder) — store adjustments in metadata
     setTimeout(async () => {
       try {
         const metadata = JSON.stringify({
-          format: activeModule === 'music' ? 'mp3' : 'mp4',
+          format: 'mp4',
           duration: 30,
           adjustments: adjustments[activeModule], // preserve user preferences
         });
@@ -311,13 +337,39 @@ export function useStudio() {
             }
           })();
         });
+      } else if (activeModule === 'music') {
+        // Real music batch generation
+        batchIds.forEach((genId, idx) => {
+          (async () => {
+            try {
+              const { genre, mood, instrumental, lyrics: userLyrics } = adjustments.music;
+              const stylePrompt = [genre, mood].filter(Boolean).join(', ');
+              const enhancedPrompt = stylePrompt ? `${stylePrompt}, ${prompt.trim()}` : prompt.trim();
+
+              await invoke('studio_generate_music', {
+                generationId: genId,
+                prompt: enhancedPrompt,
+                lyrics: userLyrics || null,
+                isInstrumental: instrumental || false,
+                lyricsOptimizer: !userLyrics && !instrumental,
+              });
+            } catch (e) {
+              console.error(`Batch music ${idx} failed:`, e);
+            } finally {
+              if (idx === batchIds.length - 1) {
+                loadHistory();
+                setIsGenerating(false);
+              }
+            }
+          })();
+        });
       } else {
-        // Mock for other modules
+        // Mock for video (placeholder)
         setTimeout(async () => {
           try {
             for (const genId of batchIds) {
               const metadata = JSON.stringify({
-                format: activeModule === 'music' ? 'mp3' : 'mp4',
+                format: 'mp4',
                 duration: 30,
                 adjustments: adjustments[activeModule],
               });

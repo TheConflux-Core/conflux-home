@@ -8965,3 +8965,15 @@ pub fn studio_get_usage(user_id: &str, month: &str) -> Result<Vec<super::types::
     })?;
     rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
 }
+
+/// Count how many generations were created today for a given module.
+/// Used for daily free-tier limits (e.g. 5 images/day, 10 songs/day).
+pub fn studio_get_daily_count(module: &str) -> Result<i64> {
+    let conn = get_conn();
+    let count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM studio_generations WHERE module = ?1 AND date(created_at) = date('now') AND status != 'failed'",
+        params![module],
+        |row| row.get(0),
+    )?;
+    Ok(count)
+}

@@ -765,6 +765,7 @@ dependencies = [
  "dirs 6.0.0",
  "dotenvy",
  "futures-util",
+ "hex",
  "hound",
  "lettre",
  "log",
