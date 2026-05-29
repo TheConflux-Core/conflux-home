@@ -3640,6 +3640,7 @@ async fn execute_web_post(args: &Value) -> Result<ToolResult> {
 }
 
 /// Send a desktop/mobile notification
+/// Emits Tauri event for frontend UI (bell + dropdown) AND fires OS desktop notification.
 fn execute_notify(args: &Value) -> Result<ToolResult> {
     let title = args
         .get("title")
@@ -3655,15 +3656,22 @@ fn execute_notify(args: &Value) -> Result<ToolResult> {
         });
     }
 
-    // Use Tauri's notification plugin via command
-    // We'll emit an event that the frontend can listen to
     let engine = super::get_engine();
+
+    // 1. Write to events table for audit log
     let _ = engine.db().emit_event(
         "agent_notification",
         None,
         None,
         Some(&serde_json::json!({"title": title, "body": body}).to_string()),
     );
+
+    // 2. Emit Tauri event so frontend useNotificationListener + TopBar bell receive it
+    //    The hook handles OS notification with quiet hours + master toggle filtering.
+    engine.emit_tauri_event("conflux:notification", serde_json::json!({
+        "title": title,
+        "body": body,
+    }));
 
     Ok(ToolResult {
         success: true,

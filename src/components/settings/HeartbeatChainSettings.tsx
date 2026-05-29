@@ -1,8 +1,9 @@
 // HeartbeatChainSettings — Settings panel section for Heartbeat Cascade Chain
 // Allows enable/disable, agent toggle, and test chain trigger
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { playToggleOn, playToggleOff } from '../../lib/sound';
 import { AGENTS } from '../../lib/beatBus';
 
@@ -55,22 +56,38 @@ export default function HeartbeatChainSettings() {
   const [chainState, setChainState] = useState<ChainState | null>(null);
   const [testing, setTesting] = useState(false);
   const [testFeedback, setTestFeedback] = useState<string>('');
+  const enabledRef = useRef(enabled);
+  useEffect(() => { enabledRef.current = enabled; }, [enabled]);
 
-  // Poll chain state from Rust (broken listen pattern removed)
+  // Load state once on mount
   useEffect(() => {
-    const load = async () => {
-      try {
-        const state = await invoke<ChainState>('heartbeat_chain_get_state');
-        setChainState(state);
-        // Load agent list from Rust state
-        if (state.agents && Array.isArray(state.agents)) {
-          setActiveAgents(state.agents);
-        }
-      } catch (_e) {}
+    invoke<ChainState>('heartbeat_chain_get_state').then(state => {
+      setChainState(state);
+      if (state.agents && Array.isArray(state.agents)) {
+        setActiveAgents(state.agents);
+      }
+    }).catch(() => {});
+  }, []);
+
+  // Update state from real-time chain events (zero polling)
+  useEffect(() => {
+    const unlistenStart = listen('conflux:chain-started', () => {
+      setChainState(prev => prev ? { ...prev, running: true, currentStep: 0 } : prev);
+    });
+    const unlistenEvent = listen<{ step: number; total: number }>('conflux:chain-event', (event) => {
+      const { step, total } = event.payload;
+      setChainState(prev => prev ? { ...prev, running: true, currentStep: step + 1, totalSteps: total } : prev);
+    });
+    const unlistenComplete = listen('conflux:chain-complete', () => {
+      setChainState(prev => prev ? { ...prev, running: false } : prev);
+      // Re-fetch to get accurate nextBeatAt
+      invoke<ChainState>('heartbeat_chain_get_state').then(setChainState).catch(() => {});
+    });
+    return () => {
+      unlistenStart.then(fn => fn());
+      unlistenEvent.then(fn => fn());
+      unlistenComplete.then(fn => fn());
     };
-    load();
-    const interval = setInterval(load, 5000);
-    return () => clearInterval(interval);
   }, []);
 
   // Toggle agent in chain
@@ -84,24 +101,32 @@ export default function HeartbeatChainSettings() {
     });
   };
 
-  // Save config when agents change
+  // Save config — reads enabled from ref to avoid stale closures
   const saveConfig = useCallback(async (agents: string[]) => {
+    // Deduplicate agents (conflux appears twice in default chain)
+    const unique = [...new Set(agents)];
     try {
       await invoke('heartbeat_chain_update_config', {
-        config: { enabled, agents },
+        config: { enabled: enabledRef.current, agents: unique },
       });
     } catch (_e) {}
-  }, [enabled]);
+  }, []); // no deps — reads from ref
 
+  // Debounced save when activeAgents changes
   useEffect(() => {
-    const t = setTimeout(() => saveConfig(activeAgents), 500);
+    const t = setTimeout(() => saveConfig(activeAgents), 800);
     return () => clearTimeout(t);
   }, [activeAgents, saveConfig]);
 
   const handleEnabledChange = (v: boolean) => {
     setEnabled(v);
+    // No immediate save — the debounce effect handles it via enabledRef
+    // Just update the ref so the next debounce save picks up the new value
+    enabledRef.current = v;
+    // Trigger a save with current agents
+    const unique = [...new Set(activeAgents)];
     invoke('heartbeat_chain_update_config', {
-      config: { enabled: v, agents: activeAgents },
+      config: { enabled: v, agents: unique },
     }).catch(() => {});
   };
 

@@ -390,6 +390,14 @@ async fn run_chain(app_handle: tauri::AppHandle, steps: Vec<ChainStep>) {
         "status": "complete",
         "total": total,
     }));
+
+    // Send desktop notification — frontend hook checks heartbeatCompleted pref + quiet hours
+    let _ = app_handle.emit("conflux:notification", serde_json::json!({
+        "title": "Heartbeat Complete",
+        "body": format!("All {} steps finished — all agents checked in.", total),
+        "eventType": "heartbeatCompleted",
+    }));
+
     log::info!("[HeartbeatChain] Chain complete — {} steps", total);
 }
 
