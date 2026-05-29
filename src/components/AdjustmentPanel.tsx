@@ -1,15 +1,104 @@
+import { useState, useEffect, useCallback } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { useStudio } from '../hooks/useStudio';
-import { STUDIO_MODULES } from '../types';
-export default function AdjustmentPanel() {
+import { STUDIO_MODULES, StudioModule } from '../types';
+
+interface AdjustmentPanelProps {
+  userTier?: string;
+  onGateFeature?: (feature: string) => void;
+}
+
+export default function AdjustmentPanel({ userTier = 'free', onGateFeature }: AdjustmentPanelProps) {
   const { activeModule, adjustments, updateAdjustment, setPrompt } = useStudio();
+  const [dailyCount, setDailyCount] = useState(0);
+  const [dailyLimit, setDailyLimit] = useState(-1); // -1 = unlimited
 
   const currentAdjustments = adjustments[activeModule] || {};
+
+  // Fetch daily usage when module changes
+  const loadDailyUsage = useCallback(async () => {
+    try {
+      const [count, limit] = await Promise.all([
+        invoke<number>('studio_get_daily_count', { module: activeModule }),
+        invoke<number>('studio_get_daily_limit', { module: activeModule }),
+      ]);
+      setDailyCount(count);
+      setDailyLimit(limit);
+    } catch {
+      // Daily usage tracking unavailable — that's OK
+      setDailyCount(0);
+      setDailyLimit(-1);
+    }
+  }, [activeModule]);
+
+  useEffect(() => {
+    loadDailyUsage();
+  }, [loadDailyUsage]);
+
+  // Refresh daily count after generation (listen for changes)
+  useEffect(() => {
+    const interval = setInterval(loadDailyUsage, 5000);
+    return () => clearInterval(interval);
+  }, [loadDailyUsage]);
+
+  const isAtLimit = dailyLimit > 0 && dailyCount >= dailyLimit;
+  const usagePct = dailyLimit > 0 ? Math.min((dailyCount / dailyLimit) * 100, 100) : 0;
+
+  const renderDailyUsage = () => {
+    // Only show for modules with limits (image, music)
+    if (dailyLimit < 0) return null;
+
+    return (
+      <div className="adjustment-group" style={{ marginBottom: 12 }}>
+        <label className="adjustment-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>Daily Usage</span>
+          <span style={{
+            fontSize: 11,
+            color: isAtLimit ? '#ef4444' : 'var(--text-muted, #888)',
+            fontWeight: isAtLimit ? 600 : 400,
+          }}>
+            {dailyCount} / {dailyLimit}
+          </span>
+        </label>
+        <div style={{
+          width: '100%',
+          height: 6,
+          borderRadius: 3,
+          background: 'rgba(255,255,255,0.08)',
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            width: `${usagePct}%`,
+            height: '100%',
+            borderRadius: 3,
+            background: isAtLimit
+              ? '#ef4444'
+              : usagePct > 70
+                ? '#f59e0b'
+                : '#8b5cf6',
+            transition: 'width 0.3s ease',
+          }} />
+        </div>
+        {isAtLimit && (
+          <div style={{
+            fontSize: 11,
+            color: '#ef4444',
+            marginTop: 4,
+            lineHeight: 1.4,
+          }}>
+            Daily limit reached. Upgrade to Pro for more.
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderControls = () => {
     switch (activeModule) {
       case 'image':
         return (
           <>
+            {renderDailyUsage()}
             <div className="adjustment-group">
               <label className="adjustment-label">Template</label>
               <div className="adjustment-buttons">
@@ -80,25 +169,49 @@ export default function AdjustmentPanel() {
           <>
             <div className="adjustment-group">
               <label className="adjustment-label">Voice</label>
-              <div className="adjustment-buttons">
-                {[
-                  { id: 'conflux', label: 'Conflux', voiceId: 'TvxTBL9RtGW6tVhl4NoI' },
-                  { id: 'helix', label: 'Helix', voiceId: 'USEXQnsXRJlw2k9LUzG4' },
-                  { id: 'pulse', label: 'Pulse', voiceId: 'auq43ws1oslv0tO4BDa7' },
-                  { id: 'hearth', label: 'Hearth', voiceId: 'W7iR5kTNHozpIl2Jqq15' },
-                  { id: 'echo', label: 'Echo', voiceId: 'EST9Ui6982FZPSi7gCHi' },
-                  { id: 'rachel', label: 'Rachel (default)', voiceId: 'JBFqnCBsd6RMkjVDRZzb' },
-                ].map((v) => (
+              {userTier === 'free' ? (
+                <>
+                  <div style={{
+                    fontSize: 12,
+                    color: 'rgba(255,255,255,0.5)',
+                    marginBottom: 8,
+                    lineHeight: 1.5,
+                  }}>
+                    Basic TTS with MiniMax. Upgrade for ElevenLabs voice cloning and 30+ premium voices.
+                  </div>
                   <button
-                    key={v.id}
-                    className={`adjustment-btn ${currentAdjustments.voiceId === v.voiceId ? 'active' : ''}`}
-                    onClick={() => updateAdjustment('voice', 'voiceId', v.voiceId)}
-                    title={v.id}
+                    className="adjustment-btn"
+                    onClick={() => onGateFeature?.('Voice Cloning')}
+                    style={{
+                      width: '100%',
+                      borderColor: 'rgba(139, 92, 246, 0.4)',
+                      color: '#8b5cf6',
+                    }}
                   >
-                    {v.label}
+                    🔒 Unlock Voice Cloning
                   </button>
-                ))}
-              </div>
+                </>
+              ) : (
+                <div className="adjustment-buttons">
+                  {[
+                    { id: 'conflux', label: 'Conflux', voiceId: 'TvxTBL9RtGW6tVhl4NoI' },
+                    { id: 'helix', label: 'Helix', voiceId: 'USEXQnsXRJlw2k9LUzG4' },
+                    { id: 'pulse', label: 'Pulse', voiceId: 'auq43ws1oslv0tO4BDa7' },
+                    { id: 'hearth', label: 'Hearth', voiceId: 'W7iR5kTNHozpIl2Jqq15' },
+                    { id: 'echo', label: 'Echo', voiceId: 'EST9Ui6982FZPSi7gCHi' },
+                    { id: 'rachel', label: 'Rachel (default)', voiceId: 'JBFqnCBsd6RMkjVDRZzb' },
+                  ].map((v) => (
+                    <button
+                      key={v.id}
+                      className={`adjustment-btn ${currentAdjustments.voiceId === v.voiceId ? 'active' : ''}`}
+                      onClick={() => updateAdjustment('voice', 'voiceId', v.voiceId)}
+                      title={v.id}
+                    >
+                      {v.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="adjustment-group">
               <label className="adjustment-label">Speed</label>
@@ -180,6 +293,47 @@ export default function AdjustmentPanel() {
       case 'music':
         return (
           <>
+            {renderDailyUsage()}
+            <div className="adjustment-group">
+              <label className="adjustment-label">Mode</label>
+              <div className="adjustment-buttons">
+                <button
+                  className={`adjustment-btn ${!currentAdjustments.instrumental ? 'active' : ''}`}
+                  onClick={() => updateAdjustment('music', 'instrumental', false)}
+                >
+                  🎤 With Vocals
+                </button>
+                <button
+                  className={`adjustment-btn ${currentAdjustments.instrumental ? 'active' : ''}`}
+                  onClick={() => updateAdjustment('music', 'instrumental', true)}
+                >
+                  🎹 Instrumental
+                </button>
+              </div>
+            </div>
+            {!currentAdjustments.instrumental && (
+              <div className="adjustment-group">
+                <label className="adjustment-label">Lyrics <span style={{ opacity: 0.5, fontSize: 11 }}>(optional — auto-generated if empty)</span></label>
+                <textarea
+                  className="adjustment-textarea"
+                  placeholder="[Verse]\nYour lyrics here...\n[Chorus]\nOr leave empty for auto-generation"
+                  value={currentAdjustments.lyrics || ''}
+                  onChange={(e) => updateAdjustment('music', 'lyrics', e.target.value)}
+                  rows={4}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 6,
+                    color: 'inherit',
+                    fontSize: 12,
+                    padding: '8px 10px',
+                    resize: 'vertical',
+                    fontFamily: 'inherit',
+                  }}
+                />
+              </div>
+            )}
             <div className="adjustment-group">
               <label className="adjustment-label">Genre</label>
               <div className="adjustment-buttons">

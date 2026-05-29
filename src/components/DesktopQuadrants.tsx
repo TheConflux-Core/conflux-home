@@ -18,6 +18,7 @@ interface AppDef {
   icon: string;
   label: string;
   preview: string;
+  defaultModule?: string;
 }
 
 interface CategoryDef {
@@ -65,7 +66,7 @@ const CATEGORIES: CategoryDef[] = [
     color: '#8b5cf6',
     desc: 'Build & create',
     apps: [
-      { id: 'studio', icon: '🎨', label: 'Studio', preview: 'AI creative generation' },
+      { id: 'studio', icon: '🎨', label: 'Studio', preview: 'AI creative generation', defaultModule: 'image' },
       { id: 'vault', icon: '📦', label: 'Vault', preview: 'Files & projects' },
     ],
   },
@@ -428,6 +429,11 @@ function ExpandedView({ category, onBack, onNavigate }: ExpandedViewProps) {
               key={app.id}
               className="desktop-widget"
               onClick={() => {
+                // If the app has a defaultModule (e.g. Studio), pass it via localStorage
+                // so the target view can open to the right tab
+                if (app.defaultModule) {
+                  localStorage.setItem('conflux-studio-initial-module', app.defaultModule);
+                }
                 onNavigate(app.id as View);
               }}
               style={{ '--widget-color': category.color } as React.CSSProperties}
