@@ -8,6 +8,7 @@ use serde_json::Value;
 use super::cloud;
 use super::db::EngineDb;
 use super::router::ModelResponse;
+use super::router::ToolCallRequest;
 use super::router::OpenAIMessage;
 use super::security::events::{self, EventCategory, EventType};
 use super::security::permissions;
@@ -55,6 +56,44 @@ fn tool_result_msg(success: bool, output: String) -> tools::ToolResult {
         error: None,
     }
 }
+
+/// Parse MiniMax XML tool call syntax from response content.
+fn parse_xml_tool_calls(content: &str) -> Vec<ToolCallRequest> {
+    let mut calls = Vec::new();
+    let mut search_from = 0;
+    while let Some(invoke_offset) = content[search_from..].find(r#"<invoke name=""#) {
+        let abs = search_from + invoke_offset;
+        let name_start = abs + 14;
+        let name_end = content[name_start..].find('"').unwrap_or(0) + name_start;
+        let tool_name = content[name_start..name_end].to_string();
+        let invoke_end = content[abs..].find(r#"</invoke>"#).map(|i| abs + i).unwrap_or(content.len());
+        let block = &content[abs..invoke_end];
+        let mut args = serde_json::Map::new();
+        let mut param_pos = 0;
+        while let Some(p_offset) = block[param_pos..].find(r#"<parameter name=""#) {
+            let abs_p = param_pos + p_offset;
+            let pn_start = abs_p + 17;
+            let pn_end = block[pn_start..].find('"').unwrap_or(0) + pn_start;
+            let param_name = block[pn_start..pn_end].to_string();
+            let val_start = block[pn_end..].find('>').map(|i| pn_end + i + 1).unwrap_or(pn_end);
+            let val_end = block[val_start..].find(r#"</parameter>"#).map(|i| val_start + i).unwrap_or(block.len());
+            let param_value = block[val_start..val_end].to_string();
+            args.insert(param_name, serde_json::Value::String(param_value));
+            param_pos = val_end;
+        }
+        if !tool_name.is_empty() {
+            let args_str = serde_json::to_string(&args).unwrap_or_else(|_| "{}".to_string());
+            calls.push(ToolCallRequest {
+                id: format!("xml_{}_{}", tool_name, abs),
+                name: tool_name,
+                arguments: args_str,
+            });
+        }
+        search_from = invoke_end + 9;
+    }
+    calls
+}
+
 
 /// Helper: Extract user_id from session record, or fall back to get_supabase_user_id.
 fn get_session_user_id(db: &EngineDb, session_id: &str) -> String {
@@ -386,7 +425,7 @@ pub async fn process_turn(
     let mut final_response: Option<ModelResponse> = None;
 
     for iteration in 0..MAX_TOOL_ITERATIONS {
-        let response = cloud_chat_with_fallback(
+        let mut response = cloud_chat_with_fallback(
             Some(&agent.model_alias),
             messages.clone(),
             max_tokens,
@@ -402,8 +441,22 @@ pub async fn process_turn(
 
         // If no tool calls, we're done
         if response.tool_calls.is_empty() {
-            final_response = Some(response);
-            break;
+            // Check for XML tool call syntax (MiniMax sometimes falls back to text-based tool calls)
+            let xml_calls = parse_xml_tool_calls(&response.content);
+            if !xml_calls.is_empty() {
+                log::warn!(
+                    "[Engine] Model output {} XML tool call(s) as text — executing them anyway",
+                    xml_calls.len()
+                );
+                for xc in &xml_calls {
+                    log::info!("[Engine] XML tool call: {}({})", xc.name, xc.arguments);
+                }
+                response.tool_calls = xml_calls;
+                // Don't break — fall through to the tool execution loop below
+            } else {
+                final_response = Some(response);
+                break;
+            }
         }
 
         total_tool_calls_in_turn += response.tool_calls.len();

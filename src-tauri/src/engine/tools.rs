@@ -9,6 +9,16 @@ use tokio::runtime::Handle;
 use super::db::EngineDb;
 use super::security::events::{log_security_event, EventCategory, EventType};
 
+/// Get the supabase_user_id from config, falling back to "default_user".
+/// Used by tools that need a member_id for DB queries.
+fn get_member_id() -> String {
+    let engine = super::get_engine();
+    engine.db().get_config("supabase_user_id")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "default_user".to_string())
+}
+
 /// Result of a tool execution.
 #[derive(Debug, Clone)]
 pub struct ToolResult {
@@ -2712,17 +2722,38 @@ async fn execute_web_search(args: &Value) -> Result<ToolResult> {
         }
     }
 
-    // Source 2: DuckDuckGo API (JSON, no API key, works reliably)
+    // Source 2: Direct market data for financial queries (Yahoo Finance + CoinGecko)
+    if is_market_query(&query) {
+        match fetch_market_data(&client, &query).await {
+            Ok(market) if !market.is_empty() => {
+                results.push(market);
+            }
+            _ => {
+                log::warn!("[tools] Market data fetch returned empty");
+            }
+        }
+    }
+
+    // Source 3: DuckDuckGo Instant Answer API
     match search_duckduckgo(&client, query).await {
         Ok(ddg_results) if !ddg_results.is_empty() => {
             results.push(format!("=== Web Results ===\n{}", ddg_results));
         }
         _ => {
-            log::warn!("[tools] DuckDuckGo returned empty, trying Wikipedia");
+            log::warn!("[tools] DuckDuckGo Instant Answer empty, trying HTML fallback");
+            // Source 3b: DuckDuckGo HTML scraping fallback
+            match search_duckduckgo_html(&client, query).await {
+                Ok(html_results) if !html_results.is_empty() => {
+                    results.push(format!("=== Search Results ===\n{}", html_results));
+                }
+                _ => {
+                    log::warn!("[tools] DuckDuckGo HTML also empty, trying Wikipedia");
+                }
+            }
         }
     }
 
-    // Source 3: Wikipedia (free knowledge API)
+    // Source 4: Wikipedia (free knowledge API)
     match search_wikipedia(&client, query).await {
         Ok(wiki_results) if !wiki_results.is_empty() => {
             results.push(format!("=== Wikipedia ===\n{}", wiki_results));
@@ -2743,6 +2774,16 @@ async fn execute_web_search(args: &Value) -> Result<ToolResult> {
         output: results.join("\n\n"),
         error: None,
     })
+}
+
+/// Detect if a query is about financial markets, stocks, or crypto.
+fn is_market_query(query: &str) -> bool {
+    let q = query.to_lowercase();
+    q.contains("s&p") || q.contains("nasdaq") || q.contains("dow")
+        || q.contains("stock") || q.contains("market") || q.contains("btc")
+        || q.contains("bitcoin") || q.contains("crypto") || q.contains("eth")
+        || q.contains("ethereum") || q.contains("spy") || q.contains("qqq")
+        || q.contains("djia") || q.contains("price") && (q.contains("$") || q.contains("usd"))
 }
 
 /// Detect if a query is asking about weather.
@@ -2929,6 +2970,164 @@ async fn fetch_wikipedia_summary(client: &reqwest::Client, article_url: &str) ->
 
     Ok(String::new())
 }
+
+/// Fetch real-time market data from free APIs (no key needed).
+/// Returns stock prices from Yahoo Finance and crypto from CoinGecko.
+async fn fetch_market_data(client: &reqwest::Client, query: &str) -> Result<String> {
+    let q = query.to_lowercase();
+    let mut results = Vec::new();
+
+    // Determine what to fetch based on query
+    let fetch_stocks = q.contains("s&p") || q.contains("spy") || q.contains("nasdaq")
+        || q.contains("dow") || q.contains("stock") || q.contains("market")
+        || q.contains("qqq") || q.contains("djia");
+    let fetch_crypto = q.contains("btc") || q.contains("bitcoin") || q.contains("crypto")
+        || q.contains("eth") || q.contains("ethereum");
+
+    // Stock indices via Yahoo Finance (no key needed)
+    if fetch_stocks {
+        let symbols = if q.contains("nasdaq") {
+            vec!["^IXIC"]
+        } else if q.contains("dow") || q.contains("djia") {
+            vec!["^DJI"]
+        } else {
+            vec!["^GSPC", "^IXIC", "^DJI"] // S&P 500, NASDAQ, Dow
+        };
+
+        for symbol in &symbols {
+            let url = format!(
+                "https://query1.finance.yahoo.com/v8/finance/chart/{}?interval=1d&range=2d",
+                symbol
+            );
+            match client.get(&url)
+                .header("User-Agent", "Mozilla/5.0")
+                .send().await
+            {
+                Ok(resp) => {
+                    if let Ok(json) = resp.json::<Value>().await {
+                        if let Some(result) = json.get("chart").and_then(|c| c.get("result")).and_then(|r| r.as_array()).and_then(|a| a.first()) {
+                            let meta = result.get("meta").unwrap_or(&Value::Null);
+                            let price = meta.get("regularMarketPrice").and_then(|p| p.as_f64());
+                            let prev = meta.get("previousClose").and_then(|p| p.as_f64()).or_else(|| meta.get("chartPreviousClose").and_then(|p| p.as_f64()));
+                            let name = meta.get("shortName").and_then(|n| n.as_str()).unwrap_or(symbol);
+
+                            if let (Some(p), Some(prev)) = (price, prev) {
+                                let change = p - prev;
+                                let pct = if prev != 0.0 { (change / prev) * 100.0 } else { 0.0 };
+                                let arrow = if change >= 0.0 { "📈" } else { "📉" };
+                                results.push(format!("{} {}: ${:.2} ({:+.2}, {:+.2}%)", arrow, name, p, change, pct));
+                            } else if let Some(p) = price {
+                                results.push(format!("📊 {}: ${:.2}", name, p));
+                            }
+                        }
+                    }
+                }
+                Err(e) => log::warn!("[tools] Yahoo Finance fetch failed for {}: {}", symbol, e),
+            }
+        }
+    }
+
+    // Crypto via CoinGecko (free, no key)
+    if fetch_crypto {
+        let coins = if q.contains("eth") || q.contains("ethereum") {
+            "ethereum"
+        } else {
+            "bitcoin"
+        };
+        let url = format!(
+            "https://api.coingecko.com/api/v3/simple/price?ids={}&vs_currencies=usd&include_24hr_change=true",
+            coins
+        );
+        match client.get(&url).send().await {
+            Ok(resp) => {
+                if let Ok(json) = resp.json::<Value>().await {
+                    if let Some(coin_data) = json.get(coins) {
+                        let price = coin_data.get("usd").and_then(|p| p.as_f64());
+                        let change = coin_data.get("usd_24h_change").and_then(|c| c.as_f64());
+                        if let Some(p) = price {
+                            let change_str = change.map(|c| format!(" ({:+.2}%)", c)).unwrap_or_default();
+                            let arrow = change.map(|c| if c >= 0.0 { "📈" } else { "📉" }).unwrap_or("🪙");
+                            let name = if coins == "bitcoin" { "Bitcoin" } else { "Ethereum" };
+                            results.push(format!("{} {}: ${:.2}{}", arrow, name, p, change_str));
+                        }
+                    }
+                }
+            }
+            Err(e) => log::warn!("[tools] CoinGecko fetch failed: {}", e),
+        }
+    }
+
+    if results.is_empty() {
+        Ok(String::new())
+    } else {
+        Ok(format!("=== Market Data ===\n{}", results.join("\n")))
+    }
+}
+
+/// Search DuckDuckGo via HTML scraping fallback (returns real search results).
+/// Used when the Instant Answer API returns empty.
+async fn search_duckduckgo_html(client: &reqwest::Client, query: &str) -> Result<String> {
+    let url = format!(
+        "https://html.duckduckgo.com/html/?q={}",
+        urlencoding::encode(query)
+    );
+    let response = client.get(&url)
+        .header("Accept", "text/html")
+        .send().await?;
+    let body = response.text().await?;
+
+    let mut results = Vec::new();
+
+    // Simple HTML parsing — look for result blocks
+    let mut lines = body.lines();
+    while let Some(line) = lines.next() {
+        if line.contains("result__a") && line.contains("href=") {
+            // Extract URL from href="..."
+            let url_start = line.find("href=\"").map(|i| i + 6).unwrap_or(0);
+            let url_end = line[url_start..].find('"').map(|i| i + url_start).unwrap_or(url_start);
+            let result_url = &line[url_start..url_end];
+
+            // Extract title text between > and </a>
+            let title_start = line.rfind('>').map(|i| i + 1).unwrap_or(0);
+            let title_end = line.find("</a>").unwrap_or(line.len());
+            let title = if title_start < title_end {
+                line[title_start..title_end]
+                    .replace("<b>", "").replace("</b>", "")
+                    .replace("&#x27;", "'")
+            } else {
+                String::new()
+            };
+
+            if !result_url.is_empty() && !title.is_empty() && result_url.starts_with("http") {
+                // Look for snippet in next few lines
+                let mut snippet = String::new();
+                for _ in 0..5 {
+                    if let Some(next) = lines.next() {
+                        if next.contains("result__snippet") {
+                            let snip_start = next.find('>').map(|i| i + 1).unwrap_or(0);
+                            let snip_end = next.find("</a>").or(next.find('<')).unwrap_or(next.len());
+                            if snip_start < snip_end {
+                                snippet = next[snip_start..snip_end]
+                                    .replace("<b>", "").replace("</b>", "")
+                                    .replace("&#x27;", "'").trim().to_string();
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                if snippet.is_empty() {
+                    results.push(format!("• {} — {}", title.trim(), result_url));
+                } else {
+                    results.push(format!("• {}\n  {}\n  {}", title.trim(), snippet, result_url));
+                }
+            }
+        }
+    }
+
+    Ok(results.join("\n"))
+}
+
 
 /// Fetch any URL and return readable text content.
 async fn execute_web_fetch(args: &Value) -> Result<ToolResult> {
@@ -6413,7 +6612,7 @@ fn execute_budget_get_entries(args: &Value, user_id: &str) -> Result<ToolResult>
     }
 }
 
-fn execute_budget_get_summary(args: &Value, user_id: &str) -> Result<ToolResult> {
+fn execute_budget_get_summary(args: &Value, _user_id: &str) -> Result<ToolResult> {
     let month_arg = args.get("month").and_then(|v| v.as_str()).unwrap_or("");
     let month = if month_arg.is_empty() || month_arg == "this_month" || month_arg == "this-month" {
         // Default to current month YYYY-MM
@@ -6423,14 +6622,19 @@ fn execute_budget_get_summary(args: &Value, user_id: &str) -> Result<ToolResult>
     };
 
     let engine = super::get_engine();
+    // Use supabase_user_id from config instead of session user_id (which may be "heartbeat")
     let member_id = args
         .get("member_id")
         .and_then(|v| v.as_str())
-        .unwrap_or(user_id);
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .unwrap_or_else(get_member_id);
+    log::info!("[budget_get_summary] Querying with member_id='{}', month='{}'", member_id, month);
     match tokio::task::block_in_place(|| {
-        engine.db().get_budget_summary_sync(member_id, &month)
+        engine.db().get_budget_summary_sync(&member_id, &month)
     }) {
         Ok(summary) => {
+            log::info!("[budget_get_summary] Result: income={:.2}, expenses={:.2}, buckets={}", summary.total_income, summary.total_expenses, summary.categories.len());
             let cat_lines: Vec<String> = summary
                 .categories
                 .iter()
@@ -6438,7 +6642,7 @@ fn execute_budget_get_summary(args: &Value, user_id: &str) -> Result<ToolResult>
                 .collect();
             Ok(ToolResult {
                 success: true,
-                output: format!("Budget Summary for {}:\n  Income: ${:.2}\n  Expenses: ${:.2}\n  Savings: ${:.2}\n  Net: ${:.2}\n  Categories:\n{}",
+                output: format!("Budget Summary for {}:\n  Income: ${:.2}\n  Expenses: ${:.2}\n  Savings: ${:.2}\n  Net: ${:.2}\n  Buckets/Planned:\n{}",
                     summary.month, summary.total_income, summary.total_expenses,
                     summary.total_savings, summary.net, cat_lines.join("\n")),
                 error: None,
@@ -7067,8 +7271,13 @@ fn execute_life_add_task(args: &Value) -> Result<ToolResult> {
 fn execute_life_list_tasks(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let status = args.get("status").and_then(|v| v.as_str());
+    // Use supabase_user_id from config instead of hardcoded "NULL"
+    let member_id = engine.db().get_config("supabase_user_id")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "default_user".to_string());
     match tokio::task::block_in_place(|| {
-        engine.db().get_life_tasks_sync("NULL", status)
+        engine.db().get_life_tasks_sync(&member_id, status)
     }) {
         Ok(tasks) => {
             if tasks.is_empty() {
@@ -7340,8 +7549,13 @@ fn execute_life_get_habits(args: &Value) -> Result<ToolResult> {
         .get("active_only")
         .and_then(|v| v.as_bool())
         .unwrap_or(true);
+    // Use supabase_user_id from config instead of hardcoded "NULL"
+    let member_id = engine.db().get_config("supabase_user_id")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "default_user".to_string());
     match tokio::task::block_in_place(|| {
-        engine.db().get_life_habits_sync("NULL", active_only)
+        engine.db().get_life_habits_sync(&member_id, active_only)
     }) {
         Ok(habits) => {
             if habits.is_empty() {
@@ -7406,8 +7620,12 @@ fn execute_life_dismiss_nudge(args: &Value) -> Result<ToolResult> {
 
 fn execute_life_get_heatmap(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
+    let member_id = engine.db().get_config("supabase_user_id")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "default_user".to_string());
     match tokio::task::block_in_place(|| {
-        engine.db().get_life_tasks_sync("NULL", None)
+        engine.db().get_life_tasks_sync(&member_id, None)
     }) {
         Ok(tasks) => {
             let mut days: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
@@ -7448,8 +7666,12 @@ fn execute_life_get_heatmap(args: &Value) -> Result<ToolResult> {
 
 fn execute_life_morning_brief(_args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
+    let member_id = engine.db().get_config("supabase_user_id")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "default_user".to_string());
     match tokio::task::block_in_place(|| {
-        engine.db().get_orbit_dashboard_sync("NULL")
+        engine.db().get_orbit_dashboard_sync(&member_id)
     }) {
         Ok(dash) => {
             let mut brief = String::from("☀️ Good morning!\n\n");
@@ -8078,10 +8300,17 @@ fn execute_dream_add(args: &Value) -> Result<ToolResult> {
 fn execute_dream_list(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let status = args.get("status").and_then(|v| v.as_str());
+    // Use supabase_user_id from config instead of hardcoded "NULL"
+    let member_id = engine.db().get_config("supabase_user_id")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "default_user".to_string());
+    log::info!("[dream_list] Querying with member_id='{}', status={:?}", member_id, status);
     match tokio::task::block_in_place(|| {
-        engine.db().get_dreams_sync("NULL", status)
+        engine.db().get_dreams_sync(&member_id, status)
     }) {
         Ok(dreams) => {
+            log::info!("[dream_list] Query returned {} dreams", dreams.len());
             if dreams.is_empty() {
                 return Ok(ToolResult {
                     success: true,
@@ -8143,7 +8372,7 @@ fn execute_dream_add_milestone(args: &Value) -> Result<ToolResult> {
         engine.db().add_milestone_sync(
             &id,
             &dream_id,
-            "NULL",
+            &get_member_id(),
             title,
             description,
             target_date,
@@ -8193,7 +8422,7 @@ fn execute_dream_add_task(args: &Value) -> Result<ToolResult> {
             &id,
             dream_id,
             milestone_id,
-            "NULL",
+            &get_member_id(),
             title,
             description,
             due_date,
@@ -8224,8 +8453,12 @@ fn execute_dream_add_task(args: &Value) -> Result<ToolResult> {
 
 fn execute_dream_get_dashboard(_args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
+    let member_id = engine.db().get_config("supabase_user_id")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "default_user".to_string());
     match tokio::task::block_in_place(|| {
-        engine.db().get_dream_dashboard_sync("NULL")
+        engine.db().get_dream_dashboard_sync(&member_id)
     }) {
         Ok(dash) => {
             let mut lines = vec![
@@ -8282,8 +8515,12 @@ fn execute_dream_complete_milestone(args: &Value) -> Result<ToolResult> {
         });
     }
     let engine = super::get_engine();
+    let member_id = engine.db().get_config("supabase_user_id")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "default_user".to_string());
     match tokio::task::block_in_place(|| {
-        engine.db().complete_milestone_sync("NULL", id)
+        engine.db().complete_milestone_sync(&member_id, id)
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -8309,7 +8546,7 @@ fn execute_dream_get_tasks(args: &Value) -> Result<ToolResult> {
     }
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        engine.db().get_dream_tasks_sync(dream_id, "NULL")
+        engine.db().get_dream_tasks_sync(dream_id, &get_member_id())
     }) {
         Ok(tasks) => {
             if tasks.is_empty() {
@@ -8359,7 +8596,7 @@ fn execute_dream_complete_task(args: &Value) -> Result<ToolResult> {
     }
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        engine.db().complete_dream_task_sync("NULL", id)
+        engine.db().complete_dream_task_sync(&get_member_id(), id)
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -8393,7 +8630,7 @@ fn execute_dream_add_progress(args: &Value) -> Result<ToolResult> {
         engine.db().add_dream_progress_sync(
             &id,
             dream_id,
-            "NULL",
+            &get_member_id(),
             note,
             progress_change,
             ai_insight,
@@ -8432,7 +8669,7 @@ fn execute_dream_delete(args: &Value) -> Result<ToolResult> {
         id.to_string()
     } else {
         let dreams = match tokio::task::block_in_place(|| {
-            engine.db().get_dreams_sync("NULL", None)
+            engine.db().get_dreams_sync(&get_member_id(), None)
         }) {
             Ok(d) => d,
             Err(e) => {
@@ -8459,7 +8696,7 @@ fn execute_dream_delete(args: &Value) -> Result<ToolResult> {
     };
 
     match tokio::task::block_in_place(|| {
-        engine.db().delete_dream_sync("NULL", &dream_id)
+        engine.db().delete_dream_sync(&get_member_id(), &dream_id)
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -8485,7 +8722,7 @@ fn execute_dream_get_velocity(args: &Value) -> Result<ToolResult> {
     }
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        engine.db().get_dream_velocity_sync(dream_id, "NULL")
+        engine.db().get_dream_velocity_sync(dream_id, &get_member_id())
     }) {
         Ok(v) => {
             let pct = (v.progress_pct * 100.0).round();
@@ -8526,7 +8763,7 @@ fn execute_dream_get_timeline(args: &Value) -> Result<ToolResult> {
     }
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        engine.db().get_dream_timeline_sync(dream_id, "NULL")
+        engine.db().get_dream_timeline_sync(dream_id, &get_member_id())
     }) {
         Ok(tl) => {
             if tl.entries.is_empty() {
@@ -8588,7 +8825,7 @@ fn execute_dream_update_progress(args: &Value) -> Result<ToolResult> {
     };
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        engine.db().set_dream_progress_sync("NULL", dream_id, pct)
+        engine.db().set_dream_progress_sync(&get_member_id(), dream_id, pct)
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -8606,7 +8843,7 @@ fn execute_dream_update_progress(args: &Value) -> Result<ToolResult> {
 fn execute_dream_active_overview(_args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     match tokio::task::block_in_place(|| {
-        engine.db().get_active_dreams_with_velocity_sync("NULL")
+        engine.db().get_active_dreams_with_velocity_sync(&get_member_id())
     }) {
         Ok(pairs) => {
             if pairs.is_empty() {
@@ -8915,6 +9152,7 @@ fn execute_echo_get_entries_by_date(args: &Value) -> Result<ToolResult> {
 // ── Echo Counselor Tool Implementations ──
 
 fn execute_echo_counselor_get_state(_args: &Value) -> Result<ToolResult> {
+    log::info!("[echo_counselor_get_state] Querying counselor state...");
     match crate::engine::echo_counselor::get_state() {
         Ok(state) => {
             let session_status = state
@@ -9358,23 +9596,22 @@ fn execute_weekly_summary(_args: &Value) -> Result<ToolResult> {
     let this_month = now.format("%Y-%m").to_string();
     let mut sections: Vec<String> = Vec::new();
 
-    // 1. Budget summary
+    // 1. Budget summary (uses get_budget_summary_sync which reads buckets + settings)
     let member_id = engine.db().get_config("supabase_user_id")
         .unwrap_or_default()
         .unwrap_or_else(|| "default_user".to_string());
     if let Ok(summary) = tokio::task::block_in_place(|| {
         engine.db().get_budget_summary_sync(&member_id, &this_month)
     }) {
+        let bucket_count = summary.categories.len();
+        let bucket_total: f64 = summary.categories.iter().map(|c| c.total).sum();
         sections.push(format!(
-            "💰 Budget ({}): Spent ${:.2} | Income ${:.2} | Net ${:.2}",
-            this_month, summary.total_expenses, summary.total_income, summary.net
+            "💰 Budget ({}): Income ${:.2} | Spent ${:.2} | {} buckets planned ${:.2} | Net ${:.2}",
+            this_month, summary.total_income, summary.total_expenses, bucket_count, bucket_total, summary.net
         ));
     }
 
     // 2. Kitchen — meals + expiring inventory
-    let member_id = engine.db().get_config("supabase_user_id")
-        .unwrap_or_default()
-        .unwrap_or_else(|| "default_user".to_string());
     if let Ok(meals) = tokio::task::block_in_place(|| {
         engine.db().get_meals_sync(None, None, false)
     }) {
@@ -9403,12 +9640,12 @@ fn execute_weekly_summary(_args: &Value) -> Result<ToolResult> {
 
     // 3. Life — pending tasks and active habits
     if let Ok(tasks) = tokio::task::block_in_place(|| {
-        engine.db().get_life_tasks_sync("NULL", Some("pending"))
+        engine.db().get_life_tasks_sync(&member_id, Some("pending"))
     }) {
         sections.push(format!("🧠 Life: {} pending tasks", tasks.len()));
     }
     if let Ok(habits) = tokio::task::block_in_place(|| {
-        engine.db().get_life_habits_sync("NULL", true)
+        engine.db().get_life_habits_sync(&member_id, true)
     }) {
         sections.push(format!(
             "📊 Habits: {} active, best streak: {}",
@@ -9419,7 +9656,7 @@ fn execute_weekly_summary(_args: &Value) -> Result<ToolResult> {
 
     // 4. Dreams — active
     if let Ok(dashboard) = tokio::task::block_in_place(|| {
-        engine.db().get_dream_dashboard_sync("NULL")
+        engine.db().get_dream_dashboard_sync(&member_id)
     }) {
         let names: Vec<_> = dashboard
             .dreams
@@ -9522,7 +9759,7 @@ fn execute_day_overview(_args: &Value) -> Result<ToolResult> {
 
     // 1. Tasks due today or overdue
     if let Ok(tasks) = tokio::task::block_in_place(|| {
-        engine.db().get_life_tasks_sync("NULL", Some("pending"))
+        engine.db().get_life_tasks_sync(&get_member_id(), Some("pending"))
     }) {
         let today_tasks: Vec<_> = tasks
             .iter()
@@ -9570,7 +9807,7 @@ fn execute_day_overview(_args: &Value) -> Result<ToolResult> {
 
     // 4. Active dreams quick check
     if let Ok(dreams) = tokio::task::block_in_place(|| {
-        engine.db().get_dreams_sync("NULL", Some("active"))
+        engine.db().get_dreams_sync(&get_member_id(), Some("active"))
     }) {
         if !dreams.is_empty() {
             let items: Vec<_> = dreams

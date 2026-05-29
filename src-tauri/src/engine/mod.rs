@@ -786,7 +786,7 @@ impl ConfluxEngine {
         let system_jobs: Vec<(&str, &str, &str, &str, &str)> = vec![
             ("morning-brief", "conflux", "0 7 * * *", "local",
              "Generate the daily morning briefing. \
-              Use budget_get_summary for this month's spending. \
+              IMPORTANT: Do NOT pass a month argument to budget_get_summary - it auto-detects the current month. Use budget_get_summary for this month's spending. \
               Use kitchen_get_inventory to check items expiring within 3 days. \
               Use life_list_tasks with status 'pending' for today's tasks. \
               Use home_get_bills to check bills due within 7 days. \
@@ -808,7 +808,7 @@ impl ConfluxEngine {
 
             ("weekly-insights", "conflux", "0 10 * * 0", "local",
              "Generate a weekly cross-app insights report. \
-              1. Budget: Use budget_get_summary for this month. Note total spent, top categories, any unusual spending. \
+              1. Budget: Use budget_get_summary (do NOT pass a month - it auto-detects). Note total spent, top categories, any unusual spending. \
               2. Kitchen: Use kitchen_list_meals to see what was cooked. Use kitchen_get_inventory for expiring items. \
               3. Life: Use life_list_tasks for completion stats. Use life_list_habits for streaks. \
               4. Home: Use home_get_bills for upcoming due dates. \
@@ -823,7 +823,7 @@ impl ConfluxEngine {
               Keep it brief — 2-3 sentences max."),
 
             ("budget-nudge", "conflux", "0 18 * * *", "local",
-             "Check today's budget entries using budget_get_entries for this month. \
+             "IMPORTANT: Do NOT pass a month argument to budget tools - they auto-detect the current month. Check today's budget entries using budget_get_entries for this month. \
               If the user spent money today, give a brief 1-sentence spending summary. \
               If a savings goal is close to deadline, mention progress using budget_get_goals. \
               If no budget activity today, stay completely silent — do not generate any output. \
