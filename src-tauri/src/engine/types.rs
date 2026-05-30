@@ -374,6 +374,30 @@ pub struct HeartbeatRecord {
     pub checked_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeartbeatActivityEntry {
+    pub id: String,
+    pub agent_id: String,
+    pub agent_name: String,
+    pub agent_emoji: Option<String>,
+    pub action: String,
+    pub summary: String,
+    pub detail: Option<String>,
+    pub action_items: Option<String>,
+    pub chain_run_id: Option<String>,
+    pub dismissed: bool,
+    pub created_at: String,
+}
+
+// ── Heartbeat Activity Feed ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeartbeatActivityFeed {
+    pub entries: Vec<HeartbeatActivityEntry>,
+    pub total_count: i64,
+    pub has_more: bool,
+}
+
 // ── Quota ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1567,3 +1591,4 @@ pub struct EchoSendMessageRequest {
     pub session_id: String,
     pub content: String,
 }
+

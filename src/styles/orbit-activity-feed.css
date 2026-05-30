@@ -1,0 +1,411 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Orbit Activity Feed — Agent Activity Timeline
+   Design: Soft violet atmosphere, breathing animations, timeline glow
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Feed Container ──────────────────────────────────────────────── */
+
+.orbit-feed {
+  margin-bottom: 28px;
+  position: relative;
+}
+
+.orbit-feed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.orbit-feed-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.orbit-feed-icon {
+  font-size: 20px;
+  animation: orbit-feed-pulse 3s ease-in-out infinite;
+}
+
+@keyframes orbit-feed-pulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+.orbit-feed-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.orbit-feed-count {
+  font-size: 11px;
+  background: rgba(139, 92, 246, 0.2);
+  color: #a78bfa;
+  border-radius: 10px;
+  padding: 2px 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.orbit-feed-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.orbit-feed-btn {
+  background: none;
+  border: none;
+  color: #6366f1;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.orbit-feed-btn:hover {
+  background: rgba(99, 102, 241, 0.1);
+  color: #818cf8;
+}
+
+.orbit-feed-btn-refresh {
+  color: #64748b;
+}
+
+.orbit-feed-btn-refresh:hover {
+  background: rgba(100, 116, 139, 0.1);
+  color: #94a3b8;
+}
+
+/* ── Timeline Container ──────────────────────────────────────────── */
+
+.orbit-timeline {
+  position: relative;
+  padding-left: 20px;
+}
+
+/* Vertical connector line */
+.orbit-timeline::before {
+  content: '';
+  position: absolute;
+  left: 37px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(
+    to bottom,
+    rgba(139, 92, 246, 0.3),
+    rgba(139, 92, 246, 0.08) 50%,
+    transparent
+  );
+  border-radius: 1px;
+}
+
+/* ── Activity Entry ──────────────────────────────────────────────── */
+
+.orbit-entry {
+  display: flex;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  margin-bottom: 10px;
+  position: relative;
+  transition: all 0.25s ease;
+  backdrop-filter: blur(4px);
+}
+
+.orbit-entry:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  transform: translateX(2px);
+}
+
+/* ── Agent Dot ───────────────────────────────────────────────────── */
+
+.orbit-entry-dot-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 2px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.orbit-entry-dot {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  flex-shrink: 0;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+/* Glow ring behind the dot */
+.orbit-entry-dot::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--agent-color, #8b5cf6) 0%, transparent 70%);
+  opacity: 0.15;
+  animation: orbit-dot-glow 4s ease-in-out infinite;
+}
+
+@keyframes orbit-dot-glow {
+  0%, 100% { opacity: 0.1; transform: scale(1); }
+  50% { opacity: 0.25; transform: scale(1.15); }
+}
+
+/* ── Entry Content ───────────────────────────────────────────────── */
+
+.orbit-entry-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.orbit-entry-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.orbit-entry-agent {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.orbit-entry-action {
+  font-size: 11px;
+  color: #64748b;
+  text-transform: capitalize;
+  background: rgba(100, 116, 139, 0.08);
+  padding: 1px 7px;
+  border-radius: 4px;
+}
+
+.orbit-entry-time {
+  font-size: 11px;
+  color: #475569;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.orbit-entry-summary {
+  font-size: 13px;
+  color: #e2e8f0;
+  line-height: 1.55;
+  margin: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+/* ── Dismiss Button ──────────────────────────────────────────────── */
+
+.orbit-entry-dismiss {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: none;
+  border: none;
+  color: #475569;
+  cursor: pointer;
+  font-size: 15px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  opacity: 0;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.orbit-entry:hover .orbit-entry-dismiss {
+  opacity: 0.6;
+}
+
+.orbit-entry-dismiss:hover {
+  opacity: 1 !important;
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+}
+
+/* ── Action Pills ────────────────────────────────────────────────── */
+
+.orbit-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.orbit-pill {
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 12px;
+  cursor: default;
+  transition: all 0.25s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 400;
+  line-height: 1.3;
+}
+
+/* Inert pills (no action) */
+.orbit-pill-inert {
+  background: rgba(100, 116, 139, 0.08);
+  border: 1px solid rgba(100, 116, 139, 0.12);
+  color: #64748b;
+}
+
+/* Actionable pills */
+.orbit-pill-action {
+  background: rgba(139, 92, 246, 0.12);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  color: #a78bfa;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.orbit-pill-action:hover {
+  background: rgba(139, 92, 246, 0.25);
+  border-color: rgba(139, 92, 246, 0.4);
+  color: #c4b5fd;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);
+}
+
+.orbit-pill-action:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.orbit-pill-icon {
+  font-size: 11px;
+}
+
+/* ── Empty State ─────────────────────────────────────────────────── */
+
+.orbit-feed-empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: #475569;
+}
+
+.orbit-feed-empty-icon {
+  font-size: 36px;
+  margin-bottom: 14px;
+  animation: orbit-empty-float 4s ease-in-out infinite;
+}
+
+@keyframes orbit-empty-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.orbit-feed-empty-title {
+  font-size: 14px;
+  margin: 0 0 6px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.orbit-feed-empty-sub {
+  font-size: 12px;
+  margin: 0;
+  color: #334155;
+}
+
+/* ── Skeleton Loading ────────────────────────────────────────────── */
+
+.orbit-skeleton {
+  display: flex;
+  gap: 14px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+
+.orbit-skeleton-dot {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  animation: orbit-skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.orbit-skeleton-lines {
+  flex: 1;
+}
+
+.orbit-skeleton-line {
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  animation: orbit-skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.orbit-skeleton-line-1 {
+  height: 12px;
+  width: 40%;
+  margin-bottom: 10px;
+}
+
+.orbit-skeleton-line-2 {
+  height: 10px;
+  width: 85%;
+  margin-bottom: 7px;
+  animation-delay: 0.1s;
+}
+
+.orbit-skeleton-line-3 {
+  height: 10px;
+  width: 60%;
+  animation-delay: 0.2s;
+}
+
+@keyframes orbit-skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+/* ── Responsive ──────────────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  .orbit-entry {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .orbit-entry-dot {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+
+  .orbit-timeline::before {
+    left: 33px;
+  }
+
+  .orbit-entry-summary {
+    font-size: 12px;
+  }
+
+  .orbit-pill {
+    font-size: 11px;
+    padding: 4px 10px;
+  }
+}

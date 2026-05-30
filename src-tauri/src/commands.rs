@@ -1178,6 +1178,80 @@ pub fn engine_get_heartbeats() -> Result<serde_json::Value, String> {
     Ok(serde_json::to_value(records).map_err(|e| e.to_string())?)
 }
 
+// ── Heartbeat Activity Feed ──
+
+#[tauri::command]
+pub fn heartbeat_get_activity_feed(
+    limit: Option<u32>,
+    offset: Option<u32>,
+    include_dismissed: Option<bool>,
+) -> Result<engine::types::HeartbeatActivityFeed, String> {
+    let engine = engine::get_engine();
+    let limit = limit.unwrap_or(20).min(100);
+    let offset = offset.unwrap_or(0);
+    let include_dismissed = include_dismissed.unwrap_or(false);
+    let entries = engine
+        .db()
+        .get_heartbeat_activities(limit, offset, include_dismissed)
+        .map_err(|e| e.to_string())?;
+    let total_count = engine
+        .db()
+        .get_heartbeat_activity_count(include_dismissed)
+        .map_err(|e| e.to_string())?;
+    Ok(engine::types::HeartbeatActivityFeed {
+        has_more: (offset as i64 + entries.len() as i64) < total_count,
+        total_count,
+        entries,
+    })
+}
+
+#[tauri::command]
+pub fn heartbeat_dismiss_activity(id: String) -> Result<(), String> {
+    let engine = engine::get_engine();
+    engine
+        .db()
+        .dismiss_heartbeat_activity(&id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn heartbeat_clear_activity(days_to_keep: Option<u32>) -> Result<u64, String> {
+    let engine = engine::get_engine();
+    engine
+        .db()
+        .clear_heartbeat_activities(days_to_keep.unwrap_or(30))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn heartbeat_store_activity(
+    agent_id: String,
+    agent_name: String,
+    agent_emoji: Option<String>,
+    action: String,
+    summary: String,
+    detail: Option<String>,
+    action_items: Option<String>,
+    chain_run_id: Option<String>,
+) -> Result<(), String> {
+    let engine = engine::get_engine();
+    let id = uuid::Uuid::new_v4().to_string();
+    engine
+        .db()
+        .insert_heartbeat_activity(
+            &id,
+            &agent_id,
+            &agent_name,
+            agent_emoji.as_deref(),
+            &action,
+            &summary,
+            detail.as_deref(),
+            action_items.as_deref(),
+            chain_run_id.as_deref(),
+        )
+        .map_err(|e| e.to_string())
+}
+
 // ── Skills ──
 
 #[tauri::command]
@@ -9601,7 +9675,8 @@ pub async fn studio_generate_web(
     let response = cloud::cloud_chat(Some("code_gen"), messages, Some(max_tokens), Some(0.7), None)
         .await
         .map_err(|e| {
-            let _ = engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0);
+            let err_meta = serde_json::json!({"error": format!("AI generation failed: {}", e)}).to_string();
+            let _ = engine::db::studio_update_generation_status(&generation_id, "failed", None, None, Some(&err_meta), 0);
             format!("AI generation failed: {}", e)
         })?;
 
@@ -9610,7 +9685,8 @@ pub async fn studio_generate_web(
         raw_content.len(), response.model, response.provider_id);
 
     if raw_content.is_empty() {
-        engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+        let err_meta = serde_json::json!({"error": "AI returned empty response. Check API key and credits.", "model": response.model, "provider": response.provider_id}).to_string();
+        engine::db::studio_update_generation_status(&generation_id, "failed", None, None, Some(&err_meta), 0)
             .map_err(|e| e.to_string())?;
         return Err("AI returned empty response. Check API key and credits.".to_string());
     }
@@ -9693,6 +9769,11 @@ fn extract_code_block(response: &str, framework: &str) -> String {
     // No fences found — try to use the raw response if it looks like code
     let trimmed = response.trim();
     if trimmed.starts_with("<!DOCTYPE") || trimmed.starts_with("<html") || trimmed.starts_with("<div") {
+        return trimmed.to_string();
+    }
+
+    // Bare JSX/React component (strip_thinking_from_response may have already removed fences)
+    if framework == "react" && (trimmed.starts_with("const ") || trimmed.starts_with("function ") || trimmed.starts_with("export ")) {
         return trimmed.to_string();
     }
 

@@ -29,7 +29,7 @@ export function useStudioState() {
     video: { duration: 5, fps: 24, style: 'cinematic' },
     music: { genre: 'ambient', duration: 30, mood: 'calm', instrumental: false, lyrics: '' },
     voice: { voiceId: 'JBFqnCBsd6RMkjVDRZzb', speed: 1.0, stability: 0.5 },
-    code: { language: 'html', framework: 'vanilla', complexity: 'simple' },
+    code: { framework: 'html', complexity: 'simple' },
     design: { format: 'png', style: 'modern', colorCount: 3 },
   });
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -175,6 +175,13 @@ export function useStudioState() {
           aspectRatio,
         });
         console.log('[Studio] Image generation result:', result);
+        // Auto-save to vault
+        try {
+          await invoke('studio_save_to_vault', { generationId });
+          console.log('[Studio] Auto-saved image to vault:', generationId);
+        } catch (vaultErr) {
+          console.warn('[Studio] Auto-save to vault failed:', vaultErr);
+        }
         await loadHistory();
         // Auto-select the newly generated result
         try {
@@ -205,6 +212,13 @@ export function useStudioState() {
           stability,
         });
         console.log('Voice generation complete:', result);
+        // Auto-save to vault
+        try {
+          await invoke('studio_save_to_vault', { generationId });
+          console.log('[Studio] Auto-saved voice to vault:', generationId);
+        } catch (vaultErr) {
+          console.warn('[Studio] Auto-save to vault failed:', vaultErr);
+        }
         await loadHistory();
         try {
           const gen = await invoke<StudioGeneration>('studio_get_generation', { id: generationId });
@@ -236,6 +250,13 @@ export function useStudioState() {
           audioUrl: referenceAudio || null,
         });
         console.log('Music generation complete:', result);
+        // Auto-save to vault
+        try {
+          await invoke('studio_save_to_vault', { generationId });
+          console.log('[Studio] Auto-saved music to vault:', generationId);
+        } catch (vaultErr) {
+          console.warn('[Studio] Auto-save to vault failed:', vaultErr);
+        }
         await loadHistory();
         try {
           const gen = await invoke<StudioGeneration>('studio_get_generation', { id: generationId });
@@ -243,6 +264,41 @@ export function useStudioState() {
         } catch (_) {}
       } catch (e) {
         console.error('Music generation failed:', e);
+        await loadHistory();
+      }
+      setIsGenerating(false);
+      setPrompt('');
+      return;
+    }
+
+    // Web/Code generation via LLM
+    if (activeModule === 'code') {
+      try {
+        const { framework, complexity } = adjustments.code;
+        const result = await invoke('studio_generate_web', {
+          generationId,
+          prompt: prompt.trim(),
+          framework: framework || 'html',
+          complexity: complexity || 'simple',
+          referenceImage: referenceImage || null,
+        });
+        console.log('[Studio] Web generation complete:', result);
+        // Auto-save to vault
+        try {
+          await invoke('studio_save_to_vault', { generationId });
+          console.log('[Studio] Auto-saved code to vault:', generationId);
+        } catch (vaultErr) {
+          console.warn('[Studio] Auto-save to vault failed:', vaultErr);
+        }
+        await loadHistory();
+        try {
+          const gen = await invoke<StudioGeneration>('studio_get_generation', { id: generationId });
+          if (gen) selectGeneration(gen);
+        } catch (selErr) {
+          console.error('[Studio] Failed to auto-select web gen:', selErr);
+        }
+      } catch (e) {
+        console.error('[Studio] Web generation failed:', e);
         await loadHistory();
       }
       setIsGenerating(false);
@@ -387,6 +443,29 @@ export function useStudioState() {
               });
             } catch (e) {
               console.error(`Batch music ${idx} failed:`, e);
+            } finally {
+              if (idx === batchIds.length - 1) {
+                loadHistory();
+                setIsGenerating(false);
+              }
+            }
+          })();
+        });
+      } else if (activeModule === 'code') {
+        // Web/Code batch generation via LLM
+        batchIds.forEach((genId, idx) => {
+          (async () => {
+            try {
+              const { framework, complexity } = adjustments.code;
+              await invoke('studio_generate_web', {
+                generationId: genId,
+                prompt: prompt.trim(),
+                framework: framework || 'html',
+                complexity: complexity || 'simple',
+                referenceImage: referenceImage || null,
+              });
+            } catch (e) {
+              console.error(`Batch web ${idx} failed:`, e);
             } finally {
               if (idx === batchIds.length - 1) {
                 loadHistory();

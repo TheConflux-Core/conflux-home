@@ -2726,3 +2726,26 @@ CREATE TABLE IF NOT EXISTS skill_compositions (
 
 CREATE INDEX IF NOT EXISTS idx_comp_parent ON skill_compositions(parent_skill_id);
 CREATE INDEX IF NOT EXISTS idx_comp_child ON skill_compositions(child_skill_id);
+
+-- ============================================================
+-- AGENT ACTIVITY LOG — Heartbeat chain outputs
+-- Stores each agent's heartbeat response for the Orbit activity feed
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS heartbeat_activity_log (
+    id              TEXT PRIMARY KEY,
+    agent_id        TEXT NOT NULL,
+    agent_name      TEXT NOT NULL,
+    agent_emoji     TEXT,
+    action          TEXT NOT NULL,
+    summary         TEXT NOT NULL,
+    detail          TEXT,
+    action_items    TEXT,
+    chain_run_id    TEXT,
+    dismissed       INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_activity_log_created ON heartbeat_activity_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_log_agent ON heartbeat_activity_log(agent_id);
+CREATE INDEX IF NOT EXISTS idx_activity_log_chain ON heartbeat_activity_log(chain_run_id);

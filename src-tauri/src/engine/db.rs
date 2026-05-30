@@ -8367,6 +8367,143 @@ impl EngineDb {
         })?;
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
+
+    // ── Heartbeat Activity Log ──
+
+    /// Insert a new heartbeat activity entry.
+    pub fn insert_heartbeat_activity(
+        &self,
+        id: &str,
+        agent_id: &str,
+        agent_name: &str,
+        agent_emoji: Option<&str>,
+        action: &str,
+        summary: &str,
+        detail: Option<&str>,
+        action_items: Option<&str>,
+        chain_run_id: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.conn_blocking();
+        let now = Self::now();
+        conn.execute(
+            "INSERT INTO heartbeat_activity_log (id, agent_id, agent_name, agent_emoji, action, summary, detail, action_items, chain_run_id, created_at, dismissed)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 0)",
+            params![id, agent_id, agent_name, agent_emoji, action, summary, detail, action_items, chain_run_id, now],
+        )?;
+        Ok(())
+    }
+
+    /// Fetch heartbeat activity entries, newest first.
+    pub fn get_heartbeat_activities(
+        &self,
+        limit: u32,
+        offset: u32,
+        include_dismissed: bool,
+    ) -> Result<Vec<super::types::HeartbeatActivityEntry>> {
+        let conn = self.conn_blocking();
+        let where_clause = if include_dismissed { "" } else { "WHERE dismissed = 0" };
+        let query = format!(
+            "SELECT id, agent_id, agent_name, agent_emoji, action, summary, detail, action_items, chain_run_id, dismissed, created_at
+             FROM heartbeat_activity_log {}
+             ORDER BY created_at DESC
+             LIMIT ?1 OFFSET ?2",
+            where_clause
+        );
+        let mut stmt = conn.prepare(&query)?;
+        let rows = stmt.query_map(params![limit, offset], |row| {
+            Ok(super::types::HeartbeatActivityEntry {
+                id: row.get(0)?,
+                agent_id: row.get(1)?,
+                agent_name: row.get(2)?,
+                agent_emoji: row.get(3)?,
+                action: row.get(4)?,
+                summary: row.get(5)?,
+                detail: row.get(6)?,
+                action_items: row.get(7)?,
+                chain_run_id: row.get(8)?,
+                dismissed: row.get::<_, i64>(9)? != 0,
+                created_at: row.get(10)?,
+            })
+        })?;
+        let mut result = Vec::new();
+        for row in rows {
+            result.push(row?);
+        }
+        Ok(result)
+    }
+
+    /// Dismiss an activity entry (sets dismissed=1).
+    pub fn dismiss_heartbeat_activity(&self, id: &str) -> Result<()> {
+        let conn = self.conn_blocking();
+        conn.execute(
+            "UPDATE heartbeat_activity_log SET dismissed = 1 WHERE id = ?1",
+            params![id],
+        )?;
+        Ok(())
+    }
+
+    /// Get total count of activity entries (optionally filtered to non-dismissed).
+    pub fn get_heartbeat_activity_count(&self, include_dismissed: bool) -> Result<i64> {
+        let conn = self.conn_blocking();
+        let where_clause = if include_dismissed { "" } else { "WHERE dismissed = 0" };
+        let query = format!("SELECT COUNT(*) FROM heartbeat_activity_log {}", where_clause);
+        let count: i64 = conn.query_row(&query, [], |row| row.get(0))?;
+        Ok(count)
+    }
+
+    /// Delete activity entries older than N days.
+    pub fn clear_heartbeat_activities(&self, days_to_keep: u32) -> Result<u64> {
+        let conn = self.conn_blocking();
+        let cutoff = format!("datetime('now', '-{} days')", days_to_keep);
+        let deleted = conn.execute(
+            &format!("DELETE FROM heartbeat_activity_log WHERE created_at < {}", cutoff),
+            [],
+        )?;
+        Ok(deleted as u64)
+    }
+
+    /// Get entries from the most recent completed chain run (excluding the current one).
+    /// Used for change detection — agents can see what was reported last time.
+    pub fn get_last_chain_run_entries(&self, current_chain_run_id: &str) -> Result<Vec<super::types::HeartbeatActivityEntry>> {
+        let conn = self.conn_blocking();
+        // Get the most recent chain_run_id that isn't the current one
+        let last_run_id: Option<String> = conn.query_row(
+            "SELECT chain_run_id FROM heartbeat_activity_log WHERE chain_run_id IS NOT NULL AND chain_run_id != ?1 ORDER BY created_at DESC LIMIT 1",
+            params![current_chain_run_id],
+            |row| row.get(0),
+        ).ok();
+
+        match last_run_id {
+            Some(rid) => {
+                let mut stmt = conn.prepare(
+                    "SELECT id, agent_id, agent_name, agent_emoji, action, summary, detail, action_items, chain_run_id, dismissed, created_at
+                     FROM heartbeat_activity_log WHERE chain_run_id = ?1 ORDER BY created_at ASC"
+                )?;
+                let rows = stmt.query_map(params![rid], |row| {
+                    Ok(super::types::HeartbeatActivityEntry {
+                        id: row.get(0)?,
+                        agent_id: row.get(1)?,
+                        agent_name: row.get(2)?,
+                        agent_emoji: row.get(3)?,
+                        action: row.get(4)?,
+                        summary: row.get(5)?,
+                        detail: row.get(6)?,
+                        action_items: row.get(7)?,
+                        chain_run_id: row.get(8)?,
+                        dismissed: row.get::<_, i64>(9)? != 0,
+                        created_at: row.get(10)?,
+                    })
+                })?;
+                let mut result = Vec::new();
+                for row in rows {
+                    result.push(row?);
+                }
+                Ok(result)
+            }
+            None => Ok(Vec::new()),
+        }
+    }
+
 }
 
 // ============================================================
@@ -8991,3 +9128,6 @@ pub fn studio_get_daily_count(module: &str) -> Result<i64> {
     )?;
     Ok(count)
 }
+
+
+

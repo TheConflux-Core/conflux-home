@@ -13,6 +13,7 @@ import StudioGallery from './StudioGallery';
 import StudioProject from './StudioProject';
 import StudioAnalytics from './StudioAnalytics';
 import StudioUpgradeModal from './StudioUpgradeModal';
+import WebPreview from './WebPreview';
 import '../styles-studio.css';
 
 function getDisplayUrl(gen: { output_url: string | null; output_path: string | null }): string | null {
@@ -240,12 +241,11 @@ export default function StudioDashboard({ initialModule }: { initialModule?: Stu
           <button
             className="dashboard-gallery-btn"
             onClick={() => {
-              setEnterGallery(true);
-              selectGeneration(null);
+              window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: { viewId: 'vault' } }));
             }}
-            title="Open Gallery"
+            title="Open Vault"
           >
-            🗂️
+            🛡️
           </button>
           <button
             className={`dashboard-fullscreen-btn ${isFullscreen ? 'active' : ''}`}
@@ -386,7 +386,31 @@ export default function StudioDashboard({ initialModule }: { initialModule?: Stu
                       <audio controls src={getDisplayUrl(selectedGeneration)!} className="preview-audio" />
                     </div>
                   )}
-                  {!getDisplayUrl(selectedGeneration) && selectedGeneration.status !== 'failed' && (
+                  {selectedGeneration.status !== 'failed' && selectedGeneration.module === 'code' && selectedGeneration.metadata_json && (() => {
+                    try {
+                      const meta = JSON.parse(selectedGeneration.metadata_json);
+                      if (meta.code) return true;
+                    } catch {}
+                    return false;
+                  })() && (
+                    <WebPreview
+                      generation={selectedGeneration}
+                      onRemix={(newGen) => {
+                        loadHistory();
+                        selectGeneration(newGen);
+                      }}
+                      onSaveToVault={handleSaveToVault}
+                      onExport={async (gen) => {
+                        try {
+                          const path = await invoke<string>('studio_export_generations_zip', { generationIds: [gen.id] });
+                          console.log('Exported to:', path);
+                        } catch (e) {
+                          console.error('Export failed:', e);
+                        }
+                      }}
+                    />
+                  )}
+                  {!getDisplayUrl(selectedGeneration) && selectedGeneration.status !== 'failed' && selectedGeneration.module !== 'code' && (
                     <div className="preview-empty">
                       <div className="preview-empty-icon">
                         {selectedGeneration.module === 'voice' ? '🗣️' : selectedGeneration.module === 'music' ? '🎵' : '🎨'}
@@ -463,13 +487,17 @@ export default function StudioDashboard({ initialModule }: { initialModule?: Stu
       {/* Action Buttons */}
       {selectedGeneration && !isGenerating && (
         <div className="dashboard-actions">
-          <button className="dashboard-action-btn dashboard-action-btn-save" onClick={() => handleSaveToVault(selectedGeneration)}>
-            💾 Save to Vault
-          </button>
           <button className="dashboard-action-btn" onClick={() => remix(selectedGeneration)}>
             🔄 Remix
           </button>
-          <button className="dashboard-action-btn dashboard-action-btn-export" onClick={() => {/* TODO: Implement export */}}>
+          <button className="dashboard-action-btn dashboard-action-btn-export" onClick={async () => {
+            try {
+              const path = await invoke<string>('studio_export_generations_zip', { generationIds: [selectedGeneration.id] });
+              console.log('Exported to:', path);
+            } catch (e) {
+              console.error('Export failed:', e);
+            }
+          }}>
             📤 Export
           </button>
         </div>

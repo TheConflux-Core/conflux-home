@@ -382,30 +382,21 @@ export default function AdjustmentPanel({ userTier = 'free', onGateFeature }: Ad
       case 'code':
         return (
           <>
-            <div className="adjustment-group">
-              <label className="adjustment-label">Language</label>
-              <div className="adjustment-buttons">
-                {['html', 'css', 'javascript', 'python', 'rust', 'go'].map((lang) => (
-                  <button
-                    key={lang}
-                    className={`adjustment-btn ${currentAdjustments.language === lang ? 'active' : ''}`}
-                    onClick={() => updateAdjustment('code', 'language', lang)}
-                  >
-                    {lang}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {renderDailyUsage()}
             <div className="adjustment-group">
               <label className="adjustment-label">Framework</label>
               <div className="adjustment-buttons">
-                {['vanilla', 'react', 'vue', 'svelte', 'tailwind'].map((fw) => (
+                {[
+                  { key: 'html', label: 'HTML/CSS/JS' },
+                  { key: 'react', label: 'React + Tailwind' },
+                  { key: 'tailwind', label: 'HTML + Tailwind' },
+                ].map((fw) => (
                   <button
-                    key={fw}
-                    className={`adjustment-btn ${currentAdjustments.framework === fw ? 'active' : ''}`}
-                    onClick={() => updateAdjustment('code', 'framework', fw)}
+                    key={fw.key}
+                    className={`adjustment-btn ${currentAdjustments.framework === fw.key ? 'active' : ''}`}
+                    onClick={() => updateAdjustment('code', 'framework', fw.key)}
                   >
-                    {fw}
+                    {fw.label}
                   </button>
                 ))}
               </div>
@@ -420,6 +411,27 @@ export default function AdjustmentPanel({ userTier = 'free', onGateFeature }: Ad
                     onClick={() => updateAdjustment('code', 'complexity', level)}
                   >
                     {level}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="adjustment-group">
+              <label className="adjustment-label">Templates</label>
+              <div className="adjustment-buttons">
+                {[
+                  { label: '🎯 Component', prompt: 'A reusable UI component with hover states and clean styling' },
+                  { label: '📄 Landing Page', prompt: 'A full landing page with hero section, features, and call-to-action' },
+                  { label: '📊 Dashboard', prompt: 'A dashboard layout with cards, stats, and data visualization' },
+                  { label: '📝 Form', prompt: 'A styled form with inputs, validation states, and submit button' },
+                  { label: '✨ Animation', prompt: 'A CSS animation showcase with smooth transitions and effects' },
+                  { label: '🎮 Interactive', prompt: 'An interactive UI element with click handlers and state changes' },
+                ].map((t) => (
+                  <button
+                    key={t.label}
+                    className="adjustment-btn"
+                    onClick={() => setPrompt(t.prompt)}
+                  >
+                    {t.label}
                   </button>
                 ))}
               </div>
