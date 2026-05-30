@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { useStudio } from '../hooks/useStudio';
+import { useStudio } from '../context/StudioContext';
 import { STUDIO_MODULES, StudioModule } from '../types';
 
 interface AdjustmentPanelProps {
