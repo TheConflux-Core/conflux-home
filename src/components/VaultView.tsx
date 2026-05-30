@@ -5,6 +5,7 @@ import VaultSidebar from './VaultSidebar';
 import VaultFileCard from './VaultFileCard';
 import VaultSearchBar from './VaultSearchBar';
 import VaultToolbar from './VaultToolbar';
+import InputModal from './InputModal';
 import '../styles-vault.css';
 
 export default function VaultView() {
@@ -17,29 +18,34 @@ export default function VaultView() {
   const [activeSection, setActiveSection] = useState<'recent' | 'favorites' | 'all' | 'projects' | string>('recent');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [showNewProjectModal, setShowNewProjectModal] = useState(false);
+  const [renamingProject, setRenamingProject] = useState<VaultProject | null>(null);
 
-  const loadFiles = useCallback(async () => {
+  const loadFiles = useCallback(async (section?: string, query?: string) => {
+    const s = section ?? activeSection;
+    const q = query ?? searchQuery;
     setLoading(true);
     try {
-      if (searchQuery) {
-        const result = await invoke<VaultFile[]>('vault_search_files', { query: searchQuery });
+      if (q) {
+        const result = await invoke<VaultFile[]>('vault_search_files', { query: q });
         setFiles(result);
-      } else if (activeSection === 'recent') {
-        const result = await invoke<VaultFile[]>('vault_get_recent', { limit: 50 });
-        setFiles(result);
-      } else if (activeSection === 'favorites') {
+      } else if (s === 'favorites') {
         const result = await invoke<VaultFile[]>('vault_get_favorites');
         setFiles(result);
-      } else if (activeSection === 'all') {
-        const result = await invoke<VaultFile[]>('vault_get_files', { file_type: null, limit: 100, offset: 0 });
-        setFiles(result);
       } else {
-        // file type filter
-        const result = await invoke<VaultFile[]>('vault_get_files', { file_type: activeSection, limit: 100, offset: 0 });
-        setFiles(result);
+        // Fetch all files, then filter client-side
+        const all = await invoke<VaultFile[]>('vault_get_files', { limit: 500, offset: 0 });
+        if (s === 'recent') {
+          setFiles(all.slice(0, 50));
+        } else if (s === 'all') {
+          setFiles(all);
+        } else {
+          // file type filter
+          setFiles(all.filter(f => f.file_type === s));
+        }
       }
     } catch (e) {
-      console.error('Failed to load files:', e);
+      console.error('[Vault] Failed to load files:', e);
       setFiles([]);
     }
     setLoading(false);
@@ -69,6 +75,41 @@ export default function VaultView() {
   useEffect(() => { loadFiles(); }, [loadFiles]);
   useEffect(() => { loadProjects(); loadTags(); loadStats(); }, []);
 
+
+
+  // Auto-scan on mount so Studio generations appear in Vault
+  useEffect(() => {
+    const dirs = [
+      '/home/calo/.conflux/studio/generated',
+      '/home/calo/.conflux/studio/vault',
+      '/home/calo/.conflux/vault',
+    ];
+    (async () => {
+      // Migrate old-style filenames to cfx_ convention (one-time, idempotent)
+      try {
+        const migration = await invoke<{ renamed: number; skipped: number }>('vault_migrate_filenames');
+        console.log('[Vault] Migration result:', migration);
+      } catch (e) {
+        console.warn('[Vault] Filename migration skipped:', e);
+      }
+
+      for (const dir of dirs) {
+        try {
+          console.log('[Vault] Scanning:', dir);
+          await invoke('vault_scan_directory', { dir_path: dir });
+        } catch (e) {
+          console.warn('[Vault] Scan failed for', dir, ':', e);
+        }
+      }
+      // Reload everything after scan
+      await loadFiles();
+      await loadStats();
+      await loadProjects();
+      await loadTags();
+      console.log('[Vault] Auto-scan complete');
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
@@ -84,13 +125,16 @@ export default function VaultView() {
 
   const handleDelete = async (id: string) => {
     await invoke('vault_delete_file', { id });
-    loadFiles();
-    loadStats();
+    await loadFiles();
+    await loadStats();
   };
 
   const handleCreateProject = async () => {
-    const name = prompt('Project name:');
-    if (!name) return;
+    setShowNewProjectModal(true);
+  };
+
+  const handleCreateProjectConfirm = async (name: string) => {
+    setShowNewProjectModal(false);
     await invoke('vault_create_project', { name, description: null, project_type: null });
     loadProjects();
   };
@@ -98,6 +142,17 @@ export default function VaultView() {
   const handleEditProject = async (id: string, name: string, description: string | null) => {
     await invoke('vault_edit_project', { id, name, description });
     loadProjects();
+  };
+
+  const handleRenameProject = (project: VaultProject) => {
+    setRenamingProject(project);
+  };
+
+  const handleRenameConfirm = async (newName: string) => {
+    if (renamingProject) {
+      await handleEditProject(renamingProject.id, newName, renamingProject.description ?? null);
+    }
+    setRenamingProject(null);
   };
 
   const handleDeleteProject = async (id: string) => {
@@ -109,11 +164,21 @@ export default function VaultView() {
   };
 
   const handleScan = async () => {
-    // Scan the vault directory
-    const home = '/home/calo/.conflux/vault';
-    await invoke('vault_scan_directory', { dir_path: home });
-    loadFiles();
-    loadStats();
+    // Scan all content directories
+    const dirs = [
+      '/home/calo/.conflux/studio/generated',
+      '/home/calo/.conflux/studio/vault',
+      '/home/calo/.conflux/vault',
+    ];
+    for (const dir of dirs) {
+      try {
+        await invoke('vault_scan_directory', { dir_path: dir });
+      } catch (e) {
+        // Directory may not exist — that's OK
+      }
+    }
+    await loadFiles();
+    await loadStats();
   };
 
   const formatSize = (bytes: number): string => {
@@ -148,13 +213,14 @@ export default function VaultView() {
         </div>
       </div>
 
+      <div className="vault-body">
       <VaultSidebar
         activeSection={activeSection}
         onSectionChange={setActiveSection}
         projects={projects}
         tags={tags}
         onCreateProject={handleCreateProject}
-        onEditProject={handleEditProject}
+        onRenameProject={handleRenameProject}
         onDeleteProject={handleDeleteProject}
       />
       <div className="vault-main">
@@ -162,7 +228,6 @@ export default function VaultView() {
         <VaultToolbar
           viewMode={viewMode}
           onViewModeChange={setViewMode}
-          onScan={handleScan}
           onCreateProject={handleCreateProject}
         />
         <div className="vault-content-area">
@@ -190,7 +255,7 @@ export default function VaultView() {
                   : 'Click "Scan" to index your vault directory, or files will appear here as your agents create them.'}
               </div>
               {!searchQuery && (
-                <button className="vault-btn-primary" onClick={handleScan}>Scan Vault Directory</button>
+                <div className="vault-empty-desc">Files appear here as your agents create them.</div>
               )}
             </div>
           ) : viewMode === 'grid' ? (
@@ -203,6 +268,7 @@ export default function VaultView() {
                   onSelect={() => toggleSelect(file.id)}
                   onToggleFavorite={() => handleToggleFavorite(file.id)}
                   onDelete={() => handleDelete(file.id)}
+                  onOpen={() => invoke('vault_open_file', { path: file.path })}
                 />
               ))}
             </div>
@@ -218,7 +284,7 @@ export default function VaultView() {
                 <div></div>
               </div>
               {files.map(file => (
-                <div key={file.id} className="vault-list-row" onClick={() => toggleSelect(file.id)}>
+                <div key={file.id} className="vault-list-row" onClick={() => toggleSelect(file.id)} onDoubleClick={() => invoke('vault_open_file', { path: file.path })}>
                   <div className="vault-list-icon">{getFileEmoji(file.file_type)}</div>
                   <div className="vault-list-name">{file.name}</div>
                   <div className="vault-list-cell">{file.extension || file.file_type}</div>
@@ -244,6 +310,7 @@ export default function VaultView() {
                         onSelect={() => toggleSelect(file.id)}
                         onToggleFavorite={() => handleToggleFavorite(file.id)}
                         onDelete={() => handleDelete(file.id)}
+                        onOpen={() => invoke('vault_open_file', { path: file.path })}
                       />
                     ))}
                   </div>
@@ -269,6 +336,26 @@ export default function VaultView() {
           </div>
         )}
       </div>
+      </div> {/* vault-body */}
+
+      <InputModal
+        isOpen={showNewProjectModal}
+        title="New Project"
+        placeholder="Project name..."
+        confirmLabel="Create"
+        onConfirm={handleCreateProjectConfirm}
+        onCancel={() => setShowNewProjectModal(false)}
+      />
+      <InputModal
+        isOpen={!!renamingProject}
+        title="Rename Project"
+        placeholder="Project name..."
+        defaultValue={renamingProject?.name || ''}
+        confirmLabel="Rename"
+        onConfirm={handleRenameConfirm}
+        onCancel={() => setRenamingProject(null)}
+      />
+
     </div>
   );
 }

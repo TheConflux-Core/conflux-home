@@ -1,4 +1,5 @@
 import { VaultFile } from '../types';
+import { convertFileSrc } from '@tauri-apps/api/core';
 
 interface Props {
   file: VaultFile;
@@ -6,6 +7,7 @@ interface Props {
   onSelect: () => void;
   onToggleFavorite: () => void;
   onDelete: () => void;
+  onOpen: () => void;
 }
 
 function getFileEmoji(type: string): string {
@@ -23,14 +25,18 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1073741824).toFixed(1)} GB`;
 }
 
-export default function VaultFileCard({ file, selected, onSelect, onToggleFavorite, onDelete }: Props) {
+export default function VaultFileCard({ file, selected, onSelect, onToggleFavorite, onDelete, onOpen }: Props) {
   return (
-    <div className={`vault-file-card ${selected ? 'selected' : ''}`} onClick={onSelect}>
+    <div className={`vault-file-card ${selected ? 'selected' : ''}`} onClick={onSelect} onDoubleClick={(e) => { e.stopPropagation(); onOpen(); }}>
       <div className="vault-file-thumb">
         {file.file_type === 'image' && file.thumbnail_path ? (
-          <img src={`file://${file.thumbnail_path}`} alt={file.name} loading="lazy" />
+          <img src={convertFileSrc(file.thumbnail_path)} alt={file.name} loading="lazy" />
         ) : file.file_type === 'image' ? (
-          <img src={`file://${file.path}`} alt={file.name} loading="lazy" />
+          <img src={convertFileSrc(file.path)} alt={file.name} loading="lazy" />
+        ) : file.file_type === 'audio' ? (
+          <div className="vault-file-icon-large">🎵</div>
+        ) : file.file_type === 'video' ? (
+          <div className="vault-file-icon-large">🎬</div>
         ) : (
           <div className="vault-file-icon-large">{getFileEmoji(file.file_type)}</div>
         )}
