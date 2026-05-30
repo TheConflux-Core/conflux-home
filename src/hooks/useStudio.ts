@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { StudioGeneration, StudioModule } from '../types';
 
 // Compute aspect ratio string from dimension string (e.g. "1024x1024" -> "1:1")
@@ -11,7 +11,7 @@ const computeAspectRatio = (size: string): string => {
   return `${w / divisor}:${h / divisor}`;
 };
 
-export function useStudio() {
+export function useStudioState() {
   const [activeModule, setActiveModule] = useState<StudioModule>('image');
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -35,12 +35,27 @@ export function useStudio() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [enterGallery, setEnterGallery] = useState(false);
 
+  // Reference files for generation (image ref / music ref)
+  const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  const [referenceAudio, setReferenceAudio] = useState<string | null>(null);
+
+  // Clear selection when switching modules
+  useEffect(() => {
+    setSelectedGeneration(null);
+  }, [activeModule]);
+
   const loadHistory = useCallback(async (): Promise<void> => {
     try {
       const result = await invoke<StudioGeneration[]>('studio_get_generations');
+      console.log('[Studio] Loaded', result.length, 'generations:', result.map(g => `${g.id}(${g.status})`));
+      result.forEach(g => {
+        if (g.output_path) {
+          console.log('[Studio] convertFileSrc:', g.output_path, '->', convertFileSrc(g.output_path));
+        }
+      });
       setGenerations(result);
     } catch (e) {
-      console.error('Failed to load studio generations:', e);
+      console.error('[Studio] Failed to load generations:', e);
     }
   }, []);
 
@@ -158,10 +173,17 @@ export function useStudio() {
           generationId,
           prompt: enhancedPrompt,
           aspectRatio,
-          // Note: style/quality not yet wired to backend; stored in metadata separately
         });
-        console.log('Image generation complete:', result);
+        console.log('[Studio] Image generation result:', result);
         await loadHistory();
+        // Auto-select the newly generated result
+        try {
+          const gen = await invoke<StudioGeneration>('studio_get_generation', { id: generationId });
+          console.log('[Studio] Auto-selecting generation:', gen?.id, gen?.status, gen?.output_path);
+          if (gen) selectGeneration(gen);
+        } catch (selErr) {
+          console.error('[Studio] Failed to auto-select:', selErr);
+        }
       } catch (e) {
         console.error('Image generation failed:', e);
         await loadHistory();
@@ -184,6 +206,10 @@ export function useStudio() {
         });
         console.log('Voice generation complete:', result);
         await loadHistory();
+        try {
+          const gen = await invoke<StudioGeneration>('studio_get_generation', { id: generationId });
+          if (gen) selectGeneration(gen);
+        } catch (_) {}
       } catch (e) {
         console.error('Voice generation failed:', e);
         await loadHistory();
@@ -206,10 +232,15 @@ export function useStudio() {
           prompt: enhancedPrompt,
           lyrics: userLyrics || null,
           isInstrumental: instrumental || false,
-          lyricsOptimizer: !userLyrics && !instrumental,  // auto-generate if no lyrics provided
+          lyricsOptimizer: !userLyrics && !instrumental,
+          audioUrl: referenceAudio || null,
         });
         console.log('Music generation complete:', result);
         await loadHistory();
+        try {
+          const gen = await invoke<StudioGeneration>('studio_get_generation', { id: generationId });
+          if (gen) selectGeneration(gen);
+        } catch (_) {}
       } catch (e) {
         console.error('Music generation failed:', e);
         await loadHistory();
@@ -352,6 +383,7 @@ export function useStudio() {
                 lyrics: userLyrics || null,
                 isInstrumental: instrumental || false,
                 lyricsOptimizer: !userLyrics && !instrumental,
+                audioUrl: referenceAudio || null,
               });
             } catch (e) {
               console.error(`Batch music ${idx} failed:`, e);
@@ -453,6 +485,11 @@ export function useStudio() {
     setEnterGallery,
     batchGenerations,
     setBatchGenerations,
+    // Reference files
+    referenceImage,
+    setReferenceImage,
+    referenceAudio,
+    setReferenceAudio,
     // Actions
     generate,
     generateBatch,

@@ -9220,6 +9220,7 @@ pub async fn studio_generate_music(
     lyrics: Option<String>,
     is_instrumental: Option<bool>,
     lyrics_optimizer: Option<bool>,
+    audio_url: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let engine = engine::get_engine();
 
@@ -9266,14 +9267,21 @@ pub async fn studio_generate_music(
     let instrumental = is_instrumental.unwrap_or(false);
     let use_lyrics_optimizer = lyrics_optimizer.unwrap_or(false);
 
-    // Pick model based on tier
-    let model = if tier == "free" { "music-2.6-free" } else { "music-2.6" };
+    // Determine if this is a cover generation (reference audio provided)
+    let ref_audio = audio_url.filter(|u| !u.trim().is_empty());
+    let is_cover = ref_audio.is_some();
+
+    // Pick model: cover uses music-cover, standard uses music-2.6
+    let model = if is_cover {
+        "music-cover".to_string()
+    } else {
+        "music-2.6".to_string()
+    };
 
     let mut body = serde_json::json!({
         "model": model,
         "prompt": prompt,
         "output_format": "url",
-        "is_instrumental": instrumental,
         "audio_setting": {
             "sample_rate": 44100,
             "bitrate": 256000,
@@ -9282,6 +9290,13 @@ pub async fn studio_generate_music(
         }
     });
 
+    // For cover generation, pass the reference audio URL
+    if is_cover {
+        body["audio_url"] = serde_json::json!(ref_audio.unwrap());
+    } else {
+        body["is_instrumental"] = serde_json::json!(instrumental);
+    }
+
     // Add lyrics if provided and not instrumental
     if !instrumental {
         if let Some(ref l) = lyrics {
@@ -9289,7 +9304,7 @@ pub async fn studio_generate_music(
                 body["lyrics"] = serde_json::json!(l);
             }
         }
-        if use_lyrics_optimizer {
+        if use_lyrics_optimizer && !is_cover {
             body["lyrics_optimizer"] = serde_json::json!(true);
         }
     }
@@ -9308,7 +9323,9 @@ pub async fn studio_generate_music(
     if !response.status().is_success() {
         let status = response.status();
         let body_text = response.text().await.unwrap_or_default();
-        engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+        log::error!("[Studio] MiniMax music API error ({}): {}", status, body_text);
+        let err_meta = serde_json::json!({"error": format!("HTTP {}", status), "body": body_text}).to_string();
+        engine::db::studio_update_generation_status(&generation_id, "failed", None, None, Some(&err_meta), 0)
             .map_err(|e| e.to_string())?;
         return Err(format!("MiniMax music error ({}): {}", status, body_text));
     }
@@ -9323,7 +9340,9 @@ pub async fn studio_generate_music(
         let code = base_resp["status_code"].as_i64().unwrap_or(-1);
         if code != 0 {
             let msg = base_resp["status_msg"].as_str().unwrap_or("Unknown error");
-            engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+            log::error!("[Studio] MiniMax music API error ({}): {}", code, msg);
+            let err_meta = serde_json::json!({"error": format!("API error {}", code), "message": msg}).to_string();
+            engine::db::studio_update_generation_status(&generation_id, "failed", None, None, Some(&err_meta), 0)
                 .map_err(|e| e.to_string())?;
             return Err(format!("MiniMax music API error ({}): {}", code, msg));
         }
@@ -9365,6 +9384,7 @@ pub async fn studio_generate_music(
         "model": model,
         "provider": "minimax",
         "is_instrumental": instrumental,
+        "is_cover": is_cover,
         "has_lyrics": lyrics.is_some() && !instrumental,
         "file_size": audio_bytes.len()
     })
