@@ -145,8 +145,8 @@ export default function StudioProject() {
     <div className="studio-project-container">
       {/* Header */}
       <div className="project-header">
-        <button className="project-back-btn" onClick={() => { selectGeneration(null); setEnterGallery(true); }}>
-          ← Back to Gallery
+        <button className="project-back-btn" onClick={() => { selectGeneration(null); setEnterGallery(false); }}>
+          ← Back to Dashboard
         </button>
         <div className="project-title">
           <span className="project-name">
@@ -357,12 +357,6 @@ export default function StudioProject() {
           </div>
           {selectedGeneration ? (
             <div className="actions-list">
-              <button
-                className="project-action-btn save"
-                onClick={() => saveToVault(selectedGeneration)}
-              >
-                💾 Save to Vault
-              </button>
               <button
                 className="project-action-btn remix"
                 onClick={() => {

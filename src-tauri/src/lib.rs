@@ -451,6 +451,11 @@ pub fn run() {
             // Heartbeats
             commands::engine_run_health_checks,
             commands::engine_get_heartbeats,
+            // Heartbeat Activity Feed
+            commands::heartbeat_get_activity_feed,
+            commands::heartbeat_dismiss_activity,
+            commands::heartbeat_clear_activity,
+            commands::heartbeat_store_activity,
             // Skills
             commands::engine_get_skills,
             commands::engine_get_skill,

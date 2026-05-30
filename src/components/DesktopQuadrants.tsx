@@ -201,8 +201,8 @@ function RingGauge({ value, max, color, label, sublabel }: { value: number; max:
   );
 }
 
-// Default active agents (fallback if localStorage is empty)
-const DEFAULT_AGENT_IDS = ['conflux', 'helix', 'pulse', 'forge', 'quanta', 'prism', 'vector', 'spectra', 'luma', 'catalyst'];
+// Default active agents (must match AGENTS in beatBus.ts)
+const DEFAULT_AGENT_IDS = ['conflux', 'helix', 'pulse', 'hearth', 'echo', 'aegis', 'viper', 'forge', 'orbit', 'horizon'];
 
 function IntelDashboard({ agents }: IntelDashboardProps) {
   const { balance, loading: creditsLoading } = useCredits();
@@ -225,15 +225,17 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
     return DEFAULT_AGENT_IDS;
   });
 
-  // Filter agents by selected IDs (show all if nothing in localStorage)
+  // Filter agents by selected IDs — fall back to all agents if nothing stored
   const displayedAgents = selectedIds.length > 0
     ? agents.filter(a => selectedIds.includes(a.id))
     : agents;
+  // If filtering produced nothing (stale localStorage IDs), show all agents
+  const effectiveAgents = displayedAgents.length > 0 ? displayedAgents : agents;
 
   const allLoading = creditsLoading;
-  const activeAgents = displayedAgents.filter(a => a.status !== 'offline');
-  const workingCount = displayedAgents.filter(a => a.status === 'working' || a.status === 'thinking').length;
-  const onlinePct = displayedAgents.length > 0 ? Math.round((activeAgents.length / displayedAgents.length) * 100) : 0;
+  const activeAgents = effectiveAgents.filter(a => a.status !== 'offline');
+  const workingCount = effectiveAgents.filter(a => a.status === 'working' || a.status === 'thinking').length;
+  const onlinePct = effectiveAgents.length > 0 ? Math.round((activeAgents.length / effectiveAgents.length) * 100) : 0;
 
   // Load persisted interval from Rust backend
   useEffect(() => {
@@ -297,7 +299,7 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
           <div className="intel-section-title">SYSTEM OVERVIEW</div>
           <div className="intel-overview-row">
             <div className="intel-overview-gauge">
-              <RingGauge value={activeAgents.length} max={Math.max(displayedAgents.length, 1)} color="#6366f1" label={`${activeAgents.length}`} sublabel="online" />
+              <RingGauge value={activeAgents.length} max={Math.max(effectiveAgents.length, 1)} color="#6366f1" label={`${activeAgents.length}`} sublabel="online" />
             </div>
             <div className="intel-overview-knob">
               <PulseKnob
@@ -361,7 +363,7 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
             </div>
             <div className="intel-metric-card">
               <span className="intel-metric-icon">📊</span>
-              <span className="intel-metric-value">{allLoading ? '---' : `${balance?.monthly_used?.toFixed(0) || '0'}/${balance?.monthly_credits?.toFixed(0) || '0'}`}</span>
+              <span className="intel-metric-value">{allLoading ? '---' : `${(balance?.monthly_used || Math.max((balance?.monthly_credits ?? 0) - (balance?.total_available ?? 0), 0)).toFixed(0)}/${balance?.monthly_credits?.toFixed(0) || '0'}`}</span>
               <span className="intel-metric-label">Monthly</span>
             </div>
             {balance?.source === 'free' && (

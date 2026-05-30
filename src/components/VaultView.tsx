@@ -20,6 +20,8 @@ export default function VaultView() {
   const [loading, setLoading] = useState(true);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [renamingProject, setRenamingProject] = useState<VaultProject | null>(null);
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
+  const [movingFileIds, setMovingFileIds] = useState<string[]>([]);
 
   const loadFiles = useCallback(async (section?: string, query?: string) => {
     const s = section ?? activeSection;
@@ -32,6 +34,14 @@ export default function VaultView() {
       } else if (s === 'favorites') {
         const result = await invoke<VaultFile[]>('vault_get_favorites');
         setFiles(result);
+      } else if (s.startsWith('project:')) {
+        const projectId = s.slice('project:'.length);
+        const detail = await invoke<{ project: VaultProject; files: VaultFile[] } | null>('vault_get_project_detail', { projectId });
+        setFiles(detail?.files ?? []);
+      } else if (s.startsWith('tag:')) {
+        // Tags not on VaultFile type yet — load all files as fallback
+        const result = await invoke<VaultFile[]>('vault_get_files', { limit: 500, offset: 0 });
+        setFiles(result);
       } else {
         // Fetch all files, then filter client-side
         const all = await invoke<VaultFile[]>('vault_get_files', { limit: 500, offset: 0 });
@@ -40,7 +50,7 @@ export default function VaultView() {
         } else if (s === 'all') {
           setFiles(all);
         } else {
-          // file type filter
+          // file type filter (image, audio, video, code, document)
           setFiles(all.filter(f => f.file_type === s));
         }
       }
@@ -129,6 +139,43 @@ export default function VaultView() {
     await loadStats();
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Delete ${selectedIds.size} file(s)?`)) return;
+    for (const id of selectedIds) {
+      try { await invoke('vault_delete_file', { id }); } catch (e) { console.error('Delete failed:', e); }
+    }
+    setSelectedIds(new Set());
+    await loadFiles();
+    await loadStats();
+  };
+
+  const handleBulkMoveToProject = () => {
+    if (selectedIds.size === 0) return;
+    setMovingFileIds(Array.from(selectedIds));
+    setShowProjectPicker(true);
+  };
+
+  const handleProjectPick = async (projectId: string) => {
+    setShowProjectPicker(false);
+    for (const fileId of movingFileIds) {
+      try {
+        await invoke('vault_add_file_to_project', { projectId, fileId });
+      } catch (e) {
+        console.error('Move to project failed:', e);
+      }
+    }
+    setMovingFileIds([]);
+    setSelectedIds(new Set());
+    await loadFiles();
+    await loadProjects();
+  };
+
+  const handleSelectAll = () => {
+    const allIds = new Set(files.map(f => f.id));
+    setSelectedIds(allIds);
+  };
+
   const handleCreateProject = async () => {
     setShowNewProjectModal(true);
   };
@@ -194,6 +241,15 @@ export default function VaultView() {
       <div className="vault-hero">
         <div className="vault-hero-glow" />
         <div className="vault-hero-content">
+          <div className="vault-hero-top-bar">
+            <button
+              className="vault-studio-btn"
+              onClick={() => window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: { viewId: 'studio' } }))}
+              title="Open Studio"
+            >
+              ✨ Studio
+            </button>
+          </div>
           <div className="vault-hero-icon">
             <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M32 4L8 14V28C8 42.36 18.24 55.64 32 60C45.76 55.64 56 42.36 56 28V14L32 4Z" fill="url(#shield_grad)" opacity="0.2"/>
@@ -230,6 +286,17 @@ export default function VaultView() {
           onViewModeChange={setViewMode}
           onCreateProject={handleCreateProject}
         />
+        {/* Selection Action Bar */}
+        {selectedIds.size > 0 && (
+          <div className="vault-selection-bar">
+            <span className="vault-selection-count">{selectedIds.size} selected</span>
+            <button className="vault-selection-btn" onClick={handleSelectAll}>✅ Select All</button>
+            <button className="vault-selection-btn move" onClick={handleBulkMoveToProject}>📂 Move to Project</button>
+            <button className="vault-selection-btn delete" onClick={handleBulkDelete}>🗑️ Delete</button>
+            <button className="vault-selection-btn cancel" onClick={() => setSelectedIds(new Set())}>✕ Cancel</button>
+          </div>
+        )}
+
         <div className="vault-content-area">
           {loading ? (
             <div className="vault-empty">
@@ -337,6 +404,37 @@ export default function VaultView() {
         )}
       </div>
       </div> {/* vault-body */}
+
+      {/* Project Picker Modal for Move-to-Project */}
+      {showProjectPicker && (
+        <div className="vault-modal-overlay" onClick={() => setShowProjectPicker(false)}>
+          <div className="vault-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="vault-modal-header">
+              <h3>Move to Project</h3>
+              <button className="vault-modal-close" onClick={() => setShowProjectPicker(false)}>✕</button>
+            </div>
+            <div className="vault-modal-body">
+              {projects.length === 0 ? (
+                <div className="vault-modal-empty">No projects yet. Create one first.</div>
+              ) : (
+                <div className="vault-project-picker-list">
+                  {projects.map(p => (
+                    <button
+                      key={p.id}
+                      className="vault-project-picker-item"
+                      onClick={() => handleProjectPick(p.id)}
+                    >
+                      <span className="vault-project-picker-icon">📂</span>
+                      <span className="vault-project-picker-name">{p.name}</span>
+                      <span className="vault-project-picker-count">{p.file_count} files</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <InputModal
         isOpen={showNewProjectModal}
