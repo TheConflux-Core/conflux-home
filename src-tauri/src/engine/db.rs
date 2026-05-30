@@ -8403,6 +8403,20 @@ pub fn vault_upsert_file(
     Ok(())
 }
 
+/// Get the next sequence number for a vault file type (for cfx naming).
+/// Queries vault_files by file_type and parses cfx_ sequence numbers.
+pub fn vault_next_sequence(file_type: &str) -> Result<i64> {
+    let conn = get_conn();
+    let max_seq: i64 = conn
+        .query_row(
+            "SELECT COALESCE(MAX(CAST(SUBSTR(name, 9, 4) AS INTEGER)), 0) FROM vault_files WHERE file_type = ?1 AND name LIKE 'cfx_%'",
+            params![file_type],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+    Ok(max_seq + 1)
+}
+
 pub fn vault_get_files(
     file_type_filter: Option<&str>,
     limit: i64,

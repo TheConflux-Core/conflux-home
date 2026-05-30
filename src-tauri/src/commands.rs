@@ -8032,7 +8032,12 @@ pub async fn vault_scan_directory(
     dir_path: String,
 ) -> Result<Vec<engine::types::VaultFile>, String> {
     use std::fs;
-    let entries = fs::read_dir(&dir_path).map_err(|e| e.to_string())?;
+    log::info!("vault_scan_directory: scanning '{}'", dir_path);
+    let entries = fs::read_dir(&dir_path).map_err(|e| {
+        log::warn!("vault_scan_directory: can't read '{}': {}", dir_path, e);
+        e.to_string()
+    })?;
+    let mut count = 0u32;
     for entry in entries {
         if let Ok(entry) = entry {
             let path = entry.path();
@@ -8051,7 +8056,7 @@ pub async fn vault_scan_directory(
             let mime_type = detect_mime_type(&extension);
             let id = uuid::Uuid::new_v4().to_string();
             let path_str = path.to_string_lossy().to_string();
-            let _ = engine::db::vault_upsert_file(
+            match engine::db::vault_upsert_file(
                 &id,
                 &path_str,
                 &name,
@@ -8066,9 +8071,13 @@ pub async fn vault_scan_directory(
                 None,
                 None,
                 None,
-            );
+            ) {
+                Ok(()) => { count += 1; }
+                Err(e) => log::warn!("vault_scan_directory: upsert failed for '{}': {}", name, e),
+            }
         }
     }
+    log::info!("vault_scan_directory: '{}' => {} files upserted", dir_path, count);
     engine::db::vault_get_files(None, 100, 0).map_err(|e| e.to_string())
 }
 
@@ -8113,16 +8122,11 @@ fn detect_mime_type(ext: &Option<String>) -> Option<String> {
 
 #[tauri::command]
 pub async fn vault_get_files(
-    file_type: Option<String>,
     limit: Option<i64>,
     offset: Option<i64>,
 ) -> Result<Vec<engine::types::VaultFile>, String> {
-    engine::db::vault_get_files(
-        file_type.as_deref(),
-        limit.unwrap_or(100),
-        offset.unwrap_or(0),
-    )
-    .map_err(|e| e.to_string())
+    engine::db::vault_get_files(None, limit.unwrap_or(100), offset.unwrap_or(0))
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -8238,6 +8242,77 @@ pub async fn vault_tag_file(file_id: String, tag_name: String) -> Result<(), Str
 #[tauri::command]
 pub async fn vault_untag_file(file_id: String, tag_id: String) -> Result<(), String> {
     engine::db::vault_untag_file(&file_id, &tag_id).map_err(|e| e.to_string())
+}
+
+// ── Vault: Open file in OS default app ──
+
+#[tauri::command]
+pub async fn vault_open_file(path: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    { std::process::Command::new("open").arg(&path).spawn().map_err(|e| e.to_string())?; }
+    #[cfg(target_os = "linux")]
+    { std::process::Command::new("xdg-open").arg(&path).spawn().map_err(|e| e.to_string())?; }
+    #[cfg(target_os = "windows")]
+    { std::process::Command::new("cmd").args(["/C", "start", "", &path]).spawn().map_err(|e| e.to_string())?; }
+    Ok(())
+}
+
+// ── Vault: Rename old-style files to cfx_ convention ──
+
+#[tauri::command]
+pub async fn vault_migrate_filenames() -> Result<serde_json::Value, String> {
+    use std::fs;
+    let files = engine::db::vault_get_files(None, 10000, 0).map_err(|e| e.to_string())?;
+    let mut renamed = 0u32;
+    let mut skipped = 0u32;
+
+    let type_tag_map: std::collections::HashMap<&str, &str> = [
+        ("image", "img"), ("audio", "aud"), ("music", "mus"),
+        ("voice", "voc"), ("video", "vid"), ("code", "cod"),
+        ("document", "doc"),
+    ].into_iter().collect();
+
+    for file in &files {
+        // Skip files already using cfx_ prefix
+        if file.name.starts_with("cfx_") {
+            skipped += 1;
+            continue;
+        }
+
+        let ext = file.extension.as_deref().unwrap_or("bin");
+        let type_tag = type_tag_map.get(file.file_type.as_str()).unwrap_or(&"oth");
+        let seq = engine::db::vault_next_sequence(&file.file_type).unwrap_or(1);
+        let new_name = format!("cfx_{}_{:04}.{}", type_tag, seq, ext);
+
+        let old_path = std::path::Path::new(&file.path);
+        let new_path = old_path.with_file_name(&new_name);
+
+        // Rename on disk
+        if fs::rename(old_path, &new_path).is_ok() {
+            // Delete old DB entry (path changed, ON CONFLICT won't match)
+            let _ = engine::db::vault_delete_file(&file.id);
+            // Insert with new path
+            let _ = engine::db::vault_upsert_file(
+                &file.id,
+                &new_path.to_string_lossy(),
+                &new_name,
+                &file.file_type,
+                file.mime_type.as_deref(),
+                Some(ext),
+                file.size_bytes,
+                file.thumbnail_path.as_deref(),
+                file.width,
+                file.height,
+                file.duration_secs,
+                file.created_by.as_deref(),
+                file.source_prompt.as_deref(),
+                file.description.as_deref(),
+            );
+            renamed += 1;
+        }
+    }
+
+    Ok(serde_json::json!({ "renamed": renamed, "skipped": skipped }))
 }
 
 // ── Studio — Creator Workspace ──
@@ -9414,6 +9489,216 @@ pub async fn studio_generate_music(
     }))
 }
 
+// ── Studio: Web/Code Generation (LLM → working HTML/JSX) ──
+
+#[tauri::command]
+pub async fn studio_generate_web(
+    generation_id: String,
+    prompt: String,
+    framework: String,       // "html" | "react" | "tailwind"
+    complexity: String,      // "simple" | "medium" | "complex"
+    _reference_image: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+
+    // ── Check daily free-tier limit ──
+    let tier = engine.db().get_config("user_tier").ok().flatten().unwrap_or_else(|| "free".to_string());
+    let daily_limit: i64 = match tier.as_str() {
+        "free" => 20,
+        "pro" => 200,
+        _ => 200,
+    };
+    let daily_count = engine::db::studio_get_daily_count("code").unwrap_or(0);
+    if daily_limit > 0 && daily_count >= daily_limit {
+        engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+            .map_err(|e| e.to_string())?;
+        return Err(format!(
+            "Daily limit reached: {}/{} free web generations used today. Upgrade to Pro for more.",
+            daily_count, daily_limit
+        ));
+    }
+
+    // Update status to generating
+    engine::db::studio_update_generation_status(&generation_id, "generating", None, None, None, 0)
+        .map_err(|e| e.to_string())?;
+
+    // ── Build system prompt based on framework + complexity ──
+    let max_tokens: i64 = match complexity.as_str() {
+        "complex" => 8000,
+        "medium" => 4000,
+        _ => 2000,
+    };
+
+    let framework_instructions = match framework.as_str() {
+        "react" => concat!(
+            "Output a SINGLE React functional component using JSX.\n",
+            "Use Tailwind CSS utility classes for ALL styling (className).\n",
+            "The component must be self-contained.\n",
+            "Use modern React hooks (useState, useEffect, etc.) as needed.\n",
+            "DO NOT import React (assume it's available).\n",
+            "DO NOT use any external libraries unless they are CDN-loaded.\n",
+            "Export the component as default.\n",
+            "Wrap the code in ```jsx ... ``` fences.\n",
+        ),
+        "tailwind" => concat!(
+            "Output a SINGLE complete HTML file.\n",
+            "Include the Tailwind CSS CDN script tag in the <head>.\n",
+            "Use Tailwind utility classes for ALL styling.\n",
+            "Include any custom CSS in a <style> tag if needed for animations.\n",
+            "Include any JavaScript in a <script> tag before </body>.\n",
+            "Wrap the code in ```html ... ``` fences.\n",
+        ),
+        _ => concat!(
+            "Output a SINGLE complete HTML file.\n",
+            "All CSS MUST be in a <style> tag in the <head>.\n",
+            "All JavaScript MUST be in a <script> tag before </body>.\n",
+            "Use modern CSS: flexbox, grid, custom properties, animations, transitions.\n",
+            "Wrap the code in ```html ... ``` fences.\n",
+        ),
+    };
+
+    let complexity_hint = match complexity.as_str() {
+        "complex" => "Create a full-featured, production-quality implementation with multiple sections, interactions, and polish. Aim for 300-800 lines.",
+        "medium" => "Create a solid implementation with good styling and interactivity. Aim for 100-300 lines.",
+        _ => "Create a clean, focused implementation. Keep it under 100 lines.",
+    };
+
+    let system_prompt = format!(
+        concat!(
+            "You are an expert web developer and designer. Generate ONLY code — no explanations, no markdown outside code fences.\n",
+            "Rules:\n",
+            "- Output ONLY code inside markdown code fences\n",
+            "- Make it visually polished — this is a showcase, not a prototype\n",
+            "- Include hover states, transitions, and micro-interactions\n",
+            "- Use modern CSS (flexbox, grid, custom properties, animations)\n",
+            "- NEVER use external dependencies unless CDN-linked\n",
+            "- Code must be immediately runnable in a browser\n",
+            "- Make it responsive by default\n",
+            "- Use a dark theme aesthetic (dark backgrounds, light text) unless the prompt says otherwise\n",
+            "\n{}\n",
+            "\n{}\n",
+        ),
+        framework_instructions,
+        complexity_hint,
+    );
+
+    let messages = vec![
+        engine::router::OpenAIMessage {
+            role: "system".to_string(),
+            content: Some(system_prompt),
+            tool_call_id: None,
+            tool_calls: None,
+        },
+        engine::router::OpenAIMessage {
+            role: "user".to_string(),
+            content: Some(prompt.clone()),
+            tool_call_id: None,
+            tool_calls: None,
+        },
+    ];
+
+    // ── Call LLM via cloud_chat ──
+    let response = cloud::cloud_chat(Some("code_gen"), messages, Some(max_tokens), Some(0.7), None)
+        .await
+        .map_err(|e| {
+            let _ = engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0);
+            format!("AI generation failed: {}", e)
+        })?;
+
+    let raw_content = response.content.trim().to_string();
+    log::info!("[Studio Web] LLM response: {} chars, model={}, provider={}",
+        raw_content.len(), response.model, response.provider_id);
+
+    if raw_content.is_empty() {
+        engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+            .map_err(|e| e.to_string())?;
+        return Err("AI returned empty response. Check API key and credits.".to_string());
+    }
+
+    // ── Extract code from markdown fences ──
+    let code = extract_code_block(&raw_content, &framework);
+
+    if code.is_empty() {
+        let err_meta = serde_json::json!({"error": "No code found in response", "raw_preview": &raw_content[..raw_content.len().min(500)]}).to_string();
+        engine::db::studio_update_generation_status(&generation_id, "failed", None, None, Some(&err_meta), 0)
+            .map_err(|e| e.to_string())?;
+        return Err("AI response contained no usable code.".to_string());
+    }
+
+    log::info!("[Studio Web] Extracted {} chars of {} code", code.len(), framework);
+
+    // ── Build metadata ──
+    let metadata = serde_json::json!({
+        "code": code,
+        "framework": framework,
+        "complexity": complexity,
+        "language": if framework == "react" { "jsx" } else { "html" },
+        "model": response.model,
+        "provider": response.provider_id,
+        "tokens_used": response.tokens_used,
+        "raw_response_length": raw_content.len(),
+    })
+    .to_string();
+
+    // Update generation as complete (no file output — code lives in metadata)
+    engine::db::studio_update_generation_status(
+        &generation_id,
+        "complete",
+        None,
+        None,
+        Some(&metadata),
+        0,
+    )
+    .map_err(|e| e.to_string())?;
+
+    let _ = engine::db::studio_upsert_prompt(&prompt, "code");
+    let month = chrono::Utc::now().format("%Y-%m").to_string();
+    let _ = engine::db::studio_update_usage("local", &month, "code", 0);
+
+    Ok(serde_json::json!({
+        "status": "complete",
+        "metadata": metadata,
+        "provider": response.provider_id,
+        "model": response.model,
+        "code_length": code.len(),
+    }))
+}
+
+/// Extract code from markdown fences or raw response.
+/// Tries ```html, ```jsx, ```javascript, ```tsx, then generic ```.
+fn extract_code_block(response: &str, framework: &str) -> String {
+    let prefixes: Vec<&str> = match framework {
+        "react" => vec!["```jsx", "```tsx", "```javascript", "```js", "```"],
+        _ => vec!["```html", "```css", "```"],
+    };
+
+    for prefix in &prefixes {
+        if let Some(start_idx) = response.find(prefix) {
+            let code_start = start_idx + prefix.len();
+            // Skip optional language tag and newline
+            let remaining = &response[code_start..];
+            let code_body = if remaining.starts_with('\n') {
+                &remaining[1..]
+            } else if let Some(nl) = remaining.find('\n') {
+                &remaining[nl + 1..]
+            } else {
+                remaining
+            };
+            if let Some(end_idx) = code_body.find("```") {
+                return code_body[..end_idx].trim().to_string();
+            }
+        }
+    }
+
+    // No fences found — try to use the raw response if it looks like code
+    let trimmed = response.trim();
+    if trimmed.starts_with("<!DOCTYPE") || trimmed.starts_with("<html") || trimmed.starts_with("<div") {
+        return trimmed.to_string();
+    }
+
+    String::new()
+}
+
 // ── Studio: Wallpaper Generation (Replicate FLUX) ──
 
 #[tauri::command]
@@ -9560,30 +9845,60 @@ pub async fn studio_save_to_vault(generation_id: String) -> Result<serde_json::V
     let (ext, file_type, mime_type) = match gen.module.as_str() {
         "image" => ("png", "image", "image/png"),
         "voice" => ("mp3", "audio", "audio/mpeg"),
+        "music" => ("mp3", "audio", "audio/mpeg"),
+        "code" => ("html", "code", "text/html"),
         _ => ("bin", "other", "application/octet-stream"),
     };
 
-    let filename = format!("{}_{}.{}", gen.module, &generation_id[..8], ext);
+    // Generate clean cfx filename: cfx_{type}_{seq:04d}.{ext}
+    let type_tag = match gen.module.as_str() {
+        "image" => "img",
+        "voice" => "voc",
+        "music" => "mus",
+        "code" => "cod",
+        "video" => "vid",
+        "document" => "doc",
+        _ => "oth",
+    };
+    let seq = engine::db::vault_next_sequence(file_type).unwrap_or(1);
+    let filename = format!("cfx_{}_{:04}.{}", type_tag, seq, ext);
     let vault_path = format!("{}/{}", vault_dir, filename);
 
-    // Copy/download the file
-    if output_url.starts_with("http") {
-        // Download from URL (images from Replicate)
-        let client = reqwest::Client::new();
-        let bytes = client
-            .get(output_url)
-            .send()
-            .await
-            .map_err(|e| format!("Download failed: {}", e))?
-            .bytes()
-            .await
-            .map_err(|e| format!("Read failed: {}", e))?;
-        std::fs::write(&vault_path, &bytes).map_err(|e| format!("Write failed: {}", e))?;
-    } else if let Some(src) = output_path {
-        // Copy local file (voice)
-        std::fs::copy(src, &vault_path).map_err(|e| format!("Copy failed: {}", e))?;
+    // For code/web generations: write code from metadata to file
+    if gen.module == "code" {
+        let meta: serde_json::Value = gen.metadata_json
+            .as_deref()
+            .and_then(|s| serde_json::from_str(s).ok())
+            .unwrap_or(serde_json::json!({}));
+        let code = meta["code"].as_str().unwrap_or("");
+        if code.is_empty() {
+            return Err("No code found in generation metadata".to_string());
+        }
+        std::fs::write(&vault_path, code).map_err(|e| format!("Write failed: {}", e))?;
     } else {
-        return Err("No output URL or path found for this generation".to_string());
+        // Determine source: URL (images) or local path (voice/music)
+        let output_url = gen.output_url.as_deref().unwrap_or("");
+        let output_path = gen.output_path.as_deref();
+
+        // Copy/download the file
+        if output_url.starts_with("http") {
+            // Download from URL (images from Replicate)
+            let client = reqwest::Client::new();
+            let bytes = client
+                .get(output_url)
+                .send()
+                .await
+                .map_err(|e| format!("Download failed: {}", e))?
+                .bytes()
+                .await
+                .map_err(|e| format!("Read failed: {}", e))?;
+            std::fs::write(&vault_path, &bytes).map_err(|e| format!("Write failed: {}", e))?;
+        } else if let Some(src) = output_path {
+            // Copy local file (voice/music)
+            std::fs::copy(src, &vault_path).map_err(|e| format!("Copy failed: {}", e))?;
+        } else {
+            return Err("No output URL or path found for this generation".to_string());
+        }
     }
 
     let size_bytes = std::fs::metadata(&vault_path)
@@ -9649,11 +9964,24 @@ pub async fn studio_export_generations_zip(
         let (ext, filename) = match gen.module.as_str() {
             "image" => ("png", format!("image_{}.png", &id[..8])),
             "voice" => ("mp3", format!("voice_{}.mp3", &id[..8])),
+            "music" => ("mp3", format!("music_{}.mp3", &id[..8])),
+            "code" => ("html", format!("web_{}.html", &id[..8])),
             _ => ("bin", format!("{}_{}.bin", gen.module, &id[..8])),
         };
 
-        // Acquire file bytes (download or copy)
-        let data = if let Some(url) = &gen.output_url {
+        // Acquire file bytes (download, read, or extract from metadata)
+        let data = if gen.module == "code" {
+            // Extract code from metadata_json
+            let meta: serde_json::Value = gen.metadata_json
+                .as_deref()
+                .and_then(|s| serde_json::from_str(s).ok())
+                .unwrap_or(serde_json::json!({}));
+            let code = meta["code"].as_str().unwrap_or("");
+            if code.is_empty() {
+                return Err(format!("Generation {} has no code in metadata", id));
+            }
+            code.as_bytes().to_vec()
+        } else if let Some(url) = &gen.output_url {
             if url.starts_with("http") {
                 // Download from remote URL
                 let client = reqwest::Client::new();

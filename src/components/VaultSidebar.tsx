@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { VaultProject, VaultTag } from '../types';
 
 interface Props {
@@ -8,7 +7,7 @@ interface Props {
   projects: VaultProject[];
   tags: VaultTag[];
   onCreateProject: () => void;
-  onEditProject: (id: string, name: string, description: string | null) => void;
+  onRenameProject: (project: VaultProject) => void;
   onDeleteProject: (id: string) => void;
 }
 
@@ -26,15 +25,12 @@ const FILE_TYPES = [
   { key: 'document', icon: '📄', label: 'Documents' },
 ];
 
-export default function VaultSidebar({ activeSection, onSectionChange, projects, tags, onCreateProject, onEditProject, onDeleteProject }: Props) {
+export default function VaultSidebar({ activeSection, onSectionChange, projects, tags, onCreateProject, onRenameProject, onDeleteProject }: Props) {
   const [hoveredProject, setHoveredProject] = useState<string | null>(null);
 
-  const handleEdit = (e: React.MouseEvent, project: VaultProject) => {
+  const handleRename = (e: React.MouseEvent, project: VaultProject) => {
     e.stopPropagation();
-    const newName = prompt('Rename project:', project.name);
-    if (newName && newName.trim() && newName.trim() !== project.name) {
-      onEditProject(project.id, newName.trim(), project.description ?? null);
-    }
+    onRenameProject(project);
   };
 
   const handleDelete = (e: React.MouseEvent, project: VaultProject) => {
@@ -90,14 +86,14 @@ export default function VaultSidebar({ activeSection, onSectionChange, projects,
               </div>
               {hoveredProject === p.id && (
                 <div className="vault-project-actions">
-                  <button className="vault-project-action-btn" onClick={(e) => handleEdit(e, p)} title="Rename">✏️</button>
+                  <button className="vault-project-action-btn" onClick={(e) => handleRename(e, p)} title="Rename">✏️</button>
                   <button className="vault-project-action-btn vault-project-action-delete" onClick={(e) => handleDelete(e, p)} title="Delete">🗑️</button>
                 </div>
               )}
             </li>
           ))}
         </ul>
-        <button className="vault-btn-secondary" style={{ width: '100%', marginTop: 8 }} onClick={onCreateProject}>
+        <button className="vault-btn-secondary vault-new-project-btn" onClick={onCreateProject}>
           + New Project
         </button>
       </div>

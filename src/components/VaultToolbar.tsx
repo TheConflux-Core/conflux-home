@@ -3,11 +3,10 @@ import { VaultViewMode } from '../types';
 interface Props {
   viewMode: VaultViewMode;
   onViewModeChange: (mode: VaultViewMode) => void;
-  onScan: () => void;
   onCreateProject: () => void;
 }
 
-export default function VaultToolbar({ viewMode, onViewModeChange, onScan, onCreateProject }: Props) {
+export default function VaultToolbar({ viewMode, onViewModeChange, onCreateProject }: Props) {
   return (
     <div className="vault-toolbar">
       <div className="vault-toolbar-group">
@@ -19,7 +18,6 @@ export default function VaultToolbar({ viewMode, onViewModeChange, onScan, onCre
                 onClick={() => onViewModeChange('timeline')} title="Timeline view">⏱</button>
       </div>
       <div className="vault-toolbar-group">
-        <button className="vault-btn-secondary" onClick={onScan}>🔄 Scan</button>
         <button className="vault-btn-primary" onClick={onCreateProject}>+ New Project</button>
       </div>
     </div>
