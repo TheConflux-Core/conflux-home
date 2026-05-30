@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { useStudio } from '../hooks/useStudio';
+import { useStudio } from '../context/StudioContext';
 import { STUDIO_MODULES, StudioModule } from '../types';
 import ToolPalette from './ToolPalette';
 import AdjustmentPanel from './AdjustmentPanel';
@@ -55,12 +55,15 @@ export default function StudioDashboard({ initialModule }: { initialModule?: Stu
     setBatchGenerations,
     enterGallery,
     setEnterGallery,
+    referenceImage,
+    setReferenceImage,
+    referenceAudio,
+    setReferenceAudio,
   } = useStudio();
 
   // All hooks (must be called unconditionally)
   const [credits, setCredits] = useState<number | null>(null);
   const [toolPaletteCollapsed, setToolPaletteCollapsed] = useState(false);
-  const [referenceImage, setReferenceImage] = useState<string | null>(null);
 
   // Analytics panel state
   const [showAnalytics, setShowAnalytics] = useState(false);
@@ -145,7 +148,23 @@ export default function StudioDashboard({ initialModule }: { initialModule?: Stu
     } catch (e) {
       console.error('Failed to open file dialog:', e);
     }
-  }, []);
+  }, [setReferenceImage]);
+
+  // Handle reference audio upload (for music cover generation)
+  const handleReferenceAudioUpload = useCallback(async () => {
+    try {
+      const selected = await open({
+        title: 'Select Reference Audio',
+        filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac'] }],
+        multiple: false,
+      });
+      if (selected) {
+        setReferenceAudio(Array.isArray(selected) ? selected[0] : selected);
+      }
+    } catch (e) {
+      console.error('Failed to open audio file dialog:', e);
+    }
+  }, [setReferenceAudio]);
 
   // Wrap generate to also pass reference image and refresh credits
   const handleGenerate = useCallback(async () => {
@@ -294,7 +313,22 @@ export default function StudioDashboard({ initialModule }: { initialModule?: Stu
                 </div>
               ) : selectedGeneration ? (
                 <div className="preview-generation">
-                  {selectedGeneration.module === 'image' && getDisplayUrl(selectedGeneration) && (
+                  {selectedGeneration.status === 'failed' && (
+                    <div className="preview-error">
+                      <div className="preview-error-icon">❌</div>
+                      <div className="preview-error-title">Generation Failed</div>
+                      <div className="preview-error-message">
+                        {(() => {
+                          try {
+                            const meta = selectedGeneration.metadata_json ? JSON.parse(selectedGeneration.metadata_json) : {};
+                            return meta.message || meta.body || meta.error || 'Unknown error';
+                          } catch { return 'Unknown error'; }
+                        })()}
+                      </div>
+                      <div className="preview-error-prompt">{selectedGeneration.prompt}</div>
+                    </div>
+                  )}
+                  {selectedGeneration.status !== 'failed' && selectedGeneration.module === 'image' && getDisplayUrl(selectedGeneration) && (
                     <motion.img
                       src={getDisplayUrl(selectedGeneration)!}
                       alt={selectedGeneration.prompt}
@@ -304,7 +338,7 @@ export default function StudioDashboard({ initialModule }: { initialModule?: Stu
                       transition={{ duration: 0.3 }}
                     />
                   )}
-                  {(selectedGeneration.module === 'voice' || selectedGeneration.module === 'music') && getDisplayUrl(selectedGeneration) && (
+                  {selectedGeneration.status !== 'failed' && selectedGeneration.module === 'voice' && getDisplayUrl(selectedGeneration) && (
                     <div className="preview-voice">
                       <div className="preview-waveform">
                         {[...Array(20)].map((_, i) => (
@@ -318,7 +352,41 @@ export default function StudioDashboard({ initialModule }: { initialModule?: Stu
                       <audio controls src={getDisplayUrl(selectedGeneration)!} className="preview-audio" />
                     </div>
                   )}
-                  {!getDisplayUrl(selectedGeneration) && (
+                  {selectedGeneration.status !== 'failed' && selectedGeneration.module === 'music' && getDisplayUrl(selectedGeneration) && (
+                    <div className="preview-music">
+                      <div className="preview-music-icon">🎵</div>
+                      <div className="preview-music-info">
+                        <div className="preview-music-title">
+                          {selectedGeneration.prompt.length > 60
+                            ? selectedGeneration.prompt.slice(0, 60) + '...'
+                            : selectedGeneration.prompt}
+                        </div>
+                        <div className="preview-music-meta">
+                          {(() => {
+                            try {
+                              const meta = selectedGeneration.metadata_json ? JSON.parse(selectedGeneration.metadata_json) : {};
+                              return [
+                                meta.is_cover ? 'Cover' : null,
+                                meta.is_instrumental ? 'Instrumental' : null,
+                                meta.model || 'music-2.6',
+                              ].filter(Boolean).join(' · ');
+                            } catch { return 'music-2.6'; }
+                          })()}
+                        </div>
+                      </div>
+                      <div className="preview-music-waveform">
+                        {[...Array(32)].map((_, i) => (
+                          <div
+                            key={i}
+                            className="preview-music-bar"
+                            style={{ animationDelay: `${i * 0.08}s` }}
+                          />
+                        ))}
+                      </div>
+                      <audio controls src={getDisplayUrl(selectedGeneration)!} className="preview-audio" />
+                    </div>
+                  )}
+                  {!getDisplayUrl(selectedGeneration) && selectedGeneration.status !== 'failed' && (
                     <div className="preview-empty">
                       <div className="preview-empty-icon">
                         {selectedGeneration.module === 'voice' ? '🗣️' : selectedGeneration.module === 'music' ? '🎵' : '🎨'}
@@ -365,6 +433,28 @@ export default function StudioDashboard({ initialModule }: { initialModule?: Stu
           ) : (
             <button className="dashboard-reference-btn" onClick={handleReferenceUpload}>
               📎 Add Reference Image
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Reference Audio (for music module) */}
+      {activeModule === 'music' && (
+        <div className="dashboard-reference-row">
+          {referenceAudio ? (
+            <div className="dashboard-reference-preview">
+              <div className="dashboard-reference-audio-info">
+                <span className="dashboard-reference-audio-icon">🎵</span>
+                <span className="dashboard-reference-audio-name">
+                  {referenceAudio.split('/').pop() || referenceAudio.split('\\').pop() || 'Reference Track'}
+                </span>
+              </div>
+              <button className="dashboard-reference-remove" onClick={() => setReferenceAudio(null)}>✕</button>
+              <span className="dashboard-reference-label">Cover Reference</span>
+            </div>
+          ) : (
+            <button className="dashboard-reference-btn" onClick={handleReferenceAudioUpload}>
+              🎵 Add Reference Track (Cover Mode)
             </button>
           )}
         </div>

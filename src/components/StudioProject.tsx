@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { convertFileSrc } from '@tauri-apps/api/core';
-import { useStudio } from '../hooks/useStudio';
+import { useStudio } from '../context/StudioContext';
 import { STUDIO_MODULES, StudioModule } from '../types';
 import '../styles-studio.css';
 

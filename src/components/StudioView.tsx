@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import StudioDashboard from './StudioDashboard';
 import StudioOnboarding from './StudioOnboarding';
+import { StudioProvider } from '../context/StudioContext';
 import { StudioModule } from '../types';
 
 export default function StudioView() {
@@ -15,9 +16,9 @@ export default function StudioView() {
   }, []);
 
   return (
-    <>
+    <StudioProvider>
       {!showOnboarding && <StudioDashboard initialModule={initialModule} />}
       {showOnboarding && <StudioOnboarding onComplete={handleOnboardingComplete} />}
-    </>
+    </StudioProvider>
   );
 }
