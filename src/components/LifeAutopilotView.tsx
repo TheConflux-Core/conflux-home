@@ -15,6 +15,7 @@ import { TelemetryGrid } from './TelemetryGrid';
 import { AlertConsole } from './AlertConsole';
 import { QuickLogModal } from './QuickLogModal';
 import { InsightCards } from './InsightCards';
+import AgentActivityFeed from './AgentActivityFeed';
 
 /* ── Config ──────────────────────────────────── */
 
@@ -239,6 +240,9 @@ export default function LifeAutopilotView() {
         taskCount={tasks.length}
         trendPct={safeTrendPct}
       />
+
+      {/* Agent Activity Feed — primary content area of Orbit */}
+      <AgentActivityFeed />
 
       {/* Morning Brief */}
       <div className="mc-brief-section">

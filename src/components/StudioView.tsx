@@ -5,7 +5,9 @@ import { StudioProvider } from '../context/StudioContext';
 import { StudioModule } from '../types';
 
 export default function StudioView() {
-  const [showOnboarding, setShowOnboarding] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    return localStorage.getItem('conflux-studio-onboarded') !== 'true';
+  });
   const [initialModule, setInitialModule] = useState<StudioModule | undefined>(undefined);
 
   const handleOnboardingComplete = useCallback((module?: StudioModule) => {
@@ -13,6 +15,7 @@ export default function StudioView() {
       setInitialModule(module);
     }
     setShowOnboarding(false);
+    localStorage.setItem('conflux-studio-onboarded', 'true');
   }, []);
 
   return (

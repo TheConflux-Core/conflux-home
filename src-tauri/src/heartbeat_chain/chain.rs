@@ -120,7 +120,8 @@ fn truncate_response(s: &str, max_chars: usize) -> String {
 
 /// Execute a single chain step via process_turn, returning the response text.
 /// Returns None if the step has no task_message or the engine is unavailable.
-async fn execute_step(step: &ChainStep) -> Option<String> {
+/// previous_context contains summaries from earlier steps in this chain run.
+async fn execute_step(step: &ChainStep, previous_context: &str) -> Option<String> {
     let task_message = match &step.task_message {
         Some(msg) if !msg.is_empty() => msg.clone(),
         _ => return None,
@@ -151,15 +152,20 @@ async fn execute_step(step: &ChainStep) -> Option<String> {
         }
     };
 
-    // Wrap the task with context preamble including current date
+    // Wrap the task with context preamble including current date and previous step outputs
     let now = chrono::Utc::now();
     let today = now.format("%Y-%m-%d").to_string();
     let current_month = now.format("%Y-%m").to_string();
+    let context_block = if previous_context.is_empty() {
+        String::new()
+    } else {
+        format!("\n\n{}\nFocus on what CHANGED since last heartbeat. Don't repeat stale info — highlight new findings, trends, and deltas.\n", previous_context)
+    };
     let message = format!(
-        "HEARTBEAT TASK ({}):\n{}\n\
+        "HEARTBEAT TASK ({}):\n{}{}\n\
          Current date: {} (month: {}).\n\
          Be concise. Report actual data only. 2-3 sentences max.",
-        step.action, task_message, today, current_month
+        step.action, task_message, context_block, today, current_month
     );
 
     log::info!("[HeartbeatChain] Executing step '{}' for agent '{}'", step.action, step.agent);
@@ -242,6 +248,148 @@ fn emit_beat(app_handle: &tauri::AppHandle, beat: &BeatEventJson) {
     }
 }
 
+/// Parse action items from a step response text.
+/// Looks for bullet points, numbered lists, or action-oriented sentences.
+/// Detect an action type from an action item text.
+/// Maps common agent suggestions to concrete actions the UI can execute.
+fn detect_action_type(text: &str) -> &str {
+    let lower = text.to_lowercase();
+    // Budget / expense logging
+    if lower.contains("log") && (lower.contains("expense") || lower.contains("spend") || lower.contains("transaction") || lower.contains("costco") || lower.contains("grocery")) {
+        return "log_expense";
+    }
+    if lower.contains("track") && (lower.contains("spend") || lower.contains("money") || lower.contains("purchase")) {
+        return "log_expense";
+    }
+    // Kitchen / grocery
+    if lower.contains("grocery") || lower.contains("shopping list") || lower.contains("add to list") {
+        return "add_grocery";
+    }
+    if lower.contains("meal plan") || lower.contains("plan your meals") || lower.contains("weekly plan") {
+        return "plan_meals";
+    }
+    // Task creation
+    if lower.contains("create task") || lower.contains("add task") || lower.contains("set a reminder") || lower.contains("create a task") || lower.contains("add a task") {
+        return "create_task";
+    }
+    // Dream / goal milestones
+    if lower.contains("milestone") || lower.contains("break it down") || lower.contains("break this down") || lower.contains("first step") {
+        return "view_milestones";
+    }
+    // Navigation
+    if lower.contains("budget") || lower.contains("finance") {
+        return "navigate:budget";
+    }
+    if lower.contains("kitchen") || lower.contains("pantry") || lower.contains("meal") {
+        return "navigate:kitchen";
+    }
+    if lower.contains("dream") || lower.contains("goal") || lower.contains("horizon") {
+        return "navigate:dreams";
+    }
+    if lower.contains("task") || lower.contains("habit") || lower.contains("orbit") {
+        return "navigate:life";
+    }
+    if lower.contains("journal") || lower.contains("check-in") || lower.contains("check in") || lower.contains("wellness") {
+        return "navigate:echo";
+    }
+    // Default: no specific action
+    "none"
+}
+
+fn parse_action_items(response: &str) -> Option<String> {
+    let items: Vec<serde_json::Value> = response
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim();
+            // Bullet lists: "- " or "• " prefix
+            (trimmed.starts_with("- ") || trimmed.starts_with("• ") || trimmed.starts_with("* "))
+            || trimmed.starts_with("→")
+            || (trimmed.len() < 120 && (trimmed.starts_with(|c: char| c.is_ascii_digit()) && trimmed.contains('.'))
+                && !trimmed.starts_with("http"))
+        })
+        .map(|line| {
+            let text = line.trim_start_matches(&['-', '•', '*', '→'][..]).trim().to_string();
+            let action_type = detect_action_type(&text);
+            serde_json::json!({
+                "text": text,
+                "action": action_type,
+            })
+        })
+        .filter(|item| {
+            let text = item["text"].as_str().unwrap_or("");
+            !text.is_empty() && text.len() > 3
+        })
+        .take(5)
+        .collect();
+
+    if items.is_empty() {
+        return None;
+    }
+    serde_json::to_string(&items).ok()
+}
+
+/// Store an activity entry to the DB and emit conflux:activity-new event.
+/// Fire-and-forget — errors are logged but don't interrupt the chain.
+fn store_activity_entry(
+    app_handle: &tauri::AppHandle,
+    chain_run_id: &str,
+    agent_id: &str,
+    agent_label: &str,
+    emoji: &str,
+    action: &str,
+    summary: &str,
+    detail: &str,
+) {
+    let id = uuid::Uuid::new_v4().to_string();
+    let action_items = parse_action_items(detail);
+
+    // Emit the real-time event first
+    if let Err(e) = app_handle.emit("conflux:activity-new", serde_json::json!({
+        "id": id,
+        "agent_id": agent_id,
+        "agent_name": agent_label,
+        "agent_emoji": emoji,
+        "action": action,
+        "summary": summary,
+        "detail": detail,
+        "action_items": action_items,
+        "chain_run_id": chain_run_id,
+    })) {
+        log::warn!("[HeartbeatChain] Failed to emit activity-new: {}", e);
+    }
+
+    // Store to DB asynchronously (fire-and-forget)
+    if let Some(engine) = crate::engine::try_get_engine() {
+        let db = engine.db().clone();
+        let id = id.clone();
+        let agent_id = agent_id.to_string();
+        let agent_label = agent_label.to_string();
+        let emoji = emoji.to_string();
+        let action = action.to_string();
+        let summary = summary.to_string();
+        let detail = detail.to_string();
+        let action_items = action_items.clone();
+        let chain_run_id = chain_run_id.to_string();
+
+        tauri::async_runtime::spawn(async move {
+            let db_clone = db.clone();
+            let result = tokio::task::spawn_blocking(move || {
+                db_clone.insert_heartbeat_activity(
+                    &id, &agent_id, &agent_label,
+                    Some(&emoji), &action, &summary,
+                    Some(&detail), action_items.as_deref(),
+                    Some(&chain_run_id),
+                )
+            }).await;
+            match result {
+                Ok(Ok(())) => {},
+                Ok(Err(e)) => log::warn!("[HeartbeatChain] Failed to store activity entry: {}", e),
+                Err(e) => log::warn!("[HeartbeatChain] Failed to spawn activity store: {}", e),
+            }
+        });
+    }
+}
+
 /// Call tts_speak for the chain_summary step.
 async fn call_tts_speak(text: &str, voice_id: Option<&str>) {
     let voice_arg = voice_id.unwrap_or("TvxTBL9RtGW6tVhl4NoI");
@@ -284,8 +432,30 @@ pub fn start_chain_for_beat(app_handle: tauri::AppHandle, beat_timestamp_ms: i64
 
 async fn run_chain(app_handle: tauri::AppHandle, steps: Vec<ChainStep>) {
     let total = steps.len();
+    // Generate a unique chain_run_id at start so all entries from this run are grouped
+    let chain_run_id = uuid::Uuid::new_v4().to_string();
     // Collect response text from each step for the final summary
     let mut step_responses: Vec<(String, String)> = Vec::new(); // (agent, response_text)
+
+    // Fetch previous chain run entries for change detection
+    // Agents can see what was reported last time and focus on what's different
+    let previous_run_context: String = match crate::engine::try_get_engine() {
+        Some(engine) => {
+            match engine.db().get_last_chain_run_entries(&chain_run_id) {
+                Ok(entries) if !entries.is_empty() => {
+                    entries.iter()
+                        .map(|e| format!("- {} ({}): {}", e.agent_name, e.action.replace('_', " "), e.summary))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                }
+                _ => String::new(),
+            }
+        }
+        None => String::new(),
+    };
+    if !previous_run_context.is_empty() {
+        log::info!("[HeartbeatChain] Loaded previous run context ({} chars)", previous_run_context.len());
+    }
 
     for (i, step) in steps.iter().enumerate() {
         let step_num = i as u32;
@@ -295,7 +465,7 @@ async fn run_chain(app_handle: tauri::AppHandle, steps: Vec<ChainStep>) {
             tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
         }
 
-        let (agent_label, _emoji, _color) = agent_info(&step.agent);
+        let (agent_label, emoji, _color) = agent_info(&step.agent);
 
         // Persist current step so heartbeat_chain_get_state returns real progress
         {
@@ -317,10 +487,24 @@ async fn run_chain(app_handle: tauri::AppHandle, steps: Vec<ChainStep>) {
         }));
 
         // Execute the real task (or fall back to hardcoded detail)
+        // Build context from previous steps + previous chain run for change detection
+        let mut previous_context = String::new();
+        if !previous_run_context.is_empty() {
+            previous_context.push_str(&format!("LAST HEARTBEAT (what was reported before):\n{}\n\n", previous_run_context));
+        }
+        if !step_responses.is_empty() {
+            let current_run: String = step_responses
+                .iter()
+                .map(|(agent, resp)| format!("- {}: {}", agent, resp))
+                .collect::<Vec<_>>()
+                .join("\n");
+            previous_context.push_str(&format!("THIS HEARTBEAT (what agents found so far):\n{}", current_run));
+        }
+
         let detail = if step.action == "chain_summary" {
             // Step 9: compile summary from all previous step responses
             compile_chain_summary(&step_responses).await
-        } else if let Some(response) = execute_step(step).await {
+        } else if let Some(response) = execute_step(step, &previous_context).await {
             step_responses.push((step.agent.clone(), response.clone()));
             response
         } else {
@@ -331,6 +515,18 @@ async fn run_chain(app_handle: tauri::AppHandle, steps: Vec<ChainStep>) {
         };
 
         let event_type = if step.action == "chain_summary" { "success" } else { "info" };
+
+        // Store to DB and emit real-time event for the activity feed
+        store_activity_entry(
+            &app_handle,
+            &chain_run_id,
+            &step.agent,
+            &agent_label,
+            emoji,
+            &step.action,
+            &detail,
+            &detail,
+        );
 
         // Emit beat event with real detail
         let beat = BeatEventJson {
