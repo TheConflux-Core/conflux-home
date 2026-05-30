@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
+import '../styles-studio-upgrade.css';
 
 interface StudioUpgradeModalProps {
   isOpen: boolean;
@@ -18,89 +19,45 @@ export default function StudioUpgradeModal({ isOpen, onClose, feature }: StudioU
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(0,0,0,0.6)',
-            backdropFilter: 'blur(8px)',
-          }}
         >
           <motion.div
+            className="studio-upgrade-modal"
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
             onClick={(e) => e.stopPropagation()}
-            style={{
-              background: 'linear-gradient(135deg, #1a1033 0%, #0d0a1a 100%)',
-              border: '1px solid rgba(139, 92, 246, 0.3)',
-              borderRadius: 16,
-              padding: '32px',
-              maxWidth: 420,
-              width: '90%',
-              textAlign: 'center',
-              boxShadow: '0 25px 60px rgba(139, 92, 246, 0.15)',
-            }}
           >
             {/* Icon */}
-            <div style={{ fontSize: 48, marginBottom: 16 }}>⚡</div>
+            <div className="studio-upgrade-icon">⚡</div>
 
             {/* Title */}
-            <h2 style={{
-              fontSize: 22,
-              fontWeight: 700,
-              color: '#fff',
-              margin: '0 0 8px',
-            }}>
+            <h2 className="studio-upgrade-title">
               {feature}
             </h2>
 
             {/* Subtitle */}
-            <p style={{
-              fontSize: 14,
-              color: 'rgba(255,255,255,0.6)',
-              margin: '0 0 24px',
-              lineHeight: 1.5,
-            }}>
+            <p className="studio-upgrade-subtitle">
               This is a Pro feature. Upgrade to unlock higher limits, premium models, and creative tools.
             </p>
 
             {/* Features comparison */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 12,
-              marginBottom: 24,
-              textAlign: 'left',
-            }}>
-              <div style={{
-                background: 'rgba(255,255,255,0.04)',
-                borderRadius: 10,
-                padding: '14px 16px',
-              }}>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+            <div className="studio-upgrade-compare">
+              <div className="studio-upgrade-tier studio-upgrade-tier-free">
+                <div className="studio-upgrade-tier-label">
                   Free
                 </div>
-                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.6 }}>
+                <div className="studio-upgrade-tier-features">
                   ✕ {feature}<br/>
                   ✓ 5 images/day<br/>
                   ✓ 10 songs/day<br/>
                   ✓ Basic TTS
                 </div>
               </div>
-              <div style={{
-                background: 'rgba(139, 92, 246, 0.1)',
-                border: '1px solid rgba(139, 92, 246, 0.3)',
-                borderRadius: 10,
-                padding: '14px 16px',
-              }}>
-                <div style={{ fontSize: 11, color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+              <div className="studio-upgrade-tier studio-upgrade-tier-pro">
+                <div className="studio-upgrade-tier-label studio-upgrade-tier-label-pro">
                   Pro
                 </div>
-                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.9)', lineHeight: 1.6 }}>
+                <div className="studio-upgrade-tier-features studio-upgrade-tier-features-pro">
                   ✓ {feature}<br/>
                   ✓ 50 images/day<br/>
                   ✓ 100 songs/day<br/>
@@ -110,37 +67,16 @@ export default function StudioUpgradeModal({ isOpen, onClose, feature }: StudioU
             </div>
 
             {/* CTA buttons */}
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div className="studio-upgrade-actions">
               <button
                 onClick={onClose}
-                style={{
-                  flex: 1,
-                  padding: '12px 16px',
-                  borderRadius: 10,
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  background: 'transparent',
-                  color: 'rgba(255,255,255,0.6)',
-                  fontSize: 14,
-                  cursor: 'pointer',
-                  fontWeight: 500,
-                }}
+                className="studio-upgrade-btn studio-upgrade-btn-secondary"
               >
                 Maybe Later
               </button>
               <button
                 onClick={onClose}
-                style={{
-                  flex: 1,
-                  padding: '12px 16px',
-                  borderRadius: 10,
-                  border: 'none',
-                  background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
-                  color: '#fff',
-                  fontSize: 14,
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  boxShadow: '0 4px 15px rgba(139, 92, 246, 0.3)',
-                }}
+                className="studio-upgrade-btn studio-upgrade-btn-primary"
               >
                 Upgrade to Pro
               </button>
