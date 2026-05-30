@@ -55,17 +55,15 @@ tauri-plugin-process = "2"                             # Process control (gracef
 lettre = { version = "0.11", features = ["smtp-transport", "builder", "hostname", "rustls-tls"], default-features = false }  # Email sending (SMTP, rustls)
 dirs = "6.0.0"
 zip = "0.6"                                             # ZIP archive creation for bulk export
+sha2 = "0.10"                                            # SHA-256 file hashing for baselines (cross-platform)
+notify = { version = "6", features = ["serde"] }       # Cross-platform filesystem watcher (watchtower)
+sysinfo = "0.32"                                       # Process listing, CPU/memory, system info (watchtower)
+walkdir = "2"                                          # Recursive directory traversal (watchtower)
 
 # Voice Engine — desktop only (cpal for capture, ElevenLabs for STT/TTS)
 [target.'cfg(not(target_os = "android"))'.dependencies]
 cpal = "0.15"
 hound = "3.5"
-
-# Watchtower dependencies (Phase 6)
-notify = { version = "6", features = ["serde"] }       # Cross-platform filesystem watcher
-sysinfo = "0.32"                                       # Process listing, CPU/memory, system info
-sha2 = "0.10"                                          # SHA-256 file hashing for baselines
-walkdir = "2"                                          # Recursive directory traversal
 
 # imap = "2"                                              # TODO: Add when OpenSSL available
 # native-tls = "0.2"                                      # TODO: Add when OpenSSL available
