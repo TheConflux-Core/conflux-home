@@ -260,7 +260,7 @@ export default function App() {
     async function fetchDashboard() {
       try {
         const agents = await invoke<any[]>('engine_get_agents');
-        setLiveAgents(agents.filter((a: any) => a.status !== 'offline').length);
+        setLiveAgents(agents.length);
         const health = await invoke<any>('engine_health');
         setEngineHealthy(health?.status === 'healthy' || true);
       } catch {}

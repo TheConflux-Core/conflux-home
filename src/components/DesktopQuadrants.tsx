@@ -132,9 +132,7 @@ function getAgentProgress(agent: Agent): number {
 
 // ── Intel Dashboard ──
 
-interface IntelDashboardProps {
-  agents: Agent[];
-}
+interface IntelDashboardProps {}
 
 // Ring gauge SVG component — neumorphic 3D style
 function RingGauge({ value, max, color, label, sublabel }: { value: number; max: number; color: string; label: string; sublabel: string }) {
@@ -204,7 +202,7 @@ function RingGauge({ value, max, color, label, sublabel }: { value: number; max:
 // Default active agents (must match AGENTS in beatBus.ts)
 const DEFAULT_AGENT_IDS = ['conflux', 'helix', 'pulse', 'hearth', 'echo', 'aegis', 'viper', 'forge', 'orbit', 'horizon'];
 
-function IntelDashboard({ agents }: IntelDashboardProps) {
+function IntelDashboard() {
   const { balance, loading: creditsLoading } = useCredits();
   const events = useBeatTimeline();
   const [selectedBeat, setSelectedBeat] = useState<BeatEvent | null>(null);
@@ -216,21 +214,31 @@ function IntelDashboard({ agents }: IntelDashboardProps) {
     return cached ? parseInt(cached, 10) : Date.now();
   });
 
-  // Load selected agent IDs from localStorage, fall back to all DB agents
-  const [selectedIds] = useState<string[]>(() => {
+  // Source of truth: hardcoded AGENTS from beatBus + localStorage toggle.
+  // No backend dependency — this renders instantly on mount.
+  const getSelectedIds = (): string[] => {
     try {
       const stored = localStorage.getItem('conflux-selected-agents');
       if (stored) { const parsed = JSON.parse(stored); if (Array.isArray(parsed) && parsed.length > 0) return parsed; }
     } catch {}
     return DEFAULT_AGENT_IDS;
-  });
+  };
 
-  // Filter agents by selected IDs — fall back to all agents if nothing stored
+  const [selectedIds, setSelectedIds] = useState<string[]>(getSelectedIds);
+
+  // Listen for toggle events from AgentsView
+  useEffect(() => {
+    const handler = () => setSelectedIds(getSelectedIds());
+    window.addEventListener('conflux:agents-selected', handler);
+    return () => window.removeEventListener('conflux:agents-selected', handler);
+  }, []);
+
+  // Build display list from AGENTS constant — always available, no async wait
+  const allAgents = AGENTS.map(a => ({ id: a.id, name: a.label, status: 'idle' as string }));
   const displayedAgents = selectedIds.length > 0
-    ? agents.filter(a => selectedIds.includes(a.id))
-    : agents;
-  // If filtering produced nothing (stale localStorage IDs), show all agents
-  const effectiveAgents = displayedAgents.length > 0 ? displayedAgents : agents;
+    ? allAgents.filter(a => selectedIds.includes(a.id))
+    : allAgents;
+  const effectiveAgents = displayedAgents.length > 0 ? displayedAgents : allAgents;
 
   const allLoading = creditsLoading;
   const activeAgents = effectiveAgents.filter(a => a.status !== 'offline');
@@ -520,7 +528,7 @@ export default function DesktopQuadrants({ onNavigate, agents }: DesktopQuadrant
   return (
     <div className="desktop-quadrants" data-tour-id="apps">
       {/* Left: Intel Dashboard */}
-      <IntelDashboard agents={agents} />
+      <IntelDashboard />
 
       {/* Right: Category Cards */}
       <div className="desktop-quadrants-right">
