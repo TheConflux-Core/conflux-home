@@ -124,7 +124,12 @@ async function syncFromRust(): Promise<void> {
     }
     const stored = await invoke<string>('engine_get_heartbeat_last_beat').catch(() => null);
     if (stored && !isNaN(Number(stored))) {
-      config.lastBeatMs = Number(stored);
+      const rustBeat = Number(stored);
+      // Only update if Rust has a NEWER beat — prevents stale backend values
+      // from overwriting our frontend timestamp and causing premature beats.
+      if (rustBeat > config.lastBeatMs) {
+        config.lastBeatMs = rustBeat;
+      }
     }
   } catch {
     // Non-fatal — keep ticking with local state

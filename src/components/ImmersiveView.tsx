@@ -57,9 +57,11 @@ export default function ImmersiveView({ view, backgroundUrl, onClose, children }
           <div className="immersive-gradient" />
         </>
       )}
-      <button className="immersive-back-btn" onClick={handleClose}>
-        Desktop →
-      </button>
+      {view !== 'story' && (
+        <button className="immersive-back-btn" onClick={handleClose}>
+          Desktop →
+        </button>
+      )}
       <div className="immersive-content">
         {children}
       </div>
