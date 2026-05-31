@@ -1,6 +1,7 @@
-// HeartbeatGlobal — module-level singleton for heartbeat interval
-// Persists across React component unmounts/mounts.
-// Any component subscribes via subscribe(); all share the same ticking clock.
+// HeartbeatGlobal — module-level singleton for heartbeat state
+// Rust scheduler is the SINGLE source of truth for heartbeat timing.
+// Frontend listens for conflux:heartbeat-beat from Rust and syncs state.
+// No independent frontend timer — prevents double-firing and timer drift.
 
 import { invoke } from '@tauri-apps/api/core';
 import { emitBeat } from './beatBus';
@@ -21,24 +22,45 @@ const CHAIN_AGENTS: Record<string, { label: string; emoji: string }> = {
   quanta:  { label: 'Quanta',  emoji: '🔍' },
 };
 
-// Track whether a chain is actively running so fireBeat() doesn't duplicate.
-let _chainActive = false;
-
 // ── Normalize + route Rust beat events through beatBus ───────────────────────
-// heartbeatGlobal registers its Tauri listener at MODULE LOAD time (before
-// any React component mounts). This ensures the normalization handler is
-// always ready before the first event can fire.
-//
-// App.tsx must NOT dispatch conflux:beat-event to beatBus — heartbeatGlobal
-// handles the full flow: Tauri event → normalize → emitBeat → beatBus.
 let _tauriListenerRegistered = false;
 
-async function registerTauriListener() {
+async function registerTauriListeners() {
   if (_tauriListenerRegistered) return;
   _tauriListenerRegistered = true;
 
+  // Listen for the main heartbeat tick from Rust scheduler.
+  // This is the SINGLE source of truth for when a heartbeat fires.
+  listen<number>('conflux:heartbeat-beat', (event) => {
+    const now = event.payload || Date.now();
+    console.log('[HeartbeatGlobal] Rust heartbeat-beat received:', now);
+    config.lastBeatMs = now;
+    beatCount++;
+    const intervalMin = Math.round(config.intervalMs / 60000);
+    emitBeat({
+      agentId: 'conflux',
+      agentLabel: 'Conflux',
+      action: `Heartbeat ${beatCount} complete`,
+      detail: `System scan · ${intervalMin}-min interval`,
+      type: 'info',
+    });
+    listeners.forEach(l => {
+      try { l.onBeat(now); } catch (e) { console.warn('[HeartbeatGlobal]', e); }
+    });
+  }).catch(e => console.warn('[HeartbeatGlobal] heartbeat-beat listener error:', e));
+
+  // Listen for interval changes from Rust (when user adjusts the knob)
+  listen<number>('conflux:heartbeat-interval-changed', (event) => {
+    const newMs = event.payload;
+    console.log('[HeartbeatGlobal] Interval changed:', newMs);
+    config.intervalMs = newMs;
+    config.lastBeatMs = Date.now();
+    listeners.forEach(l => {
+      try { l.onBeat(config.lastBeatMs); } catch (e) { console.warn('[HeartbeatGlobal]', e); }
+    });
+  }).catch(e => console.warn('[HeartbeatGlobal] interval-changed listener error:', e));
+
   // Listen for real chain step beats from Rust.
-  // Normalize snake_case (Rust) → camelCase (beatBus) and route to beatBus.
   listen<any>('conflux:beat-event', (event) => {
     const raw = event.payload;
     console.log('[HeartbeatGlobal] conflux:beat-event:', JSON.stringify(raw));
@@ -51,11 +73,11 @@ async function registerTauriListener() {
       detail: raw.detail ?? '',
       type: (raw.event_type ?? raw.type ?? 'info') as 'info' | 'success' | 'warn',
     });
-  }).catch(e => console.warn('[HeartbeatGlobal] Tauri listener error:', e));
+  }).catch(e => console.warn('[HeartbeatGlobal] beat-event listener error:', e));
 
-  // Track chain active state for fireBeat() deduplication
-  listen('conflux:chain-started', () => { _chainActive = true; }).catch(() => {});
-  listen('conflux:chain-complete', () => { _chainActive = false; }).catch(() => {});
+  // Track chain active state
+  listen('conflux:chain-started', () => { /* chain active */ }).catch(() => {});
+  listen('conflux:chain-complete', () => { /* chain done */ }).catch(() => {});
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -78,125 +100,68 @@ let config: HeartbeatConfig = {
 };
 
 let listeners: Listener[] = [];
-let tickInterval: ReturnType<typeof setInterval> | null = null;
-let rustIntervalMs: number | null = null;
 let beatCount = 0;
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── Public API ────────────────────────────────────────────────────────────────
 
-function stopTick() {
-  if (tickInterval !== null) {
-    clearInterval(tickInterval);
-    tickInterval = null;
+export async function initHeartbeatGlobal(): Promise<void> {
+  // Register all Tauri event listeners
+  await registerTauriListeners();
+
+  // Sync initial config from Rust
+  try {
+    const rustMs: number = await invoke('engine_get_heartbeat_interval');
+    if (rustMs > 0) {
+      config.intervalMs = rustMs;
+    }
+  } catch (e) {
+    console.warn('[HeartbeatGlobal] Failed to get interval:', e);
   }
+
+  try {
+    const stored = await invoke<string>('engine_get_heartbeat_last_beat');
+    if (stored && !isNaN(Number(stored))) {
+      config.lastBeatMs = Number(stored);
+    }
+  } catch {
+    // Non-fatal
+  }
+
+  console.log('[HeartbeatGlobal] Initialized — interval:', config.intervalMs, 'lastBeat:', config.lastBeatMs);
 }
 
-function fireBeat(): void {
-  // Always fire the frontend timer beat — it's a visual indicator.
-  // Real chain beats from Rust flow through conflux:beat-event and overlay naturally.
-  beatCount++;
+export function setHeartbeatInterval(ms: number): void {
+  config.intervalMs = ms;
+  // Persist to Rust — it will emit conflux:heartbeat-interval-changed back to us
+  invoke('engine_set_heartbeat_interval', { ms }).catch(e => {
+    console.warn('[HeartbeatGlobal] Failed to set interval:', e);
+  });
+}
+
+export function pulseBeat(): void {
+  // Manual beat trigger (e.g., from UI)
   config.lastBeatMs = Date.now();
-  const ts = config.lastBeatMs;
+  beatCount++;
   const intervalMin = Math.round(config.intervalMs / 60000);
   emitBeat({
     agentId: 'conflux',
     agentLabel: 'Conflux',
     action: `Heartbeat ${beatCount} complete`,
-    detail: `System scan · ${intervalMin}-min interval`,
+    detail: `Manual trigger · ${intervalMin}-min interval`,
     type: 'info',
   });
-
   listeners.forEach(l => {
-    try { l.onBeat(ts); } catch (e) { console.warn('[HeartbeatGlobal]', e); }
+    try { l.onBeat(config.lastBeatMs); } catch (e) { console.warn('[HeartbeatGlobal]', e); }
   });
-  syncFromRust();
-}
-
-async function syncFromRust(): Promise<void> {
-  try {
-    const rustMs: number = await invoke('engine_get_heartbeat_interval');
-    if (rustMs !== rustIntervalMs) {
-      rustIntervalMs = rustMs;
-      if (rustMs !== config.intervalMs) {
-        config.intervalMs = rustMs;
-        startTick();
-      }
-    }
-    const stored = await invoke<string>('engine_get_heartbeat_last_beat').catch(() => null);
-    if (stored && !isNaN(Number(stored))) {
-      const rustBeat = Number(stored);
-      // Only update if Rust has a NEWER beat — prevents stale backend values
-      // from overwriting our frontend timestamp and causing premature beats.
-      if (rustBeat > config.lastBeatMs) {
-        config.lastBeatMs = rustBeat;
-      }
-    }
-  } catch {
-    // Non-fatal — keep ticking with local state
-  }
-}
-
-function startTick(): void {
-  stopTick();
-  if (config.intervalMs === 0) return;
-
-  const elapsed = Date.now() - config.lastBeatMs;
-  const remaining = config.intervalMs - elapsed;
-
-  if (remaining <= 0) {
-    fireBeat();
-  }
-
-  tickInterval = setInterval(fireBeat, config.intervalMs);
-}
-
-// ── Public API ────────────────────────────────────────────────────────────────
-
-export async function initHeartbeatGlobal(): Promise<void> {
-  // Register Tauri listener at module load — before any component mounts.
-  // This ensures the beat-normalization handler is ready before first event.
-  await registerTauriListener();
-
-  try {
-    const rustMs: number = await invoke('engine_get_heartbeat_interval');
-    rustIntervalMs = rustMs;
-    config.intervalMs = rustMs;
-    try {
-      const stored = await invoke<string>('engine_get_heartbeat_last_beat');
-      if (stored && !isNaN(Number(stored))) {
-        config.lastBeatMs = Number(stored);
-      } else {
-        config.lastBeatMs = Date.now();
-      }
-    } catch {
-      config.lastBeatMs = Date.now();
-    }
-    startTick();
-  } catch (e) {
-    console.warn('[HeartbeatGlobal] Failed to init:', e);
-    startTick();
-  }
-}
-
-export function setHeartbeatInterval(ms: number): void {
-  config.intervalMs = ms;
-  startTick();
-}
-
-export function pulseBeat(): void {
-  config.lastBeatMs = Date.now();
-  fireBeat();
 }
 
 export function subscribe(onBeat: (timestamp: number) => void): () => void {
   const id = `beat_${Date.now()}_${Math.random()}`;
   listeners.push({ id, onBeat });
+  // Immediately report current state
   onBeat(config.lastBeatMs);
   return () => {
     listeners = listeners.filter(l => l.id !== id);
-    if (listeners.length === 0) {
-      stopTick();
-    }
   };
 }
 

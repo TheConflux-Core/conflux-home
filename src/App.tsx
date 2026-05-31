@@ -543,9 +543,25 @@ export default function App() {
 
   // Push-to-Talk Global Handler
   useEffect(() => {
+    let pttCancelled = false; // Set true if user presses Esc to cancel PTT
+
     const handleKeyDown = async (e: KeyboardEvent) => {
       // Ignore if typing in an input field
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      // Esc or Backspace cancels PTT recording without transcribing
+      if ((e.key === 'Escape' || e.key === 'Backspace') && isPushToTalkActive) {
+        e.preventDefault();
+        pttCancelled = true;
+        setIsPushToTalkActive(false);
+        window.dispatchEvent(new CustomEvent('push-to-talk-end'));
+        try {
+          await invoke('voice_capture_stop');
+        } catch { /* may already be stopped */ }
+        // Signal ConfluxOrbit to reset to idle
+        window.dispatchEvent(new CustomEvent('conflux-force-idle'));
+        return;
+      }
 
       // Only allow push-to-talk on the home screen (not when apps are open)
       if (immersiveView) return;
@@ -553,6 +569,7 @@ export default function App() {
       // Spacebar triggers push-to-talk
       if (e.code === 'Space' && !isPushToTalkActive) {
         e.preventDefault();
+        pttCancelled = false;
         setIsPushToTalkActive(true);
 
         soundManager.playAgentWake('conflux'); // Play a listening chime for the Conflux fairy
@@ -563,14 +580,14 @@ export default function App() {
           console.error('Failed to start voice capture:', err);
         }
 
-        // Update ConfluxOrbit state via event or context (we'll wire this next)
-        // For now, we'll dispatch a custom event that ConfluxOrbit can listen to
         window.dispatchEvent(new CustomEvent('push-to-talk-start'));
       }
     };
 
     const handleKeyUp = async (e: KeyboardEvent) => {
       if (e.code === 'Space' && isPushToTalkActive) {
+        // If Esc already cancelled, ignore the space keyup
+        if (pttCancelled) return;
         setIsPushToTalkActive(false);
         window.dispatchEvent(new CustomEvent('push-to-talk-end'));
 
@@ -958,6 +975,10 @@ const [activeSnake, setActiveSnake] = useState(false);
     // 2. Also keep localStorage as cache
     localStorage.setItem('conflux-onboarded', 'true');
     localStorage.setItem('conflux-setup-apps', JSON.stringify(selectedApps));
+    // Ensure Intel dashboard shows correct agent count from the start
+    if (!localStorage.getItem('conflux-selected-agents')) {
+      localStorage.setItem('conflux-selected-agents', JSON.stringify(['conflux', 'helix', 'pulse', 'hearth', 'echo', 'aegis', 'viper']));
+    }
 
     // 3. Create the Family Member record in the local DB
     if (user) {
@@ -987,11 +1008,13 @@ const [activeSnake, setActiveSnake] = useState(false);
 
     setIsOnboarded(true);
 
-    // Onboarding IS the welcome — skip WelcomeOverlay, go straight to tour
+    // Onboarding IS the welcome — skip WelcomeOverlay
     localStorage.setItem('conflux-welcomed', 'true');
-    if (shouldAutoStartTour()) {
-      setTimeout(() => setShowTour(true), 1500);
-    }
+    // Tour disabled for now — re-imagining the tour experience
+    // To re-enable, uncomment the block below:
+    // if (shouldAutoStartTour()) {
+    //   setTimeout(() => setShowTour(true), 1500);
+    // }
   }, [user, userName]);
 
   // Handle welcome dismiss
@@ -1000,9 +1023,11 @@ const [activeSnake, setActiveSnake] = useState(false);
     const introductionsComplete = localStorage.getItem('conflux-introductions-complete') === 'true';
     if (!introductionsComplete) {
       setShowIntroductions(true);
-    } else if (shouldAutoStartTour()) {
-      setShowTour(true);
     }
+    // Tour disabled — re-imagining the experience
+    // else if (shouldAutoStartTour()) {
+    //   setShowTour(true);
+    // }
   }, []);
 
   // Handle introductions completion
@@ -1010,19 +1035,19 @@ const [activeSnake, setActiveSnake] = useState(false);
     setShowIntroductions(false);
     // Show boot cards after introductions
     setShowBootCards(true);
-    if (shouldAutoStartTour()) {
-      setShowTour(true);
-    }
+    // Tour disabled — re-imagining the experience
+    // if (shouldAutoStartTour()) {
+    //   setShowTour(true);
+    // }
   }, []);
 
-  // Auto-start tour for existing users who already welcomed but haven't done tour
-  useEffect(() => {
-    if (isOnboarded && !showWelcome && shouldAutoStartTour()) {
-      // Delay slightly so desktop renders first
-      const timer = setTimeout(() => setShowTour(true), 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [isOnboarded, showWelcome]);
+  // Tour disabled — re-imagining the experience
+  // useEffect(() => {
+  //   if (isOnboarded && !showWelcome && shouldAutoStartTour()) {
+  //     const timer = setTimeout(() => setShowTour(true), 1500);
+  //     return () => clearTimeout(timer);
+  //   }
+  // }, [isOnboarded, showWelcome]);
 
   // Filter agents by selectedAgentIds if set
   const filteredAgents = useMemo(() => {

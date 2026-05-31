@@ -48,10 +48,23 @@ export default function MicButton({
     [onTranscription],
   );
 
-  const { isListening, isTranscribing, error, toggleListening, clearError } = useVoiceInput({
+  const { isListening, isTranscribing, error, toggleListening, cancelListening, clearError } = useVoiceInput({
     onTranscription: handleTranscription,
     maxDurationMs,
   });
+
+  // Esc or Backspace cancels recording
+  useEffect(() => {
+    if (!isListening) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Backspace') {
+        e.preventDefault();
+        cancelListening();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isListening, cancelListening]);
 
   // Flash error class briefly when an error arrives
   useEffect(() => {

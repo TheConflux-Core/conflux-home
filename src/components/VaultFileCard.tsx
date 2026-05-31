@@ -8,6 +8,7 @@ interface Props {
   onToggleFavorite: () => void;
   onDelete: () => void;
   onOpen: () => void;
+  onDownload?: () => void;
 }
 
 function getFileEmoji(type: string): string {
@@ -25,7 +26,7 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1073741824).toFixed(1)} GB`;
 }
 
-export default function VaultFileCard({ file, selected, onSelect, onToggleFavorite, onDelete, onOpen }: Props) {
+export default function VaultFileCard({ file, selected, onSelect, onToggleFavorite, onDelete, onOpen, onDownload }: Props) {
   return (
     <div className={`vault-file-card ${selected ? 'selected' : ''}`} onClick={onSelect} onDoubleClick={(e) => { e.stopPropagation(); onOpen(); }}>
       <div className="vault-file-thumb">
@@ -51,6 +52,15 @@ export default function VaultFileCard({ file, selected, onSelect, onToggleFavori
         <div className="vault-file-meta">
           <span>{formatSize(file.size_bytes)}</span>
           {file.created_by && <span className="vault-file-agent">🤖</span>}
+          {onDownload && (
+            <button
+              className="vault-file-download"
+              onClick={(e) => { e.stopPropagation(); onDownload(); }}
+              title="Save as..."
+            >
+              ⬇
+            </button>
+          )}
         </div>
       </div>
     </div>

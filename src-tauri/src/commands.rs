@@ -8322,6 +8322,9 @@ pub async fn vault_untag_file(file_id: String, tag_id: String) -> Result<(), Str
 
 #[tauri::command]
 pub async fn vault_open_file(path: String) -> Result<(), String> {
+    if !std::path::Path::new(&path).exists() {
+        return Err(format!("File not found: {}", path));
+    }
     #[cfg(target_os = "macos")]
     { std::process::Command::new("open").arg(&path).spawn().map_err(|e| e.to_string())?; }
     #[cfg(target_os = "linux")]
@@ -8329,6 +8332,36 @@ pub async fn vault_open_file(path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     { std::process::Command::new("cmd").args(["/C", "start", "", &path]).spawn().map_err(|e| e.to_string())?; }
     Ok(())
+}
+
+// ── Vault: Download (save-as) file to user-chosen location ──
+
+#[tauri::command]
+pub async fn vault_download_file(path: String, filename: String, app_handle: tauri::AppHandle) -> Result<(), String> {
+    use std::fs;
+    use tauri::Manager;
+
+    let src = std::path::Path::new(&path);
+    if !src.exists() {
+        return Err(format!("Source file not found: {}", path));
+    }
+
+    // Open native save dialog
+    let dest = app_handle
+        .dialog()
+        .file()
+        .set_title("Save File As")
+        .set_file_name(&filename)
+        .blocking_save_file();
+
+    match dest {
+        Some(file_path) => {
+            let dest: std::path::PathBuf = file_path.into_path().map_err(|e| format!("Invalid path: {}", e))?;
+            fs::copy(src, &dest).map_err(|e| format!("Copy failed: {}", e))?;
+            Ok(())
+        }
+        None => Err("Save cancelled".into()),
+    }
 }
 
 // ── Vault: Rename old-style files to cfx_ convention ──

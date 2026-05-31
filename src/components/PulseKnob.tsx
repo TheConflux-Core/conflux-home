@@ -268,8 +268,7 @@ export default function PulseKnob({ value, onChange, lastBeat }: PulseKnobProps)
       const newMs = PRESETS[preset].ms;
 
       if (newMs !== valueRef.current) {
-        // Update both local state AND global singleton
-        onChange(newMs);
+        // Update global singleton → calls Rust → emits event back to update parent UI
         setHeartbeatInterval(newMs);
         setDisplayPct(1);
         lastBeatRef.current = Date.now();

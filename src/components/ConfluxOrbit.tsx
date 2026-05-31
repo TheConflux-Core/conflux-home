@@ -257,9 +257,16 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
       // If Thinking state doesn't arrive, stay in listen until TTS starts
     };
 
+    // Force idle — used by PTT cancel (Esc) to reset Conflux immediately
+    const handleForceIdle = () => {
+      console.log('[ConfluxOrbit] Force idle — PTT cancelled');
+      conflux.setMode('idle', 'manual', 'Ready');
+    };
+
     window.addEventListener('push-to-talk-start', handlePTTStart);
     window.addEventListener('push-to-talk-end', handlePTTEnd);
     window.addEventListener('conflux-transcription-done', handleTranscriptionDone);
+    window.addEventListener('conflux-force-idle', handleForceIdle);
     window.addEventListener('conflux-thinking', (e: any) => {
       console.log('[ConfluxOrbit] Thinking...', e.detail?.text);
       conflux.setMode('focus', 'backend', 'Thinking...');
@@ -269,6 +276,7 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
       window.removeEventListener('push-to-talk-start', handlePTTStart);
       window.removeEventListener('push-to-talk-end', handlePTTEnd);
       window.removeEventListener('conflux-transcription-done', handleTranscriptionDone);
+      window.removeEventListener('conflux-force-idle', handleForceIdle);
       window.removeEventListener('conflux-thinking', () => {});
     };
   }, []);
@@ -435,7 +443,9 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
   // so a pre-loaded dragOverride from localStorage is not wiped before paint.
   const isDragOverrideMountedRef = useRef(false);
   // One-shot flag: fires a spring to magnetic zone when setDragOverride(null) is called
-  const [transitioningToZone, setTransitioningToZone] = useState(false);
+  // Start true so Conflux springs to its magnetic zone on first render
+  // (prevents spawning at top-left 0,0 when no dragOverride is saved)
+  const [transitioningToZone, setTransitioningToZone] = useState(true);
   const transitioningRef = useRef(false);
 
   useEffect(() => {

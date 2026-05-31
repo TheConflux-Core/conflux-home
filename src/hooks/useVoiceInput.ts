@@ -18,6 +18,7 @@ interface UseVoiceInputReturn {
   error: string | null;
   startListening: () => Promise<void>;
   stopListening: () => Promise<void>;
+  cancelListening: () => Promise<void>;
   toggleListening: () => Promise<void>;
   clearError: () => void;
 }
@@ -108,6 +109,21 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
     }
   }, [options]);
 
+  const cancelListening = useCallback(async () => {
+    if (autoStopTimer.current) {
+      clearTimeout(autoStopTimer.current);
+      autoStopTimer.current = null;
+    }
+    abortRef.current = true;
+    setIsListening(false);
+    setIsTranscribing(false);
+    try {
+      await invoke('voice_capture_stop');
+    } catch {
+      // Ignore — may already be stopped
+    }
+  }, []);
+
   const toggleListening = useCallback(async () => {
     if (isListening) {
       await stopListening();
@@ -125,6 +141,7 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
     error,
     startListening,
     stopListening,
+    cancelListening,
     toggleListening,
     clearError,
   };
