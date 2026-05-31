@@ -910,19 +910,46 @@ pub async fn process_turn_stream(
         .await?;
 
         // If no tool calls, stream the final response
+        let mut response = response;
         if response.tool_calls.is_empty() {
-            // If this is the first iteration with no tools, we can stream the response
-            // But since we already got it non-streaming, just emit it as chunks
-            on_chunk(&response.content)?;
-            final_response = Some(response);
-            break;
+            // Check for XML tool call syntax (MiniMax sometimes falls back to text-based tool calls)
+            let xml_calls = parse_xml_tool_calls(&response.content);
+            if !xml_calls.is_empty() {
+                log::warn!(
+                    "[Engine/Stream] Model output {} XML tool call(s) as text — executing them anyway",
+                    xml_calls.len()
+                );
+                for xc in &xml_calls {
+                    log::info!("[Engine/Stream] XML tool call: {}({})", xc.name, xc.arguments);
+                }
+                response.tool_calls = xml_calls;
+                // Don't break — fall through to the tool execution loop below
+            } else {
+                // If this is the first iteration with no tools, we can stream the response
+                // But since we already got it non-streaming, just emit it as chunks
+                on_chunk(&response.content)?;
+                final_response = Some(response);
+                break;
+            }
         }
 
         // Execute tool calls
         for tool_call in &response.tool_calls {
+            // ── Tool Name Repair (matches non-streaming path)
+            let repaired_name = if tool_defs.iter().any(|t| {
+                t.get("function").and_then(|f| f.get("name")).and_then(|n| n.as_str()) == Some(&tool_call.name)
+            }) {
+                tool_call.name.clone()
+            } else if let Some(valid) = validate_tool_name(&tool_call.name, &tool_defs) {
+                log::warn!("[Engine/Stream] Auto-repaired tool name: '{}' → '{}'", tool_call.name, valid);
+                valid
+            } else {
+                tool_call.name.clone()
+            };
+
             log::info!(
                 "[Engine/Stream] Tool call: {}({})",
-                tool_call.name,
+                repaired_name,
                 tool_call.arguments
             );
 
@@ -943,7 +970,7 @@ pub async fn process_turn_stream(
                     tool_calls: vec![],
                 });
             }
-            let tool_result = tools::execute_tool(&tool_call.name, &args, &user_id).await?;
+            let tool_result = tools::execute_tool(&repaired_name, &args, &user_id).await?;
 
             let result_content = if tool_result.success {
                 tool_result.output.clone()
@@ -960,8 +987,8 @@ pub async fn process_turn_stream(
                         if out.is_empty() { None } else { Some(out.clone()) }
                     })
                     .unwrap_or_else(|| "Unknown error".to_string());
-                eprintln!("[ENGINE ERROR] tool={}, display='{}', full={:?}", tool_call.name, display, tool_result);
-                log::error!("[ENGINE] tool_name={}, display={}", tool_call.name, display);
+                eprintln!("[ENGINE ERROR] tool={}, display='{}', full={:?}", repaired_name, display, tool_result);
+                log::error!("[ENGINE] tool_name={}, display={}", repaired_name, display);
                 format!("Error: {}", display)
             };
 
@@ -969,7 +996,7 @@ pub async fn process_turn_stream(
             // Notify the frontend about the tool call
             on_chunk(&format!(
                 "\n🔧 *{}*\n{}\n",
-                tool_call.name,
+                repaired_name,
                 display
             ))?;
 
@@ -982,7 +1009,7 @@ pub async fn process_turn_stream(
                     "id": tool_call.id,
                     "type": "function",
                     "function": {
-                        "name": tool_call.name,
+                        "name": repaired_name,
                         "arguments": tool_call.arguments,
                     }
                 })]),
@@ -1006,7 +1033,7 @@ pub async fn process_turn_stream(
                 Some(&response.provider_id),
                 Some(response.latency_ms),
                 Some(&tool_call.id),
-                Some(&tool_call.name),
+                Some(&repaired_name),
                 Some(&tool_call.arguments),
                 None,
             )?;
@@ -1020,7 +1047,7 @@ pub async fn process_turn_stream(
                 None,
                 None,
                 Some(&tool_call.id),
-                Some(&tool_call.name),
+                Some(&repaired_name),
                 Some(&tool_call.arguments),
                 Some(&result_content),
             )?;
