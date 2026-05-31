@@ -21,13 +21,32 @@ env:
   RUSTUP_TOOLCHAIN: 1.88.0
   RUSTUP_HOME: ~/.cargo/rustup
   CARGO_HOME: ~/.cargo
-  # Always use the version tag (v0.1.93) for release uploads/downloads — NOT github.ref_name
-  # github.ref_name is 'main' (branch) when triggered via workflow_dispatch, not the tag
-  RELEASE_TAG: "v${{ github.event.inputs.version || github.ref_name }}"
+  # RELEASE_TAG is computed in the 'Compute release tag' step (avoids double-v from env expression)
 
 jobs:
+  # ── Compute release tag (avoids double-v) ──
+  compute-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.set.outputs.tag }}
+    steps:
+      - id: set
+        run: |
+          INPUT="${{ github.event.inputs.version }}"
+          REF="${{ github.ref_name }}"
+          # If workflow_dispatch, use input (strip leading v if present)
+          # If tag push, use ref_name (already has v prefix)
+          if [ -n "$INPUT" ]; then
+            VER="${INPUT#v}"
+            echo "tag=v${VER}" >> "$GITHUB_OUTPUT"
+          else
+            # Tag push — ref_name is the tag (e.g. v0.1.153)
+            echo "tag=${REF}" >> "$GITHUB_OUTPUT"
+          fi
+
   # ── Linux (.deb) ──
   build-linux:
+    needs: compute-tag
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +64,8 @@ jobs:
 
       - name: Patch version from tag
         run: |
-          VER="${{ github.event.inputs.version || github.ref_name }}"
+          TAG="${{ needs.compute-tag.outputs.tag }}"
+          VER="${TAG#v}"
           VER="${VER#v}"
           VER="${VER#v}"
           echo "Patching version to $VER"
@@ -147,7 +167,7 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
+          tag_name: ${{ needs.compute-tag.outputs.tag }}
           overwrite_files: true
           files: |
             src-tauri/target/release/bundle/deb/*.deb
@@ -162,6 +182,7 @@ jobs:
 
   # ── Windows (.msi) ──
   build-windows:
+    needs: compute-tag
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -169,7 +190,8 @@ jobs:
       - name: Patch version from tag
         shell: bash
         run: |
-          VER="${{ github.event.inputs.version || github.ref_name }}"
+          TAG="${{ needs.compute-tag.outputs.tag }}"
+          VER="${TAG#v}"
           VER="${VER#v}"
           VER="${VER#v}"
           echo "Patching version to $VER"
@@ -279,7 +301,7 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
+          tag_name: ${{ needs.compute-tag.outputs.tag }}
           overwrite_files: true
           files: |
             src-tauri/target/release/bundle/msi/*.msi
@@ -297,6 +319,7 @@ jobs:
 
   # ── macOS (.app.tar.gz — both x64 + arm64 on macos-latest) ──
   build-macos:
+    needs: compute-tag
     runs-on: macos-latest
     strategy:
       matrix:
@@ -310,7 +333,8 @@ jobs:
 
       - name: Patch version from tag
         run: |
-          VER="${{ github.event.inputs.version || github.ref_name }}"
+          TAG="${{ needs.compute-tag.outputs.tag }}"
+          VER="${TAG#v}"
           VER="${VER#v}"
           VER="${VER#v}"
           echo "Patching version to $VER"
@@ -401,7 +425,7 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
+          tag_name: ${{ needs.compute-tag.outputs.tag }}
           overwrite_files: true
           files: |
             src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
@@ -418,7 +442,7 @@ jobs:
 
   # ── Generate updates.json (all platforms) ──
   generate-updates-json:
-    needs: [build-linux, build-windows, build-macos, build-android]
+    needs: [compute-tag, build-linux, build-windows, build-macos, build-android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -428,7 +452,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p /tmp/sigs
-          gh release download "${{ env.RELEASE_TAG }}" \
+          gh release download "${{ needs.compute-tag.outputs.tag }}" \
             --pattern '*.sig' \
             --dir /tmp/sigs/ \
             --repo "${{ github.repository }}" \
@@ -439,10 +463,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="${{ github.event.inputs.version || github.ref_name }}"
-          VER="${VERSION#v}"
+          TAG="${{ needs.compute-tag.outputs.tag }}"
+          VER="${TAG#v}"
           REPO="${{ github.repository }}"
-          TAG="${{ env.RELEASE_TAG }}"
 
           DEB_SIG=$(cat /tmp/sigs/*.deb.sig 2>/dev/null | head -1 || echo "")
           NSIS_SIG=$(cat /tmp/sigs/*.exe.sig 2>/dev/null | head -1 || echo "")
@@ -491,17 +514,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "${{ env.RELEASE_TAG }}" updates.json --clobber
+          gh release upload "${{ needs.compute-tag.outputs.tag }}" updates.json --clobber
 
   # ── Android (.apk) ──
   build-android:
+    needs: compute-tag
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Patch version from tag
         run: |
-          VER="${{ github.event.inputs.version || github.ref_name }}"
+          TAG="${{ needs.compute-tag.outputs.tag }}"
+          VER="${TAG#v}"
           VER="${VER#v}"
           VER="${VER#v}"
           echo "Patching version to $VER"
@@ -627,7 +652,7 @@ jobs:
       - name: Upload APK to release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
+          tag_name: ${{ needs.compute-tag.outputs.tag }}
           overwrite_files: true
           files: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
 

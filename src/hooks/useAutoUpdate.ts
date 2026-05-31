@@ -67,7 +67,7 @@ export function useAutoUpdate() {
     };
   }, []);
 
-  // Download + install using custom Rust commands (follows redirects)
+  // Download + install using update URL from updates.json (already has correct tag + platform)
   const install = async () => {
     setState((s) => ({ ...s, downloading: true, error: undefined }));
     try {
@@ -77,32 +77,33 @@ export function useAutoUpdate() {
         return;
       }
 
-      // Construct download URL from version + platform
-      // Use version-free filenames so the URL always works
-      const version = update.version.replace('v', '');
-      const isLinux = navigator.platform.toLowerCase().includes('linux');
-      const isMac = navigator.platform.toLowerCase().includes('mac');
-      const isWindows = navigator.platform.toLowerCase().includes('win');
-      
-      let filename: string;
-      if (isLinux) {
-        filename = 'Conflux.Home_amd64.AppImage';  // No sudo needed
-      } else if (isMac) {
-        filename = 'Conflux.Home_x64.app.tar.gz';
+      // Detect platform + arch
+      const ua = navigator.userAgent.toLowerCase();
+      const isMac = ua.includes('mac') || ua.includes('darwin');
+      const isWindows = ua.includes('win');
+      const isArm64 = ua.includes('aarch64') || ua.includes('arm64');
+
+      // Pick platform key matching Tauri's updater format
+      let platformKey: string;
+      if (isMac) {
+        platformKey = isArm64 ? 'darwin-aarch64' : 'darwin-x86_64';
       } else if (isWindows) {
-        filename = 'Conflux.Home_x64-setup.exe';
+        platformKey = 'windows-x86_64';
       } else {
-        filename = 'Conflux.Home_amd64.AppImage';
+        platformKey = 'linux-x86_64';
       }
-      
-      const downloadUrl = `https://github.com/TheConflux-Core/conflux-home/releases/download/v${version}/${filename}`;
-      
-      await logToFile(`Platform: ${navigator.platform}`);
-      await logToFile(`Constructed URL: ${downloadUrl}`);
-      await logToFile(`rawJson: ${JSON.stringify(update.rawJson)}`);
+
+      // Use the URL directly from updates.json — already has the correct release tag (handles vv prefix)
+      const raw = update.rawJson as any;
+      const platformEntry = raw?.platforms?.[platformKey];
+      const downloadUrl = platformEntry?.url;
+
+      await logToFile(`Platform: ${platformKey}`);
+      await logToFile(`Version from updates.json: ${update.version}`);
+      await logToFile(`Download URL from updates.json: ${downloadUrl ?? 'NONE'}`);
       
       if (!downloadUrl) {
-        setState((s) => ({ ...s, downloading: false, error: 'No download URL found' }));
+        setState((s) => ({ ...s, downloading: false, error: `No download URL for platform ${platformKey}` }));
         return;
       }
 
