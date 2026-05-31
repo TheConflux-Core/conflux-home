@@ -285,7 +285,6 @@ export default function GamesPage({
     catch { return true; }
   });
   const [hoveredGame, setHoveredGame] = useState<string | null>(null);
-  const [hoveredHero, setHoveredHero] = useState(false);
 
   const handleToggleSound = useCallback(() => {
     setSoundEnabled(prev => {
@@ -375,23 +374,37 @@ export default function GamesPage({
           </button>
         </div>
 
-        {/* ── Hero: Conflux Stories ── */}
+        {/* ── Hero: Conflux Stories (Coming Soon) ── */}
         <div
           style={{
             ...HERO_STYLE,
-            transform: hoveredHero ? 'perspective(800px) rotateX(2deg) scale(1.02)' : 'perspective(800px)',
-            boxShadow: hoveredHero
-              ? '0 20px 60px rgba(0,0,0,0.5), 0 0 80px rgba(255,215,0,0.12), inset 0 1px 0 rgba(255,255,255,0.08)'
-              : HERO_STYLE.boxShadow,
+            cursor: 'default',
+            opacity: 0.55,
+            filter: 'grayscale(0.3)',
           }}
-          onClick={() => handleSelectGame('stories')}
-          onMouseEnter={() => setHoveredHero(true)}
-          onMouseLeave={() => setHoveredHero(false)}
         >
           {/* Glow border */}
-          <div style={{ position: 'absolute', inset: 0, borderRadius: '24px', border: '1px solid rgba(255,215,0,0.3)', pointerEvents: 'none', opacity: hoveredHero ? 1 : 0.5, transition: 'opacity 0.3s' }} />
+          <div style={{ position: 'absolute', inset: 0, borderRadius: '24px', border: '1px solid rgba(255,215,0,0.15)', pointerEvents: 'none' }} />
           {/* Corner accent */}
-          <div style={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', background: 'radial-gradient(circle at top right, rgba(255,215,0,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', background: 'radial-gradient(circle at top right, rgba(255,215,0,0.04) 0%, transparent 70%)', pointerEvents: 'none' }} />
+
+          {/* Coming Soon badge */}
+          <div style={{
+            position: 'absolute',
+            top: '14px',
+            right: '14px',
+            fontSize: '10px',
+            fontWeight: 700,
+            textTransform: 'uppercase' as const,
+            letterSpacing: '1px',
+            color: '#8a7a6a',
+            background: 'rgba(255,255,255,0.06)',
+            padding: '4px 10px',
+            borderRadius: '999px',
+            border: '1px solid rgba(255,255,255,0.08)',
+          }}>
+            Coming Soon
+          </div>
 
           <span style={HERO_ICON_STYLE}>📖</span>
           <div style={HERO_BODY_STYLE}>
@@ -402,15 +415,13 @@ export default function GamesPage({
           <button
             style={{
               ...HERO_CTA_STYLE,
-              animation: 'hero-cta-breathe 3s ease-in-out infinite',
-              transform: hoveredHero ? 'scale(1.05)' : 'scale(1)',
-              boxShadow: hoveredHero
-                ? '0 10px 32px rgba(255,215,0,0.45), 0 0 60px rgba(255,215,0,0.15)'
-                : HERO_CTA_STYLE.boxShadow,
+              opacity: 0.4,
+              cursor: 'default',
+              pointerEvents: 'none' as const,
             }}
-            onClick={(e) => { e.stopPropagation(); handleSelectGame('stories'); }}
+            disabled
           >
-            Begin →
+            Coming Soon
           </button>
         </div>
 

@@ -28,7 +28,7 @@ import { MicButton } from './voice';
 import KitchenBoot from './KitchenBoot';
 import HearthChat from './HearthChat';
 import HearthOnboarding, { hasCompletedHearthOnboarding } from './HearthOnboarding';
-import HearthTour, { hasCompletedHearthTour } from './HearthTour';
+
 import KitchenEmptyState from './KitchenEmptyState';
 const NUTRITION_TIPS = [
   { emoji: '🔥', title: 'Protein First', body: 'Each meal should have a palm-sized portion of protein. It keeps you fuller longer and preserves muscle as you age.' },
@@ -76,11 +76,8 @@ export default function KitchenView() {
   // Boot sequence gates its own visibility; onboarding only renders after boot finishes.
   const [bootDone, setBootDone] = useState(() => localStorage.getItem('hearth-boot-done') === 'true');
   const hasOnboarded = hasCompletedHearthOnboarding();
-  const hasTakenTour = hasCompletedHearthTour();
   const [showOnboarding, setShowOnboarding] = useState(!hasOnboarded);
-  const [showTour, setShowTour] = useState(!bootDone ? false : !hasTakenTour);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
-  const [tourComplete, setTourComplete] = useState(false);
   const [showAddPantryItem, setShowAddPantryItem] = useState(false);
   const [inventoryAddLocation, setInventoryAddLocation] = useState<string | null>(null);
   const [showScanModal, setShowScanModal] = useState(false);
@@ -256,7 +253,6 @@ export default function KitchenView() {
             console.log('[KitchenView] current meals before update:', meals.length);
             setOnboardingComplete(true);
             setShowOnboarding(false);
-            if (!hasTakenTour) setShowTour(true);
             if (createdMeal) {
               setMeals(prev => {
                 console.log('[KitchenView] setMeals called with meal:', createdMeal.name, 'prev length:', prev.length);
@@ -271,14 +267,7 @@ export default function KitchenView() {
         />
       )}
 
-      {/* ── Guided Tour ── */}
-      {bootDone && !showOnboarding && showTour && !tourComplete && (
-        <HearthTour
-          onComplete={() => {
-            setTourComplete(true);
-          }}
-        />
-      )}
+
 
       {/* Header */}
       <div className="kitchen-header">

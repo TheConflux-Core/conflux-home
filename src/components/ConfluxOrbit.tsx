@@ -114,8 +114,16 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
   }, [wizardMode, wizardSequence]); // Removed wizardStepIndex to prevent infinite loop
 
   // Audio Context for TTS playback
+  // Module-level so playback persists across renders and can be stopped by new calls.
   const audioContextRef = useRef<AudioContext | null>(null);
+  const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
+
   const playTTS = useCallback((base64: string, sampleRate: number) => {
+    // Stop any existing playback BEFORE starting new audio — prevents
+    // overlapping voices / reverb when rapid TTS events arrive.
+    try { activeSourceRef.current?.stop(); } catch (_) { /* already stopped */ }
+    activeSourceRef.current = null;
+
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
@@ -133,6 +141,7 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
       source.buffer = audioBuffer;
       source.playbackRate.value = 1.0;
       source.connect(ctx.destination);
+      activeSourceRef.current = source;
       source.start(0);
       
       // Trigger the fairy to speak visually when audio starts
@@ -142,6 +151,7 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
       // Reset to idle when audio finishes
       source.onended = () => {
         console.log('[ConfluxOrbit] TTS finished, returning to idle');
+        activeSourceRef.current = null;
         conflux.setMode('idle', 'backend', 'Ready');
       };
     }).catch(e => console.error('TTS Decode Error:', e));
