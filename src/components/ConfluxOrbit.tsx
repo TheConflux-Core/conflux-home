@@ -71,10 +71,6 @@ const APP_LOBE_MAP: Record<string, string> = {
 const EMPTY_SEQ: never[] = [];
 
 export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatOpen, isPushToTalkActive, wizardMode = false, wizardSequence = EMPTY_SEQ, hidden = false }: ConfluxOrbitProps) {
-  // Hide fairy entirely when any app is open (prevents interference with app content)
-  // Must be at the top — before any hook calls — to avoid "fewer hooks" React error
-  if (hidden) return null;
-
   // Global click sound — fired from ConfluxOrbit (always mounted desktop shell)
   useGlobalClickSound();
 
@@ -673,7 +669,7 @@ export default function ConfluxOrbit({ view, immersiveView, chatOpen, voiceChatO
     return () => cancelAnimationFrame(currentRafId);
   }, [wizardMode, wizardSequence, wizardStepIndex]);
 
-  if (dimensions.width === 0) return null;
+  if (hidden || dimensions.width === 0) return null;
 
   // Builder Mode: apply gold visual indicator via filter
   // Builder Mode: currently disabled - always return none
