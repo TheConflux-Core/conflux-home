@@ -145,6 +145,13 @@ pub fn run() {
                 HEARTBEAT_CMD_TX.get_or_init(|| Arc::new(tx));
                 tauri::async_runtime::spawn(async move {
                     let mut current_interval_secs: u64 = 1800;
+                    // Initialize from stored last beat so we don't fire immediately on startup
+                    let mut last_heartbeat_beat_ms: i64 = if let Some(e) = engine::try_get_engine() {
+                        e.db().get_config_async("heartbeat_last_beat_ms").await
+                            .ok().flatten()
+                            .and_then(|v| v.parse::<i64>().ok())
+                            .unwrap_or(0)
+                    } else { 0 };
                     loop {
                         // Read interval from DB on every iteration (fallback when no channel cmd arrives)
                         let (db_interval_secs, stored) = if let Some(e) = engine::try_get_engine() {
@@ -189,6 +196,8 @@ pub fn run() {
                                     }
                                     Some(interval) => {
                                         current_interval_secs = interval / 1000;
+                                        // Reset beat timer so next beat fires after the new interval
+                                        last_heartbeat_beat_ms = chrono::Utc::now().timestamp_millis();
                                         log::info!("[CronScheduler] Interval changed to {}s (via channel)", current_interval_secs);
                                     }
                                     None => {
@@ -206,12 +215,19 @@ pub fn run() {
                                     Some(engine_ref) => {
                                         let count = engine_ref.tick_cron().await.unwrap_or(0);
                                         log::info!("[CronScheduler] Tick — {} jobs, interval={}s stored={}", count, current_interval_secs, stored);
-                                        // Persist last beat timestamp so frontend can sync from Rust's clock
+
+                                        // Heartbeat beat + chain: only fire when the configured interval has elapsed.
+                                        // Other cron jobs (e.g. Watchtower every 5min) still run via tick_cron(),
+                                        // but they don't trigger the heartbeat beat or chain.
                                         let now_ms = chrono::Utc::now().timestamp_millis();
-                                        let _ = engine_ref.db().set_config("heartbeat_last_beat_ms", &now_ms.to_string());
-                                        let _ = app_handle.emit("conflux:heartbeat-beat", now_ms);
-                                        // Trigger the heartbeat cascade chain
-                                        heartbeat_chain::trigger_chain(app_handle.clone());
+                                        let elapsed_ms = (now_ms - last_heartbeat_beat_ms) as u64;
+                                        let interval_ms = current_interval_secs * 1000;
+                                        if elapsed_ms >= interval_ms {
+                                            last_heartbeat_beat_ms = now_ms;
+                                            let _ = engine_ref.db().set_config("heartbeat_last_beat_ms", &now_ms.to_string());
+                                            let _ = app_handle.emit("conflux:heartbeat-beat", now_ms);
+                                            heartbeat_chain::trigger_chain(app_handle.clone());
+                                        }
                                     }
                                     None => {
                                         log::warn!("[CronScheduler] Engine unavailable, skipping tick");
@@ -753,6 +769,7 @@ pub fn run() {
             commands::vault_get_file,
             commands::vault_migrate_filenames,
             commands::vault_open_file,
+            commands::vault_download_file,
             commands::vault_delete_file,
             commands::vault_toggle_favorite,
             commands::vault_get_recent,

@@ -1748,12 +1748,29 @@ impl EngineDb {
     ) -> Result<String> {
         let id = uuid::Uuid::new_v4().to_string();
         let conn = self.conn_blocking();
+        // New cron jobs are DISABLED by default — user enables in Settings
         conn.execute(
-            "INSERT INTO cron_jobs (id, name, agent_id, schedule, timezone, task_message)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO cron_jobs (id, name, agent_id, schedule, timezone, task_message, is_enabled)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)",
             params![id, name, agent_id, schedule, timezone, task_message],
         )?;
         Ok(id)
+    }
+
+    /// Disable all cron jobs. Called on startup to ensure jobs don't run
+    /// unless the user explicitly enables them in Settings.
+    pub fn disable_all_cron_jobs(&self) -> Result<usize> {
+        let conn = self.conn_blocking();
+        let count = conn.execute("UPDATE cron_jobs SET is_enabled = 0 WHERE is_enabled = 1", [])?;
+        Ok(count)
+    }
+
+    /// Delete cron jobs by name pattern. Used to remove stale jobs.
+    pub fn delete_cron_jobs_by_name(&self, pattern: &str) -> Result<usize> {
+        let conn = self.conn_blocking();
+        let like = format!("%{}%", pattern);
+        let count = conn.execute("DELETE FROM cron_jobs WHERE name LIKE ?1", params![like])?;
+        Ok(count)
     }
 
     pub fn get_cron_jobs(&self, enabled_only: bool) -> Result<Vec<super::types::CronJob>> {

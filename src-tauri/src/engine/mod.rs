@@ -133,6 +133,17 @@ pub fn init_engine(db_path: &Path) -> Result<&'static ConfluxEngine> {
         log::warn!("[Engine] Failed to ensure system cron jobs: {}", e);
     }
 
+    // Disable ALL cron jobs by default — user must explicitly enable in Settings.
+    // This prevents stale jobs (e.g. removed watchtower) from firing.
+    if let Err(e) = get_engine().db().disable_all_cron_jobs() {
+        log::warn!("[Engine] Failed to disable cron jobs: {}", e);
+    }
+
+    // Remove stale watchtower cron if it exists (was removed from code but may linger in DB)
+    if let Err(e) = get_engine().db().delete_cron_jobs_by_name("watchtower") {
+        log::warn!("[Engine] Failed to clean stale watchtower cron: {}", e);
+    }
+
     Ok(get_engine())
 }
 

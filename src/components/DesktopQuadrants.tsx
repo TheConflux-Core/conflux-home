@@ -200,7 +200,7 @@ function RingGauge({ value, max, color, label, sublabel }: { value: number; max:
 }
 
 // Default active agents (must match AGENTS in beatBus.ts)
-const DEFAULT_AGENT_IDS = ['conflux', 'helix', 'pulse', 'hearth', 'echo', 'aegis', 'viper', 'forge', 'orbit', 'horizon'];
+const DEFAULT_AGENT_IDS = ['conflux', 'helix', 'pulse', 'hearth', 'echo', 'aegis', 'viper'];
 
 function IntelDashboard() {
   const { balance, loading: creditsLoading } = useCredits();

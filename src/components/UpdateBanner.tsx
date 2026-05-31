@@ -2,7 +2,7 @@ import { useAutoUpdate } from '../hooks/useAutoUpdate';
 import './UpdateBanner.css';
 
 const DOWNLOAD_URL = "https://theconflux.com/download";
-const CHANGELOG_URL = "https://theconflux.com/changelog";
+const CHANGELOG_URL = "https://theconflux.com/docs/changelog";
 
 export default function UpdateBanner() {
   const { available, version, downloading, downloaded, error, install, dismiss } = useAutoUpdate();

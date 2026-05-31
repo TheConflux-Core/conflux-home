@@ -336,6 +336,7 @@ export default function VaultView() {
                   onToggleFavorite={() => handleToggleFavorite(file.id)}
                   onDelete={() => handleDelete(file.id)}
                   onOpen={() => invoke('vault_open_file', { path: file.path })}
+                  onDownload={() => invoke('vault_download_file', { path: file.path, filename: file.name })}
                 />
               ))}
             </div>
@@ -378,6 +379,7 @@ export default function VaultView() {
                         onToggleFavorite={() => handleToggleFavorite(file.id)}
                         onDelete={() => handleDelete(file.id)}
                         onOpen={() => invoke('vault_open_file', { path: file.path })}
+                        onDownload={() => invoke('vault_download_file', { path: file.path, filename: file.name })}
                       />
                     ))}
                   </div>
