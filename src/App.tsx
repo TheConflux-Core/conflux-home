@@ -740,7 +740,7 @@ export default function App() {
     } catch {}
     // Fresh install or empty — use same defaults as AgentsView so Desktop
     // renders with the right agents while AgentsView boots async
-    return ['conflux', 'helix', 'pulse', 'aegis', 'viper'];
+    return ['conflux', 'helix', 'pulse', 'hearth', 'echo', 'aegis', 'viper'];
   });
 
   // Listen for agent selection changes from AgentsView
@@ -768,7 +768,7 @@ export default function App() {
           localStorage.setItem('conflux-name', data.display_name)
           setUserName(data.display_name)
         }
-        if (data.selected_agents) {
+        if (data.selected_agents && Array.isArray(data.selected_agents) && data.selected_agents.length > 0) {
           localStorage.setItem('conflux-selected-agents', JSON.stringify(data.selected_agents))
           setSelectedAgentIds(data.selected_agents)
         }
