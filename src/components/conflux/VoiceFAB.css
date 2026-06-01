@@ -1,0 +1,164 @@
+/* ── Voice FAB (Floating Action Button) ─────────────────────────────────── */
+/* Primary voice interaction point. Replaces fairy as the "talk to Conflux" trigger.
+   Bottom-right floating button with tap (PTT) and hold (voice chat) modes. */
+
+.voice-fab {
+  position: fixed;
+  bottom: 80px;
+  right: 24px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 950;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-app-region: no-drag;
+  user-select: none;
+  touch-action: none;
+  transition: transform 0.2s ease, box-shadow 0.3s ease;
+}
+
+.voice-fab:hover {
+  transform: scale(1.08);
+}
+
+.voice-fab:active {
+  transform: scale(0.95);
+}
+
+/* ── Background ── */
+.voice-fab-bg {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(20, 15, 40, 0.85);
+  border: 1.5px solid var(--fab-color, rgba(139, 92, 246, 0.4));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow:
+    0 0 12px var(--fab-glow, rgba(139, 92, 246, 0.15)),
+    0 4px 20px rgba(0, 0, 0, 0.3);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+  animation: fab-breathe 4s ease-in-out infinite;
+}
+
+/* ── Icon ── */
+.voice-fab-icon {
+  position: relative;
+  z-index: 1;
+  font-size: 22px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.4));
+  transition: transform 0.2s ease;
+}
+
+/* ── Active state ── */
+.voice-fab.active .voice-fab-bg {
+  background: rgba(30, 20, 60, 0.92);
+  border-color: var(--fab-color, rgba(139, 92, 246, 0.7));
+  box-shadow:
+    0 0 20px var(--fab-glow, rgba(139, 92, 246, 0.4)),
+    0 0 40px var(--fab-glow, rgba(139, 92, 246, 0.15)),
+    0 4px 20px rgba(0, 0, 0, 0.3);
+  animation: none;
+}
+
+/* ── PTT active ring ── */
+.voice-fab-ptt-ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--fab-color, rgba(139, 92, 246, 0.6));
+  animation: fab-ptt-ring-pulse 1.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* ── PTT state ── */
+.voice-fab.ptt .voice-fab-icon {
+  animation: fab-ptt-bounce 0.8s ease-in-out infinite;
+}
+
+/* ── Voice chat state ── */
+.voice-fab.voice-chat .voice-fab-bg {
+  animation: fab-voice-chat-glow 1.5s ease-in-out infinite;
+}
+
+/* ── Tooltip ── */
+.voice-fab-tooltip {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  right: 0;
+  min-width: 180px;
+  background: rgba(12, 10, 28, 0.96);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  border-radius: 12px;
+  padding: 12px 14px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  animation: fab-tooltip-enter 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  pointer-events: none;
+  z-index: 960;
+}
+
+.voice-fab-tooltip-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(224, 208, 255, 0.95);
+  margin-bottom: 8px;
+}
+
+.voice-fab-tooltip-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: rgba(160, 150, 190, 0.8);
+  margin-bottom: 8px;
+}
+
+.voice-fab-tooltip-kbd {
+  font-size: 11px;
+  color: rgba(160, 150, 190, 0.7);
+}
+
+.voice-fab-tooltip-kbd kbd {
+  display: inline-block;
+  background: rgba(139, 92, 246, 0.12);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 10px;
+  color: rgba(224, 208, 255, 0.8);
+  margin-right: 4px;
+}
+
+/* ── Keyframes ── */
+
+@keyframes fab-breathe {
+  0%, 100% { box-shadow: 0 0 12px var(--fab-glow, rgba(139, 92, 246, 0.15)), 0 4px 20px rgba(0, 0, 0, 0.3); }
+  50% { box-shadow: 0 0 18px var(--fab-glow, rgba(139, 92, 246, 0.25)), 0 4px 20px rgba(0, 0, 0, 0.3); }
+}
+
+@keyframes fab-ptt-ring-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.15); opacity: 0.3; }
+}
+
+@keyframes fab-ptt-bounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+@keyframes fab-voice-chat-glow {
+  0%, 100% { box-shadow: 0 0 20px var(--fab-glow, rgba(139, 92, 246, 0.4)), 0 0 40px var(--fab-glow, rgba(139, 92, 246, 0.15)); }
+  50% { box-shadow: 0 0 30px var(--fab-glow, rgba(139, 92, 246, 0.6)), 0 0 60px var(--fab-glow, rgba(139, 92, 246, 0.25)); }
+}
+
+@keyframes fab-tooltip-enter {
+  from { opacity: 0; transform: translateY(6px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}

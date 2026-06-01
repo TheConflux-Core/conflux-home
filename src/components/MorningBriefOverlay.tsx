@@ -4,10 +4,8 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ConfluxPresence, type FairyExpression } from './conflux';
 import { invoke } from '@tauri-apps/api/core';
 import { playFairyChime } from '../lib/sound';
-import { DEFAULT_COMMAND } from '../lib/neuralBrain';
 import './MorningBrief.css';
 
 export interface MorningBriefData {
@@ -147,7 +145,7 @@ interface MorningBriefOverlayProps {
 export default function MorningBriefOverlay({ show, onDismiss }: MorningBriefOverlayProps) {
   const [briefData, setBriefData] = useState<MorningBriefData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [fairyExpr, setFairyExpr] = useState<FairyExpression>('idle');
+  const [fairyExpr, setFairyExpr] = useState('idle'); // kept for state tracking, drives orb CSS
 
   useEffect(() => {
     if (!show) return;
@@ -224,25 +222,7 @@ export default function MorningBriefOverlay({ show, onDismiss }: MorningBriefOve
                 )}
               </div>
               <div className="morning-brief-fairy">
-                <ConfluxPresence
-                  command={{
-                    ...DEFAULT_COMMAND,
-                    mode: 'idle',
-                    label: 'Morning Brief',
-                    glowBoost: 1.2,
-                    pulseRate: 0.8,
-                    palette: {
-                      node: '#4a3f6b',
-                      hot: '#7c6aad',
-                      line: '#9d8cc7',
-                      glow: '#c4b3e0',
-                      aura: '#2a2040',
-                    },
-                  }}
-                  pulseImpulse={0}
-                  fairyExpression={fairyExpr}
-                  style={{ width: 120, height: 120 }}
-                />
+                <div className="morning-brief-orb" />
               </div>
             </div>
 

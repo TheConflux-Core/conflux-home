@@ -4,7 +4,6 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { ConfluxPresence } from './conflux';
 import { triggerFairyNudge } from '../lib/triggerFairyNudge';
 import { AGENTS, useBeatTimeline, useAgentActivity, emitBeat, startDemoBeats, type BeatEvent } from '../lib/beatBus';
 import ChainTimeline from './ChainTimeline';
@@ -222,35 +221,18 @@ function BeatRow({ event, index }: { event: BeatEvent; index: number }) {
   );
 }
 
-// ── Live pulse ring around NeuralBrain ─────────────────────────────────────────
+// ── Live pulse ring around CSS orb ──────────────────────────────────────────
 function BrainPulseRing({ beatCount }: { beatCount: number }) {
+  const intensity = Math.min(beatCount / 20, 1);
   return (
     <div className="intel-brain-ring">
       <div className="intel-ring-inner">
-        <ConfluxPresence
-          command={{
-            mode: 'idle',
-            label: 'INTEL',
-            scale: 1,
-            turbulence: 0.3,
-            driftAxis: [0, 0, 0] as [number, number, number],
-            wobble: 0.4,
-            lobeSpread: 0.8,
-            speechRingIntensity: 0.6,
-            activeLobes: ['memory', 'reasoning'] as const,
-            glowBoost: 1.4,
-            pulseRate: 1.2,
-            palette: {
-              node: '#3a2a6b',
-              hot: '#7c5aad',
-              line: '#9d7ac7',
-              glow: '#c4a3f0',
-              aura: '#1a1040',
-            },
-          }}
-          pulseImpulse={beatCount}
-          fairyExpression="idle"
-          style={{ width: 160, height: 160 }}
+        <div
+          className="intel-orb"
+          style={{
+            '--orb-scale': 1 + intensity * 0.15,
+            '--orb-glow-intensity': 0.3 + intensity * 0.5,
+          } as React.CSSProperties}
         />
       </div>
       {/* Outer pulse ring */}

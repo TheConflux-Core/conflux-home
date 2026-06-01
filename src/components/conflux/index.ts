@@ -3,6 +3,12 @@ export type { FairyExpression, FairyNudge } from "./ConfluxPresence";
 export { ConfluxDebugPanel } from "./ConfluxDebugPanel";
 export { ConfluxTauriHost } from "./ConfluxTauriHost";
 export { useConfluxController } from "./useConfluxController";
+export { ConfluxContext, useConflux } from "./ConfluxContext";
+export type { ConfluxContextValue } from "./ConfluxContext";
+export { default as ConfluxStatusOrb } from "./ConfluxStatusOrb";
+export { default as DockGlow } from "./DockGlow";
+export { default as VoiceFAB } from "./VoiceFAB";
+export { default as NudgeToast } from "./NudgeToast";
 export {
   bindConfluxWindowEvents,
   emitConfluxPulseEvent,

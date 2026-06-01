@@ -1,0 +1,140 @@
+/* ── Nudge Toast ────────────────────────────────────────────────────────── */
+/* Replaces fairy speech bubbles with toast notifications.
+   Same event (conflux:fairy-nudge), different presentation. */
+
+.nudge-toast-container {
+  position: fixed;
+  top: 56px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 1100;
+  pointer-events: none;
+  max-width: 340px;
+}
+
+.nudge-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: rgba(12, 10, 28, 0.94);
+  border-radius: 14px;
+  padding: 12px 14px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  pointer-events: auto;
+  animation: toast-enter 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.nudge-toast:hover {
+  background: rgba(20, 15, 45, 0.96);
+}
+
+.nudge-toast.exiting {
+  animation: toast-exit 0.3s ease-in forwards;
+}
+
+/* ── Priority variants ── */
+.nudge-toast-info {
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.1), 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.nudge-toast-warn {
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.15), 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.nudge-toast-urgent {
+  border: 1px solid rgba(239, 68, 68, 0.55);
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.2), 0 8px 32px rgba(0, 0, 0, 0.4);
+  animation: toast-enter 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards,
+             toast-urgent-pulse 1.5s ease-in-out infinite 0.3s;
+}
+
+/* ── Icon ── */
+.nudge-toast-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  line-height: 1;
+  margin-top: 1px;
+}
+
+/* ── Body ── */
+.nudge-toast-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.nudge-toast-text {
+  font-size: 13px;
+  color: rgba(224, 208, 255, 0.95);
+  line-height: 1.4;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.nudge-toast-warn .nudge-toast-text {
+  color: rgba(252, 211, 77, 0.95);
+}
+
+.nudge-toast-urgent .nudge-toast-text {
+  color: rgba(252, 165, 165, 0.95);
+}
+
+.nudge-toast-app {
+  font-size: 10px;
+  color: rgba(139, 92, 246, 0.6);
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── Dismiss button ── */
+.nudge-toast-dismiss {
+  background: none;
+  border: none;
+  color: rgba(160, 150, 190, 0.5);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.2s ease;
+}
+
+.nudge-toast-dismiss:hover {
+  color: rgba(224, 208, 255, 0.8);
+}
+
+/* ── Keyframes ── */
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateX(40px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes toast-exit {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(40px) scale(0.9);
+  }
+}
+
+@keyframes toast-urgent-pulse {
+  0%, 100% { border-color: rgba(239, 68, 68, 0.55); }
+  50% { border-color: rgba(239, 68, 68, 0.85); }
+}
