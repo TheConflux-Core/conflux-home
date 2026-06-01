@@ -1,7 +1,8 @@
 // Feedback & Bug Reporting Utilities
 // Supports in-app form submission (Supabase) and GitHub issue fallback.
 
-import { supabase } from './supabase'
+import { invoke } from '@tauri-apps/api/core';
+import { supabase } from './supabase';
 
 const GITHUB_REPO = 'TheConflux-Core/conflux-home';
 
@@ -14,6 +15,38 @@ export interface FeedbackSubmission {
 }
 
 /**
+ * Collect system telemetry for bug reports.
+ * Uses Tauri get_system_info for accurate app version + OS.
+ * Falls back to navigator properties when Tauri is unavailable.
+ */
+async function collectSystemInfo(): Promise<{
+  appVersion: string;
+  osInfo: string;
+  userAgent: string;
+}> {
+  const userAgent = navigator.userAgent || 'Unknown';
+
+  try {
+    const info = await invoke<{ os: string; arch: string; app_version: string }>('get_system_info');
+    // Build a rich OS string: "windows x86_64" → "Windows (x86_64)"
+    const osLabel = info.os.charAt(0).toUpperCase() + info.os.slice(1);
+    return {
+      appVersion: info.app_version || 'unknown',
+      osInfo: `${osLabel} (${info.arch})`,
+      userAgent,
+    };
+  } catch {
+    // Fallback: extract what we can from navigator
+    const platform = navigator.platform || 'Unknown';
+    return {
+      appVersion: 'unknown',
+      osInfo: platform,
+      userAgent,
+    };
+  }
+}
+
+/**
  * Submit feedback to Supabase ch_feedback table.
  * Returns the inserted row id on success, null on failure.
  */
@@ -22,8 +55,7 @@ export async function submitFeedback(
   userId?: string | null,
 ): Promise<string | null> {
   try {
-    const platform = navigator.platform || 'Unknown';
-    const appVersion = localStorage.getItem('conflux-app-version') || 'unknown';
+    const sys = await collectSystemInfo();
 
     const { data, error } = await supabase
       .from('ch_feedback')
@@ -33,8 +65,9 @@ export async function submitFeedback(
         title: submission.title,
         description: submission.description,
         page_context: submission.pageContext ?? null,
-        app_version: appVersion,
-        os_info: platform,
+        app_version: sys.appVersion,
+        os_info: sys.osInfo,
+        user_agent: sys.userAgent,
         user_email: submission.userEmail ?? null,
       })
       .select('id')

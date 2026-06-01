@@ -26,26 +26,33 @@ CREATE TABLE IF NOT EXISTS ch_feedback (
 ALTER TABLE ch_feedback ENABLE ROW LEVEL SECURITY;
 
 -- Users can insert their own feedback
-CREATE POLICY "Users can insert own feedback"
-  ON ch_feedback FOR INSERT
-  WITH CHECK (auth.uid() = user_id OR user_id IS NULL);
+DO $$ BEGIN
+  CREATE POLICY "Users can insert own feedback"
+    ON ch_feedback FOR INSERT
+    WITH CHECK (auth.uid() = user_id OR user_id IS NULL);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- Users can view their own feedback
-CREATE POLICY "Users can view own feedback"
-  ON ch_feedback FOR SELECT
-  USING (auth.uid() = user_id);
+DO $$ BEGIN
+  CREATE POLICY "Users can view own feedback"
+    ON ch_feedback FOR SELECT
+    USING (auth.uid() = user_id);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- Service role has full access (for admin dashboard + cron jobs)
-CREATE POLICY "Service role full access"
-  ON ch_feedback FOR ALL
-  USING (auth.role() = 'service_role');
+DO $$ BEGIN
+  CREATE POLICY "Service role full access"
+    ON ch_feedback FOR ALL
+    USING (auth.role() = 'service_role');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Index for polling new feedback
-CREATE INDEX idx_feedback_status ON ch_feedback(status, created_at DESC)
+CREATE INDEX IF NOT EXISTS idx_feedback_status ON ch_feedback(status, created_at DESC)
   WHERE status = 'new';
 
 -- Index for per-user history
-CREATE INDEX idx_feedback_user ON ch_feedback(user_id, created_at DESC)
+CREATE INDEX IF NOT EXISTS idx_feedback_user ON ch_feedback(user_id, created_at DESC)
   WHERE user_id IS NOT NULL;
 
 -- Auto-update updated_at
@@ -57,6 +64,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER feedback_updated_at
-  BEFORE UPDATE ON ch_feedback
-  FOR EACH ROW EXECUTE FUNCTION update_feedback_updated_at();
+DO $$ BEGIN
+  CREATE TRIGGER feedback_updated_at
+    BEFORE UPDATE ON ch_feedback
+    FOR EACH ROW EXECUTE FUNCTION update_feedback_updated_at();
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
