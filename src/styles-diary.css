@@ -288,3 +288,102 @@
   font-size: 13px;
   margin-top: 8px !important;
 }
+
+/* ══════════════════════════════════════
+   MOBILE OVERRIDES — Diary / Echo Journal
+   ══════════════════════════════════════ */
+
+@media (max-width: 640px) {
+  .diary-view {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .diary-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .diary-title {
+    font-size: 17px;
+  }
+
+  .diary-stats {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .diary-stat {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+
+  .diary-mood-strip {
+    gap: 6px;
+    padding: 2px 0;
+  }
+
+  .mood-badge {
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+
+  .agent-shelf {
+    gap: 8px;
+  }
+
+  .agent-book {
+    min-width: 68px;
+    padding: 10px;
+  }
+
+  .agent-book-emoji {
+    font-size: 24px;
+  }
+
+  .agent-book-name {
+    font-size: 11px;
+  }
+
+  .diary-section {
+    padding: 12px;
+  }
+
+  .diary-entry-card {
+    padding: 12px;
+  }
+
+  .diary-entry-header {
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .diary-entry-avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 15px;
+  }
+
+  .diary-entry-title {
+    font-size: 13px;
+  }
+
+  .diary-entry-text {
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .diary-entry-mood {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+
+  .diary-empty {
+    padding: 24px 12px;
+  }
+
+  .diary-empty-icon {
+    font-size: 36px;
+  }
+}

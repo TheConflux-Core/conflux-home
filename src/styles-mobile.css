@@ -1,0 +1,509 @@
+/* ═══════════════════════════════════════════════════════════
+   styles-mobile.css — Global Mobile Foundation
+   
+   CSS-only responsive overrides for the Conflux shell.
+   All rules are behind @media queries — desktop is unaffected.
+   
+   SAFETY: This file is purely additive. No existing styles
+   are modified or removed. Worst case: visual glitch on mobile,
+   never data loss or functional breakage.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Safe Area Support ──
+   For devices with notches, Dynamic Island, rounded corners.
+   Uses CSS env() with fallbacks for browsers that don't support it. */
+
+/* ══════════════════════════════════════
+   BREAKPOINT: Tablet (≤ 768px)
+   ══════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+  /* ── ConfluxBarV2 — Dock ── */
+  .conflux-bar-v2 {
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 22px;
+  }
+
+  .conflux-logo-btn,
+  .conflux-home-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 22px;
+  }
+
+  .hero-btn {
+    width: 66px;
+    height: 66px;
+    font-size: 19px;
+    margin-top: -24px;
+    margin-left: 4px;
+    margin-right: 4px;
+  }
+
+  .hero-btn::after {
+    width: 90px;
+    height: 90px;
+  }
+
+  /* ── ConfluxBarV2 — Rising Menu ── */
+  .conflux-bar-v2-wrapper .conflux-menu {
+    width: calc(100vw - 32px);
+    max-width: 420px;
+    max-height: 55vh;
+  }
+
+  /* ── Intelligence Bar ── */
+  .conflux-bar-v2-wrapper .intelligence-bar {
+    max-width: calc(100vw - 20px);
+    gap: 3px;
+    padding: 5px 8px;
+  }
+
+  .conflux-bar-v2-wrapper .intelligence-badge {
+    padding: 3px 6px 3px 5px;
+    gap: 3px;
+  }
+
+  .conflux-bar-v2-wrapper .intelligence-badge-label {
+    font-size: 9px;
+  }
+
+  .conflux-bar-v2-wrapper .intelligence-badge-emoji {
+    font-size: 12px;
+  }
+
+  /* ── Chat Panel ── */
+  .chat-panel {
+    width: 100%;
+    max-width: 100vw;
+    left: 0;
+    border-left: none;
+    border-radius: 0;
+  }
+
+  /* ── Content Overlay ── */
+  .content-overlay {
+    padding: 16px;
+  }
+}
+
+/* ══════════════════════════════════════
+   BREAKPOINT: Phone Landscape (≤ 640px)
+   ══════════════════════════════════════ */
+
+@media (max-width: 640px) {
+
+  /* ── ConfluxBarV2 — Menu Grid: 2 columns ── */
+  .conflux-bar-v2-wrapper .conflux-menu-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 3px;
+    padding: 6px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu {
+    width: calc(100vw - 16px);
+    max-height: 50vh;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-hero {
+    padding: 12px 16px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-search {
+    padding: 10px 16px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-categories {
+    padding: 8px 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-categories::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* ── ConfluxBarV2 — Dock ── */
+  .conflux-bar-v2 {
+    gap: 4px;
+    padding: 5px 8px;
+  }
+
+  .conflux-logo-btn,
+  .conflux-home-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  .hero-btn {
+    width: 58px;
+    height: 58px;
+    font-size: 17px;
+    margin-top: -20px;
+    margin-left: 3px;
+    margin-right: 3px;
+  }
+
+  .hero-btn::before {
+    width: calc(100% + 4px);
+    height: calc(100% + 4px);
+  }
+
+  .hero-btn::after {
+    width: 78px;
+    height: 78px;
+  }
+
+  .hero-btn-notification {
+    width: 12px;
+    height: 12px;
+    top: -1px;
+    right: -1px;
+  }
+
+  /* ── Intelligence Bar — hide labels on small screens ── */
+  .conflux-bar-v2-wrapper .intelligence-badge-label {
+    display: none;
+  }
+
+  .conflux-bar-v2-wrapper .intelligence-bar-summary span:not(:first-child) {
+    display: none;
+  }
+
+  /* ── ImmersiveView ── */
+  .immersive-back-btn {
+    top: 12px;
+    right: 12px;
+    padding: 6px 14px;
+    font-size: 13px;
+  }
+
+  /* ── Content Overlay ── */
+  .content-overlay {
+    padding: 12px;
+    top: 48px;
+    bottom: 64px;
+  }
+}
+
+/* ══════════════════════════════════════
+   BREAKPOINT: Phone Portrait (≤ 480px)
+   ══════════════════════════════════════ */
+
+@media (max-width: 480px) {
+
+  /* ── TopBar — Compact ── */
+  .topbar {
+    padding: 0 12px;
+    height: 44px;
+  }
+
+  .topbar-title {
+    font-size: 13px;
+  }
+
+  .topbar-clock {
+    font-size: 12px;
+  }
+
+  .topbar-right {
+    gap: 10px;
+  }
+
+  /* ── ConfluxBarV2 — Menu Grid: 2 columns, tighter ── */
+  .conflux-bar-v2-wrapper .conflux-menu-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-app {
+    padding: 8px;
+    gap: 6px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-app-icon {
+    font-size: 20px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-app-name {
+    font-size: 11px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-app-desc {
+    display: none;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu {
+    max-height: 45vh;
+    border-radius: 16px 16px 20px 20px;
+  }
+
+  /* ── ConfluxBarV2 — Minimal Dock ── */
+  .conflux-bar-v2 {
+    gap: 2px;
+    padding: 4px 6px;
+    border-radius: 20px;
+    margin-bottom: 2px;
+  }
+
+  .conflux-bar-v2-wrapper {
+    padding-bottom: 4px;
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  .conflux-logo-btn,
+  .conflux-home-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+
+  .hero-btn {
+    width: 52px;
+    height: 52px;
+    font-size: 16px;
+    margin-top: -18px;
+    margin-left: 2px;
+    margin-right: 2px;
+  }
+
+  .hero-btn::after {
+    width: 68px;
+    height: 68px;
+  }
+
+  /* ── ImmersiveView — Mobile Safe Areas ── */
+  .immersive-overlay {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .immersive-back-btn {
+    top: calc(10px + env(safe-area-inset-top, 0px));
+    right: calc(10px + env(safe-area-inset-right, 0px));
+    padding: 5px 12px;
+    font-size: 12px;
+    border-radius: 16px;
+  }
+
+  .immersive-content {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* ── Content Overlay — adjust for smaller TopBar ── */
+  .content-overlay {
+    top: 44px;
+    bottom: 56px;
+    padding: 10px;
+  }
+
+  /* ── Chat Panel — Full width ── */
+  .chat-panel {
+    top: 44px;
+    bottom: 56px;
+  }
+
+  /* ── Agents Bottom Bar ── */
+  .agents-bottom-bar {
+    bottom: 52px;
+    padding: 6px 12px;
+    gap: 4px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .agents-bottom-bar .agent-avatar-mini {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+
+  /* ── Desktop Widgets Grid — Single column ── */
+  .desktop-widgets-grid {
+    grid-template-columns: 1fr;
+    padding: 12px;
+    gap: 12px;
+  }
+}
+
+/* ══════════════════════════════════════
+   BREAKPOINT: Small Phone (≤ 375px)
+   iPhone SE, small Android phones
+   ══════════════════════════════════════ */
+
+@media (max-width: 375px) {
+
+  /* ── ConfluxBarV2 — Ultra Compact ── */
+  .conflux-bar-v2-wrapper .conflux-menu {
+    width: calc(100vw - 8px);
+    max-height: 40vh;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-hero {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-hero-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-hero-title {
+    font-size: 13px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-search {
+    padding: 8px 12px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-categories {
+    padding: 6px 12px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-cat {
+    padding: 3px 8px;
+    font-size: 9px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-grid {
+    padding: 4px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-app {
+    padding: 7px;
+    gap: 5px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-app-icon {
+    font-size: 18px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-app-name {
+    font-size: 10px;
+  }
+
+  /* ── Dock — Hide side labels, shrink further ── */
+  .hero-btn {
+    width: 48px;
+    height: 48px;
+    font-size: 15px;
+    margin-top: -16px;
+  }
+
+  .hero-btn::after {
+    width: 62px;
+    height: 62px;
+  }
+
+  .conflux-logo-btn,
+  .conflux-home-btn {
+    width: 34px;
+    height: 34px;
+    font-size: 17px;
+  }
+
+  /* ── TopBar — Ultra compact ── */
+  .topbar {
+    padding: 0 8px;
+    height: 40px;
+  }
+
+  .topbar-title {
+    font-size: 12px;
+  }
+
+  .topbar-clock {
+    font-size: 11px;
+  }
+
+  /* ── Content Overlay ── */
+  .content-overlay {
+    top: 40px;
+    padding: 8px;
+  }
+
+  .chat-panel {
+    top: 40px;
+  }
+}
+
+/* ══════════════════════════════════════
+   Touch Target Enforcement
+   Ensures interactive elements meet 44px
+   minimum (Apple HIG) on touch devices.
+   ══════════════════════════════════════ */
+
+@media (pointer: coarse) {
+  /* Taskbar items — ensure 44px touch target */
+  .taskbar-item {
+    min-width: 48px;
+    min-height: 44px;
+    padding: 8px 12px;
+  }
+
+  /* ConfluxBarV2 menu apps */
+  .conflux-menu-app {
+    min-height: 44px;
+  }
+
+  /* Immersive back button */
+  .immersive-back-btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* All buttons in immersive views should be tappable */
+  .immersive-overlay button {
+    min-height: 40px;
+  }
+
+  /* Category pills */
+  .conflux-menu-cat {
+    min-height: 32px;
+    padding: 4px 12px;
+  }
+}
+
+/* ══════════════════════════════════════
+   Scroll Behavior — Mobile Momentum
+   ══════════════════════════════════════ */
+
+@supports (-webkit-overflow-scrolling: touch) {
+  .immersive-content,
+  .content-overlay,
+  .chat-panel,
+  .conflux-menu-grid {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ══════════════════════════════════════
+   Hover State Adjustments
+   On touch devices, :hover sticks. Use
+   @media (hover: hover) for hover-only
+   effects that shouldn't fire on touch.
+   ══════════════════════════════════════ */
+
+@media (hover: none) and (pointer: coarse) {
+  /* Disable hover transforms on touch — they stick and look wrong */
+  .conflux-bar-item:hover,
+  .conflux-logo-btn:hover,
+  .conflux-home-btn:hover,
+  .hero-btn:hover {
+    transform: none;
+  }
+
+  /* Keep active/selected states visual but no scale */
+  .conflux-bar-item:active,
+  .conflux-logo-btn:active,
+  .conflux-home-btn:active,
+  .hero-btn:active {
+    transform: scale(0.95);
+    opacity: 0.85;
+  }
+}

@@ -185,3 +185,71 @@
   font-size: 13px;
   margin-bottom: 4px;
 }
+
+/* ══════════════════════════════════════
+   MOBILE OVERRIDES — Home / Foundation
+   ══════════════════════════════════════ */
+
+@media (max-width: 640px) {
+  .home-health-score {
+    padding: 14px;
+  }
+
+  .home-score-value {
+    font-size: 36px;
+  }
+
+  .home-score-label {
+    font-size: 13px;
+  }
+
+  .bill-chart {
+    height: 80px;
+    gap: 3px;
+  }
+
+  .appliance-card {
+    padding: 10px;
+  }
+
+  .appliance-name {
+    font-size: 13px;
+  }
+
+  .appliance-age {
+    font-size: 11px;
+  }
+
+  .appliance-meta {
+    font-size: 11px;
+  }
+
+  .dream-card {
+    padding: 12px;
+  }
+
+  .dream-title {
+    font-size: 14px;
+  }
+
+  .dream-progress-text {
+    font-size: 12px;
+  }
+
+  .dream-plan-section {
+    padding: 12px;
+  }
+
+  .dream-plan-title {
+    font-size: 13px;
+  }
+
+  .dream-plan-analysis {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .dream-meta {
+    font-size: 11px;
+  }
+}
