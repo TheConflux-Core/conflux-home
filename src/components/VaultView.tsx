@@ -89,11 +89,6 @@ export default function VaultView() {
 
   // Auto-scan on mount so Studio generations appear in Vault
   useEffect(() => {
-    const dirs = [
-      '/home/calo/.conflux/studio/generated',
-      '/home/calo/.conflux/studio/vault',
-      '/home/calo/.conflux/vault',
-    ];
     (async () => {
       // Migrate old-style filenames to cfx_ convention (one-time, idempotent)
       try {
@@ -101,6 +96,15 @@ export default function VaultView() {
         console.log('[Vault] Migration result:', migration);
       } catch (e) {
         console.warn('[Vault] Filename migration skipped:', e);
+      }
+
+      // Get platform-specific vault directories from backend
+      let dirs: string[];
+      try {
+        dirs = await invoke<string[]>('get_vault_directories');
+      } catch (e) {
+        console.warn('[Vault] get_vault_directories failed, using fallback:', e);
+        dirs = [];
       }
 
       for (const dir of dirs) {
@@ -211,12 +215,13 @@ export default function VaultView() {
   };
 
   const handleScan = async () => {
-    // Scan all content directories
-    const dirs = [
-      '/home/calo/.conflux/studio/generated',
-      '/home/calo/.conflux/studio/vault',
-      '/home/calo/.conflux/vault',
-    ];
+    // Get platform-specific vault directories from backend
+    let dirs: string[];
+    try {
+      dirs = await invoke<string[]>('get_vault_directories');
+    } catch (e) {
+      dirs = [];
+    }
     for (const dir of dirs) {
       try {
         await invoke('vault_scan_directory', { dir_path: dir });
