@@ -19,7 +19,7 @@ const APP_ICONS: Record<View, { icon: string; label: string }> = {
   horizon: { icon: '🎯', label: 'Horizon' },
   story: { icon: '📖', label: 'Story' },
   marketplace: { icon: '🛒', label: 'Marketplace' },
-  mirror: { icon: '🪞', label: 'Mirror' },
+  mirror: { icon: '🪞', label: 'Echo' },
   vault: { icon: '🔐', label: 'Vault' },
   studio: { icon: '✨', label: 'Studio' },
   'api-dashboard': { icon: '📊', label: 'API Dashboard' },

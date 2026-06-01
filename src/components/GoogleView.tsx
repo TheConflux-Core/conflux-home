@@ -110,14 +110,14 @@ export default function GoogleView() {
     setError(null);
     try {
       const [ev, em, dr, tk] = await Promise.allSettled([
-        invoke<any>('google_get_events', { days: 7 }),
-        invoke<any>('google_get_emails', { query: 'in:inbox', limit: 15 }),
-        invoke<any>('google_get_drive_files', { limit: 12 }),
-        invoke<any>('google_get_tasks'),
+        invoke<any>('google_calendar_list_events', { days: 7, maxResults: 20 }),
+        invoke<any>('google_gmail_search', { query: 'in:inbox', limit: 15 }),
+        invoke<any>('google_drive_list', { limit: 12 }),
+        invoke<any>('google_tasks_list', { maxResults: 20 }),
       ]);
 
       if (ev.status === 'fulfilled') {
-        const arr = Array.isArray(ev.value) ? ev.value : (ev.value?.events ?? []);
+        const arr = Array.isArray(ev.value) ? ev.value : (ev.value?.items ?? ev.value?.events ?? []);
         setEvents(arr);
       }
       if (em.status === 'fulfilled') {
@@ -152,7 +152,7 @@ export default function GoogleView() {
     setNlLoading(true);
     setNlResult(null);
     try {
-      const parsed = await invoke<any>('google_create_event_nl', { nlText: nlInput });
+      const parsed = await invoke<any>('google_calendar_create_event_nl', { nlText: nlInput });
       setNlResult(JSON.stringify(parsed, null, 2));
       setNlInput('');
     } catch (e) {

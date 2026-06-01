@@ -1,19 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-
-interface EmailConfig {
-  host: string;
-  port: number;
-  username: string;
-  password: string;
-  fromAddress: string;
-  tls: boolean;
-}
 
 interface ConnectivityStatus {
   googleConnected: boolean;
   googleEmail: string | null;
-  smtpConfigured: boolean;
   loading: boolean;
   error: string | null;
 }
@@ -27,20 +17,13 @@ const ConnectivityWidget: React.FC = () => {
   const [status, setStatus] = useState<ConnectivityStatus>({
     googleConnected: false,
     googleEmail: null,
-    smtpConfigured: false,
     loading: true,
     error: null,
   });
 
-  const fetchConnectivityStatus = async () => {
+  const fetchConnectivityStatus = useCallback(async () => {
     if (!isTauri()) {
-      setStatus({
-        googleConnected: false,
-        googleEmail: null,
-        smtpConfigured: false,
-        loading: false,
-        error: null,
-      });
+      setStatus(prev => ({ ...prev, loading: false, error: null }));
       return;
     }
 
@@ -50,41 +33,35 @@ const ConnectivityWidget: React.FC = () => {
       const googleConnected = await invoke<boolean>('engine_google_is_connected');
       let googleEmail: string | null = null;
       if (googleConnected) {
-        googleEmail = await invoke<string>('engine_google_get_email');
-      }
-
-      let smtpConfigured = false;
-      try {
-        const emailConfig = await invoke<EmailConfig | null>('engine_get_email_config');
-        smtpConfigured = !!emailConfig?.host;
-      } catch {
-        // SMTP config not available
+        try {
+          googleEmail = await invoke<string>('engine_google_get_email');
+        } catch {
+          // email fetch failed, but we're still connected
+        }
       }
 
       setStatus({
         googleConnected,
         googleEmail,
-        smtpConfigured,
         loading: false,
         error: null,
       });
     } catch (e: any) {
-      console.error('Failed to fetch connectivity status:', e);
-      setStatus({
-        googleConnected: false,
-        googleEmail: null,
-        smtpConfigured: false,
+      console.error('[ConnectivityWidget] Failed to fetch status:', e);
+      // Keep previous connected state on transient errors, but show the error
+      setStatus(prev => ({
+        ...prev,
         loading: false,
-        error: e.message || 'Error checking status',
-      });
+        error: e?.message || String(e) || 'Failed to check connection',
+      }));
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchConnectivityStatus();
     const interval = setInterval(fetchConnectivityStatus, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchConnectivityStatus]);
 
   const handleManageConnections = () => {
     window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: 'settings' }));
@@ -109,33 +86,39 @@ const ConnectivityWidget: React.FC = () => {
       <div style={{ borderBottom: '1px solid var(--border)', marginBottom: '10px' }} />
 
       {status.loading && <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Checking...</p>}
+
+      {status.error && (
+        <div style={{
+          fontSize: 11, color: '#f59e0b', background: 'rgba(245,158,11,0.1)',
+          padding: '8px 10px', borderRadius: 8, marginBottom: 10,
+          border: '1px solid rgba(245,158,11,0.2)',
+          lineHeight: 1.4,
+        }}>
+          ⚠️ {status.error}
+          <button
+            onClick={fetchConnectivityStatus}
+            style={{
+              display: 'block', marginTop: 6, background: 'none', border: '1px solid rgba(245,158,11,0.3)',
+              borderRadius: 4, padding: '2px 8px', fontSize: 10, color: '#f59e0b', cursor: 'pointer',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {!status.loading && (
         <>
-          <ConnectionLine label="✉️ Google" connected={status.googleConnected} detail={status.googleConnected ? status.googleEmail || 'connected' : 'not connected'} />
+          <ConnectionLine label="📧 Gmail" connected={status.googleConnected} detail={status.googleConnected ? status.googleEmail || 'connected' : 'not connected'} />
+          <ConnectionLine label="📅 Calendar" connected={status.googleConnected} detail={status.googleConnected ? 'connected' : 'not connected'} />
+          <ConnectionLine label="✅ Tasks" connected={status.googleConnected} detail={status.googleConnected ? 'connected' : 'not connected'} />
           <ConnectionLine label="📄 Docs" connected={status.googleConnected} detail={status.googleConnected ? 'connected' : 'not connected'} />
           <ConnectionLine label="📊 Sheets" connected={status.googleConnected} detail={status.googleConnected ? 'connected' : 'not connected'} />
           <ConnectionLine label="📁 Drive" connected={status.googleConnected} detail={status.googleConnected ? 'connected' : 'not connected'} />
-          <ConnectionLine label="📧 SMTP" connected={status.smtpConfigured} detail={status.smtpConfigured ? 'configured' : 'not set'} />
         </>
       )}
 
-      <div style={{ marginTop: '15px', textAlign: 'center' }}>
-        <button
-          onClick={handleManageConnections}
-          style={{
-            background: 'var(--accent-primary)',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '10px 15px',
-            fontSize: '14px',
-            cursor: 'pointer',
-            transition: 'background-color 0.2s',
-          }}
-        >
-          Manage Connections
-        </button>
-      </div>
+
     </div>
   );
 };

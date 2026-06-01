@@ -7671,191 +7671,92 @@ Create a comprehensive synthesis. Respond as JSON (no markdown):
 }
 
 // ═══════════════════════════════════════════════════════
-// Google Workspace (gog CLI integration)
+// Google Workspace (native OAuth)
 // ═══════════════════════════════════════════════════════
 
 use std::process::Command;
 
-const GOG_ACCOUNT: &str = "theconflux303@gmail.com";
-const GOG_KEYRING_PW: &str = "Nolimit@i26Lng";
+// ── Native Google Calendar, Tasks, Gmail & Drive Commands ──
 
-fn run_gog(args: &[&str]) -> Result<String, String> {
-    let output = Command::new("gog")
-        .env("GOG_KEYRING_PASSWORD", GOG_KEYRING_PW)
-        .args(args)
-        .output()
-        .map_err(|e| format!("Failed to run gog: {}", e))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("gog error: {}", stderr));
-    }
-
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
-}
-
-/// Get upcoming calendar events (next 7 days)
+/// List upcoming calendar events via native Google Calendar API.
 #[tauri::command]
-pub fn google_get_events(days: Option<i64>) -> Result<serde_json::Value, String> {
-    let days = days.unwrap_or(7);
-    let days_str = format!("--days={}", days);
-    let args = vec![
-        "calendar",
-        "events",
-        "--json",
-        "--results-only",
-        "-a",
-        GOG_ACCOUNT,
-        &days_str,
-    ];
-    let json = run_gog(&args)?;
-    let events: serde_json::Value =
-        serde_json::from_str(&json).map_err(|e| format!("Failed to parse calendar JSON: {}", e))?;
-    Ok(events)
-}
-
-/// Get recent inbox emails
-#[tauri::command]
-pub fn google_get_emails(
-    query: Option<String>,
-    limit: Option<i64>,
+pub fn google_calendar_list_events(
+    days: Option<i64>,
+    max_results: Option<i64>,
 ) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let days = days.unwrap_or(7);
+    let max = max_results.unwrap_or(20);
+    engine::google::calendar_list_events(engine.db(), days, max)
+        .map_err(|e| e.to_string())
+}
+
+/// Create a calendar event via native Google Calendar API.
+#[tauri::command]
+pub fn google_calendar_create_event(
+    summary: String,
+    start_date_time: String,
+    end_date_time: String,
+    description: Option<String>,
+    location: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    engine::google::calendar_create_event(
+        engine.db(),
+        &summary,
+        &start_date_time,
+        &end_date_time,
+        description.as_deref(),
+        location.as_deref(),
+    )
+    .map_err(|e| e.to_string())
+}
+
+/// Create a calendar event from natural language via native API.
+#[tauri::command]
+pub async fn google_calendar_create_event_nl(
+    nl_text: String,
+) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    engine::google::calendar_create_event_nl(engine.db(), &nl_text)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// List tasks from the default task list via native Google Tasks API.
+#[tauri::command]
+pub fn google_tasks_list(max_results: Option<i64>) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let max = max_results.unwrap_or(20);
+    engine::google::tasks_list_default(engine.db(), max)
+        .map_err(|e| e.to_string())
+}
+
+/// List all task lists via native Google Tasks API.
+#[tauri::command]
+pub fn google_tasks_list_lists() -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    engine::google::tasks_list_lists(engine.db())
+        .map_err(|e| e.to_string())
+}
+
+/// Search Gmail via native OAuth (structured JSON for frontend).
+#[tauri::command]
+pub fn google_gmail_search(query: Option<String>, limit: Option<i64>) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
     let query = query.unwrap_or_else(|| "in:inbox".to_string());
     let limit = limit.unwrap_or(15);
-    let limit_str = format!("--max={}", limit);
-    let args = vec![
-        "gmail",
-        "search",
-        &query,
-        "--json",
-        "--results-only",
-        "-a",
-        GOG_ACCOUNT,
-        &limit_str,
-    ];
-    let json = run_gog(&args)?;
-    let emails: serde_json::Value =
-        serde_json::from_str(&json).map_err(|e| format!("Failed to parse email JSON: {}", e))?;
-    Ok(emails)
+    engine::google::gmail_search_json(engine.db(), &query, limit)
+        .map_err(|e| e.to_string())
 }
 
-/// Get recent Drive files
+/// List Drive files via native OAuth (structured JSON for frontend).
 #[tauri::command]
-pub fn google_get_drive_files(limit: Option<i64>) -> Result<serde_json::Value, String> {
+pub fn google_drive_list(limit: Option<i64>) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
     let limit = limit.unwrap_or(15);
-    let limit_str = format!("--max={}", limit);
-    let args = vec![
-        "drive",
-        "ls",
-        "--json",
-        "--results-only",
-        "-a",
-        GOG_ACCOUNT,
-        &limit_str,
-    ];
-    let json = run_gog(&args)?;
-    let files: serde_json::Value =
-        serde_json::from_str(&json).map_err(|e| format!("Failed to parse drive JSON: {}", e))?;
-    Ok(files)
-}
-
-/// Get task lists and tasks
-#[tauri::command]
-pub fn google_get_tasks() -> Result<serde_json::Value, String> {
-    // First get task lists
-    let lists_json = run_gog(&[
-        "tasks",
-        "lists",
-        "--json",
-        "--results-only",
-        "-a",
-        GOG_ACCOUNT,
-    ])?;
-    let lists: serde_json::Value = serde_json::from_str(&lists_json)
-        .map_err(|e| format!("Failed to parse task lists: {}", e))?;
-
-    // Get tasks from the default list
-    let tasklist_id = if let Some(arr) = lists.as_array() {
-        arr.first()
-            .and_then(|l| l["id"].as_str())
-            .unwrap_or("@default")
-    } else {
-        "@default"
-    };
-
-    let tasks_json = run_gog(&[
-        "tasks",
-        "ls",
-        "--json",
-        "--results-only",
-        "-a",
-        GOG_ACCOUNT,
-        "--tasklist",
-        tasklist_id,
-    ])?;
-    let tasks: serde_json::Value =
-        serde_json::from_str(&tasks_json).map_err(|e| format!("Failed to parse tasks: {}", e))?;
-
-    Ok(serde_json::json!({
-        "lists": lists,
-        "tasks": tasks,
-        "activeList": tasklist_id,
-    }))
-}
-
-/// Create a calendar event from natural language
-#[tauri::command]
-pub async fn google_create_event_nl(nl_text: String) -> Result<serde_json::Value, String> {
-    if engine::is_offline_mode() {
-        return Err("Calendar events require cloud mode.".to_string());
-    }
-    
-    use crate::engine::cloud;
-    use crate::engine::router::OpenAIMessage;
-
-    let prompt = format!(
-        r#"Parse this natural language event request into a JSON object with these fields:
-- summary: event title (string)
-- date: YYYY-MM-DD format (string)
-- start_time: HH:MM 24h format (string)
-- end_time: HH:MM 24h format (string, default 1 hour after start)
-- description: optional description (string or null)
-
-Today's date is {} and time is {}.
-
-Request: "{}"
-
-Return ONLY the JSON object, no explanation."#,
-        chrono::Local::now().format("%Y-%m-%d"),
-        chrono::Local::now().format("%H:%M"),
-        nl_text
-    );
-
-    let messages = vec![OpenAIMessage {
-        role: "user".to_string(),
-        content: Some(prompt),
-        tool_call_id: None,
-        tool_calls: None,
-    }];
-
-    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(500), None, None)
-        .await
-        .map_err(|e| format!("AI parse failed: {}", e))?;
-
-    let content = response.content.trim();
-    let json_str = content
-        .strip_prefix("```json")
-        .unwrap_or(content)
-        .strip_prefix("```")
-        .unwrap_or(content)
-        .strip_suffix("```")
-        .unwrap_or(content)
-        .trim();
-
-    let parsed: serde_json::Value = serde_json::from_str(json_str)
-        .map_err(|e| format!("Failed to parse AI response: {} — Raw: {}", e, json_str))?;
-
-    Ok(parsed)
+    engine::google::drive_list_json(engine.db(), None, limit)
+        .map_err(|e| e.to_string())
 }
 
 // ── Feedback & System Info ──

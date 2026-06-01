@@ -24,7 +24,7 @@ use super::db::EngineDb;
 const REDIRECT_URI: &str = "http://localhost:8899/callback";
 const AUTH_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
-const SCOPES: &str = "https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/spreadsheets";
+const SCOPES: &str = "https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/tasks";
 
 // Built-in OAuth credentials — Conflux Home registered Google Cloud app.
 // Users never need to enter their own credentials.
@@ -267,16 +267,19 @@ fn fetch_user_email(access_token: &str) -> Result<String> {
 pub fn store_tokens(db: &EngineDb, tokens: &GoogleTokens) -> Result<()> {
     let conn = db.conn_blocking();
     conn.execute(
-        "INSERT INTO google_tokens (id, access_token, refresh_token, expires_at, scope)
-         VALUES (?, ?1, ?2, ?3, ?4)
+        "INSERT INTO google_tokens (id, access_token, refresh_token, expires_at, scope, email)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
          ON CONFLICT(id) DO UPDATE SET
-            access_token = ?1, refresh_token = ?2, expires_at = ?3, scope = ?4,
+            access_token = ?2, refresh_token = ?3, expires_at = ?4, scope = ?5,
+            email = COALESCE(?6, email),
             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
         rusqlite::params![
+            "default",
             tokens.access_token,
             tokens.refresh_token,
             tokens.expires_at,
-            tokens.scope
+            tokens.scope,
+            tokens.email,
         ],
     )?;
     Ok(())
@@ -288,7 +291,7 @@ pub fn get_tokens(db: &EngineDb) -> Result<Option<GoogleTokens>> {
         "SELECT access_token, refresh_token, expires_at, scope, email FROM google_tokens WHERE id = ?"
     )?;
 
-    let result = stmt.query_row([], |row| {
+    let result = stmt.query_row(rusqlite::params!["default"], |row| {
         Ok(GoogleTokens {
             access_token: row.get(0)?,
             refresh_token: row.get(1)?,
@@ -311,7 +314,7 @@ pub fn is_connected(db: &EngineDb) -> Result<bool> {
 
 pub fn disconnect(db: &EngineDb) -> Result<()> {
     let conn = db.conn_blocking();
-    conn.execute("DELETE FROM google_tokens WHERE id = ?", [])?;
+    conn.execute("DELETE FROM google_tokens WHERE id = ?", ["default"])?;
     let _ = db.set_config("google_email", "");
     Ok(())
 }
@@ -529,6 +532,112 @@ pub fn gmail_search(db: &EngineDb, query: &str, max_results: i64) -> Result<Stri
     Ok(results.join("\n\n"))
 }
 
+/// Gmail search returning structured JSON for the frontend.
+pub fn gmail_search_json(db: &EngineDb, query: &str, max_results: i64) -> Result<serde_json::Value> {
+    let url = format!(
+        "https://gmail.googleapis.com/gmail/v1/users/me/messages?q={}&maxResults={}",
+        urlencoding::encode(query),
+        max_results.min(20),
+    );
+
+    let resp = api_get(db, &url)?;
+    let messages = resp
+        .get("messages")
+        .and_then(|m| m.as_array())
+        .ok_or_else(|| anyhow::anyhow!("No messages found"))?;
+
+    let mut results: Vec<serde_json::Value> = Vec::new();
+    for msg in messages.iter().take(max_results as usize) {
+        let msg_id = msg.get("id").and_then(|i| i.as_str()).unwrap_or("");
+        let detail_url = format!(
+            "https://gmail.googleapis.com/gmail/v1/users/me/messages/{}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date",
+            msg_id
+        );
+
+        if let Ok(detail) = api_get(db, &detail_url) {
+            let headers = detail
+                .get("payload")
+                .and_then(|p| p.get("headers"))
+                .and_then(|h| h.as_array());
+
+            let mut subject = String::new();
+            let mut from = String::new();
+            let mut date = String::new();
+
+            if let Some(headers) = headers {
+                for h in headers {
+                    let name = h.get("name").and_then(|n| n.as_str()).unwrap_or("");
+                    let value = h.get("value").and_then(|v| v.as_str()).unwrap_or("");
+                    match name {
+                        "Subject" => subject = value.to_string(),
+                        "From" => from = value.to_string(),
+                        "Date" => date = value.to_string(),
+                        _ => {}
+                    }
+                }
+            }
+
+            let snippet = detail.get("snippet").and_then(|s| s.as_str()).unwrap_or("");
+            let label_ids = detail
+                .get("labelIds")
+                .and_then(|l| l.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+
+            results.push(serde_json::json!({
+                "id": msg_id,
+                "from": from,
+                "subject": subject,
+                "date": date,
+                "snippet": snippet,
+                "labels": label_ids,
+            }));
+        }
+    }
+
+    Ok(serde_json::json!(results))
+}
+
+/// Drive list returning structured JSON for the frontend.
+pub fn drive_list_json(db: &EngineDb, query: Option<&str>, max_results: i64) -> Result<serde_json::Value> {
+    let mut url = format!(
+        "https://www.googleapis.com/drive/v3/files?pageSize={}&fields=files(id,name,mimeType,modifiedTime)",
+        max_results.min(20)
+    );
+
+    if let Some(q) = query {
+        url.push_str(&format!("&q={}", urlencoding::encode(q)));
+    }
+
+    let resp = api_get(db, &url)?;
+    let files = resp
+        .get("files")
+        .and_then(|f| f.as_array())
+        .ok_or_else(|| anyhow::anyhow!("No files found"))?;
+
+    let results: Vec<serde_json::Value> = files
+        .iter()
+        .map(|f| {
+            let name = f.get("name").and_then(|n| n.as_str()).unwrap_or("Unknown");
+            let mime = f.get("mimeType").and_then(|m| m.as_str()).unwrap_or("");
+            let id = f.get("id").and_then(|i| i.as_str()).unwrap_or("");
+            let modified = f.get("modifiedTime").and_then(|t| t.as_str()).unwrap_or("");
+            serde_json::json!({
+                "id": id,
+                "name": name,
+                "mimeType": mime,
+                "modifiedTime": modified,
+            })
+        })
+        .collect();
+
+    Ok(serde_json::json!(results))
+}
+
 // ── Google Drive Tools ──
 
 /// List files in Google Drive.
@@ -731,6 +840,179 @@ fn api_put(db: &EngineDb, url: &str, body: &serde_json::Value) -> Result<serde_j
     Ok(resp.json()?)
 }
 
+// ── Google Calendar Tools ──
+
+/// List upcoming calendar events.
+pub fn calendar_list_events(db: &EngineDb, days: i64, max_results: i64) -> Result<serde_json::Value> {
+    let now = chrono::Utc::now();
+    let time_min = now.to_rfc3339();
+    let time_max = (now + chrono::Duration::days(days)).to_rfc3339();
+
+    let url = format!(
+        "https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin={}&timeMax={}&maxResults={}&singleEvents=true&orderBy=startTime",
+        urlencoding::encode(&time_min),
+        urlencoding::encode(&time_max),
+        max_results.min(50)
+    );
+
+    let resp = api_get(db, &url)?;
+    Ok(resp)
+}
+
+/// Create a calendar event.
+pub fn calendar_create_event(
+    db: &EngineDb,
+    summary: &str,
+    start_date_time: &str,
+    end_date_time: &str,
+    description: Option<&str>,
+    location: Option<&str>,
+) -> Result<serde_json::Value> {
+    let mut event = serde_json::json!({
+        "summary": summary,
+        "start": { "dateTime": start_date_time },
+        "end": { "dateTime": end_date_time }
+    });
+
+    if let Some(desc) = description {
+        event["description"] = serde_json::json!(desc);
+    }
+    if let Some(loc) = location {
+        event["location"] = serde_json::json!(loc);
+    }
+
+    let resp = api_post(
+        db,
+        "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+        &event,
+    )?;
+
+    Ok(resp)
+}
+
+/// Create a calendar event from natural language text.
+/// Uses the AI cloud to parse the NL text into structured event data,
+/// then creates the event via the Calendar API.
+pub async fn calendar_create_event_nl(
+    db: &EngineDb,
+    nl_text: &str,
+) -> Result<serde_json::Value> {
+    use crate::engine::cloud;
+    use crate::engine::router::OpenAIMessage;
+
+    let prompt = format!(
+        r#"Parse this natural language event request into a JSON object with these fields:
+- summary: event title (string)
+- date: YYYY-MM-DD format (string)
+- start_time: HH:MM 24h format (string)
+- end_time: HH:MM 24h format (string, default 1 hour after start)
+- description: optional description (string or null)
+- location: optional location (string or null)
+
+Today's date is {} and time is {}.
+
+Request: "{}"
+
+Return ONLY the JSON object, no explanation."#,
+        chrono::Local::now().format("%Y-%m-%d"),
+        chrono::Local::now().format("%H:%M"),
+        nl_text
+    );
+
+    let messages = vec![OpenAIMessage {
+        role: "user".to_string(),
+        content: Some(prompt),
+        tool_call_id: None,
+        tool_calls: None,
+    }];
+
+    let response = cloud::cloud_chat(Some("simple_chat"), messages, Some(500), None, None)
+        .await
+        .map_err(|e| anyhow::anyhow!("AI parse failed: {}", e))?;
+
+    let content = response.content.trim();
+    let json_str = content
+        .strip_prefix("```json")
+        .unwrap_or(content)
+        .strip_prefix("```")
+        .unwrap_or(content)
+        .strip_suffix("```")
+        .unwrap_or(content)
+        .trim();
+
+    let parsed: serde_json::Value = serde_json::from_str(json_str)
+        .map_err(|e| anyhow::anyhow!("Failed to parse AI response: {} — Raw: {}", e, json_str))?;
+
+    // Extract fields and create the event
+    let summary = parsed["summary"].as_str().unwrap_or("Untitled Event");
+    let date = parsed["date"].as_str().unwrap_or("2026-01-01");
+    let start_time = parsed["start_time"].as_str().unwrap_or("09:00");
+    let end_time = parsed["end_time"].as_str().unwrap_or("10:00");
+    let description = parsed["description"].as_str();
+    let location = parsed["location"].as_str();
+
+    let start_dt = format!("{}T{}:00", date, start_time);
+    let end_dt = format!("{}T{}:00", date, end_time);
+
+    let event = calendar_create_event(db, summary, &start_dt, &end_dt, description, location)?;
+
+    // Return both the parsed NL data and the created event
+    Ok(serde_json::json!({
+        "parsed": parsed,
+        "event": event,
+        "status": "created"
+    }))
+}
+
+// ── Google Tasks Tools ──
+
+/// List all task lists.
+pub fn tasks_list_lists(db: &EngineDb) -> Result<serde_json::Value> {
+    let resp = api_get(
+        db,
+        "https://tasks.googleapis.com/tasks/v1/users/@me/lists",
+    )?;
+    Ok(resp)
+}
+
+/// List tasks in a specific task list.
+pub fn tasks_list(db: &EngineDb, tasklist_id: &str, max_results: i64) -> Result<serde_json::Value> {
+    let url = format!(
+        "https://tasks.googleapis.com/tasks/v1/lists/{}/tasks?maxResults={}&showCompleted=false",
+        urlencoding::encode(tasklist_id),
+        max_results.min(100)
+    );
+
+    let resp = api_get(db, &url)?;
+    Ok(resp)
+}
+
+/// List tasks from the default task list (convenience wrapper).
+pub fn tasks_list_default(db: &EngineDb, max_results: i64) -> Result<serde_json::Value> {
+    // First get task lists to find the default one
+    let lists_resp = tasks_list_lists(db)?;
+    let lists = lists_resp
+        .get("items")
+        .and_then(|i| i.as_array())
+        .ok_or_else(|| anyhow::anyhow!("No task lists found"))?;
+
+    let default_list_id = lists
+        .first()
+        .and_then(|l| l.get("id"))
+        .and_then(|i| i.as_str())
+        .unwrap_or("@default");
+
+    // Get tasks from that list
+    let tasks_resp = tasks_list(db, default_list_id, max_results)?;
+
+    // Return combined result matching gog's output shape
+    Ok(serde_json::json!({
+        "lists": lists_resp,
+        "tasks": tasks_resp.get("items").cloned().unwrap_or(serde_json::json!([])),
+        "activeList": default_list_id
+    }))
+}
+
 // ── Tool Dispatch ──
 
 /// Execute a Google tool by name.
@@ -899,6 +1181,70 @@ pub async fn execute_google_tool(
                 Ok(result) => Ok(super::tools::ToolResult {
                     success: true,
                     output: result,
+                    error: None,
+                }),
+                Err(e) => Ok(super::tools::ToolResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some(e.to_string()),
+                }),
+            }
+        }
+        "google_calendar_list_events" => {
+            let days = args.get("days").and_then(|v| v.as_i64()).unwrap_or(7);
+            let max = args.get("max_results").and_then(|v| v.as_i64()).unwrap_or(20);
+            match calendar_list_events(db, days, max) {
+                Ok(result) => Ok(super::tools::ToolResult {
+                    success: true,
+                    output: serde_json::to_string_pretty(&result).unwrap_or_default(),
+                    error: None,
+                }),
+                Err(e) => Ok(super::tools::ToolResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some(e.to_string()),
+                }),
+            }
+        }
+        "google_calendar_create_event" => {
+            let summary = args.get("summary").and_then(|v| v.as_str()).unwrap_or("");
+            let start = args.get("startDateTime").and_then(|v| v.as_str()).unwrap_or("");
+            let end = args.get("endDateTime").and_then(|v| v.as_str()).unwrap_or("");
+            let desc = args.get("description").and_then(|v| v.as_str());
+            let loc = args.get("location").and_then(|v| v.as_str());
+            match calendar_create_event(db, summary, start, end, desc, loc) {
+                Ok(result) => Ok(super::tools::ToolResult {
+                    success: true,
+                    output: serde_json::to_string_pretty(&result).unwrap_or_default(),
+                    error: None,
+                }),
+                Err(e) => Ok(super::tools::ToolResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some(e.to_string()),
+                }),
+            }
+        }
+        "google_tasks_list" => {
+            let max = args.get("max_results").and_then(|v| v.as_i64()).unwrap_or(20);
+            match tasks_list_default(db, max) {
+                Ok(result) => Ok(super::tools::ToolResult {
+                    success: true,
+                    output: serde_json::to_string_pretty(&result).unwrap_or_default(),
+                    error: None,
+                }),
+                Err(e) => Ok(super::tools::ToolResult {
+                    success: false,
+                    output: String::new(),
+                    error: Some(e.to_string()),
+                }),
+            }
+        }
+        "google_tasks_list_lists" => {
+            match tasks_list_lists(db) {
+                Ok(result) => Ok(super::tools::ToolResult {
+                    success: true,
+                    output: serde_json::to_string_pretty(&result).unwrap_or_default(),
                     error: None,
                 }),
                 Err(e) => Ok(super::tools::ToolResult {

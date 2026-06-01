@@ -105,6 +105,7 @@ const VIEW_BACKGROUNDS: Record<string, string> = {
   studio: '/backgrounds/studio-bg.webp',
   settings: '/backgrounds/settings-bg.webp',
   grove: '',  // Grove renders its own dark forest background
+  google: '/backgrounds/google-bg.webp',
   dashboard: '/backgrounds/dashboard-bg.webp',
   'api-dashboard': '/backgrounds/dashboard-bg.webp', // Re-using an existing dashboard background
   security: '/backgrounds/themes/aegis.png',
