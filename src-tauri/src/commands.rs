@@ -8101,6 +8101,24 @@ pub fn run_installer(installer_path: String) -> Result<(), String> {
 // VAULT — File Browser Commands
 // ============================================================
 
+/// Get the user's home directory (cross-platform).
+fn get_home() -> String {
+    std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| "/tmp".to_string())
+}
+
+/// Returns vault scan directories for the current platform.
+#[tauri::command]
+pub fn get_vault_directories() -> Vec<String> {
+    let home = get_home();
+    vec![
+        format!("{}/.conflux/studio/generated", home),
+        format!("{}/.conflux/studio/vault", home),
+        format!("{}/.conflux/vault", home),
+    ]
+}
+
 #[tauri::command]
 pub async fn vault_scan_directory(
     dir_path: String,
@@ -8322,15 +8340,28 @@ pub async fn vault_untag_file(file_id: String, tag_id: String) -> Result<(), Str
 
 #[tauri::command]
 pub async fn vault_open_file(path: String) -> Result<(), String> {
+    // Normalize path separators for the OS
+    #[cfg(target_os = "windows")]
+    let path = path.replace('/', "\\");
+
     if !std::path::Path::new(&path).exists() {
         return Err(format!("File not found: {}", path));
     }
+
+    log::info!("vault_open_file: opening '{}'", path);
+
     #[cfg(target_os = "macos")]
     { std::process::Command::new("open").arg(&path).spawn().map_err(|e| e.to_string())?; }
     #[cfg(target_os = "linux")]
     { std::process::Command::new("xdg-open").arg(&path).spawn().map_err(|e| e.to_string())?; }
     #[cfg(target_os = "windows")]
-    { std::process::Command::new("cmd").args(["/C", "start", "", &path]).spawn().map_err(|e| e.to_string())?; }
+    {
+        // cmd /C start "" "path" — the empty quoted string is the window title (required by start)
+        std::process::Command::new("cmd.exe")
+            .args(["/C", "start", "", &path])
+            .spawn()
+            .map_err(|e| format!("Failed to open file: {}", e))?;
+    }
     Ok(())
 }
 
@@ -9950,7 +9981,7 @@ pub async fn studio_save_to_vault(generation_id: String) -> Result<serde_json::V
     let output_path = gen.output_path.as_deref();
 
     // Create vault directory
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let home = get_home();
     let vault_dir = format!("{}/.conflux/studio/vault", home);
     std::fs::create_dir_all(&vault_dir)
         .map_err(|e| format!("Failed to create vault dir: {}", e))?;

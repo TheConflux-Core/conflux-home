@@ -763,6 +763,7 @@ pub fn run() {
             commands::download_update_file,
             commands::run_installer,
             // Vault — File Browser
+            commands::get_vault_directories,
             commands::vault_scan_directory,
             commands::vault_get_files,
             commands::vault_search_files,
