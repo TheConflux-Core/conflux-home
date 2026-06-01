@@ -150,7 +150,10 @@ fn classify_tool(tool_name: &str) -> (EventType, EventCategory, i64) {
         "email_send" | "gmail_send" => (EventType::ApiCall, EventCategory::Warning, 30),
         // Google APIs — info
         "google_auth" | "gmail_search" | "google_drive_list" | "google_doc_read"
-        | "google_doc_write" | "google_sheet_read" | "google_sheet_write" => {
+        | "google_doc_write" | "google_sheet_read" | "google_sheet_write"
+        | "google_calendar_list_events" | "google_calendar_create_event"
+        | "google_calendar_create_event_nl" | "google_tasks_list"
+        | "google_tasks_list_lists" => {
             (EventType::ApiCall, EventCategory::Info, 10)
         }
         // Everything else — low risk info
@@ -494,6 +497,11 @@ pub async fn execute_tool_for_user(
             | "google_doc_write"
             | "google_sheet_read"
             | "google_sheet_write"
+            | "google_calendar_list_events"
+            | "google_calendar_create_event"
+            | "google_calendar_create_event_nl"
+            | "google_tasks_list"
+            | "google_tasks_list_lists"
     ) {
         let engine = super::get_engine();
         return super::google::execute_google_tool(tool_name, args, engine.db()).await;
@@ -855,6 +863,79 @@ pub fn get_tool_definitions() -> Vec<Value> {
                         "values": { "type": "array", "description": "2D array of values to write", "items": { "type": "array", "items": { "type": "string" } } }
                     },
                     "required": ["spreadsheet_id", "range", "values"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "google_calendar_list_events",
+                "description": "List upcoming Google Calendar events",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "days": { "type": "integer", "description": "Number of days to look ahead (default 7)" },
+                        "max_results": { "type": "integer", "description": "Max events to return (default 20)" }
+                    },
+                    "required": []
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "google_calendar_create_event",
+                "description": "Create a Google Calendar event",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "summary": { "type": "string", "description": "Event title" },
+                        "startDateTime": { "type": "string", "description": "Start time in RFC3339 format (e.g., 2026-06-01T14:00:00)" },
+                        "endDateTime": { "type": "string", "description": "End time in RFC3339 format" },
+                        "description": { "type": "string", "description": "Event description (optional)" },
+                        "location": { "type": "string", "description": "Event location (optional)" }
+                    },
+                    "required": ["summary", "startDateTime", "endDateTime"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "google_calendar_create_event_nl",
+                "description": "Create a calendar event from natural language. Say things like 'meeting with John tomorrow at 2pm' or 'dentist appointment next Friday at 10am'.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "nl_text": { "type": "string", "description": "Natural language description of the event" }
+                    },
+                    "required": ["nl_text"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "google_tasks_list",
+                "description": "List tasks from Google Tasks",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "max_results": { "type": "integer", "description": "Max tasks to return (default 20)" }
+                    },
+                    "required": []
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "google_tasks_list_lists",
+                "description": "List all Google Tasks task lists",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
                 }
             }
         }),

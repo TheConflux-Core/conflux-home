@@ -511,12 +511,14 @@ pub fn run() {
             commands::engine_google_disconnect,
             commands::engine_google_set_credentials,
             commands::engine_google_get_credentials,
-            // Google Workspace (gog CLI)
-            commands::google_get_events,
-            commands::google_get_emails,
-            commands::google_get_drive_files,
-            commands::google_get_tasks,
-            commands::google_create_event_nl,
+            // Google Workspace (native OAuth)
+            commands::google_calendar_list_events,
+            commands::google_calendar_create_event,
+            commands::google_calendar_create_event_nl,
+            commands::google_tasks_list,
+            commands::google_tasks_list_lists,
+            commands::google_gmail_search,
+            commands::google_drive_list,
             // Health
             commands::engine_health,
             // Family Members

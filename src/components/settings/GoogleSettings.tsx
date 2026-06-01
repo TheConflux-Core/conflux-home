@@ -15,6 +15,7 @@ export default function GoogleSettings() {
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
   const [hasCredentials, setHasCredentials] = useState(false);
+  const [usingBuiltin, setUsingBuiltin] = useState(true);
   const [saved, setSaved] = useState(false);
 
   const loadStatus = useCallback(async () => {
@@ -27,8 +28,9 @@ export default function GoogleSettings() {
         setEmail(userEmail);
       }
 
-      const creds = await invoke<{ client_id: string; client_secret: string; has_credentials: boolean }>('engine_google_get_credentials');
+      const creds = await invoke<{ client_id: string; client_secret: string; has_credentials: boolean; using_builtin: boolean }>('engine_google_get_credentials');
       setHasCredentials(creds.has_credentials);
+      setUsingBuiltin(creds.using_builtin);
       setClientId(creds.client_id);
       setClientSecret(creds.client_secret);
     } catch (err) {
@@ -43,11 +45,6 @@ export default function GoogleSettings() {
   }, [loadStatus]);
 
   async function handleConnect() {
-    if (!hasCredentials) {
-      setShowCredentials(true);
-      return;
-    }
-
     setConnecting(true);
     try {
       const userEmail = await invoke<string>('engine_google_connect');
@@ -76,6 +73,7 @@ export default function GoogleSettings() {
     try {
       await invoke('engine_google_set_credentials', { client_id: clientId, client_secret: clientSecret });
       setHasCredentials(true);
+      setUsingBuiltin(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -116,7 +114,7 @@ export default function GoogleSettings() {
               )}
               {!connected && (
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  Connect to use Gmail, Drive, Docs, and Sheets tools
+                  Connect to use Gmail, Drive, Calendar, Tasks, Docs &amp; Sheets
                 </div>
               )}
             </div>
@@ -153,7 +151,7 @@ export default function GoogleSettings() {
                 color: '#000',
               }}
             >
-              {connecting ? 'Waiting for auth...' : hasCredentials ? '🔗 Connect Google' : '⚙️ Set Up First'}
+              {connecting ? 'Waiting for auth...' : '🔗 Connect Google'}
             </button>
           )}
         </div>
@@ -174,6 +172,8 @@ export default function GoogleSettings() {
               { icon: '✏️', name: 'Write Doc', tool: 'google_doc_write' },
               { icon: '📊', name: 'Read Sheet', tool: 'google_sheet_read' },
               { icon: '📝', name: 'Write Sheet', tool: 'google_sheet_write' },
+              { icon: '📅', name: 'Calendar', tool: 'google_calendar' },
+              { icon: '✅', name: 'Tasks', tool: 'google_tasks' },
             ].map(t => (
               <span
                 key={t.tool}
@@ -207,7 +207,7 @@ export default function GoogleSettings() {
             marginBottom: showCredentials ? 12 : 0,
           }}
         >
-          {showCredentials ? '▾ Hide' : '▸'} OAuth Credentials {hasCredentials && '✓'}
+          {showCredentials ? '▾ Hide' : '▸'} OAuth Credentials {usingBuiltin ? '(using built-in)' : '✓'}
         </button>
 
         {showCredentials && (
@@ -218,14 +218,29 @@ export default function GoogleSettings() {
             padding: 16,
           }}>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12, lineHeight: 1.5 }}>
-              Create OAuth 2.0 credentials in{' '}
-              <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener"
-                style={{ color: 'var(--accent-primary)' }}>
-                Google Cloud Console
-              </a>
-              {' '}→ Create OAuth Client ID → <strong>Desktop app</strong>
-              <br />
-              Then paste the Client ID and Secret below.
+              {usingBuiltin ? (
+                <>
+                  Using built-in OAuth credentials — no setup required.
+                  <br />
+                  Optionally, you can supply your own credentials from{' '}
+                  <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener"
+                    style={{ color: 'var(--accent-primary)' }}>
+                    Google Cloud Console
+                  </a>
+                  {' '}→ Create OAuth Client ID → <strong>Desktop app</strong>.
+                </>
+              ) : (
+                <>
+                  Using custom OAuth credentials.
+                  <br />
+                  Create OAuth 2.0 credentials in{' '}
+                  <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener"
+                    style={{ color: 'var(--accent-primary)' }}>
+                    Google Cloud Console
+                  </a>
+                  {' '}→ Create OAuth Client ID → <strong>Desktop app</strong>.
+                </>
+              )}
             </div>
 
             <div style={{ marginBottom: 10 }}>
@@ -271,8 +286,11 @@ export default function GoogleSettings() {
               >
                 {saved ? '✓ Saved!' : '💾 Save Credentials'}
               </button>
-              {hasCredentials && (
-                <span style={{ fontSize: 11, color: '#34c759' }}>Credentials configured</span>
+              {usingBuiltin && (
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Built-in credentials active</span>
+              )}
+              {!usingBuiltin && hasCredentials && (
+                <span style={{ fontSize: 11, color: '#34c759' }}>Custom credentials configured</span>
               )}
             </div>
           </div>
