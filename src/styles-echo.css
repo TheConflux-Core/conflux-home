@@ -862,3 +862,26 @@
     right: 20px;
   }
 }
+
+/* ══════════════════════════════════════
+   MOBILE OVERRIDES — Echo / Mirror
+   ══════════════════════════════════════ */
+
+@media (max-width: 480px) {
+  .echo-hub {
+    padding: 12px;
+  }
+
+  .echo-stat-pill {
+    min-width: 70px;
+    padding: 8px 10px;
+  }
+
+  .echo-stat-pill .echo-stat-value {
+    font-size: 1rem;
+  }
+
+  .echo-stat-pill .echo-stat-label {
+    font-size: 10px;
+  }
+}
