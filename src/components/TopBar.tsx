@@ -227,7 +227,7 @@ export default function TopBar({ selectedAgent, controlRoom, currentView, onNavi
       </div>
 
       <div className="topbar-center">
-        {selectedAgent ? `${selectedAgent.emoji} ${selectedAgent.name}` : 'Desktop'}
+        {selectedAgent ? `${selectedAgent.emoji} ${selectedAgent.name}` : ''}
       </div>
 
       <div className="topbar-right">

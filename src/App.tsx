@@ -21,6 +21,8 @@ import Onboarding from './components/Onboarding';
 import WelcomeOverlay from './components/WelcomeOverlay';
 import AgentIntroductions from './components/AgentIntroductions';
 import ConfluxOrbit from './components/ConfluxOrbit';
+import ConfluxShell from './components/ConfluxShell';
+import { NudgeToast } from './components/conflux';
 import LoginScreen from './components/LoginScreen';
 import AuthCallback from './components/AuthCallback';
 import Settings from './components/Settings';
@@ -1500,34 +1502,49 @@ const [activeSnake, setActiveSnake] = useState(false);
         />
       )}
 
-      {/* Conflux Neural Brain — The "Zelda Fairy" — hidden when apps are open */}
-      <ConfluxOrbit 
+      {/* Conflux Brain + New Visuals — context provider, StatusOrb, DockGlow, VoiceFAB */}
+      <ConfluxOrbit
         view={view}
         immersiveView={immersiveView}
         chatOpen={chatOpen}
         voiceChatOpen={voiceChatOpen}
         isPushToTalkActive={isPushToTalkActive}
-        hidden={!!immersiveView}
-      />
+      >
+        <ConfluxShell
+          isPushToTalkActive={isPushToTalkActive}
+          voiceChatOpen={voiceChatOpen}
+          onTogglePushToTalk={() => {
+            if (isPushToTalkActive) {
+              window.dispatchEvent(new CustomEvent('push-to-talk-end'));
+              setIsPushToTalkActive(false);
+            } else {
+              window.dispatchEvent(new CustomEvent('push-to-talk-start'));
+              setIsPushToTalkActive(true);
+            }
+          }}
+          onOpenVoiceChat={() => setVoiceChatOpen(true)}
+        >
+          {useBarV2 ? (
+            <ConfluxBarV2
+              currentView={view}
+              agents={agents}
+              selectedAgentIds={selectedAgentIds}
+              pinnedApps={['chat', 'hearth', 'pulse', 'settings']}
+              onNavigate={handleNavigate}
+            />
+          ) : (
+            <ConfluxBar
+              currentView={view}
+              agents={agents}
+              pinnedApps={['chat', 'hearth', 'pulse', 'settings']}
+              onNavigate={handleNavigate}
+            />
+          )}
+        </ConfluxShell>
+      </ConfluxOrbit>
 
-      {/* Global AI Input removed from desktop — chat panel handles AI input */}
-
-      {useBarV2 ? (
-        <ConfluxBarV2
-          currentView={view}
-          agents={agents}
-          selectedAgentIds={selectedAgentIds}
-          pinnedApps={['chat', 'hearth', 'pulse', 'settings']}
-          onNavigate={handleNavigate}
-        />
-      ) : (
-        <ConfluxBar
-          currentView={view}
-          agents={agents}
-          pinnedApps={['chat', 'hearth', 'pulse', 'settings']}
-          onNavigate={handleNavigate}
-        />
-      )}
+      {/* Nudge Toasts — replaces fairy speech bubbles */}
+      <NudgeToast />
 
       {/* Agent Detail Modal — listens for conflux:agent-detail events */}
       <AgentDetail />

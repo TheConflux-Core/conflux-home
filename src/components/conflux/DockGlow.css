@@ -1,0 +1,62 @@
+/* ── Dock Glow ──────────────────────────────────────────────────────────── */
+/* Reactive ambient glow behind the bottom action bar.
+   Sits just above the background, below the dock z-index. */
+
+.dock-glow-wrapper {
+  position: relative;
+  display: contents;
+}
+
+/* ── Ambient glow (behind dock) ── */
+.dock-glow-ambient {
+  position: fixed;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 900px;
+  height: 140px;
+  pointer-events: none;
+  z-index: 5;
+  background: radial-gradient(
+    ellipse 50% 70% at 50% 80%,
+    var(--dock-glow, rgba(139, 92, 246, 0.12)) 0%,
+    var(--dock-glow, rgba(139, 92, 246, 0.06)) 30%,
+    transparent 65%
+  );
+  opacity: calc(0.4 + var(--dock-intensity, 0) * 0.6);
+  transition: opacity 0.8s ease, background 0.8s ease;
+}
+
+/* ── Ripple on pulse ── */
+.dock-glow-ripple .dock-glow-ambient {
+  animation: dock-glow-ripple-anim 0.8s ease-out;
+}
+
+/* ── Listening state ── */
+.dock-glow-listening .dock-glow-ambient {
+  animation: dock-glow-listen 2s ease-in-out infinite;
+}
+
+/* ── Speaking state ── */
+.dock-glow-speaking .dock-glow-ambient {
+  animation: dock-glow-speak 1s ease-in-out infinite;
+}
+
+/* ── Keyframes ── */
+
+@keyframes dock-glow-ripple-anim {
+  0% { opacity: calc(0.4 + var(--dock-intensity, 0) * 0.6); width: 900px; }
+  25% { opacity: 0.95; width: 1100px; }
+  100% { opacity: calc(0.4 + var(--dock-intensity, 0) * 0.6); width: 900px; }
+}
+
+@keyframes dock-glow-listen {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.8; }
+}
+
+@keyframes dock-glow-speak {
+  0%, 100% { opacity: 0.4; }
+  30% { opacity: 0.75; }
+  70% { opacity: 0.5; }
+}
