@@ -79,9 +79,9 @@ const TOUR_STEPS: TourV2Step[] = [
   },
   {
     id: 'heartbeat',
-    targetId: null,
+    targetId: 'heartbeat-section',
     title: 'The Heartbeat',
-    text: "Every 30 minutes, your agents wake up. Pulse checks your budget. Hearth reviews your meals. Aegis watches the walls. Horizon tracks your dreams. It's a cycle — always running, always watching. You don't ask. We just show up.",
+    text: "Every beat, your agents wake up. Pulse checks your budget. Hearth reviews your meals. Aegis watches the walls. Horizon tracks your dreams. It's a cycle — always running, always watching. You don't ask. We just show up.",
   },
   {
     id: 'memory',
