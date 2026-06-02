@@ -176,6 +176,18 @@ export default function TopBar({ selectedAgent, controlRoom, currentView, onNavi
     return () => { clearTimeout(timer); document.removeEventListener('click', handler); };
   }, [showConnectivity, showModePopup]);
 
+  // Listen for tour theme picker open/close events
+  useEffect(() => {
+    const openHandler = () => setShowThemes(true);
+    const closeHandler = () => setShowThemes(false);
+    window.addEventListener('conflux:open-themes', openHandler);
+    window.addEventListener('conflux:close-themes', closeHandler);
+    return () => {
+      window.removeEventListener('conflux:open-themes', openHandler);
+      window.removeEventListener('conflux:close-themes', closeHandler);
+    };
+  }, []);
+
   const handleSelectColorTheme = (themeId: string) => {
     setColorTheme(themeId);
     saveColorTheme(themeId);
@@ -350,7 +362,7 @@ export default function TopBar({ selectedAgent, controlRoom, currentView, onNavi
           </button>
 
           {showThemes && (
-            <div className="theme-dropdown" style={{
+            <div className="theme-dropdown" data-tour-id="theme-dropdown" style={{
               position: 'absolute',
               top: '100%',
               right: 0,

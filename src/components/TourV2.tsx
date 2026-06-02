@@ -103,9 +103,9 @@ const TOUR_STEPS: TourV2Step[] = [
   },
   {
     id: 'voice-themes',
-    targetId: null,
-    title: 'Voice & Themes',
-    text: "You can talk to us too — click the chat button and use the microphone. And in Settings, you can change the entire look of Conflux Home. Dark mode, light mode, custom colors. Make it yours.",
+    targetId: 'theme-dropdown',
+    title: 'Make It Yours',
+    text: "Conflux Home comes with themes. Pick one that fits your vibe — or change it whenever you want. It's your space.",
   },
   {
     id: 'google-connect',
@@ -474,7 +474,12 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
   useEffect(() => {
     if (!hasStarted.current || currentStep === 0) return;
     speakStep(currentStep);
-  }, [currentStep, speakStep]);
+
+    // Open theme picker when voice-themes step starts
+    if (step?.id === 'voice-themes') {
+      setTimeout(() => window.dispatchEvent(new CustomEvent('conflux:open-themes')), 300);
+    }
+  }, [currentStep, speakStep, step?.id]);
 
   // ── Spotlight positioning ──────────────────────────────────
 
@@ -579,6 +584,8 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
     // Always stop current audio before advancing
     stopTourAudio();
     setIsSpeaking(false);
+    // Close theme picker if open
+    window.dispatchEvent(new CustomEvent('conflux:close-themes'));
 
     if (isLast) {
       handleComplete();
