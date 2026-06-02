@@ -638,102 +638,113 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
 
       {/* Custom enhanced tooltip */}
       {(() => {
-        // Determine if tooltip should go above or below the target
-        const tooltipH = tooltipHeight;
         const gap = 16;
-        const spaceBelow = targetRect ? window.innerHeight - targetRect.bottom - gap : 0;
-        const placeAbove = targetRect && spaceBelow < tooltipH + gap;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const tooltipW = 350;
+        const tooltipH = tooltipHeight;
 
-        const topPos = targetRect
-          ? placeAbove
-            ? targetRect.top - gap - tooltipH
-            : targetRect.bottom + gap
-          : '50%';
+        let top: number;
+        let left: number;
+
+        if (targetRect) {
+          const spaceRight = vw - targetRect.right - gap;
+          const spaceLeft = targetRect.left - gap;
+          const spaceBelow = vh - targetRect.bottom - gap;
+
+          if (spaceRight >= tooltipW + gap) {
+            left = targetRect.right + gap;
+            top = targetRect.top + targetRect.height / 2 - tooltipH / 2;
+          } else if (spaceLeft >= tooltipW + gap) {
+            left = targetRect.left - gap - tooltipW;
+            top = targetRect.top + targetRect.height / 2 - tooltipH / 2;
+          } else {
+            left = Math.max(gap, Math.min(
+              targetRect.left + targetRect.width / 2 - tooltipW / 2,
+              vw - tooltipW - gap
+            ));
+            top = spaceBelow < tooltipH + gap
+              ? targetRect.top - gap - tooltipH
+              : targetRect.bottom + gap;
+          }
+          top = Math.max(gap, Math.min(top, vh - tooltipH - gap));
+          left = Math.max(gap, Math.min(left, vw - tooltipW - gap));
+        } else {
+          top = vh / 2 - tooltipH / 2;
+          left = vw / 2 - tooltipW / 2;
+        }
 
         return (
-      <div
-        className="tour-v2-tooltip-anchor"
-        style={{
-          position: 'fixed',
-          top: topPos,
-          left: targetRect
-            ? Math.max(16, Math.min(
-                targetRect.left + targetRect.width / 2 - 175,
-                window.innerWidth - 366
-              ))
-            : '50%',
-          transform: targetRect ? 'none' : 'translate(-50%, -50%)',
-          zIndex: 10000,
-          pointerEvents: 'auto',
-        }}
-      >
-        <div ref={tooltipRef} className="tour-v2-tooltip" style={{ width: 350 }}>
-          {/* Agent indicator */}
-          <div className="tour-v2-agent-indicator">
-            <span className={`tour-v2-agent-dot ${isSpeaking ? 'speaking' : ''}`} />
-            <span className="tour-v2-agent-label">
-              {isSpeaking ? '🔊 Conflux is speaking…' : 'Conflux'}
-            </span>
-            <button
-              className="tour-v2-mute-btn"
-              onClick={() => {
-                setIsMuted(!isMuted);
-                if (!isMuted) {
-                  stopTourAudio();
-                  setIsSpeaking(false);
-                }
-              }}
-              title={isMuted ? 'Unmute narration' : 'Mute narration'}
-            >
-              {isMuted ? '🔇' : '🔊'}
-            </button>
-          </div>
-
-          {/* Content */}
-          <div className="tour-v2-content">
-            <h3 className="tour-v2-title">{enhancedTitle}</h3>
-            <p className="tour-v2-text">{enhancedText}</p>
-            {extraContent}
-          </div>
-
-          {/* Footer */}
-          <div className="tour-v2-footer">
-            <span className="tour-v2-progress">
-              {currentStep + 1} / {TOUR_STEPS.length}
-            </span>
-            <div className="tour-v2-actions">
-              <button className="tour-v2-skip" onClick={handleSkip}>
-                Skip tour
-              </button>
-              {step.isInteractive ? (
-                <button className="tour-v2-connect" onClick={handleGoogleConnect}>
-                  {step.interactiveLabel || 'Connect'}
+          <div className="tour-v2-tooltip-anchor" style={{
+            position: 'fixed', top, left, zIndex: 10000, pointerEvents: 'auto',
+          }}>
+            <div ref={tooltipRef} className="tour-v2-tooltip" style={{ width: tooltipW }}>
+              {/* Agent indicator */}
+              <div className="tour-v2-agent-indicator">
+                <span className={`tour-v2-agent-dot ${isSpeaking ? 'speaking' : ''}`} />
+                <span className="tour-v2-agent-label">
+                  {isSpeaking ? '🔊 Conflux is speaking…' : 'Conflux'}
+                </span>
+                <button
+                  className="tour-v2-mute-btn"
+                  onClick={() => {
+                    setIsMuted(!isMuted);
+                    if (!isMuted) {
+                      stopTourAudio();
+                      setIsSpeaking(false);
+                    }
+                  }}
+                  title={isMuted ? 'Unmute narration' : 'Mute narration'}
+                >
+                  {isMuted ? '🔇' : '🔊'}
                 </button>
-              ) : (
-                <button className="tour-v2-next" onClick={handleNext}>
-                  {isLast ? "Let's Go" : isFirst ? "Let's Go" : 'Next →'}
-                </button>
+              </div>
+
+              {/* Content */}
+              <div className="tour-v2-content">
+                <h3 className="tour-v2-title">{enhancedTitle}</h3>
+                <p className="tour-v2-text">{enhancedText}</p>
+                {extraContent}
+              </div>
+
+              {/* Footer */}
+              <div className="tour-v2-footer">
+                <span className="tour-v2-progress">
+                  {currentStep + 1} / {TOUR_STEPS.length}
+                </span>
+                <div className="tour-v2-actions">
+                  <button className="tour-v2-skip" onClick={handleSkip}>
+                    Skip tour
+                  </button>
+                  {step.isInteractive ? (
+                    <button className="tour-v2-connect" onClick={handleGoogleConnect}>
+                      {step.interactiveLabel || 'Connect'}
+                    </button>
+                  ) : (
+                    <button className="tour-v2-next" onClick={handleNext}>
+                      {isLast ? "Let's Go" : isFirst ? "Let's Go" : 'Next →'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Finale agents */}
+              {showFinaleAgents && (
+                <div className="tour-v2-finale-agents">
+                  {AGENTS.map((agent, i) => (
+                    <div
+                      key={agent.id}
+                      className="tour-v2-finale-agent"
+                      style={{ animationDelay: `${i * 0.1}s` }}
+                    >
+                      <span className="tour-v2-finale-emoji">{agent.emoji}</span>
+                      <span className="tour-v2-finale-name">{agent.name}</span>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
-
-          {/* Finale agents */}
-          {showFinaleAgents && (
-            <div className="tour-v2-finale-agents">
-              {AGENTS.map((agent, i) => (
-                <div
-                  key={agent.id}
-                  className="tour-v2-finale-agent"
-                  style={{ animationDelay: `${i * 0.1}s` }}
-                >
-                  <span className="tour-v2-finale-emoji">{agent.emoji}</span>
-                  <span className="tour-v2-finale-name">{agent.name}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
         );
       })()}
 
