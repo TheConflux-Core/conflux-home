@@ -73,7 +73,7 @@ import './styles-agent-boot-cards.css';
 import './styles-agent-status.css';
 import AgentBootCards from './components/AgentBootCards';
 import './styles-agent-boot-cards.css';
-import { shouldAutoStartTour } from './hooks/useTourState';import { useEngine } from './hooks/useEngine';
+import { useEngine } from './hooks/useEngine';
 import { useToast } from './hooks/useToast';
 import { useFamily } from './hooks/useFamily';
 import { useAuth } from './hooks/useAuth';
@@ -1032,11 +1032,9 @@ const [activeSnake, setActiveSnake] = useState(false);
     const introductionsComplete = localStorage.getItem('conflux-introductions-complete') === 'true';
     if (!introductionsComplete) {
       setShowIntroductions(true);
+    } else if (localStorage.getItem('conflux-tour-v2-completed') !== 'true') {
+      setShowTour(true);
     }
-    // Tour disabled — re-imagining the experience
-    // else if (shouldAutoStartTour()) {
-    //   setShowTour(true);
-    // }
   }, []);
 
   // Handle introductions completion
@@ -1044,19 +1042,19 @@ const [activeSnake, setActiveSnake] = useState(false);
     setShowIntroductions(false);
     // Show boot cards after introductions
     setShowBootCards(true);
-    // Tour disabled — re-imagining the experience
-    // if (shouldAutoStartTour()) {
-    //   setShowTour(true);
-    // }
+    // Tour V2 — auto-start after introductions
+    if (localStorage.getItem('conflux-tour-v2-completed') !== 'true') {
+      setShowTour(true);
+    }
   }, []);
 
-  // Tour disabled — re-imagining the experience
-  // useEffect(() => {
-  //   if (isOnboarded && !showWelcome && shouldAutoStartTour()) {
-  //     const timer = setTimeout(() => setShowTour(true), 1500);
-  //     return () => clearTimeout(timer);
-  //   }
-  // }, [isOnboarded, showWelcome]);
+  // Tour V2 — auto-start for already-onboarded users on mount
+  useEffect(() => {
+    if (isOnboarded && !showWelcome && localStorage.getItem('conflux-tour-v2-completed') !== 'true') {
+      const timer = setTimeout(() => setShowTour(true), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isOnboarded, showWelcome]);
 
   // Filter agents by selectedAgentIds if set
   const filteredAgents = useMemo(() => {
