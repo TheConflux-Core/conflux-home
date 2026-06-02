@@ -21,7 +21,36 @@ static HEARTBEAT_CMD_TX: std::sync::OnceLock<Arc<mpsc::Sender<u64>>> = std::sync
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Load .env from multiple possible locations (packaged app may have different cwd)
     dotenvy::dotenv().ok();
+    if std::env::var("STRIPE_SECRET_KEY").unwrap_or_default().is_empty() {
+        // Try exe directory
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(dir) = exe.parent() {
+                dotenvy::from_path(dir.join(".env")).ok();
+            }
+        }
+    }
+    if std::env::var("STRIPE_SECRET_KEY").unwrap_or_default().is_empty() {
+        // Try src-tauri directory relative to exe (dev mode)
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(dir) = exe.parent() {
+                // Walk up to find .env in parent dirs
+                let mut ancestor = dir.to_path_buf();
+                for _ in 0..5 {
+                    let candidate = ancestor.join(".env");
+                    if candidate.exists() {
+                        dotenvy::from_path(&candidate).ok();
+                        if !std::env::var("STRIPE_SECRET_KEY").unwrap_or_default().is_empty() {
+                            log::info!("[dotenvy] Loaded .env from: {}", candidate.display());
+                            break;
+                        }
+                    }
+                    if !ancestor.pop() { break; }
+                }
+            }
+        }
+    }
 
     // On Android, catch panics and log them instead of crashing
     #[cfg(target_os = "android")]
@@ -812,6 +841,7 @@ pub fn run() {
             commands::studio_generate_music,
             commands::studio_generate_voice,
             commands::studio_generate_web,
+            commands::studio_generate_writing,
             commands::studio_save_to_vault,
             commands::studio_export_generations_zip,
             commands::get_studio_user_id,

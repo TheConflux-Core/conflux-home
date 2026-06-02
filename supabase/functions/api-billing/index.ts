@@ -11,7 +11,7 @@ import { createClient } from "npm:@supabase/supabase-js@^2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY")!;
-const SITE_URL = Deno.env.get("SITE_URL") ?? "https://conflux.ai";
+const SITE_URL = Deno.env.get("SITE_URL") ?? "https://www.theconflux.com";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 

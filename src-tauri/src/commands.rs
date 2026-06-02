@@ -9745,6 +9745,188 @@ fn extract_code_block(response: &str, framework: &str) -> String {
     String::new()
 }
 
+// ── Studio: Creative Writing Generation ──
+
+#[tauri::command]
+pub async fn studio_generate_writing(
+    generation_id: String,
+    prompt: String,
+    format: String,   // "story" | "poem" | "essay" | "script" | "song"
+    tone: String,     // "lyrical" | "noir" | "whimsical" | "epic" | "intimate"
+) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+
+    // ── Check daily free-tier limit ──
+    let tier = engine.db().get_config("user_tier").ok().flatten().unwrap_or_else(|| "free".to_string());
+    let daily_limit: i64 = match tier.as_str() {
+        "free" => 30,
+        "pro" => 300,
+        _ => 300,
+    };
+    let daily_count = engine::db::studio_get_daily_count("writing").unwrap_or(0);
+    if daily_limit > 0 && daily_count >= daily_limit {
+        engine::db::studio_update_generation_status(&generation_id, "failed", None, None, None, 0)
+            .map_err(|e| e.to_string())?;
+        return Err(format!(
+            "Daily limit reached: {}/{} free writing generations used today. Upgrade to Pro for more.",
+            daily_count, daily_limit
+        ));
+    }
+
+    // Update status to generating
+    engine::db::studio_update_generation_status(&generation_id, "generating", None, None, None, 0)
+        .map_err(|e| e.to_string())?;
+
+    // ── Build system prompt based on format + tone ──
+    let max_tokens: i64 = match format.as_str() {
+        "essay" => 4000,
+        "story" => 6000,
+        "script" => 5000,
+        "song" => 2000,
+        "poem" => 2000,
+        _ => 3000,
+    };
+
+    let format_instructions = match format.as_str() {
+        "story" => concat!(
+            "Write a compelling short story.\n",
+            "Include vivid scene-setting, character development, and dialogue.\n",
+            "Structure with clear paragraphs. Aim for 500-1500 words unless the prompt specifies otherwise.\n",
+        ),
+        "poem" => concat!(
+            "Write a poem with attention to rhythm, imagery, and emotional resonance.\n",
+            "Use line breaks intentionally. Consider stanza structure.\n",
+            "Let the form serve the content — don't force rhyme unless it enhances meaning.\n",
+        ),
+        "essay" => concat!(
+            "Write a thoughtful essay or personal reflection.\n",
+            "Use clear prose with a strong voice. Support ideas with specifics.\n",
+            "Structure with an engaging opening, developed body, and resonant close.\n",
+        ),
+        "script" => concat!(
+            "Write a screenplay or stage script excerpt.\n",
+            "Use proper formatting: CHARACTER NAMES in caps, dialogue below, stage directions in parentheses.\n",
+            "Focus on subtext — what characters DON'T say matters as much as what they do.\n",
+        ),
+        "song" => concat!(
+            "Write song lyrics with verse, chorus, and bridge structure.\n",
+            "Pay attention to syllable count, internal rhyme, and singability.\n",
+            "Mark sections clearly: [Verse 1], [Chorus], [Bridge], etc.\n",
+        ),
+        _ => "Write creative content based on the prompt.\n",
+    };
+
+    let tone_instructions = match tone.as_str() {
+        "lyrical" => "Write in a lyrical, flowing style with rich imagery and musical language.\n",
+        "noir" => "Write in a hard-boiled noir style: terse, cynical, atmospheric. Shadow and smoke.\n",
+        "whimsical" => "Write with playfulness and wonder. Surprise the reader. Delight in the unexpected.\n",
+        "epic" => "Write with grandeur and sweep. Big emotions, big moments, mythic weight.\n",
+        "intimate" => "Write in a close, confessional tone. Whisper to the reader. Make it personal.\n",
+        _ => "",
+    };
+
+    let system_prompt = format!(
+        concat!(
+            "You are a masterful creative writer. Your prose is publishable — sharp, evocative, and alive.\n",
+            "Rules:\n",
+            "- Output ONLY the creative work — no preamble, no meta-commentary, no 'Here is...'\n",
+            "- Every word earns its place. Cut ruthlessly.\n",
+            "- Show, don't tell. Use concrete details over abstractions.\n",
+            "- Dialogue should reveal character, not just convey information.\n",
+            "- End with resonance — the last line should linger.\n",
+            "\n{}",
+            "\n{}",
+        ),
+        format_instructions,
+        tone_instructions,
+    );
+
+    let messages = vec![
+        engine::router::OpenAIMessage {
+            role: "system".to_string(),
+            content: Some(system_prompt),
+            tool_call_id: None,
+            tool_calls: None,
+        },
+        engine::router::OpenAIMessage {
+            role: "user".to_string(),
+            content: Some(prompt.clone()),
+            tool_call_id: None,
+            tool_calls: None,
+        },
+    ];
+
+    // ── Call LLM via cloud_chat ──
+    let response = cloud::cloud_chat(Some("writing_gen"), messages, Some(max_tokens), Some(0.85), None)
+        .await
+        .map_err(|e| {
+            let err_meta = serde_json::json!({"error": format!("AI generation failed: {}", e)}).to_string();
+            let _ = engine::db::studio_update_generation_status(&generation_id, "failed", None, None, Some(&err_meta), 0);
+            format!("AI generation failed: {}", e)
+        })?;
+
+    let content = response.content.trim().to_string();
+    log::info!("[Studio Writing] LLM response: {} chars, model={}", content.len(), response.model);
+
+    if content.is_empty() {
+        let err_meta = serde_json::json!({"error": "AI returned empty response.", "model": response.model}).to_string();
+        engine::db::studio_update_generation_status(&generation_id, "failed", None, None, Some(&err_meta), 0)
+            .map_err(|e| e.to_string())?;
+        return Err("AI returned empty response. Check API key and credits.".to_string());
+    }
+
+    // ── Save to file ──
+    let studio_dir = dirs::data_local_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("com.conflux.home")
+        .join("studio");
+    let _ = std::fs::create_dir_all(&studio_dir);
+
+    let ext = match format.as_str() {
+        "script" => "txt",
+        "song" => "txt",
+        _ => "md",
+    };
+    let filename = format!("{}_{}.{}", generation_id, format, ext);
+    let file_path = studio_dir.join(&filename);
+    let _ = std::fs::write(&file_path, &content);
+
+    // ── Build metadata ──
+    let metadata = serde_json::json!({
+        "text": content,
+        "format": format,
+        "tone": tone,
+        "word_count": content.split_whitespace().count(),
+        "model": response.model,
+        "provider": response.provider_id,
+        "tokens_used": response.tokens_used,
+    })
+    .to_string();
+
+    // Update generation as complete
+    engine::db::studio_update_generation_status(
+        &generation_id,
+        "complete",
+        Some(&file_path.to_string_lossy()),
+        None,
+        Some(&metadata),
+        0,
+    )
+    .map_err(|e| e.to_string())?;
+
+    let _ = engine::db::studio_upsert_prompt(&prompt, "writing");
+    let month = chrono::Utc::now().format("%Y-%m").to_string();
+    let _ = engine::db::studio_update_usage("local", &month, "writing", 0);
+
+    Ok(serde_json::json!({
+        "status": "complete",
+        "output_path": file_path.to_string_lossy(),
+        "word_count": content.split_whitespace().count(),
+        "provider": response.provider_id,
+        "model": response.model,
+    }))
+}
+
 // ── Studio: Wallpaper Generation (Replicate FLUX) ──
 
 #[tauri::command]

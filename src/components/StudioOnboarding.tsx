@@ -109,7 +109,7 @@ function ParticleCanvas({ module }: ParticleCanvasProps) {
           });
           break;
         }
-        case 'design': {
+        case 'writing': {
           const types: Array<'circle' | 'rect' | 'triangle'> = ['circle', 'rect', 'triangle'];
           const t = types[Math.floor(Math.random() * types.length)];
           particles.push({

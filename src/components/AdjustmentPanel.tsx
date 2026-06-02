@@ -439,31 +439,31 @@ export default function AdjustmentPanel({ userTier = 'free', onGateFeature }: Ad
           </>
         );
 
-      case 'design':
+      case 'writing':
         return (
           <>
             <div className="adjustment-group">
               <label className="adjustment-label">Format</label>
               <div className="adjustment-buttons">
-                {['png', 'svg', 'pdf', 'eps'].map((format) => (
+                {['story', 'poem', 'essay', 'script', 'song'].map((format) => (
                   <button
                     key={format}
                     className={`adjustment-btn ${currentAdjustments.format === format ? 'active' : ''}`}
-                    onClick={() => updateAdjustment('design', 'format', format)}
+                    onClick={() => updateAdjustment('writing', 'format', format)}
                   >
-                    {format.toUpperCase()}
+                    {format}
                   </button>
                 ))}
               </div>
             </div>
             <div className="adjustment-group">
-              <label className="adjustment-label">Style</label>
+              <label className="adjustment-label">Tone</label>
               <div className="adjustment-buttons">
-                {['modern', 'minimal', 'vintage', 'bold', 'elegant'].map((style) => (
+                {['lyrical', 'noir', 'whimsical', 'epic', 'intimate'].map((style) => (
                   <button
                     key={style}
                     className={`adjustment-btn ${currentAdjustments.style === style ? 'active' : ''}`}
-                    onClick={() => updateAdjustment('design', 'style', style)}
+                    onClick={() => updateAdjustment('writing', 'style', style)}
                   >
                     {style}
                   </button>

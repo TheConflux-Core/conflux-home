@@ -1076,7 +1076,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         return new Response(
           JSON.stringify({
             error: "Rate limit exceeded",
-            message: `Free tier allows ${rateInfo.limit} calls/month. Upgrade at https://theconflux.ai/pricing`,
+            message: `Free tier allows ${rateInfo.limit} calls/month. Upgrade at https://www.theconflux.com/pricing`,
             limit: rateInfo.limit,
             remaining: 0,
             reset: rateInfo.reset,

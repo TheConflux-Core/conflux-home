@@ -15,7 +15,7 @@ type RouterStatus = 'checking' | 'connected' | 'disconnected';
 
 const CLOUD_ROUTER_URL = import.meta.env.VITE_CLOUD_ROUTER_URL ?? 'https://www.theconflux.com';
 const MODELS_ENDPOINT = `${CLOUD_ROUTER_URL}/v1/models`;
-const PRICING_URL = 'https://theconflux.ai/pricing';
+const PRICING_URL = 'https://www.theconflux.com/pricing';
 
 // ── Component ──
 
