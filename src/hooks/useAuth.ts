@@ -36,9 +36,11 @@ export function useAuth(): UseAuthReturn {
   useEffect(() => {
     // Check existing session and refresh if needed
     const checkSession = async () => {
+      console.log('[useAuth] ═══ checkSession START ═══')
       try {
         // Try to get the current stored session first
         const { data: { session: storedSession } } = await supabase.auth.getSession()
+        console.log('[useAuth] Stored session:', storedSession ? { user_id: storedSession.user?.id, expires_at: storedSession.expires_at, has_token: !!storedSession.access_token } : null)
 
         if (storedSession?.access_token) {
           // We have a stored token — check if it's expired or expiring soon
@@ -76,15 +78,16 @@ export function useAuth(): UseAuthReturn {
         }
 
         // No stored session at all
-        console.log('[useAuth] No stored session found')
+        console.log('[useAuth] No stored session found — user is not authenticated')
         setSession(null)
         setUser(null)
         setLoading(false)
       } catch (err) {
-        console.error('[useAuth] Session check error:', err)
+        console.error('[useAuth] ❌ Session check error:', err)
         // On error, don't clear session — try to keep whatever we had
         setLoading(false)
       }
+      console.log('[useAuth] ═══ checkSession END ═══')
     }
 
     checkSession()

@@ -15,44 +15,38 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 'welcome',
     targetId: null,
-    title: 'Welcome Home',
-    text: "Welcome to Conflux Home! This is your AI team's home. Let me show you around — it'll take 60 seconds.",
-  },
-  {
-    id: 'dock',
-    targetId: 'dock',
-    title: 'Your Dock',
-    text: 'This is your command center. Quick access to your agents, apps, and settings. It follows you everywhere.',
-  },
-  {
-    id: 'apps',
-    targetId: 'apps',
-    title: 'Your Apps',
-    text: '16 built-in apps — Budget, Kitchen, Creative Studio, Games, and more. Each one is powered by your agents.',
-  },
-  {
-    id: 'intel',
-    targetId: 'intel',
-    title: 'Intel Dashboard',
-    text: 'Live system stats, agent status, and credit balance at a glance. Your mission control.',
+    title: 'Your Team Is Alive',
+    text: "You just met your AI agents. They're not tools — they're teammates. Each one has a specialty, and they work together. Let me show you how.",
   },
   {
     id: 'chat',
     targetId: 'chat',
     title: 'Talk to Your Agents',
-    text: 'Click the chat button to start a conversation. Your agents remember everything and get smarter over time.',
+    text: 'This is how you communicate. Type naturally — no commands needed. Your agents remember every conversation and learn your preferences over time.',
   },
   {
-    id: 'home',
-    targetId: 'home-btn',
-    title: 'Home Button',
-    text: 'Takes you back to the desktop from anywhere. Always one click away.',
+    id: 'proactive',
+    targetId: 'intel',
+    title: 'They Notice Things',
+    text: 'Your agents don\'t wait for you to ask. They watch for patterns, spot opportunities, and nudge you when something needs attention. That\'s the difference.',
+  },
+  {
+    id: 'apps',
+    targetId: 'apps',
+    title: 'Apps Are Worlds',
+    text: 'Each app isn\'t just a feature — it\'s a world your agents live in. Budget is Pulse\'s domain. Kitchen is Hearth\'s. They\'re building your experience right now.',
+  },
+  {
+    id: 'voice',
+    targetId: 'chat',
+    title: 'Speak Naturally',
+    text: 'You can talk to your agents too. Click the mic button or use push-to-talk. They understand context — no robotic commands needed.',
   },
   {
     id: 'complete',
     targetId: null,
-    title: "You're Ready!",
-    text: "That's the tour! You can replay it anytime from Settings. Now go build something amazing.",
+    title: "You're Ready",
+    text: "The best way to learn is to explore. Your agents are waiting. You can replay this tour anytime from Settings.",
   },
 ];
 
@@ -79,7 +73,7 @@ function ConfettiBurst({ active, onComplete }: { active: boolean; onComplete?: (
   useEffect(() => {
     if (!active) return;
 
-    const colors = ['#0071e3', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
+    const colors = ['#00d4ff', '#00cc88', '#10b981', '#f59e0b', '#a78bfa', '#6366f1', '#22c55e'];
     const initial: ConfettiParticle[] = Array.from({ length: 50 }, (_, i) => ({
       id: i,
       x: 50 + (Math.random() - 0.5) * 20,

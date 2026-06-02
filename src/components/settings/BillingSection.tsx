@@ -9,10 +9,10 @@ import { useCredits } from '../../hooks/useCredits';
 // ── Credit Packs ──
 
 const CREDIT_PACKS = [
-  { id: 's', label: '$5', credits: 1500 },
-  { id: 'm', label: '$10', credits: 3200 },
-  { id: 'l', label: '$20', credits: 7000 },
-  { id: 'xl', label: '$50', credits: 18000 },
+  { id: 's', label: '$5', credits: 500 },
+  { id: 'm', label: '$10', credits: 2000 },
+  { id: 'l', label: '$20', credits: 5000 },
+  { id: 'xl', label: '$50', credits: 15000 },
 ] as const;
 
 // ── Types ──
@@ -55,29 +55,29 @@ const PLAN_FEATURES: Record<string, string[]> = {
     'Basic integrations',
   ],
   power: [
-    '10,000 credits / month',
+    '5,000 credits / month',
     'Priority agent access',
     'Email support',
     'Advanced integrations',
   ],
   pro: [
-    '30,000 credits / month',
+    '15,000 credits / month',
     'Premium agent access',
     'Priority support',
     'All integrations + API access',
   ],
 };
 
+const PLAN_CREDIT_LIMITS: Record<string, number> = {
+  free: 500,
+  power: 5000,
+  pro: 15000,
+};
+
 const PLAN_LABELS: Record<string, string> = {
   free: 'Free',
   power: 'Power',
   pro: 'Pro',
-};
-
-const PLAN_CREDIT_LIMITS: Record<string, number> = {
-  free: 500,
-  power: 10000,
-  pro: 30000,
 };
 
 // ── Component ──
@@ -198,9 +198,15 @@ export default function BillingSection() {
         userId: user.id,
         priceId: priceId,
       });
-      await open(url);
+      if (url) {
+        await open(url);
+      } else {
+        console.error('Checkout: No URL returned from Stripe');
+        alert('Error: No checkout URL returned. Check console for details.');
+      }
     } catch (err) {
       console.error('Checkout error:', err);
+      alert(`Checkout failed: ${err}`);
     } finally {
       setActionLoading(null);
     }
@@ -229,10 +235,16 @@ export default function BillingSection() {
         userId: user.id,
         pack,
       });
-      await open(url);
-      refreshCredits();
+      if (url) {
+        await open(url);
+        refreshCredits();
+      } else {
+        console.error('Credit purchase: No URL returned from Stripe');
+        alert('Error: No checkout URL returned. Check console for details.');
+      }
     } catch (err) {
       console.error('Credit purchase error:', err);
+      alert(`Credit purchase failed: ${err}`);
     } finally {
       setActionLoading(null);
     }
@@ -306,23 +318,16 @@ export default function BillingSection() {
             </div>
           </div>
 
-          {/* Credit usage bar — real monthly data from get_credit_balance */}
+          {/* Credit usage — matches intel quadrant format */}
           <div className="settings-row">
-            <span className="settings-label">Credits Used</span>
-            <div style={{ flex: 1 }}>
-              {creditBalance && creditBalance.monthly_credits > 0 ? (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 13 }}>
-                    <span>{(creditBalance.monthly_credits - creditBalance.monthly_used).toLocaleString()} of {creditBalance.monthly_credits.toLocaleString()} monthly</span>
-                    <span style={{ opacity: 0.6 }}>{Math.round((creditBalance.monthly_used / creditBalance.monthly_credits) * 100)}%</span>
-                  </div>
-                </>
-              ) : (
-                <div style={{ fontSize: 13 }}>
-                  {creditBalance ? creditBalance.total_available.toLocaleString() + ' credits available' : 'Loading credits…'}
-                </div>
-              )}
-            </div>
+            <span className="settings-label">📊 Credits</span>
+            <span className="settings-value">
+              {creditBalance && creditBalance.monthly_credits > 0
+                ? `${Math.max(creditBalance.monthly_used, (creditBalance.monthly_credits ?? 0) - (creditBalance.total_available ?? 0)).toFixed(0)}/${creditBalance.monthly_credits.toFixed(0)}`
+                : creditBalance
+                  ? `${creditBalance.total_available.toLocaleString()} available`
+                  : '---'}
+            </span>
           </div>
 
           {/* Reset date */}
@@ -529,53 +534,32 @@ export default function BillingSection() {
                     <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 4 }}>
                       {creditBalance.daily_remaining ?? 0} / {creditBalance.daily_limit ?? 0} free credits today
                     </div>
+                    {/* TODO: Re-enable top-up prompt once credit pack prices are finalized
                     <div style={{ fontSize: 13, marginBottom: 12 }}>
                       Top up to unlock more models and higher limits:
                     </div>
+                    */}
                   </div>
                 ) : (
                   <div style={{ marginBottom: 16 }}>
                     {creditBalance.has_active_subscription && (
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                        marginBottom: 8,
-                      }}>
-                        <span style={{ fontSize: 13 }}>Monthly:</span>
-                        <span style={{ fontSize: 13, fontWeight: 600 }}>
-                          {(creditBalance.monthly_credits - creditBalance.monthly_used).toLocaleString()} / {creditBalance.monthly_credits.toLocaleString()}
-                        </span>
-                        <div style={{
-                          flex: 1,
-                          height: 6,
-                          borderRadius: 3,
-                          background: 'var(--bg-muted, rgba(255,255,255,0.08))',
-                          overflow: 'hidden',
-                          maxWidth: 120,
-                        }}>
-                          <div style={{
-                            height: '100%',
-                            width: `${creditBalance.monthly_credits > 0 ? Math.min(((creditBalance.monthly_credits - creditBalance.monthly_used) / creditBalance.monthly_credits) * 100, 100) : 0}%`,
-                            borderRadius: 3,
-                            background: 'var(--accent, #0071e3)',
-                            transition: 'width 0.3s ease',
-                          }} />
-                        </div>
+                      <div style={{ fontSize: 13, marginBottom: 8 }}>
+                        📊 Monthly: <strong>{Math.max(creditBalance.monthly_used, (creditBalance.monthly_credits ?? 0) - (creditBalance.total_available ?? 0)).toFixed(0)}/{creditBalance.monthly_credits.toFixed(0)}</strong>
                       </div>
                     )}
                     {creditBalance.deposit_balance > 0 && (
                       <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 8 }}>
-                        Deposit: <strong>{creditBalance.deposit_balance.toLocaleString()}</strong> credits
+                        Remaining: <strong>{creditBalance.deposit_balance.toLocaleString()}</strong> credits
                       </div>
                     )}
+                    {/* TODO: Re-enable top-up buttons once credit pack prices are finalized
                     <div style={{ fontSize: 13, marginBottom: 12 }}>
                       Need more? Top up:
-                    </div>
+                    </div> */}
                   </div>
                 )}
 
-                {/* Credit Pack Buttons */}
+                {/* TODO: Re-enable credit pack buttons once prices are finalized
                 <div style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(4, 1fr)',
@@ -606,6 +590,7 @@ export default function BillingSection() {
                     </button>
                   ))}
                 </div>
+                */}
               </>
             ) : (
               <div style={{ padding: 16, textAlign: 'center', opacity: 0.6, fontSize: 13 }}>

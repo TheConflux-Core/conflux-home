@@ -37,26 +37,32 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
 
   /** Handle a deep link URL: extract tokens and set the Supabase session. */
   const handleDeepLink = useCallback(async (url: string) => {
-    if (!url.includes('conflux://')) return
-    if (processedUrls.current.has(url)) return
+    console.log('[LoginScreen] ═══ Deep link received ═══')
+    console.log('[LoginScreen] URL:', url)
+    if (!url.includes('conflux://')) { console.log('[LoginScreen] Not a conflux:// URL, ignoring'); return }
+    if (processedUrls.current.has(url)) { console.log('[LoginScreen] Already processed, skipping'); return }
     processedUrls.current.add(url)
 
     const tokens = parseAuthTokens(url)
-    if (!tokens) return
+    console.log('[LoginScreen] Parsed tokens:', tokens ? { has_access: !!tokens.access_token, has_refresh: !!tokens.refresh_token } : null)
+    if (!tokens) { console.error('[LoginScreen] ❌ Failed to parse tokens from URL'); return }
 
     try {
       const { supabase } = await import('../lib/supabase')
+      console.log('[LoginScreen] Setting session with tokens...')
       const { error: sessionError } = await supabase.auth.setSession({
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
       })
       if (sessionError) {
-        console.error('Deep link auth error:', sessionError.message)
+        console.error('[LoginScreen] ❌ Deep link auth error:', sessionError.message)
         setError(sessionError.message)
+      } else {
+        console.log('[LoginScreen] ✅ Session set successfully from deep link')
       }
       // onAuthStateChange in useAuth will trigger onAuthSuccess automatically
     } catch (err: any) {
-      console.error('Deep link session error:', err)
+      console.error('[LoginScreen] ❌ Deep link session error:', err)
       setError(err?.message ?? 'Failed to complete sign-in.')
     }
   }, [])
@@ -97,24 +103,33 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
     }
 
     setLoading(true)
+    console.log('[LoginScreen] ═══ signInWithOtp START ═══')
+    console.log('[LoginScreen] Email:', trimmed)
+    console.log('[LoginScreen] Redirect: conflux://auth/callback')
     try {
       const { supabase } = await import('../lib/supabase')
-      const { error: authError } = await supabase.auth.signInWithOtp({
+      console.log('[LoginScreen] Supabase client loaded, calling signInWithOtp...')
+      const { data, error: authError } = await supabase.auth.signInWithOtp({
         email: trimmed,
         options: {
           emailRedirectTo: 'conflux://auth/callback',
         },
       })
+      console.log('[LoginScreen] signInWithOtp response:', JSON.stringify({ data, error: authError }))
       if (authError) {
+        console.error('[LoginScreen] ❌ Auth error:', authError.message, authError.status)
         setError(authError.message)
       } else {
+        console.log('[LoginScreen] ✅ Magic link sent successfully')
         localStorage.setItem(LAST_EMAIL_KEY, trimmed);
         setSent(true)
       }
     } catch (err: any) {
+      console.error('[LoginScreen] ❌ Exception during signInWithOtp:', err)
       setError(err?.message ?? 'Something went wrong. Please try again.')
     } finally {
       setLoading(false)
+      console.log('[LoginScreen] ═══ signInWithOtp END ═══')
     }
   }, [email])
 
@@ -126,18 +141,27 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
     const w = window as any
     let subscription: { unsubscribe: () => void } | null = null
     
+    console.log('[LoginScreen] Setting up auth state change listener...')
     if (!w.__confluxAuthListener) {
       w.__confluxAuthListener = true
       import('../lib/supabase').then(({ supabase }) => {
         if (!mounted) return
+        console.log('[LoginScreen] Auth listener: supabase loaded, registering onAuthStateChange')
         const { data: { subscription: sub } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
-          console.log('[LoginScreen] Auth state changed:', _event, 'session:', !!session)
+          console.log('[LoginScreen] ═══ Auth state changed ═══')
+          console.log('[LoginScreen] Event:', _event)
+          console.log('[LoginScreen] Has session:', !!session)
           if (session) {
+            console.log('[LoginScreen] User ID:', session.user?.id)
+            console.log('[LoginScreen] Token expires:', session.expires_at)
+            console.log('[LoginScreen] Calling onAuthSuccess...')
             onAuthSuccess()
           }
         })
         subscription = sub
       })
+    } else {
+      console.log('[LoginScreen] Auth listener already registered (global flag)')
     }
     return () => {
       mounted = false

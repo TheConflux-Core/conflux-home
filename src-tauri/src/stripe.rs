@@ -4,11 +4,33 @@
 use serde::{Deserialize, Serialize};
 
 fn get_stripe_key() -> Result<String, String> {
-    std::env::var("STRIPE_SECRET_KEY")
-        .ok()
-        .filter(|k| !k.is_empty())
-        .or_else(|| option_env!("STRIPE_SECRET_KEY").map(|s| s.to_string()))
-        .ok_or_else(|| "STRIPE_SECRET_KEY not set. Add it to .env or embed via build.rs".to_string())
+    // Try runtime env first (loaded by dotenvy at startup)
+    if let Ok(key) = std::env::var("STRIPE_SECRET_KEY") {
+        if !key.is_empty() {
+            return Ok(key);
+        }
+    }
+    // Try loading .env from exe directory (packaged app may have different cwd)
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let env_path = exe_dir.join(".env");
+            if env_path.exists() {
+                dotenvy::from_path(&env_path).ok();
+            }
+        }
+    }
+    if let Ok(key) = std::env::var("STRIPE_SECRET_KEY") {
+        if !key.is_empty() {
+            return Ok(key);
+        }
+    }
+    // Compile-time fallback
+    if let Some(key) = option_env!("STRIPE_SECRET_KEY") {
+        if !key.is_empty() {
+            return Ok(key.to_string());
+        }
+    }
+    Err("STRIPE_SECRET_KEY not set. Add it to .env or embed via build.rs".to_string())
 }
 
 // ── Types ──
