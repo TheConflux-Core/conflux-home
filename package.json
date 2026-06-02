@@ -1,6 +1,6 @@
 {
   "name": "conflux-home",
-  "version": "0.1.159",
+  "version": "0.1.160",
   "description": "Conflux Home — A home for your AI family",
   "type": "module",
   "scripts": {
@@ -14,6 +14,7 @@
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
+    "@react-three/postprocessing": "^3.0.4",
     "@supabase/supabase-js": "^2.103.0",
     "@tauri-apps/api": "2.10.1",
     "@tauri-apps/cli": "2.10.1",
@@ -26,6 +27,7 @@
     "framer-motion": "^12.38.0",
     "html2canvas": "^1.4.1",
     "marked": "^18.0.0",
+    "postprocessing": "^6.39.1",
     "prismjs": "^1.30.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
