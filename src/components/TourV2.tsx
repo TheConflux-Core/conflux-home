@@ -108,15 +108,6 @@ const TOUR_STEPS: TourV2Step[] = [
     text: "Conflux Home comes with themes. Pick one that fits your vibe — or change it whenever you want. It's your space.",
   },
   {
-    id: 'google-connect',
-    targetId: null,
-    title: 'Connect Your Life',
-    text: "Want to go deeper? Connect your Google account and we can check your calendar, read your emails, and access your Drive. Your agents become exponentially more powerful with your real data. Ready to connect?",
-    isInteractive: true,
-    interactiveLabel: 'Connect Google',
-    hasSkip: true,
-  },
-  {
     id: 'proactive',
     targetId: null,
     title: 'Proactive, Not Reactive',
@@ -131,8 +122,11 @@ const TOUR_STEPS: TourV2Step[] = [
   {
     id: 'finale',
     targetId: null,
-    title: "You're Home",
-    text: "Your team is ready. Explore freely — we're watching over you. If you ever need this tour again, find it in Settings.",
+    title: "You're All Set",
+    text: "That's the tour. Your team is alive, your heartbeat is running, and you're ready to go. One more thing — want to connect your Google account? Your agents become exponentially more powerful with access to your calendar, email, and files.",
+    isInteractive: true,
+    interactiveLabel: 'Connect Google',
+    hasSkip: true,
   },
 ];
 
@@ -417,7 +411,7 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
   const [isActive, setIsActive] = useState(true);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [showFinaleAgents, setShowFinaleAgents] = useState(false);
+
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const hasStarted = useRef(false);
@@ -514,44 +508,9 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
     if (tooltipRef.current) {
       setTooltipHeight(tooltipRef.current.offsetHeight);
     }
-  }, [currentStep, showFinaleAgents]);
+  }, [currentStep]);
 
-  // ── Finale agent voice lines ───────────────────────────────
-
-  useEffect(() => {
-    if (step?.id !== 'finale') return;
-
-    const t = setTimeout(() => setShowFinaleAgents(true), 1500);
-
-    // Play all agent voice lines in sequence AFTER Conflux finishes speaking
-    const playSequence = async () => {
-      // Wait for Conflux's step speech to finish first
-      while (isSpeaking && !cancelledRef.current) {
-        await new Promise(r => setTimeout(r, 200));
-      }
-      if (cancelledRef.current) return;
-
-      await new Promise(r => setTimeout(r, 1000));
-      for (const agent of AGENTS) {
-        if (cancelledRef.current || isMuted) break;
-        try {
-          const result = await invoke<{ audio_base64: string }>('tts_speak', {
-            text: agent.voiceLine,
-            voice: agent.id,
-          });
-          if (cancelledRef.current) break;
-          await playTourAudio(result.audio_base64);
-          if (cancelledRef.current) break;
-          await new Promise(r => setTimeout(r, 400));
-        } catch {
-          // TTS unavailable — skip
-        }
-      }
-    };
-    playSequence();
-
-    return () => clearTimeout(t);
-  }, [step?.id, isMuted, isSpeaking]);
+  // ── Finale — nothing special, just the step with Google buttons ──
 
   // ── Keyboard navigation ────────────────────────────────────
 
@@ -627,7 +586,7 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
 
   // Add visual elements to specific steps
   let extraContent: React.ReactNode = null;
-  if (step.id === 'welcome' || step.id === 'finale') {
+  if (step.id === 'welcome') {
     extraContent = <AgentTeamRow />;
   } else if (step.id === 'heartbeat') {
     extraContent = <HeartbeatVisual />;
@@ -729,7 +688,7 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
                     <>
                       {step.hasSkip && (
                         <button className="tour-v2-skip" onClick={handleNext}>
-                          Connect Later
+                          {isLast ? 'Finish Tour' : 'Connect Later'}
                         </button>
                       )}
                       <button className="tour-v2-connect" onClick={handleGoogleConnect}>
@@ -743,22 +702,6 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
                   )}
                 </div>
               </div>
-
-              {/* Finale agents */}
-              {showFinaleAgents && (
-                <div className="tour-v2-finale-agents">
-                  {AGENTS.map((agent, i) => (
-                    <div
-                      key={agent.id}
-                      className="tour-v2-finale-agent"
-                      style={{ animationDelay: `${i * 0.1}s` }}
-                    >
-                      <span className="tour-v2-finale-emoji">{agent.emoji}</span>
-                      <span className="tour-v2-finale-name">{agent.name}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         );
