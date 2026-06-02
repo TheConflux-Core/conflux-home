@@ -378,8 +378,8 @@ function IntelDashboard() {
             {balance?.source === 'free' && (
             <div className="intel-metric-card">
               <span className="intel-metric-icon">☀️</span>
-              <span className="intel-metric-value">{allLoading ? '---' : `${balance.daily_used?.toFixed(0) || '0'}/${balance.daily_limit?.toFixed(0) || '0'}`}</span>
-              <span className="intel-metric-label">Daily Left</span>
+              <span className="intel-metric-value">{allLoading ? '---' : `${Math.max((balance.monthly_credits ?? 500) - (balance.monthly_used ?? 0), 0).toFixed(0)} left`}</span>
+              <span className="intel-metric-label">Free Credits</span>
             </div>
             )}
           </div>
