@@ -557,12 +557,12 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
   const handleGoogleConnect = useCallback(() => {
     stopTourAudio();
     setIsSpeaking(false);
-    onNavigate?.('google');
-    // Continue tour after a moment
-    setTimeout(() => {
-      setCurrentStep(prev => Math.min(prev + 1, TOUR_STEPS.length - 1));
-    }, 500);
-  }, [onNavigate]);
+    cancelledRef.current = true;
+    setIsActive(false);
+    localStorage.setItem('conflux-tour-v2-completed', 'true');
+    onNavigate?.('settings');
+    onComplete();
+  }, [onNavigate, onComplete]);
 
   const handleComplete = useCallback(() => {
     cancelledRef.current = true;
