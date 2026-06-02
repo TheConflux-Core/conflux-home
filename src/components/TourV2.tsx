@@ -105,7 +105,7 @@ const TOUR_STEPS: TourV2Step[] = [
     id: 'voice-themes',
     targetId: 'theme-dropdown',
     title: 'Make It Yours',
-    text: "Conflux Home comes with themes. Pick one that fits your vibe — or change it whenever you want. It's your space.",
+    text: "Conflux Home comes with themes. Pick one that fits your vibe — and tell me to change it whenever you want. It's your space.",
   },
   {
     id: 'proactive',
