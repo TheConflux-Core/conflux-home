@@ -3,11 +3,12 @@ import { useEffect, useState } from 'react';
 interface TourSpotlightProps {
   targetRect: DOMRect | null;
   padding?: number;
+  paddingBottom?: number;
   borderRadius?: number;
   verticalOffset?: number;
 }
 
-export default function TourSpotlight({ targetRect, padding = 8, borderRadius = 12, verticalOffset = 0 }: TourSpotlightProps) {
+export default function TourSpotlight({ targetRect, padding = 8, paddingBottom, borderRadius = 12, verticalOffset = 0 }: TourSpotlightProps) {
   const [adjustedRect, setAdjustedRect] = useState<DOMRect | null>(null);
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export default function TourSpotlight({ targetRect, padding = 8, borderRadius = 
   }
 
   const pad = padding;
+  const padBottom = paddingBottom ?? pad;
   const rx = borderRadius;
   // Apply vertical offset — negative pushes spotlight up, positive pushes down
   const topOffset = adjustedRect.top + verticalOffset;
@@ -42,7 +44,7 @@ export default function TourSpotlight({ targetRect, padding = 8, borderRadius = 
             x={adjustedRect.left - pad}
             y={topOffset - pad}
             width={adjustedRect.width + pad * 2}
-            height={adjustedRect.height + pad * 2}
+            height={adjustedRect.height + pad + padBottom}
             rx={rx}
             ry={rx}
             fill="black"
@@ -61,7 +63,7 @@ export default function TourSpotlight({ targetRect, padding = 8, borderRadius = 
         x={adjustedRect.left - pad}
         y={topOffset - pad}
         width={adjustedRect.width + pad * 2}
-        height={adjustedRect.height + pad * 2}
+        height={adjustedRect.height + pad + padBottom}
         rx={rx}
         ry={rx}
       />

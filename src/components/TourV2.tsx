@@ -634,7 +634,7 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
       <ConfettiBurst active={showConfetti} />
 
       {/* Spotlight */}
-      <TourSpotlight targetRect={targetRect} verticalOffset={step?.targetId === 'dock' ? -18 : 0} />
+      <TourSpotlight targetRect={targetRect} verticalOffset={step?.targetId === 'dock' ? -18 : 0} paddingBottom={step?.targetId === 'dock' ? 28 : undefined} />
 
       {/* Custom enhanced tooltip */}
       {(() => {
