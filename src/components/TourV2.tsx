@@ -438,7 +438,7 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
     setIsSpeaking(true);
     try {
       const result = await invoke<{ audio_base64: string }>('tts_speak', {
-        text: s.title + '. ' + s.text,
+        text: s.text,
         voice: 'conflux',
       });
       if (!cancelledRef.current) {
@@ -634,7 +634,7 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
       <ConfettiBurst active={showConfetti} />
 
       {/* Spotlight */}
-      <TourSpotlight targetRect={targetRect} />
+      <TourSpotlight targetRect={targetRect} verticalOffset={step?.targetId === 'dock' ? -18 : 0} />
 
       {/* Custom enhanced tooltip */}
       {(() => {
