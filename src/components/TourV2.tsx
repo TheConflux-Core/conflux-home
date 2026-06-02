@@ -67,6 +67,7 @@ interface TourV2Step {
   text: string;
   isInteractive?: boolean;
   interactiveLabel?: string;
+  hasSkip?: boolean;
 }
 
 const TOUR_STEPS: TourV2Step[] = [
@@ -80,7 +81,7 @@ const TOUR_STEPS: TourV2Step[] = [
     id: 'heartbeat',
     targetId: null,
     title: 'The Heartbeat',
-    text: "Every 30 minutes, a system scan runs through your entire life. Pulse checks your budget. Hearth reviews your meals. Aegis scans for threats. Horizon tracks your goals. You don't ask — we just check in.",
+    text: "Every 30 minutes, your agents wake up. Pulse checks your budget. Hearth reviews your meals. Aegis watches the walls. Horizon tracks your dreams. It's a cycle — always running, always watching. You don't ask. We just show up.",
   },
   {
     id: 'memory',
@@ -113,6 +114,7 @@ const TOUR_STEPS: TourV2Step[] = [
     text: "Want to go deeper? Connect your Google account and we can check your calendar, read your emails, and access your Drive. Your agents become exponentially more powerful with your real data. Ready to connect?",
     isInteractive: true,
     interactiveLabel: 'Connect Google',
+    hasSkip: true,
   },
   {
     id: 'proactive',
@@ -717,9 +719,16 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
                     Skip tour
                   </button>
                   {step.isInteractive ? (
-                    <button className="tour-v2-connect" onClick={handleGoogleConnect}>
-                      {step.interactiveLabel || 'Connect'}
-                    </button>
+                    <>
+                      {step.hasSkip && (
+                        <button className="tour-v2-skip" onClick={handleNext}>
+                          Connect Later
+                        </button>
+                      )}
+                      <button className="tour-v2-connect" onClick={handleGoogleConnect}>
+                        {step.interactiveLabel || 'Connect'}
+                      </button>
+                    </>
                   ) : (
                     <button className="tour-v2-next" onClick={handleNext}>
                       {isLast ? "Let's Go" : isFirst ? "Let's Go" : 'Next →'}
