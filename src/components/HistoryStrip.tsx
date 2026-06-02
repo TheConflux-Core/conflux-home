@@ -4,7 +4,7 @@ import { STUDIO_MODULES } from '../types';
 
 function getThumbnailUrl(gen: { module: string; output_url: string | null; output_path: string | null }): string | null {
   // Only image and design modules produce visual thumbnails
-  if (gen.module !== 'image' && gen.module !== 'design') return null;
+  if (gen.module !== 'image' && gen.module !== 'writing') return null;
   if (gen.output_url?.startsWith('http')) return gen.output_url;
   if (gen.output_path) return convertFileSrc(gen.output_path);
   return null;
@@ -17,7 +17,7 @@ const MODULE_COLORS: Record<string, string> = {
   voice: 'rgba(59, 130, 246, 0.25)',
   video: 'rgba(236, 72, 153, 0.25)',
   code: 'rgba(34, 197, 94, 0.25)',
-  design: 'rgba(249, 115, 22, 0.25)',
+  writing: 'rgba(249, 115, 22, 0.25)',
 };
 
 export default function HistoryStrip() {

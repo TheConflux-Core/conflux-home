@@ -410,7 +410,36 @@ export default function StudioDashboard({ initialModule }: { initialModule?: Stu
                       }}
                     />
                   )}
-                  {!getDisplayUrl(selectedGeneration) && selectedGeneration.status !== 'failed' && selectedGeneration.module !== 'code' && (
+                  {/* Writing: render text content from metadata */}
+                  {selectedGeneration.status !== 'failed' && selectedGeneration.module === 'writing' && selectedGeneration.metadata_json && (() => {
+                    try {
+                      const meta = JSON.parse(selectedGeneration.metadata_json);
+                      if (meta.text) return true;
+                    } catch {}
+                    return false;
+                  })() && (
+                    <div className="preview-writing">
+                      <div className="preview-writing-header">
+                        <span className="preview-writing-format">{(() => {
+                          try { return JSON.parse(selectedGeneration.metadata_json).format || 'writing'; } catch { return 'writing'; }
+                        })()}</span>
+                        <span className="preview-writing-tone">{(() => {
+                          try { return JSON.parse(selectedGeneration.metadata_json).tone || ''; } catch { return ''; }
+                        })()}</span>
+                        <span className="preview-writing-words">{(() => {
+                          try { return `${JSON.parse(selectedGeneration.metadata_json).word_count || 0} words`; } catch { return ''; }
+                        })()}</span>
+                      </div>
+                      <div className="preview-writing-content">
+                        {(() => {
+                          try {
+                            return JSON.parse(selectedGeneration.metadata_json).text;
+                          } catch { return 'Unable to load content.'; }
+                        })()}
+                      </div>
+                    </div>
+                  )}
+                  {!getDisplayUrl(selectedGeneration) && selectedGeneration.status !== 'failed' && selectedGeneration.module !== 'code' && selectedGeneration.module !== 'writing' && (
                     <div className="preview-empty">
                       <div className="preview-empty-icon">
                         {selectedGeneration.module === 'voice' ? '🗣️' : selectedGeneration.module === 'music' ? '🎵' : '🎨'}

@@ -1502,7 +1502,7 @@ export interface VaultFilter {
 // STUDIO — AI Creative Generation
 // ============================================================
 
-export type StudioModule = 'image' | 'video' | 'music' | 'voice' | 'code' | 'design';
+export type StudioModule = 'image' | 'video' | 'music' | 'voice' | 'code' | 'writing';
 
 export interface StudioGeneration {
   id: string;
@@ -1558,5 +1558,5 @@ export const STUDIO_MODULES: Record<StudioModule, { icon: string; label: string;
   music: { icon: '🎵', label: 'Music', description: 'Compose music and sound effects' },
   voice: { icon: '🗣️', label: 'Voice', description: 'Clone voices and generate speech' },
   code: { icon: '💻', label: 'Web', description: 'Build websites and web apps' },
-  design: { icon: '🎨', label: 'Design', description: 'Create logos, templates, and brand assets' },
+  writing: { icon: '✍️', label: 'Writing', description: 'AI-powered creative writing, stories, and content' },
 };

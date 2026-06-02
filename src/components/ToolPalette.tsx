@@ -9,7 +9,7 @@ interface ToolPaletteProps {
   onGateModule?: (module: StudioModule) => void; // called when user clicks a gated module
 }
 
-const MODULE_ORDER: StudioModule[] = ['image', 'video', 'music', 'voice', 'code', 'design'];
+const MODULE_ORDER: StudioModule[] = ['image', 'video', 'music', 'voice', 'code', 'writing'];
 
 // Modules that require pro tier
 const GATED_MODULES: StudioModule[] = ['video', 'voice'];

@@ -30,7 +30,7 @@ export function useStudioState() {
     music: { genre: 'ambient', duration: 30, mood: 'calm', instrumental: false, lyrics: '' },
     voice: { voiceId: 'JBFqnCBsd6RMkjVDRZzb', speed: 1.0, stability: 0.5 },
     code: { framework: 'html', complexity: 'simple' },
-    design: { format: 'png', style: 'modern', colorCount: 3 },
+    writing: { format: 'story', style: 'lyrical' },
   });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [enterGallery, setEnterGallery] = useState(false);
@@ -306,6 +306,40 @@ export function useStudioState() {
       return;
     }
 
+    // Creative Writing generation via LLM
+    if (activeModule === 'writing') {
+      try {
+        const { format, style } = adjustments.writing;
+        const result = await invoke('studio_generate_writing', {
+          generationId,
+          prompt: prompt.trim(),
+          format: format || 'story',
+          tone: style || 'lyrical',
+        });
+        console.log('[Studio] Writing generation complete:', result);
+        // Auto-save to vault
+        try {
+          await invoke('studio_save_to_vault', { generationId });
+          console.log('[Studio] Auto-saved writing to vault:', generationId);
+        } catch (vaultErr) {
+          console.warn('[Studio] Auto-save to vault failed:', vaultErr);
+        }
+        await loadHistory();
+        try {
+          const gen = await invoke<StudioGeneration>('studio_get_generation', { id: generationId });
+          if (gen) selectGeneration(gen);
+        } catch (selErr) {
+          console.error('[Studio] Failed to auto-select writing gen:', selErr);
+        }
+      } catch (e) {
+        console.error('[Studio] Writing generation failed:', e);
+        await loadHistory();
+      }
+      setIsGenerating(false);
+      setPrompt('');
+      return;
+    }
+
     // Mock behavior for video (placeholder) — store adjustments in metadata
     setTimeout(async () => {
       try {
@@ -466,6 +500,27 @@ export function useStudioState() {
               });
             } catch (e) {
               console.error(`Batch web ${idx} failed:`, e);
+            } finally {
+              if (idx === batchIds.length - 1) {
+                loadHistory();
+                setIsGenerating(false);
+              }
+            }
+          })();
+        });
+      } else if (activeModule === 'writing') {
+        batchIds.forEach((genId, idx) => {
+          (async () => {
+            try {
+              const { format, style } = adjustments.writing;
+              await invoke('studio_generate_writing', {
+                generationId: genId,
+                prompt: prompt.trim(),
+                format: format || 'story',
+                tone: style || 'lyrical',
+              });
+            } catch (e) {
+              console.error(`Batch writing ${idx} failed:`, e);
             } finally {
               if (idx === batchIds.length - 1) {
                 loadHistory();

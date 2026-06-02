@@ -3690,3 +3690,72 @@
 .web-fullscreen .web-preview-content {
   flex: 1;
 }
+
+/* ── Writing Preview ── */
+
+.preview-writing {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 24px;
+  overflow-y: auto;
+}
+
+.preview-writing-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.preview-writing-format {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #c084fc;
+  background: rgba(192, 132, 252, 0.12);
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.preview-writing-tone {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+}
+
+.preview-writing-words {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  margin-left: auto;
+  font-family: monospace;
+}
+
+.preview-writing-content {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 15px;
+  line-height: 1.85;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  flex: 1;
+}
+
+.preview-writing-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.preview-writing-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.preview-writing-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
