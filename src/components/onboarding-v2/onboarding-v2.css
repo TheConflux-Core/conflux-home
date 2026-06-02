@@ -1,0 +1,471 @@
+/* ═══════════════════════════════════════════════════════════════
+   ONBOARDING V2 — Styles
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Agent Card Hover ────────────────────────────────────────── */
+
+.onboarding-v2-agent-card {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+}
+
+.onboarding-v2-agent-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Ice Breaker Suggestions ─────────────────────────────────── */
+
+.onboarding-v2-suggestion:hover {
+  border-color: rgba(0, 212, 255, 0.3);
+  background: rgba(0, 212, 255, 0.05);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ── Build Card Shimmer ──────────────────────────────────────── */
+
+.onboarding-v2-build-card.building {
+  animation: buildShimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes buildShimmer {
+  0%, 100% { box-shadow: 0 0 0 rgba(0, 212, 255, 0); }
+  50% { box-shadow: 0 0 20px rgba(0, 212, 255, 0.15); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   HOLOGRAPHIC CARDS
+   ═══════════════════════════════════════════════════════════════ */
+
+.holographic-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 16px 16px;
+  border-radius: 18px;
+  width: 140px;
+  box-sizing: border-box;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.02) 50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.4s ease;
+  will-change: transform;
+}
+
+.holographic-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--holo-angle, 0deg),
+    transparent 0%,
+    var(--agent-color, #00d4ff) 25%,
+    transparent 50%,
+    var(--agent-color, #00d4ff) 75%,
+    transparent 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.5;
+  pointer-events: none;
+  animation: holoBorderSpin 4s linear infinite;
+}
+
+@keyframes holoBorderSpin {
+  from { --holo-angle: 0deg; }
+  to { --holo-angle: 360deg; }
+}
+
+@property --holo-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+/* ── Neon Pulse Border ──────────────────────────────────────── */
+
+.holo-border {
+  position: absolute;
+  inset: -2px;
+  border-radius: 20px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.holographic-card.materialized .holo-border {
+  opacity: 1;
+  animation: neonPulse 2s ease-in-out infinite;
+}
+
+@keyframes neonPulse {
+  0%, 100% { opacity: 0.4; filter: blur(6px); }
+  50% { opacity: 0.8; filter: blur(10px); }
+}
+
+/* ── Particle Aura (per card) ───────────────────────────────── */
+
+.particle-aura {
+  position: absolute;
+  inset: -20px;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: 30px;
+  z-index: -1;
+}
+
+.particle-aura .aura-dot {
+  position: absolute;
+  border-radius: 50%;
+  animation: auraFloat 3s ease-in-out infinite;
+}
+
+@keyframes auraFloat {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.4;
+  }
+  50% {
+    transform: translateY(-12px) scale(1.3);
+    opacity: 0.8;
+  }
+}
+
+/* ── 3D Perspective Tilt ────────────────────────────────────── */
+
+.holographic-card .card-inner {
+  transform-style: preserve-3d;
+  transition: transform 0.15s ease-out;
+}
+
+/* ── Ambient Grid Particles Canvas ──────────────────────────── */
+
+.ambient-particles-canvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.6;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ENERGY FIELD & GLOW EFFECTS
+   ═══════════════════════════════════════════════════════════════ */
+
+.energy-field {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 30% 40%, rgba(0, 212, 255, 0.06) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 50% at 70% 60%, rgba(99, 102, 241, 0.05) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 60% at 50% 80%, rgba(34, 197, 94, 0.04) 0%, transparent 70%);
+  animation: energyShift 8s ease-in-out infinite alternate;
+}
+
+@keyframes energyShift {
+  0% {
+    background-position: 0% 0%, 100% 100%, 50% 50%;
+    opacity: 0.6;
+  }
+  50% { opacity: 1; }
+  100% {
+    background-position: 100% 100%, 0% 0%, 50% 50%;
+    opacity: 0.6;
+  }
+}
+
+/* ── Glow Chip (suggestion pills) ───────────────────────────── */
+
+.glow-chip {
+  padding: 10px 20px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: inherit;
+  position: relative;
+  overflow: hidden;
+}
+
+.glow-chip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  background: radial-gradient(circle at 50% 50%, rgba(0, 212, 255, 0.15), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.glow-chip:hover {
+  border-color: rgba(0, 212, 255, 0.5);
+  color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.15), 0 0 40px rgba(0, 212, 255, 0.08);
+  transform: translateY(-2px);
+}
+
+.glow-chip:hover::before {
+  opacity: 1;
+}
+
+.glow-chip:active {
+  transform: translateY(0);
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.2);
+}
+
+/* ── Waveform Visualization ─────────────────────────────────── */
+
+.waveform-viz {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 32px;
+  padding: 0 16px;
+}
+
+.waveform-viz .wave-bar {
+  width: 3px;
+  border-radius: 2px;
+  background: linear-gradient(to top, #00d4ff, #6366f1);
+  transition: height 0.15s ease-out;
+}
+
+.waveform-viz.active .wave-bar {
+  animation: waveAnimate 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes waveAnimate {
+  0% { height: 4px; }
+  100% { height: var(--wave-max, 24px); }
+}
+
+/* ── Starfield Overlay ──────────────────────────────────────── */
+
+.starfield-depth {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Holographic Input Container ────────────────────────────── */
+
+.holographic-input-container {
+  position: relative;
+  width: 100%;
+  border-radius: 20px;
+  padding: 3px;
+  background: conic-gradient(
+    from var(--input-holo-angle, 0deg),
+    transparent 0%,
+    #00d4ff 15%,
+    #6366f1 30%,
+    transparent 45%,
+    #00d4ff 60%,
+    #6366f1 75%,
+    transparent 90%
+  );
+  animation: inputHoloSpin 6s linear infinite;
+  opacity: 0.7;
+}
+
+@property --input-holo-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes inputHoloSpin {
+  from { --input-holo-angle: 0deg; }
+  to { --input-holo-angle: 360deg; }
+}
+
+.holographic-input-container .input-inner {
+  background: rgba(10, 10, 15, 0.9);
+  border-radius: 17px;
+  backdrop-filter: blur(12px);
+}
+
+/* ── Typing Ripple Effect ───────────────────────────────────── */
+
+.typing-ripple {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  animation: rippleExpand 0.8s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes rippleExpand {
+  0% {
+    width: 0;
+    height: 0;
+    opacity: 0.6;
+  }
+  100% {
+    width: 200px;
+    height: 200px;
+    opacity: 0;
+    margin-top: -100px;
+    margin-left: -100px;
+  }
+}
+
+/* ── Breathing Glow (for avatar) ────────────────────────────── */
+
+.breathing-glow {
+  animation: breatheGlow 3s ease-in-out infinite;
+}
+
+@keyframes breatheGlow {
+  0%, 100% {
+    box-shadow:
+      0 0 16px rgba(0, 212, 255, 0.2),
+      0 0 32px rgba(0, 212, 255, 0.1);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow:
+      0 0 24px rgba(0, 212, 255, 0.35),
+      0 0 48px rgba(0, 212, 255, 0.15),
+      0 0 64px rgba(99, 102, 241, 0.1);
+    transform: scale(1.03);
+  }
+}
+
+/* ── Listening Pulse ────────────────────────────────────────── */
+
+.listening-pulse {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.listening-pulse.active {
+  opacity: 1;
+}
+
+.listening-pulse .pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00d4ff;
+  animation: pulseDot 1.2s ease-in-out infinite;
+}
+
+.listening-pulse .pulse-dot:nth-child(2) { animation-delay: 0.15s; }
+.listening-pulse .pulse-dot:nth-child(3) { animation-delay: 0.3s; }
+.listening-pulse .pulse-dot:nth-child(4) { animation-delay: 0.45s; }
+.listening-pulse .pulse-dot:nth-child(5) { animation-delay: 0.6s; }
+
+@keyframes pulseDot {
+  0%, 100% { transform: scale(0.6); opacity: 0.3; }
+  50% { transform: scale(1.2); opacity: 1; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MATERIALIZATION EFFECTS
+   ═══════════════════════════════════════════════════════════════ */
+
+@keyframes materializeFlash {
+  0% { opacity: 1; transform: scale(0.5); }
+  50% { opacity: 0.8; transform: scale(1.5); }
+  100% { opacity: 0; transform: scale(2); }
+}
+
+/* Glitch/hologram text effect for titles */
+@keyframes glitchText {
+  0%, 100% { text-shadow: 0 0 20px rgba(0,212,255,0.3), 2px 0 #ff006e, -2px 0 #00d4ff; }
+  25% { text-shadow: 0 0 20px rgba(0,212,255,0.3), -2px 0 #ff006e, 2px 0 #00d4ff; }
+  50% { text-shadow: 0 0 30px rgba(0,212,255,0.5), 1px 0 #ff006e, -1px 0 #00d4ff; }
+  75% { text-shadow: 0 0 20px rgba(0,212,255,0.3), -1px 0 #ff006e, 1px 0 #00d4ff; }
+}
+
+.hologram-title {
+  animation: glitchText 3s ease-in-out infinite;
+}
+
+/* Camera shake on agent materialization */
+@keyframes cameraShake {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  10% { transform: translate(-2px, 1px) rotate(-0.5deg); }
+  20% { transform: translate(2px, -1px) rotate(0.5deg); }
+  30% { transform: translate(-1px, 2px) rotate(-0.3deg); }
+  40% { transform: translate(1px, -2px) rotate(0.3deg); }
+  50% { transform: translate(0, 0) rotate(0deg); }
+}
+
+.camera-shake {
+  animation: cameraShake 0.4s ease-out;
+}
+
+/* Pulsing energy button */
+@keyframes pulseButton {
+  0%, 100% { box-shadow: 0 4px 24px rgba(0,212,255,0.3), 0 0 60px rgba(0,212,255,0.1); }
+  50% { box-shadow: 0 4px 32px rgba(0,212,255,0.5), 0 0 80px rgba(0,212,255,0.2), 0 0 120px rgba(99,102,241,0.1); }
+}
+
+.pulse-energy-button {
+  animation: pulseButton 2s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TOUR ENHANCEMENT
+   ═══════════════════════════════════════════════════════════════ */
+
+.tour-tooltip {
+  background: rgba(10, 10, 20, 0.95) !important;
+  border: 1px solid rgba(0, 212, 255, 0.2) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(0, 212, 255, 0.1),
+    0 0 40px rgba(0, 212, 255, 0.05) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+}
+
+.tour-tooltip-title {
+  background: linear-gradient(135deg, #00d4ff, #6366f1);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.tour-tooltip-next {
+  background: linear-gradient(135deg, #00d4ff, #6366f1) !important;
+  box-shadow: 0 2px 12px rgba(0, 212, 255, 0.3) !important;
+}
+
+.tour-tooltip-next:hover {
+  box-shadow: 0 4px 20px rgba(0, 212, 255, 0.5) !important;
+}
+
+.tour-spotlight-border {
+  stroke: #00d4ff !important;
+  stroke-width: 2.5 !important;
+  filter: drop-shadow(0 0 6px rgba(0, 212, 255, 0.4));
+}
