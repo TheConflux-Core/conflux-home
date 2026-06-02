@@ -419,6 +419,8 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const hasStarted = useRef(false);
+  const [tooltipHeight, setTooltipHeight] = useState(350);
+  const tooltipRef = useRef<HTMLDivElement>(null);
   const cancelledRef = useRef(false);
 
   const step = TOUR_STEPS[currentStep];
@@ -498,6 +500,14 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
       window.removeEventListener('resize', updateRect);
     };
   }, [step, currentStep, isActive]);
+
+  // ── Measure tooltip height for positioning ─────────────────
+
+  useEffect(() => {
+    if (tooltipRef.current) {
+      setTooltipHeight(tooltipRef.current.offsetHeight);
+    }
+  }, [currentStep, showFinaleAgents]);
 
   // ── Finale agent voice lines ───────────────────────────────
 
@@ -627,13 +637,25 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
       <TourSpotlight targetRect={targetRect} />
 
       {/* Custom enhanced tooltip */}
+      {(() => {
+        // Determine if tooltip should go above or below the target
+        const tooltipH = tooltipHeight;
+        const gap = 16;
+        const spaceBelow = targetRect ? window.innerHeight - targetRect.bottom - gap : 0;
+        const placeAbove = targetRect && spaceBelow < tooltipH + gap;
+
+        const topPos = targetRect
+          ? placeAbove
+            ? targetRect.top - gap - tooltipH
+            : targetRect.bottom + gap
+          : '50%';
+
+        return (
       <div
         className="tour-v2-tooltip-anchor"
         style={{
           position: 'fixed',
-          top: targetRect
-            ? targetRect.bottom + 16
-            : '50%',
+          top: topPos,
           left: targetRect
             ? Math.max(16, Math.min(
                 targetRect.left + targetRect.width / 2 - 175,
@@ -645,7 +667,7 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
           pointerEvents: 'auto',
         }}
       >
-        <div className="tour-v2-tooltip" style={{ width: 350 }}>
+        <div ref={tooltipRef} className="tour-v2-tooltip" style={{ width: 350 }}>
           {/* Agent indicator */}
           <div className="tour-v2-agent-indicator">
             <span className={`tour-v2-agent-dot ${isSpeaking ? 'speaking' : ''}`} />
@@ -712,6 +734,8 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
           )}
         </div>
       </div>
+        );
+      })()}
 
       {/* Styles */}
       <style>{`
