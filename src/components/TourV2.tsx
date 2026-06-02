@@ -123,7 +123,7 @@ const TOUR_STEPS: TourV2Step[] = [
     id: 'finale',
     targetId: null,
     title: "You're All Set",
-    text: "That's the tour. Your team is alive, your heartbeat is running, and you're ready to go. One more thing — want to connect your Google account? Your agents become exponentially more powerful with access to your calendar, email, and files.",
+    text: "That's the tour. Your team is alive, your heartbeat is running, and you're ready to go. One more thing — want to connect your Google account? Your agents become exponentially more powerful with access to your calendar, email, and docs.",
     isInteractive: true,
     interactiveLabel: 'Connect Google',
     hasSkip: true,
@@ -494,7 +494,8 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
       }
     };
 
-    const timer = setTimeout(updateRect, 200);
+    const delay = step.id === 'voice-themes' ? 500 : 200;
+    const timer = setTimeout(updateRect, delay);
     window.addEventListener('resize', updateRect);
     return () => {
       clearTimeout(timer);
