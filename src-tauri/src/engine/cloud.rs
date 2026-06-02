@@ -350,40 +350,36 @@ pub async fn check_cloud_balance(user_id: &str) -> Result<CreditStatus> {
     };
 
     let balance = account["balance"].as_i64().unwrap_or(0);
-    let deposit_balance = balance; // All balance is usable (deposit + subscription grant both tracked here)
+    let total_consumed = account["total_consumed"].as_i64().unwrap_or(0);
+    let deposit_balance = balance;
 
-    // Fetch active subscription (if any)
-    // Try subscription_status first (migration 003), fall back to status (original column)
-    let sub_query = format!(
-        "user_id=eq.{}&select=*",
-        user_id
-    );
+    // Fetch subscription (if any) — check both column names
+    let sub_query = format!("user_id=eq.{}&select=*", user_id);
     let (has_active_subscription, subscription_plan, monthly_credits, monthly_used) =
         match supabase_get("ch_subscriptions", &sub_query) {
             Ok(builder) => match builder.send().await {
                 Ok(resp) if resp.status().is_success() => {
                     let subs: Vec<serde_json::Value> = resp.json().await.unwrap_or_default();
                     if let Some(sub) = subs.first() {
-                        // Check both subscription_status (migration 003) and status (original)
                         let is_active = sub["subscription_status"].as_str() == Some("active")
                             || sub["status"].as_str() == Some("active");
+                        let plan = sub["plan"].as_str().unwrap_or("free").to_string();
+                        let included = sub["credits_included"].as_i64().unwrap_or(500);
+                        let used = sub["credits_used"].as_i64().unwrap_or(0);
                         if is_active {
-                            (
-                                true,
-                                sub["plan"].as_str().unwrap_or("free").to_string(),
-                                sub["credits_included"].as_i64().unwrap_or(0),
-                                sub["credits_used"].as_i64().unwrap_or(0),
-                            )
+                            (true, plan, included, used)
                         } else {
-                            (false, "free".to_string(), 0, 0)
+                            // Subscription exists but not active — still show plan info
+                            (false, plan, included, total_consumed)
                         }
                     } else {
-                        (false, "free".to_string(), 0, 0)
+                        // No subscription row at all — free tier defaults
+                        (false, "free".to_string(), 500, total_consumed)
                     }
                 }
-                _ => (false, "free".to_string(), 0, 0),
+                _ => (false, "free".to_string(), 500, total_consumed),
             },
-            Err(_) => (false, "free".to_string(), 0, 0),
+            Err(_) => (false, "free".to_string(), 500, total_consumed),
         };
 
     // Don't double-count: subscription credits and balance are the same pool for free tier
