@@ -682,9 +682,11 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
                   {currentStep + 1} / {TOUR_STEPS.length}
                 </span>
                 <div className="tour-v2-actions">
-                  <button className="tour-v2-skip" onClick={handleSkip}>
-                    Skip tour
-                  </button>
+                  {!isLast && (
+                    <button className="tour-v2-skip" onClick={handleSkip}>
+                      Skip tour
+                    </button>
+                  )}
                   {step.isInteractive ? (
                     <>
                       {step.hasSkip && (
