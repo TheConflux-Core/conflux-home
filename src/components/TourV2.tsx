@@ -9,6 +9,10 @@
  * Spotlight highlights real UI elements. Full-screen steps for concepts.
  * Interactive Google Connect offer. Agent voice line finale.
  *
+ * TIMING: No auto-advance. User clicks Next when ready.
+ * Each step's speech starts when the step appears.
+ * Clicking Next always stops current audio before advancing.
+ *
  * SAFETY: Completely self-contained. Imports only from existing shared
  * components (TourSpotlight, TourTooltip). No existing code modified.
  */
@@ -30,14 +34,15 @@ function stopTourAudio() {
   }
 }
 
+/** Play base64 MP3. Resolves when playback ends or on error. */
 function playTourAudio(base64: string): Promise<void> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     stopTourAudio();
     const audio = new Audio(`data:audio/mp3;base64,${base64}`);
     _tourAudio = audio;
     audio.onended = () => { _tourAudio = null; resolve(); };
-    audio.onerror = () => { _tourAudio = null; resolve(); }; // don't block tour on audio errors
-    audio.play().catch(() => { _tourAudio = null; resolve(); }); // autoplay may be blocked
+    audio.onerror = () => { _tourAudio = null; resolve(); };
+    audio.play().catch(() => { _tourAudio = null; resolve(); });
   });
 }
 
@@ -60,8 +65,7 @@ interface TourV2Step {
   targetId: string | null;
   title: string;
   text: string;
-  durationMs?: number;     // auto-advance delay for concept steps
-  isInteractive?: boolean; // shows custom button instead of "Next"
+  isInteractive?: boolean;
   interactiveLabel?: string;
 }
 
@@ -71,42 +75,36 @@ const TOUR_STEPS: TourV2Step[] = [
     targetId: null,
     title: 'Your Team Is Alive',
     text: "Welcome home. I'm Conflux — I'll be your guide. Your agents aren't waiting for instructions. They're already working. Let me show you what that means.",
-    durationMs: 7000,
   },
   {
     id: 'heartbeat',
     targetId: null,
     title: 'The Heartbeat',
     text: "Every 30 minutes, a system scan runs through your entire life. Pulse checks your budget. Hearth reviews your meals. Aegis scans for threats. Horizon tracks your goals. You don't ask — we just check in.",
-    durationMs: 8000,
   },
   {
     id: 'memory',
     targetId: 'chat',
     title: 'We Remember Everything',
     text: "Every conversation we have is remembered. Your preferences, your patterns, your history — it all carries forward. Ask Pulse about last month's spending. Tell Hearth you're allergic to shellfish once. We never forget.",
-    durationMs: 7000,
   },
   {
     id: 'cross-app',
     targetId: 'intel',
     title: 'Cross-App Intelligence',
     text: "Your agents talk to each other. Pulse might notice you're spending more on dining and tell Hearth — who adjusts your meal plan. Horizon sees your savings goal and tells Pulse to tighten the budget. We're a team, not a toolkit.",
-    durationMs: 8000,
   },
   {
     id: 'navigation',
     targetId: 'dock',
     title: 'Your Command Center',
     text: "This dock is always here. Left button opens your app library. Center button is where you talk to us — type or speak. Right button takes you home. Everything is one click away.",
-    durationMs: 7000,
   },
   {
     id: 'voice-themes',
     targetId: null,
     title: 'Voice & Themes',
     text: "You can talk to us too — click the chat button and use the microphone. And in Settings, you can change the entire look of Conflux Home. Dark mode, light mode, custom colors. Make it yours.",
-    durationMs: 7000,
   },
   {
     id: 'google-connect',
@@ -121,21 +119,18 @@ const TOUR_STEPS: TourV2Step[] = [
     targetId: null,
     title: 'Proactive, Not Reactive',
     text: "We don't wait for you to ask. We schedule tasks, monitor patterns, and nudge you when something needs attention. A bill due soon. A goal almost reached. A habit you're building. We're always watching.",
-    durationMs: 7000,
   },
   {
     id: 'more-than-chat',
     targetId: null,
     title: 'More Than Chat',
     text: "This isn't another AI chatbot. This is an operating system for your life. Persistent memory. Cross-app intelligence. Proactive agents. Scheduled automation. A team that knows you and works together — even when you're not here.",
-    durationMs: 8000,
   },
   {
     id: 'finale',
     targetId: null,
     title: "You're Home",
     text: "Your team is ready. Explore freely — we're watching over you. If you ever need this tour again, find it in Settings.",
-    durationMs: 6000,
   },
 ];
 
@@ -422,53 +417,60 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
   const [showConfetti, setShowConfetti] = useState(false);
   const [showFinaleAgents, setShowFinaleAgents] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const hasStarted = useRef(false);
+  const cancelledRef = useRef(false);
 
   const step = TOUR_STEPS[currentStep];
   const isLast = currentStep === TOUR_STEPS.length - 1;
   const isFirst = currentStep === 0;
 
-  // ── TTS ────────────────────────────────────────────────────
+  // ── Speak a step's text (awaits completion) ────────────────
 
-  const speak = useCallback(async (text: string) => {
-    if (isMuted) return;
+  const speakStep = useCallback(async (stepIndex: number) => {
+    if (isMuted || cancelledRef.current) return;
+
+    const s = TOUR_STEPS[stepIndex];
+    if (!s) return;
+
+    setIsSpeaking(true);
     try {
       const result = await invoke<{ audio_base64: string }>('tts_speak', {
-        text,
+        text: s.title + '. ' + s.text,
         voice: 'conflux',
       });
-      await playTourAudio(result.audio_base64);
+      if (!cancelledRef.current) {
+        await playTourAudio(result.audio_base64);
+      }
     } catch {
       // TTS unavailable — tour continues silently
     }
+    if (!cancelledRef.current) {
+      setIsSpeaking(false);
+    }
   }, [isMuted]);
 
-  // ── Start tour with initial TTS ────────────────────────────
+  // ── Start tour ─────────────────────────────────────────────
 
   useEffect(() => {
     if (hasStarted.current) return;
     hasStarted.current = true;
+    cancelledRef.current = false;
 
     setShowConfetti(true);
     setTimeout(() => setShowConfetti(false), 3000);
 
-    // Speak the welcome after a brief pause
-    const t = setTimeout(() => {
-      speak(TOUR_STEPS[0].title + '. ' + TOUR_STEPS[0].text);
-    }, 800);
+    // Speak the welcome step after a brief pause
+    const t = setTimeout(() => speakStep(0), 800);
     return () => clearTimeout(t);
-  }, [speak]);
+  }, [speakStep]);
 
-  // ── Speak when step changes ────────────────────────────────
+  // ── Speak when step changes (but not on initial mount) ─────
 
   useEffect(() => {
-    if (!step || !hasStarted.current) return;
-    const t = setTimeout(() => {
-      speak(step.title + '. ' + step.text);
-    }, 400);
-    return () => clearTimeout(t);
-  }, [currentStep, step, speak]);
+    if (!hasStarted.current || currentStep === 0) return;
+    speakStep(currentStep);
+  }, [currentStep, speakStep]);
 
   // ── Spotlight positioning ──────────────────────────────────
 
@@ -497,22 +499,6 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
     };
   }, [step, currentStep, isActive]);
 
-  // ── Auto-advance for concept steps ─────────────────────────
-
-  useEffect(() => {
-    if (!step || isLast || step.isInteractive) return;
-
-    if (step.durationMs) {
-      autoAdvanceTimer.current = setTimeout(() => {
-        setCurrentStep(prev => Math.min(prev + 1, TOUR_STEPS.length - 1));
-      }, step.durationMs);
-    }
-
-    return () => {
-      if (autoAdvanceTimer.current) clearTimeout(autoAdvanceTimer.current);
-    };
-  }, [currentStep, step, isLast]);
-
   // ── Finale agent voice lines ───────────────────────────────
 
   useEffect(() => {
@@ -520,28 +506,35 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
 
     const t = setTimeout(() => setShowFinaleAgents(true), 1500);
 
-    // Play all agent voice lines in sequence
+    // Play all agent voice lines in sequence AFTER Conflux finishes speaking
     const playSequence = async () => {
-      await new Promise(r => setTimeout(r, 2500));
+      // Wait for Conflux's step speech to finish first
+      while (isSpeaking && !cancelledRef.current) {
+        await new Promise(r => setTimeout(r, 200));
+      }
+      if (cancelledRef.current) return;
+
+      await new Promise(r => setTimeout(r, 1000));
       for (const agent of AGENTS) {
-        if (!isMuted) {
-          try {
-            const result = await invoke<{ audio_base64: string }>('tts_speak', {
-              text: agent.voiceLine,
-              voice: agent.id,
-            });
-            await playTourAudio(result.audio_base64);
-            await new Promise(r => setTimeout(r, 400));
-          } catch {
-            // TTS unavailable — skip
-          }
+        if (cancelledRef.current || isMuted) break;
+        try {
+          const result = await invoke<{ audio_base64: string }>('tts_speak', {
+            text: agent.voiceLine,
+            voice: agent.id,
+          });
+          if (cancelledRef.current) break;
+          await playTourAudio(result.audio_base64);
+          if (cancelledRef.current) break;
+          await new Promise(r => setTimeout(r, 400));
+        } catch {
+          // TTS unavailable — skip
         }
       }
     };
     playSequence();
 
     return () => clearTimeout(t);
-  }, [step?.id, isMuted]);
+  }, [step?.id, isMuted, isSpeaking]);
 
   // ── Keyboard navigation ────────────────────────────────────
 
@@ -562,17 +555,18 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
 
   useEffect(() => {
     return () => {
+      cancelledRef.current = true;
       stopTourAudio();
       window.speechSynthesis.cancel();
-      if (autoAdvanceTimer.current) clearTimeout(autoAdvanceTimer.current);
     };
   }, []);
 
   // ── Navigation ─────────────────────────────────────────────
 
   const handleNext = useCallback(() => {
+    // Always stop current audio before advancing
     stopTourAudio();
-    if (autoAdvanceTimer.current) clearTimeout(autoAdvanceTimer.current);
+    setIsSpeaking(false);
 
     if (isLast) {
       handleComplete();
@@ -583,7 +577,7 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
 
   const handleGoogleConnect = useCallback(() => {
     stopTourAudio();
-    if (autoAdvanceTimer.current) clearTimeout(autoAdvanceTimer.current);
+    setIsSpeaking(false);
     onNavigate?.('google');
     // Continue tour after a moment
     setTimeout(() => {
@@ -592,9 +586,10 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
   }, [onNavigate]);
 
   const handleComplete = useCallback(() => {
+    cancelledRef.current = true;
     stopTourAudio();
+    setIsSpeaking(false);
     window.speechSynthesis.cancel();
-    if (autoAdvanceTimer.current) clearTimeout(autoAdvanceTimer.current);
     setIsActive(false);
     localStorage.setItem('conflux-tour-v2-completed', 'true');
     onComplete();
@@ -653,11 +648,19 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
         <div className="tour-v2-tooltip" style={{ width: 350 }}>
           {/* Agent indicator */}
           <div className="tour-v2-agent-indicator">
-            <span className="tour-v2-agent-dot" />
-            <span className="tour-v2-agent-label">Conflux is explaining</span>
+            <span className={`tour-v2-agent-dot ${isSpeaking ? 'speaking' : ''}`} />
+            <span className="tour-v2-agent-label">
+              {isSpeaking ? '🔊 Conflux is speaking…' : 'Conflux'}
+            </span>
             <button
               className="tour-v2-mute-btn"
-              onClick={() => setIsMuted(!isMuted)}
+              onClick={() => {
+                setIsMuted(!isMuted);
+                if (!isMuted) {
+                  stopTourAudio();
+                  setIsSpeaking(false);
+                }
+              }}
               title={isMuted ? 'Unmute narration' : 'Mute narration'}
             >
               {isMuted ? '🔇' : '🔊'}
@@ -728,6 +731,10 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
           0%, 100% { opacity: 0.6; transform: scale(1); }
           50% { opacity: 1; transform: scale(1.1); }
         }
+        @keyframes tour-v2-agent-pulse-speaking {
+          0%, 100% { opacity: 0.8; transform: scale(1); box-shadow: 0 0 12px rgba(0, 212, 255, 0.5); }
+          50% { opacity: 1; transform: scale(1.3); box-shadow: 0 0 20px rgba(0, 212, 255, 0.8); }
+        }
         @keyframes tour-v2-finale-pop {
           from { opacity: 0; transform: scale(0.5) translateY(10px); }
           to { opacity: 1; transform: scale(1) translateY(0); }
@@ -766,6 +773,11 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
           background: #00d4ff;
           box-shadow: 0 0 12px rgba(0, 212, 255, 0.5);
           animation: tour-v2-agent-pulse 2s ease-in-out infinite;
+        }
+        .tour-v2-agent-dot.speaking {
+          animation: tour-v2-agent-pulse-speaking 0.8s ease-in-out infinite;
+          background: #00ffcc;
+          box-shadow: 0 0 20px rgba(0, 255, 204, 0.6);
         }
         .tour-v2-agent-label {
           font-size: 11px;
