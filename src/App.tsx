@@ -18,7 +18,7 @@ import './styles-conflux-bar-v2.css';
 import ChatPanel from './components/ChatPanel';
 import MarketplaceNew from './components/MarketplaceNew';
 import AgentDetail from './components/AgentDetail';
-import Onboarding from './components/Onboarding';
+import Onboarding from './components/onboarding-v2';
 import WelcomeOverlay from './components/WelcomeOverlay';
 import AgentIntroductions from './components/AgentIntroductions';
 import ConfluxOrbit from './components/ConfluxOrbit';
@@ -62,7 +62,7 @@ import ViperDashboard from './components/ViperDashboard'
 import AgentAuditDashboard from './components/AgentAuditDashboard';
 import SIEMDashboard from './components/SIEMDashboard';
 
-import GuidedTour from './components/GuidedTour';
+import TourV2 from './components/TourV2';
 
 // Phase 0.3+: Global AI Input, Agent Status
 import AgentStatusPanel from './components/AgentStatusPanel';
@@ -89,6 +89,7 @@ import './styles/animations.css';
 import './styles-global-ai-input.css';
 import './styles/tour.css';
 import './styles/grove.css';
+import './components/onboarding-v2/onboarding-v2.css';
 
 // Background images for immersive views
 const VIEW_BACKGROUNDS: Record<string, string> = {
@@ -776,14 +777,17 @@ export default function App() {
 
   // Restore onboarding state from Supabase if localStorage is empty
   useEffect(() => {
-    if (!user || isOnboarded) return
+    if (!user || isOnboarded) { console.log('[App] Supabase restore: skipped (user=', !!user, 'isOnboarded=', isOnboarded, ')'); return }
+    console.log('[App] Supabase restore: checking ch_profiles for user', user.id)
     import('./lib/supabase').then(async ({ supabase }) => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('ch_profiles')
         .select('onboarded, display_name, onboarding_goals, selected_agents')
         .eq('id', user.id)
         .single()
+      console.log('[App] Supabase ch_profiles query result:', JSON.stringify({ data, error }))
       if (data?.onboarded) {
+        console.log('[App] ✅ User is onboarded in Supabase, syncing to local')
         localStorage.setItem('conflux-onboarded', 'true')
         if (data.display_name) {
           localStorage.setItem('conflux-name', data.display_name)
@@ -797,6 +801,8 @@ export default function App() {
           localStorage.setItem('conflux-goals', JSON.stringify(data.onboarding_goals))
         }
         setIsOnboarded(true)
+      } else {
+        console.log('[App] Supabase: user NOT onboarded (data=', data, ')')
       }
     })
   }, [user, isOnboarded])
@@ -1014,11 +1020,10 @@ const [activeSnake, setActiveSnake] = useState(false);
 
     // Onboarding IS the welcome — skip WelcomeOverlay
     localStorage.setItem('conflux-welcomed', 'true');
-    // Tour disabled for now — re-imagining the tour experience
-    // To re-enable, uncomment the block below:
-    // if (shouldAutoStartTour()) {
-    //   setTimeout(() => setShowTour(true), 1500);
-    // }
+    // Tour V2 — auto-start after onboarding
+    if (localStorage.getItem('conflux-tour-v2-completed') !== 'true') {
+      setTimeout(() => setShowTour(true), 1500);
+    }
   }, [user, userName]);
 
   // Handle welcome dismiss
@@ -1222,17 +1227,21 @@ const [activeSnake, setActiveSnake] = useState(false);
   }, [isOnboarded, showWelcome, connected, view, chatOpen, handleNavigate, handleCloseChat, filteredAgents, agents, selectedAgentIds]);
 
   // ── Gate: Splash screen ──
+  console.log('[App] Gate: loaded=', loaded, '| isAuthCallback=', isAuthCallback, '| authLoading=', authLoading, '| authenticated=', authenticated, '| isOnboarded=', isOnboarded);
   if (!loaded) {
+    console.log('[App] → Rendering SplashScreen');
     return <SplashScreen onComplete={() => setLoaded(true)} />;
   }
 
   // ── Gate: Auth callback (magic link / OAuth redirect) ──
   if (isAuthCallback) {
+    console.log('[App] → Rendering AuthCallback');
     return <AuthCallback onComplete={() => setIsAuthCallback(false)} />;
   }
 
   // ── Gate: Auth ──
   if (authLoading) {
+    console.log('[App] → Rendering auth loading spinner');
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#0a0a1a' }}>
         <img src="/logo_v1.png" alt="Conflux" style={{ width: 32, height: 32, objectFit: 'contain' }} />
@@ -1241,11 +1250,12 @@ const [activeSnake, setActiveSnake] = useState(false);
   }
 
   if (!authenticated) {
-    return <LoginScreen onAuthSuccess={() => { /* auth state change triggers re-render via useAuth */ }} />;
+    console.log('[App] → Rendering LoginScreen (not authenticated)');
+    return <LoginScreen onAuthSuccess={() => { console.log('[App] onAuthSuccess called'); }} />;
   }
 
   // ── Gate: Onboarding ──
-          console.log('[App] Gate check — isOnboarded:', isOnboarded, '| authLoading:', authLoading, '| loaded:', loaded);
+  console.log('[App] Gate check — isOnboarded:', isOnboarded, '| user:', user?.id);
   if (!isOnboarded) {
     console.log('[App] → Rendering Onboarding (isOnboarded=false)');
     return <Onboarding onComplete={handleOnboardingComplete} />;
@@ -1291,7 +1301,7 @@ const [activeSnake, setActiveSnake] = useState(false);
           }}
         />
       )}
-      {showTour && <GuidedTour onComplete={() => setShowTour(false)} />}
+      {showTour && <TourV2 onComplete={() => setShowTour(false)} onNavigate={(v) => handleNavigate(v as View)} />}
       <TopBar
         selectedAgent={selectedAgent}
         controlRoom={controlRoom}
