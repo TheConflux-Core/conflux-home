@@ -318,16 +318,44 @@ pub async fn check_cloud_balance(user_id: &str) -> Result<CreditStatus> {
         .await
         .map_err(|e| anyhow::anyhow!("Failed to parse credit_accounts: {}", e))?;
 
-    let account = accounts
-        .first()
-        .ok_or_else(|| anyhow::anyhow!("No credit account found for user {}", user_id))?;
+    // If no credit account exists, create one (free tier default: 500 credits)
+    let account = match accounts.first() {
+        Some(a) => a.clone(),
+        None => {
+            log::warn!("[check_cloud_balance] No credit_accounts row for {}. Creating default.", user_id);
+            let now = chrono::Utc::now().to_rfc3339();
+            let new_account = serde_json::json!({
+                "user_id": user_id,
+                "balance": 500,
+                "total_purchased": 0,
+                "total_consumed": 0,
+                "created_at": &now,
+                "updated_at": &now
+            });
+            let create_resp = supabase_post("credit_accounts")?
+                .json(&new_account)
+                .send()
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to create credit_accounts row: {}", e))?;
+            if !create_resp.status().is_success() {
+                let s = create_resp.status();
+                let b = create_resp.text().await.unwrap_or_default();
+                log::error!("[check_cloud_balance] Failed to create credit_accounts: {} {}", s, b);
+                // Fall through with default values instead of bailing
+                serde_json::json!({ "balance": 500 })
+            } else {
+                create_resp.json().await.unwrap_or_else(|_| serde_json::json!({ "balance": 500 }))
+            }
+        }
+    };
 
     let balance = account["balance"].as_i64().unwrap_or(0);
     let deposit_balance = balance; // All balance is usable (deposit + subscription grant both tracked here)
 
     // Fetch active subscription (if any)
+    // Try subscription_status first (migration 003), fall back to status (original column)
     let sub_query = format!(
-        "user_id=eq.{}&subscription_status=eq.active&select=*",
+        "user_id=eq.{}&select=*",
         user_id
     );
     let (has_active_subscription, subscription_plan, monthly_credits, monthly_used) =
@@ -336,12 +364,19 @@ pub async fn check_cloud_balance(user_id: &str) -> Result<CreditStatus> {
                 Ok(resp) if resp.status().is_success() => {
                     let subs: Vec<serde_json::Value> = resp.json().await.unwrap_or_default();
                     if let Some(sub) = subs.first() {
-                        (
-                            true,
-                            sub["plan"].as_str().unwrap_or("free").to_string(),
-                            sub["credits_included"].as_i64().unwrap_or(0),
-                            sub["credits_used"].as_i64().unwrap_or(0),
-                        )
+                        // Check both subscription_status (migration 003) and status (original)
+                        let is_active = sub["subscription_status"].as_str() == Some("active")
+                            || sub["status"].as_str() == Some("active");
+                        if is_active {
+                            (
+                                true,
+                                sub["plan"].as_str().unwrap_or("free").to_string(),
+                                sub["credits_included"].as_i64().unwrap_or(0),
+                                sub["credits_used"].as_i64().unwrap_or(0),
+                            )
+                        } else {
+                            (false, "free".to_string(), 0, 0)
+                        }
                     } else {
                         (false, "free".to_string(), 0, 0)
                     }
