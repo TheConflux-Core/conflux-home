@@ -290,11 +290,11 @@ function CentralLight({ phase, time }: { phase: AwakeningPhase; time: number }) 
   const targetScale = useMemo(() => {
     switch (phase) {
       case 'void': return 0.05;
-      case 'signal': return 0.4;
-      case 'breath': return 0.6;
-      case 'question': return 0.5;
-      case 'ignition': return 0.8;
-      default: return 0.5;
+      case 'signal': return 0.3;
+      case 'breath': return 0.45;
+      case 'question': return 0.4;
+      case 'ignition': return 0.55;
+      default: return 0.4;
     }
   }, [phase]);
 
@@ -305,10 +305,10 @@ function CentralLight({ phase, time }: { phase: AwakeningPhase; time: number }) 
     const current = meshRef.current.scale.x;
     const next = THREE.MathUtils.lerp(current, targetScale, delta * 2);
     meshRef.current.scale.setScalar(next);
-    glowRef.current.scale.setScalar(next * 2.5);
+    glowRef.current.scale.setScalar(next * 2.0);
 
     // Breathing effect
-    const breathe = Math.sin(time * 1.5) * 0.08;
+    const breathe = Math.sin(time * 0.8) * 0.04;
     meshRef.current.scale.multiplyScalar(1 + breathe);
 
     // Light intensity follows scale
@@ -327,7 +327,7 @@ function CentralLight({ phase, time }: { phase: AwakeningPhase; time: number }) 
         <meshStandardMaterial
           color="#00d4ff"
           emissive="#00d4ff"
-          emissiveIntensity={2}
+          emissiveIntensity={1.4}
           roughness={0.1}
           metalness={0.8}
         />
@@ -903,7 +903,7 @@ function AwakeningSceneInner({ onComplete }: Props) {
         {/* Post-processing — enhanced */}
         <EffectComposer>
           <Bloom
-            intensity={2.0}
+            intensity={1.6}
             luminanceThreshold={0.15}
             luminanceSmoothing={0.85}
             mipmapBlur
@@ -1059,8 +1059,9 @@ function AwakeningSceneInner({ onComplete }: Props) {
           to { opacity: 1; transform: translateY(0); }
         }
         @keyframes ignitionFlash {
-          0% { opacity: 0.8; transform: scale(1); }
-          30% { opacity: 1; transform: scale(1.02); }
+          0% { opacity: 0; transform: scale(0.98); }
+          20% { opacity: 0.5; transform: scale(1); }
+          60% { opacity: 0.3; transform: scale(1.01); }
           100% { opacity: 0; transform: scale(1); }
         }
       `}</style>
