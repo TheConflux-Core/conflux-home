@@ -813,7 +813,7 @@ export default function OnboardingV2({ onComplete }: OnboardingV2Props) {
   }, [step]);
 
   return (
-    <div style={{
+    <div className="onboarding-v2-root" style={{
       display: 'flex',
       flexDirection: 'column',
       height: '100vh',

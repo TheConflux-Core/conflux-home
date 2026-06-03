@@ -633,7 +633,7 @@ export default function AgentMaterialize({ agents, onComplete, onAgentVoice }: P
       </motion.div>
 
       {/* Agent grid — arc layout */}
-      <div style={{
+      <div className="onboarding-v2-agent-grid" style={{
         display: 'flex',
         flexWrap: 'wrap',
         justifyContent: 'center',
