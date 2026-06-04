@@ -853,24 +853,3 @@
     animation: none !important;
   }
 }
-
-/* ══════════════════════════════════════
-   MOBILE OVERRIDES — Feed / Radar
-   ══════════════════════════════════════ */
-
-@media (max-width: 640px) {
-  .feed-radar-view {
-    padding: 12px;
-    gap: 12px;
-  }
-
-  .briefing-overlay {
-    padding: 12px;
-  }
-
-  .briefing-panel {
-    padding: 16px;
-    max-height: 95vh;
-    border-radius: 16px;
-  }
-}
