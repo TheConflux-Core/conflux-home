@@ -867,6 +867,9 @@ fn get_tool_priority(name: &str, category: &str) -> u8 {
         "kitchen_add_meal" | "dream_add" | "budget_add_entry" | "life_add_task" => 8,
         "kitchen_list_meals" | "dream_list" | "budget_get_summary" | "life_list_tasks" => 7,
         "kitchen_delete_meal" | "dream_delete" | "life_delete_task" => 7,
+        // Agent Task Board tools
+        "agent_create_task" | "agent_update_task" => 7,
+        "agent_list_tasks" => 6,
         "email_send" | "email_receive" | "gmail_send" | "gmail_search" => 5,
         // Echo/journal — emotional intelligence
         "echo_write_entry" | "echo_counselor_start_session" => 6,

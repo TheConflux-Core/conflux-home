@@ -9013,7 +9013,7 @@ pub async fn tts_speak(text: String, voice: Option<String>) -> Result<serde_json
         .json(&serde_json::json!({
             "text": text,
             "model_id": "eleven_multilingual_v2",
-            "voice_settings": { "stability": 0.5, "similarity_boost": 0.75 }
+            "voice_settings": { "stability": 0.5, "similarity_boost": 0.75, "use_speaker_boost": true }
         }))
         .send()
         .await
@@ -9251,7 +9251,8 @@ pub async fn studio_generate_voice(
             "voice_settings": {
                 "stability": stability.unwrap_or(0.5),
                 "similarity_boost": 0.75,
-                "speed": speed.unwrap_or(1.0)
+                "speed": speed.unwrap_or(1.0),
+                "use_speaker_boost": true
             }
         }))
         .send()

@@ -543,6 +543,10 @@ pub async fn execute_tool_for_user(
         "life_get_reminders" => execute_life_get_reminders(args),
         "life_get_knowledge" => execute_life_get_knowledge(args),
         "life_get_documents" => execute_life_get_documents(args),
+        // Agent Task Board tools (inter-agent task management)
+        "agent_create_task" => execute_agent_create_task(args),
+        "agent_list_tasks" => execute_agent_list_tasks(args),
+        "agent_update_task" => execute_agent_update_task(args),
         "feed_add_item" => execute_feed_add_item(args),
         "feed_list_items" => execute_feed_list_items(args),
         "feed_mark_read" => execute_feed_mark_read(args),
@@ -1294,6 +1298,54 @@ pub fn get_app_tool_definitions() -> Vec<Value> {
                     "properties": {
                         "doc_type": { "type": "string", "description": "Filter by document type (e.g., insurance, warranty, medical)" }
                     }
+                }
+            }
+        }),
+        // ── Agent Task Board Tools ──
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "agent_create_task",
+                "description": "Create a task on the Agent Board. Use when assigning work to another agent or creating an inter-agent task. For user-facing to-dos, use life_add_task instead.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "title": { "type": "string", "description": "Task title (required)" },
+                        "agent_id": { "type": "string", "description": "Agent to assign the task to (e.g., forge, helix, pulse, aegis)" },
+                        "description": { "type": "string", "description": "Detailed description of what needs to be done" },
+                        "priority": { "type": "string", "enum": ["low", "normal", "high", "critical"], "description": "Priority level" }
+                    },
+                    "required": ["title", "agent_id"]
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "agent_list_tasks",
+                "description": "List tasks on the Agent Board. Use to check what work is assigned or pending.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "agent_id": { "type": "string", "description": "Filter by assigned agent" },
+                        "status": { "type": "string", "enum": ["pending", "in_progress", "review", "completed", "failed", "blocked"], "description": "Filter by status" }
+                    }
+                }
+            }
+        }),
+        serde_json::json!({
+            "type": "function",
+            "function": {
+                "name": "agent_update_task",
+                "description": "Update a task on the Agent Board. Use to mark tasks as in_progress, completed, failed, or blocked.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "task_id": { "type": "string", "description": "Task ID to update (required)" },
+                        "status": { "type": "string", "enum": ["pending", "in_progress", "review", "completed", "failed", "blocked"], "description": "New status" },
+                        "result": { "type": "string", "description": "Result or output of the task" }
+                    },
+                    "required": ["task_id"]
                 }
             }
         }),
@@ -7318,6 +7370,10 @@ fn execute_life_add_task(args: &Value) -> Result<ToolResult> {
 
     let id = uuid::Uuid::new_v4().to_string();
     let engine = super::get_engine();
+    let member_id = engine.db().get_config("supabase_user_id")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "default_user".to_string());
     let category = args.get("category").and_then(|v| v.as_str());
     let priority = args
         .get("priority")
@@ -7329,7 +7385,7 @@ fn execute_life_add_task(args: &Value) -> Result<ToolResult> {
     match tokio::task::block_in_place(|| {
         engine.db().add_life_task_sync(
             &id,
-            "",   // empty member_id — no family member linked
+            &member_id,
             title,
             category,
             priority,
@@ -7418,9 +7474,13 @@ fn execute_life_complete_task(args: &Value) -> Result<ToolResult> {
     }
 
     let engine = super::get_engine();
+    let member_id = engine.db().get_config("supabase_user_id")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "default_user".to_string());
     match tokio::task::block_in_place(|| {
         engine.db().update_life_task_status_sync(
-            "",
+            &member_id,
             task_id,
             "completed",
         )
@@ -7460,10 +7520,14 @@ fn execute_life_add_habit(args: &Value) -> Result<ToolResult> {
         .and_then(|v| v.as_i64())
         .unwrap_or(1);
 
+    let member_id = engine.db().get_config("supabase_user_id")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "default_user".to_string());
     match tokio::task::block_in_place(|| {
         engine.db().add_life_habit_sync(
             &id,
-            "",
+            &member_id,
             name,
             category,
             frequency,
@@ -7504,11 +7568,15 @@ fn execute_life_log_habit(args: &Value) -> Result<ToolResult> {
 
     let engine = super::get_engine();
     let now = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let member_id = engine.db().get_config("supabase_user_id")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "default_user".to_string());
     match tokio::task::block_in_place(|| {
         engine.db().log_life_habit_sync(
             &uuid::Uuid::new_v4().to_string(),
             habit_id,
-            "",
+            &member_id,
             &now,
             1,
         )
@@ -7574,8 +7642,12 @@ fn execute_life_delete_task(args: &Value) -> Result<ToolResult> {
     }
 
     let engine = super::get_engine();
+    let member_id = engine.db().get_config("supabase_user_id")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "default_user".to_string());
     match tokio::task::block_in_place(|| {
-        engine.db().delete_life_task_sync("", task_id)
+        engine.db().delete_life_task_sync(&member_id, task_id)
     }) {
         Ok(()) => Ok(ToolResult {
             success: true,
@@ -7995,6 +8067,123 @@ fn execute_life_get_documents(args: &Value) -> Result<ToolResult> {
                 error: None,
             })
         }
+        Err(e) => Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+// ── Agent Task Board Tool Implementations ──
+
+fn execute_agent_create_task(args: &Value) -> Result<ToolResult> {
+    let title = args.get("title").and_then(|v| v.as_str()).unwrap_or("");
+    let agent_id = args.get("agent_id").and_then(|v| v.as_str()).unwrap_or("");
+    if title.is_empty() || agent_id.is_empty() {
+        return Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some("title and agent_id are required".into()),
+        });
+    }
+
+    let engine = super::get_engine();
+    let description = args.get("description").and_then(|v| v.as_str());
+    let priority = args.get("priority").and_then(|v| v.as_str()).unwrap_or("normal");
+    let caller_id = engine.db().get_config("supabase_user_id")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "agent".to_string());
+
+    match engine.create_task(
+        title,
+        description,
+        agent_id,
+        &caller_id,
+        priority,
+        false,
+    ) {
+        Ok(id) => Ok(ToolResult {
+            success: true,
+            output: format!("Created task '{}' assigned to {}: {}", title, agent_id, id),
+            error: None,
+        }),
+        Err(e) => Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+fn execute_agent_list_tasks(args: &Value) -> Result<ToolResult> {
+    let engine = super::get_engine();
+    let agent_id = args.get("agent_id").and_then(|v| v.as_str());
+    let status = args.get("status").and_then(|v| v.as_str());
+
+    let tasks = if let Some(aid) = agent_id {
+        engine.get_tasks_for_agent(aid, status)
+    } else {
+        engine.get_all_tasks()
+    };
+
+    match tasks {
+        Ok(tasks) => {
+            if tasks.is_empty() {
+                return Ok(ToolResult {
+                    success: true,
+                    output: "No agent tasks found.".into(),
+                    error: None,
+                });
+            }
+            let lines: Vec<String> = tasks
+                .iter()
+                .map(|t| {
+                    format!(
+                        "• [{}] {} ({}:{}) - assigned to {}",
+                        t.id[..8.min(t.id.len())].to_uppercase(),
+                        t.title,
+                        t.status,
+                        t.priority,
+                        t.agent_id
+                    )
+                })
+                .collect();
+            Ok(ToolResult {
+                success: true,
+                output: lines.join("\n"),
+                error: None,
+            })
+        }
+        Err(e) => Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+fn execute_agent_update_task(args: &Value) -> Result<ToolResult> {
+    let task_id = args.get("task_id").and_then(|v| v.as_str()).unwrap_or("");
+    if task_id.is_empty() {
+        return Ok(ToolResult {
+            success: false,
+            output: String::new(),
+            error: Some("task_id is required".into()),
+        });
+    }
+
+    let engine = super::get_engine();
+    let status = args.get("status").and_then(|v| v.as_str()).unwrap_or("in_progress");
+    let result = args.get("result").and_then(|v| v.as_str());
+
+    match engine.update_task_status(task_id, status, result) {
+        Ok(()) => Ok(ToolResult {
+            success: true,
+            output: format!("Task {} updated to {}", task_id, status),
+            error: None,
+        }),
         Err(e) => Ok(ToolResult {
             success: false,
             output: String::new(),

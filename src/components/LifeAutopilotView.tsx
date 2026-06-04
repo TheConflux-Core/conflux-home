@@ -11,6 +11,7 @@ import OrbitBoot from './OrbitBoot';
 import OrbitOnboarding, { hasCompletedOrbitOnboarding } from './OrbitOnboarding';
 import { MissionManifest } from './MissionManifest';
 import AgentActivityFeed from './AgentActivityFeed';
+import { AgentBoard } from './AgentBoard';
 
 /* ── Main View ───────────────────────────────── */
 
@@ -24,6 +25,9 @@ export default function LifeAutopilotView() {
   const [bootDone, setBootDone] = useState(() => localStorage.getItem('orbit-boot-done') === 'true');
   const hasOnboarded = hasCompletedOrbitOnboarding();
   const [onboardingComplete, setOnboardingComplete] = useState(false);
+
+  /* Tab state */
+  const [activeTab, setActiveTab] = useState<'manifest' | 'agentboard'>('manifest');
 
   /* Natural language input */
   const [nlInput, setNlInput] = useState('');
@@ -150,14 +154,52 @@ export default function LifeAutopilotView() {
         {/* Parse Feedback Toast */}
         {parseFeedback && <div className="orbit-toast" style={{ color: '#10b981' }}>{parseFeedback}</div>}
 
-        {/* Mission Manifest — The Task List */}
-        <MissionManifest
-          tasks={tasks}
-          completedTasks={completedTasks}
-          onComplete={completeTask}
-          onDelete={deleteTask}
-          onAddTask={handleAddTask}
-        />
+        {/* Tab Switcher — Mission Manifest vs Agent Board */}
+        <div style={{
+          display: 'flex', gap: '4px', marginBottom: '16px',
+          background: 'rgba(255,255,255,0.03)', borderRadius: '10px',
+          padding: '3px', width: 'fit-content',
+        }}>
+          <button
+            onClick={() => setActiveTab('manifest')}
+            style={{
+              padding: '6px 16px', fontSize: '12px', fontWeight: 600,
+              border: 'none', borderRadius: '8px', cursor: 'pointer',
+              background: activeTab === 'manifest' ? 'rgba(139,92,246,0.2)' : 'transparent',
+              color: activeTab === 'manifest' ? '#c4b5fd' : '#6b7280',
+              transition: 'all 0.15s',
+            }}
+          >
+            🎯 My Tasks
+          </button>
+          <button
+            onClick={() => setActiveTab('agentboard')}
+            style={{
+              padding: '6px 16px', fontSize: '12px', fontWeight: 600,
+              border: 'none', borderRadius: '8px', cursor: 'pointer',
+              background: activeTab === 'agentboard' ? 'rgba(139,92,246,0.2)' : 'transparent',
+              color: activeTab === 'agentboard' ? '#c4b5fd' : '#6b7280',
+              transition: 'all 0.15s',
+            }}
+          >
+            🤖 Agent Board
+          </button>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'manifest' ? (
+          <>
+            <MissionManifest
+              tasks={tasks}
+              completedTasks={completedTasks}
+              onComplete={completeTask}
+              onDelete={deleteTask}
+              onAddTask={handleAddTask}
+            />
+          </>
+        ) : (
+          <AgentBoard />
+        )}
 
         {/* Agent Activity Feed — What your agents have been doing */}
         <AgentActivityFeed />

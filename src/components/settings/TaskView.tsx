@@ -5,11 +5,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useTasks, type Task, type CreateTaskReq } from '../../hooks/useTasks';
 
-const COLUMNS: { key: Task['status']; label: string; emoji: string }[] = [
+const COLUMNS: { key: string; label: string; emoji: string }[] = [
   { key: 'pending', label: 'Pending', emoji: '📋' },
   { key: 'in_progress', label: 'In Progress', emoji: '🔨' },
   { key: 'review', label: 'Review', emoji: '🔍' },
   { key: 'done', label: 'Done', emoji: '✅' },
+  { key: 'completed', label: 'Completed', emoji: '✅' },
+  { key: 'failed', label: 'Failed', emoji: '❌' },
+  { key: 'blocked', label: 'Blocked', emoji: '🚧' },
 ];
 
 const PRIORITY_CONFIG: Record<string, { label: string; color: string; emoji: string }> = {
@@ -38,7 +41,7 @@ interface AgentInfo {
 export default function TaskView() {
   const { grouped, loading, create, update } = useTasks();
   const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [dragOverCol, setDragOverCol] = useState<Task['status'] | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
 
   // Quick-add form
@@ -65,7 +68,7 @@ export default function TaskView() {
     (e.currentTarget as HTMLElement).style.opacity = '1';
   };
 
-  const handleDragOver = (e: React.DragEvent, col: Task['status']) => {
+  const handleDragOver = (e: React.DragEvent, col: string) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setDragOverCol(col);
@@ -75,13 +78,13 @@ export default function TaskView() {
     setDragOverCol(null);
   };
 
-  const handleDrop = async (e: React.DragEvent, newStatus: Task['status']) => {
+  const handleDrop = async (e: React.DragEvent, newStatus: string) => {
     e.preventDefault();
     setDragOverCol(null);
     if (!draggedId) return;
 
     try {
-      await update({ id: draggedId, status: newStatus });
+      await update({ task_id: draggedId, status: newStatus });
     } catch (err) {
       window.dispatchEvent(new CustomEvent('conflux:toast', {
         detail: { message: `Failed to move task: ${err}`, type: 'error' },

@@ -1226,6 +1226,12 @@ fn build_system_prompt(
         "- User mentions a task or to-do → call life_add_task\n",
     );
     prompt.push_str(
+        "- Need to assign work to another agent → call agent_create_task\n",
+    );
+    prompt.push_str(
+        "- Need to check what agents are working on → call agent_list_tasks\n",
+    );
+    prompt.push_str(
         "- User asks to change app theme/appearance → call ui_action\n",
     );
     prompt.push_str(
