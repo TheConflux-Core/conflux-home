@@ -22,27 +22,47 @@ import TourSpotlight from './TourSpotlight';
 import TourTooltip from './TourTooltip';
 import { invoke } from '@tauri-apps/api/core';
 
-// ── Audio playback ───────────────────────────────────────────
+// ── Audio playback (AudioContext — matches onboarding) ──────
 
-let _tourAudio: HTMLAudioElement | null = null;
+let _tourCtx: AudioContext | null = null;
+let _tourSource: AudioBufferSourceNode | null = null;
 
-function stopTourAudio() {
-  if (_tourAudio) {
-    _tourAudio.pause();
-    _tourAudio.src = '';
-    _tourAudio = null;
+function getTourCtx(): AudioContext {
+  if (!_tourCtx) {
+    _tourCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
   }
+  if (_tourCtx.state === 'suspended') _tourCtx.resume();
+  return _tourCtx;
 }
 
-/** Play base64 MP3. Resolves when playback ends or on error. */
+function stopTourAudio() {
+  try { _tourSource?.stop(); } catch (_) { /* already stopped */ }
+  _tourSource = null;
+}
+
+/** Play base64 audio via AudioContext with gain=1.0. Resolves when done. */
 function playTourAudio(base64: string): Promise<void> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     stopTourAudio();
-    const audio = new Audio(`data:audio/mp3;base64,${base64}`);
-    _tourAudio = audio;
-    audio.onended = () => { _tourAudio = null; resolve(); };
-    audio.onerror = () => { _tourAudio = null; resolve(); };
-    audio.play().catch(() => { _tourAudio = null; resolve(); });
+    try {
+      const ctx = getTourCtx();
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+      ctx.decodeAudioData(bytes.buffer).then(buffer => {
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        const gain = ctx.createGain();
+        gain.gain.value = 1.0;
+        source.connect(gain);
+        gain.connect(ctx.destination);
+        _tourSource = source;
+        source.start(0);
+        source.onended = () => { _tourSource = null; resolve(); };
+      }).catch(reject);
+    } catch (e) {
+      reject(e);
+    }
   });
 }
 
