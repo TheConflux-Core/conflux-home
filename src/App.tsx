@@ -11,7 +11,6 @@ import TopBar from './components/TopBar';
 import Desktop from './components/Desktop';
 import DesktopV2 from './components/DesktopV2';
 import './styles-quadrants.css';
-import './styles-mobile.css';
 import ConfluxBar from './components/ConfluxBar';
 import ConfluxBarV2 from './components/ConfluxBarV2';
 import './styles-conflux-bar-v2.css';
