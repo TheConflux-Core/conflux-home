@@ -68,14 +68,36 @@ function stopCurrentAudio() {
   }
 }
 
+let _boostCtx: AudioContext | null = null;
+function getBoostCtx(): AudioContext {
+  if (!_boostCtx) {
+    _boostCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  }
+  if (_boostCtx.state === 'suspended') _boostCtx.resume();
+  return _boostCtx;
+}
+
 function playBase64Audio(base64: string): Promise<void> {
   return new Promise((resolve, reject) => {
     stopCurrentAudio();
-    const audio = new Audio(`data:audio/mp3;base64,${base64}`);
-    _currentAudio = audio;
-    audio.onended = () => { _currentAudio = null; resolve(); };
-    audio.onerror = (e) => { _currentAudio = null; reject(e); };
-    audio.play().catch(reject);
+    try {
+      const ctx = getBoostCtx();
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+      ctx.decodeAudioData(bytes.buffer).then(buffer => {
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        const gain = ctx.createGain();
+        gain.gain.value = 1.0;
+        source.connect(gain);
+        gain.connect(ctx.destination);
+        source.start(0);
+        source.onended = () => resolve();
+      }).catch(reject);
+    } catch (e) {
+      reject(e);
+    }
   });
 }
 
@@ -745,6 +767,47 @@ export default function OnboardingV2({ onComplete }: OnboardingV2Props) {
     };
   }, []);
 
+  // ── Background soundscape (crossfade: 0002 → 0007) ────────
+  const soundscapeRef = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => {
+    const audio1 = new Audio('/soundscape-onboarding-0002.mp3');
+    audio1.loop = true;
+    audio1.volume = 0.3;
+    soundscapeRef.current = audio1;
+    audio1.play().catch(() => {});
+
+    // After 50s, crossfade: fade out 0002 over 10s, fade in 0007 over 10s
+    const crossfadeTimer = setTimeout(() => {
+      const audio2 = new Audio('/soundscape-onboarding-0007.mp3');
+      audio2.loop = true;
+      audio2.volume = 0;
+      audio2.play().catch(() => {});
+
+      const steps = 100;
+      const interval = 10000 / steps;
+      let i = 0;
+      const fade = setInterval(() => {
+        i++;
+        const t = i / steps;
+        audio1.volume = 0.3 * (1 - t);
+        audio2.volume = 0.1 * t;
+        if (i >= steps) {
+          clearInterval(fade);
+          audio1.pause();
+          audio1.src = '';
+          soundscapeRef.current = audio2;
+        }
+      }, interval);
+    }, 50000);
+
+    return () => {
+      clearTimeout(crossfadeTimer);
+      const a = soundscapeRef.current;
+      if (a) { a.pause(); a.src = ''; }
+      soundscapeRef.current = null;
+    };
+  }, []);
+
   // Step: awakening → name
   const handleAwakeningComplete = useCallback((name: string) => {
     setUserName(name);
@@ -781,6 +844,25 @@ export default function OnboardingV2({ onComplete }: OnboardingV2Props) {
 
   // Step: build → complete → parent callback
   const handleBuildComplete = useCallback(async () => {
+    // Fade out soundscape over 3 seconds
+    const audio = soundscapeRef.current;
+    if (audio) {
+      const startVol = audio.volume;
+      const steps = 30;
+      const interval = 3000 / steps;
+      let i = 0;
+      const fade = setInterval(() => {
+        i++;
+        audio.volume = startVol * (1 - i / steps);
+        if (i >= steps) {
+          clearInterval(fade);
+          audio.pause();
+          audio.src = '';
+          soundscapeRef.current = null;
+        }
+      }, interval);
+    }
+
     // Save name
     localStorage.setItem('conflux-name', userName);
 

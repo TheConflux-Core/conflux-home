@@ -172,19 +172,6 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
 
   return (
     <div style={styles.container}>
-      {/* Subtle radial glow behind the card */}
-      <div style={{
-        position: 'absolute',
-        width: 500,
-        height: 500,
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(124, 58, 237, 0.08) 0%, transparent 70%)',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        pointerEvents: 'none',
-        zIndex: 0,
-      }} />
       <style>{`
         .login-input:focus {
           border-color: rgba(124, 58, 237, 0.5) !important;
@@ -205,8 +192,8 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
       `}</style>
       <div style={styles.card}>
         {/* Logo / Title */}
-        <div style={styles.logoArea}>
-          <img src="/logo_v1.png" alt="Conflux Home" style={styles.logoEmoji} />
+        <div style={{ ...styles.logoArea, overflow: 'hidden', borderRadius: 12 }}>
+          <img src="/logo_v1.png" alt="Conflux Home" style={{ ...styles.logoEmoji, transform: 'scale(0.85)' }} />
           <h1 style={styles.title}>Conflux Home</h1>
           <p style={styles.subtitle}>A home for your AI family</p>
         </div>
@@ -309,7 +296,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'block',
     marginLeft: 'auto',
     marginRight: 'auto',
-    filter: 'drop-shadow(0 4px 12px rgba(139, 92, 246, 0.3))',
+    filter: 'none',
   },
   title: {
     fontSize: 30,

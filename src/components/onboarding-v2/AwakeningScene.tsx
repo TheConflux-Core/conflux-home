@@ -24,22 +24,7 @@ import {
   particleVertexShader,
   particleFragmentShader,
 } from './awakening-shaders';
-import {
-  initAwakeningAudio,
-  startDrone,
-  modulateDrone,
-  playTendrilSpark,
-  startBreathPad,
-  setBreathIntensity,
-  setDroneBreath,
-  setDroneQuestionMode,
-  playIgnition,
-  playAgentTone,
-  playResolutionChord,
-  fadeOutAll,
-  stopAwakeningAudio,
-  fadeOutPad,
-} from '../awakening/AwakeningAudio';
+
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -80,15 +65,6 @@ const PHASE_DURATIONS = {
   ignition: 4.5,
 };
 
-// ── Audio helpers (thin wrappers) ──────────────────────────
-
-let audioInited = false;
-function ensureAudio() {
-  if (!audioInited) {
-    initAwakeningAudio();
-    audioInited = true;
-  }
-}
 
 // ── Starfield (distant points for depth) ───────────────────
 
@@ -750,28 +726,6 @@ function PhaseManager({
   useEffect(() => {
     currentPhase.current = phase;
     phaseStartTime.current = timeRef.current;
-
-    // Trigger audio for phase transitions
-    ensureAudio();
-    switch (phase) {
-      case 'signal':
-        startDrone();
-        break;
-      case 'breath':
-        startBreathPad();
-        break;
-      case 'question':
-        setDroneQuestionMode();
-        fadeOutPad();
-        break;
-      case 'ignition':
-        playIgnition();
-        break;
-      case 'complete':
-        fadeOutAll();
-        setTimeout(() => stopAwakeningAudio(), 800);
-        break;
-    }
   }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useFrame(() => {
@@ -816,8 +770,19 @@ function AwakeningSceneInner({ onComplete }: Props) {
           text: "Welcome to Conflux Home!! My name is Conflux! ...What is your name?",
           voice: 'TvxTBL9RtGW6tVhl4NoI',
         }).then(result => {
-          const audio = new Audio(`data:audio/mp3;base64,${result.audio_base64}`);
-          audio.play().catch(() => {});
+          const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const binaryString = atob(result.audio_base64);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+          ctx.decodeAudioData(bytes.buffer).then(buffer => {
+            const source = ctx.createBufferSource();
+            source.buffer = buffer;
+            const gain = ctx.createGain();
+            gain.gain.value = 1.0;
+            source.connect(gain);
+            gain.connect(ctx.destination);
+            source.start(0);
+          }).catch(() => {});
         }).catch(() => {});
       }, 500);
     }
