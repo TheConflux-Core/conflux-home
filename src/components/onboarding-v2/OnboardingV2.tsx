@@ -772,12 +772,30 @@ export default function OnboardingV2({ onComplete }: OnboardingV2Props) {
   useEffect(() => {
     const audio1 = new Audio('/soundscape-onboarding-0002.mp3');
     audio1.loop = true;
-    audio1.volume = 0.3;
+    audio1.volume = 0.5;
     soundscapeRef.current = audio1;
     audio1.play().catch(() => {});
 
-    // After 50s, crossfade: fade out 0002 over 10s, fade in 0007 over 10s
-    const crossfadeTimer = setTimeout(() => {
+    // Fade out 0002 over 10s starting at 50s (exponential curve)
+    const fadeOutTimer = setTimeout(() => {
+      const duration = 10000;
+      const startVol = audio1.volume;
+      const startTime = Date.now();
+      const fade = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const t = Math.min(elapsed / duration, 1);
+        // Exponential decay: steep drop at start, gentle tail
+        audio1.volume = startVol * Math.pow(1 - t, 2);
+        if (t >= 1) {
+          clearInterval(fade);
+          audio1.pause();
+          audio1.src = '';
+        }
+      }, 50);
+    }, 50000);
+
+    // Fade in 0007 at 60s (after 0002 is done)
+    const fadeInTimer = setTimeout(() => {
       const audio2 = new Audio('/soundscape-onboarding-0007.mp3');
       audio2.loop = true;
       audio2.volume = 0;
@@ -788,20 +806,17 @@ export default function OnboardingV2({ onComplete }: OnboardingV2Props) {
       let i = 0;
       const fade = setInterval(() => {
         i++;
-        const t = i / steps;
-        audio1.volume = 0.3 * (1 - t);
-        audio2.volume = 0.05 * t;
+        audio2.volume = 0.05 * (i / steps);
         if (i >= steps) {
           clearInterval(fade);
-          audio1.pause();
-          audio1.src = '';
           soundscapeRef.current = audio2;
         }
       }, interval);
-    }, 50000);
+    }, 60000);
 
     return () => {
-      clearTimeout(crossfadeTimer);
+      clearTimeout(fadeOutTimer);
+      clearTimeout(fadeInTimer);
       const a = soundscapeRef.current;
       if (a) { a.pause(); a.src = ''; }
       soundscapeRef.current = null;
