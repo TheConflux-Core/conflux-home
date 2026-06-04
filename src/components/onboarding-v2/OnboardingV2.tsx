@@ -790,7 +790,7 @@ export default function OnboardingV2({ onComplete }: OnboardingV2Props) {
         i++;
         const t = i / steps;
         audio1.volume = 0.3 * (1 - t);
-        audio2.volume = 0.1 * t;
+        audio2.volume = 0.05 * t;
         if (i >= steps) {
           clearInterval(fade);
           audio1.pause();

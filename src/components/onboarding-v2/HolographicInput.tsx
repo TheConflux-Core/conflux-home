@@ -108,7 +108,7 @@ export default function HolographicInput({ onComplete, userName }: Props) {
             width: 100,
             height: 100,
             objectFit: 'contain',
-            filter: 'drop-shadow(0 0 32px rgba(0,212,255,0.6)) drop-shadow(0 0 64px rgba(99,102,241,0.3))',
+            filter: 'none',
           }}
         />
       </motion.div>

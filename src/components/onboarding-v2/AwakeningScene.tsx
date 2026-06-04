@@ -909,7 +909,7 @@ function AwakeningSceneInner({ onComplete }: Props) {
         overflow: 'visible',
       }}>
         <img
-          src="/logo_icon_cropped.png"
+          src="/logo.png"
           alt=""
           style={{
             width: 72,
@@ -926,6 +926,7 @@ function AwakeningSceneInner({ onComplete }: Props) {
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
           letterSpacing: '-0.5px',
+          filter: 'drop-shadow(0 0 12px rgba(41,193,253,0.5)) drop-shadow(0 2px 4px rgba(0,0,0,0.8))',
         }}>
           Conflux Home
         </div>
@@ -951,7 +952,7 @@ function AwakeningSceneInner({ onComplete }: Props) {
             fontWeight: 300,
             color: '#29c1fd',
             letterSpacing: 2,
-            textShadow: '0 0 30px rgba(41,193,253,0.4)',
+            textShadow: '0 0 12px rgba(41,193,253,0.3), 0 2px 4px rgba(0,0,0,0.8)',
             animation: 'fadeInUp 1.2s ease-out',
           }}>
             Who are you?
@@ -981,6 +982,7 @@ function AwakeningSceneInner({ onComplete }: Props) {
                 textAlign: 'center',
                 letterSpacing: 1,
                 caretColor: '#29c1fd',
+                textShadow: '0 0 12px rgba(41,193,253,0.3), 0 2px 4px rgba(0,0,0,0.8)',
               }}
             />
             {/* Glowing beam underline */}
