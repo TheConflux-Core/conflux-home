@@ -775,10 +775,13 @@ pub struct CreateTaskRequest {
     pub title: String,
     pub description: Option<String>,
     pub agent_id: String,
+    #[serde(default = "default_created_by")]
     pub created_by: String,
     pub priority: Option<String>,
     pub requires_verify: Option<bool>,
 }
+
+fn default_created_by() -> String { "conflux".to_string() }
 
 #[tauri::command]
 pub fn engine_create_task(req: CreateTaskRequest) -> Result<String, String> {

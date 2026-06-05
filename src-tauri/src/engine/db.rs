@@ -5513,6 +5513,29 @@ impl EngineDb {
         Ok(())
     }
 
+    /// Sync version of get_or_create_family_member_id for use in tool execution.
+    pub fn get_or_create_family_member_id_sync(&self, user_id: &str) -> Result<String> {
+        let conn = self.conn_blocking();
+        let existing: Option<String> = conn
+            .query_row(
+                "SELECT id FROM family_members WHERE user_id = ?1 AND is_active = 1 ORDER BY created_at LIMIT 1",
+                params![user_id],
+                |row| row.get(0),
+            )
+            .ok();
+        if let Some(id) = existing {
+            return Ok(id);
+        }
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = Self::now();
+        conn.execute(
+            "INSERT INTO family_members (id, user_id, name, age_group, color, is_active, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?6)",
+            params![id, user_id, "Me", "adult", "#6366f1", now],
+        )?;
+        Ok(id)
+    }
+
     pub fn add_life_task_sync(
         &self,
         id: &str,

@@ -7370,10 +7370,13 @@ fn execute_life_add_task(args: &Value) -> Result<ToolResult> {
 
     let id = uuid::Uuid::new_v4().to_string();
     let engine = super::get_engine();
-    let member_id = engine.db().get_config("supabase_user_id")
+    // Resolve supabase_user_id → family_members.id (sync) so tasks land in the correct bucket
+    let user_id = engine.db().get_config("supabase_user_id")
         .ok()
         .flatten()
         .unwrap_or_else(|| "default_user".to_string());
+    let member_id = engine.db().get_or_create_family_member_id_sync(&user_id)
+        .unwrap_or_else(|_| user_id.clone());
     let category = args.get("category").and_then(|v| v.as_str());
     let priority = args
         .get("priority")
@@ -8091,10 +8094,9 @@ fn execute_agent_create_task(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let description = args.get("description").and_then(|v| v.as_str());
     let priority = args.get("priority").and_then(|v| v.as_str()).unwrap_or("normal");
-    let caller_id = engine.db().get_config("supabase_user_id")
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| "agent".to_string());
+    // created_by must be a valid agent ID (FK on tasks table)
+    // Default to the assigned agent itself, or 'conflux' as fallback
+    let caller_id = agent_id.to_string();
 
     match engine.create_task(
         title,
