@@ -18,15 +18,15 @@ interface ConfluxShellProps {
   children: React.ReactNode;
   /** Voice control props */
   isPushToTalkActive: boolean;
-  voiceChatOpen: boolean;
-  onTogglePushToTalk: () => void;
+  onStartPTT: () => void;
+  onStopPTT: () => void;
 }
 
 export default function ConfluxShell({
   children,
   isPushToTalkActive,
-  voiceChatOpen,
-  onTogglePushToTalk,
+  onStartPTT,
+  onStopPTT,
 }: ConfluxShellProps) {
   const conflux = useConflux();
   useGlobalClickSound();
@@ -54,11 +54,11 @@ export default function ConfluxShell({
         {children}
       </DockGlow>
 
-      {/* Voice FAB — bottom-right floating mic button */}
+      {/* Voice FAB — hold to talk, release to send */}
       <VoiceFAB
         isPushToTalkActive={isPushToTalkActive}
-        voiceChatOpen={voiceChatOpen}
-        onTogglePushToTalk={onTogglePushToTalk}
+        onStartPTT={onStartPTT}
+        onStopPTT={onStopPTT}
         pulseImpulse={conflux.pulseImpulse}
         effectivePalette={conflux.effectivePalette}
       />

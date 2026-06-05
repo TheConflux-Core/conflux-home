@@ -546,110 +546,111 @@ export default function App() {
 
 
 
-  // Push-to-Talk Global Handler
+  // Push-to-Talk — shared start/stop logic for spacebar and button
+  const pttCancelledRef = useRef(false);
+  const startPTTRef = useRef<(() => void) | null>(null);
+  const stopPTTRef = useRef<(() => Promise<void>) | null>(null);
+
   useEffect(() => {
-    let pttCancelled = false; // Set true if user presses Esc to cancel PTT
+    const startPTT = async () => {
+      if (isPushToTalkActive) return;
+      pttCancelledRef.current = false;
+      setIsPushToTalkActive(true);
+      soundManager.playAgentWake('conflux');
+      try {
+        await invoke('voice_capture_start');
+      } catch (err) {
+        console.error('Failed to start voice capture:', err);
+      }
+      window.dispatchEvent(new CustomEvent('push-to-talk-start'));
+    };
+
+    const stopPTT = async () => {
+      if (!isPushToTalkActive) return;
+      if (pttCancelledRef.current) return;
+      setIsPushToTalkActive(false);
+      window.dispatchEvent(new CustomEvent('push-to-talk-end'));
+
+      try {
+        const result = await invoke<{ samples: number; duration_seconds: number; transcript?: string | null }>('voice_capture_stop');
+        window.dispatchEvent(new CustomEvent('conflux-thinking', { detail: { text: '(transcribing...)' } }));
+
+        // Fast path: realtime STT already gave us a transcript synchronously
+        if (result.transcript && result.transcript.trim()) {
+          console.log('[Voice] Realtime STT transcript:', result.transcript);
+          await handleVoiceInput(result.transcript.trim());
+          return;
+        }
+
+        // Fallback: wait for conflux:transcription event
+        const eventText = await new Promise<string>(async (resolve) => {
+          const unlisten = await listen<{ text: string }>('conflux:transcription', (event) => {
+            clearTimeout(timeoutId);
+            unlisten();
+            if (event.payload?.text) resolve(event.payload.text);
+            else resolve('');
+          });
+          let timeoutId: ReturnType<typeof setTimeout> | undefined = setTimeout(() => {
+            unlisten();
+            resolve('');
+          }, 3000);
+        });
+
+        if (eventText && eventText.trim()) {
+          console.log('[Voice] Realtime STT via event:', eventText);
+          await handleVoiceInput(eventText.trim());
+          return;
+        }
+
+        // Last resort: batch STT
+        console.log('[Voice] No realtime transcript — calling ElevenLabs batch STT...');
+        try {
+          const text = await invoke<string>('voice_transcribe');
+          if (text && text.trim()) {
+            console.log('[Voice] Batch STT transcript:', text);
+            await handleVoiceInput(text.trim());
+            return;
+          }
+        } catch (e) {
+          console.error('[Voice] Batch STT failed:', e);
+        }
+      } catch (err) {
+        console.error('[Voice] Transcription/Chat failed:', err);
+        window.dispatchEvent(new CustomEvent('conflux-idle'));
+      } finally {
+        window.dispatchEvent(new CustomEvent('conflux-transcription-done'));
+      }
+    };
+
+    // Expose to button via refs
+    startPTTRef.current = startPTT;
+    stopPTTRef.current = stopPTT;
 
     const handleKeyDown = async (e: KeyboardEvent) => {
-      // Ignore if typing in an input field
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
-      // Esc or Backspace cancels PTT recording without transcribing
+      // Esc or Backspace cancels PTT without transcribing
       if ((e.key === 'Escape' || e.key === 'Backspace') && isPushToTalkActive) {
         e.preventDefault();
-        pttCancelled = true;
+        pttCancelledRef.current = true;
         setIsPushToTalkActive(false);
         window.dispatchEvent(new CustomEvent('push-to-talk-end'));
-        try {
-          await invoke('voice_capture_stop');
-        } catch { /* may already be stopped */ }
-        // Signal ConfluxOrbit to reset to idle
+        try { await invoke('voice_capture_stop'); } catch { /* may already be stopped */ }
         window.dispatchEvent(new CustomEvent('conflux-force-idle'));
         return;
       }
 
-      // Only allow push-to-talk on the home screen (not when apps are open)
       if (immersiveView) return;
 
-      // Spacebar triggers push-to-talk
       if (e.code === 'Space' && !isPushToTalkActive) {
         e.preventDefault();
-        pttCancelled = false;
-        setIsPushToTalkActive(true);
-
-        soundManager.playAgentWake('conflux'); // Play a listening chime for the Conflux fairy
-
-        try {
-          await invoke('voice_capture_start');
-        } catch (err) {
-          console.error('Failed to start voice capture:', err);
-        }
-
-        window.dispatchEvent(new CustomEvent('push-to-talk-start'));
+        await startPTT();
       }
     };
 
     const handleKeyUp = async (e: KeyboardEvent) => {
       if (e.code === 'Space' && isPushToTalkActive) {
-        // If Esc already cancelled, ignore the space keyup
-        if (pttCancelled) return;
-        setIsPushToTalkActive(false);
-        window.dispatchEvent(new CustomEvent('push-to-talk-end'));
-
-        try {
-          // Stop recording — may contain realtime STT transcript
-          const result = await invoke<{ samples: number; duration_seconds: number; transcript?: string | null }>('voice_capture_stop');
-
-          // Transition to Thinking state while transcribing
-          window.dispatchEvent(new CustomEvent('conflux-thinking', { detail: { text: '(transcribing...)' } }));
-
-          // Fast path: realtime STT already gave us a transcript synchronously
-          if (result.transcript && result.transcript.trim()) {
-            console.log('[Voice] Realtime STT transcript:', result.transcript);
-            await handleVoiceInput(result.transcript.trim());
-            return;
-          }
-
-          // Fallback: wait for conflux:transcription event (realtime STT arrived after stop)
-          const eventText = await new Promise<string>(async (resolve) => {
-            const unlisten = await listen<{ text: string }>('conflux:transcription', (event) => {
-              clearTimeout(timeoutId);
-              unlisten();
-              if (event.payload?.text) resolve(event.payload.text);
-              else resolve('');
-            });
-
-            let timeoutId: ReturnType<typeof setTimeout> | undefined = setTimeout(() => {
-              unlisten();
-              resolve('');
-            }, 3000);
-          });
-
-          if (eventText && eventText.trim()) {
-            console.log('[Voice] Realtime STT via event:', eventText);
-            await handleVoiceInput(eventText.trim());
-            return;
-          }
-
-          // Last resort: call ElevenLabs batch STT via backend
-          console.log('[Voice] No realtime transcript received — calling ElevenLabs batch STT...');
-          try {
-            const text = await invoke<string>('voice_transcribe');
-            if (text && text.trim()) {
-              console.log('[Voice] Batch STT transcript:', text);
-              await handleVoiceInput(text.trim());
-              return;
-            }
-            console.warn('[Voice] Batch STT returned empty text.');
-          } catch (e) {
-            console.error('[Voice] Batch STT failed:', e);
-          }
-        } catch (err) {
-          console.error('[Voice] Transcription/Chat failed:', err);
-          window.dispatchEvent(new CustomEvent('conflux-idle'));
-        } finally {
-          window.dispatchEvent(new CustomEvent('conflux-transcription-done'));
-        }
+        await stopPTT();
       }
     };
 
@@ -1522,16 +1523,8 @@ const [activeSnake, setActiveSnake] = useState(false);
       >
         <ConfluxShell
           isPushToTalkActive={isPushToTalkActive}
-          voiceChatOpen={voiceChatOpen}
-          onTogglePushToTalk={() => {
-            if (isPushToTalkActive) {
-              window.dispatchEvent(new CustomEvent('push-to-talk-end'));
-              setIsPushToTalkActive(false);
-            } else {
-              window.dispatchEvent(new CustomEvent('push-to-talk-start'));
-              setIsPushToTalkActive(true);
-            }
-          }}
+          onStartPTT={() => startPTTRef.current?.()}
+          onStopPTT={() => stopPTTRef.current?.()}
         >
           {useBarV2 ? (
             <ConfluxBarV2
