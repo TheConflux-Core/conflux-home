@@ -68,9 +68,14 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
   }, [])
 
   // ── Listen for deep link URLs ──
+  // Guard: skip in browser dev mode (no Tauri runtime).
+  // In Tauri, __TAURI_INTERNALS__ exists and these plugins work normally.
+  const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
   // 1. onOpenUrl — works on macOS, iOS, Android (emitted when app is already running).
   //    On Windows/Linux with single-instance plugin, second instances forward via this event.
   useEffect(() => {
+    if (!isTauri) return;
     const unlistenPromise = onOpenUrl((urls) => {
       if (urls && urls.length > 0) {
         handleDeepLink(urls[0])
@@ -82,6 +87,7 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
   // 2. getCurrent — checks if the app was LAUNCHED by a deep link (all platforms).
   //    On Windows/Linux, the OS passes the URL as a CLI argument when spawning.
   useEffect(() => {
+    if (!isTauri) return;
     getCurrent().then((urls) => {
       if (urls && urls.length > 0) {
         handleDeepLink(urls[0])
@@ -105,14 +111,19 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
     setLoading(true)
     console.log('[LoginScreen] ═══ signInWithOtp START ═══')
     console.log('[LoginScreen] Email:', trimmed)
-    console.log('[LoginScreen] Redirect: conflux://auth/callback')
+    console.log('[LoginScreen] Redirect:', window.location.origin.includes('localhost') ? 'http://localhost:1420/auth/callback' : 'conflux://auth/callback')
     try {
       const { supabase } = await import('../lib/supabase')
       console.log('[LoginScreen] Supabase client loaded, calling signInWithOtp...')
       const { data, error: authError } = await supabase.auth.signInWithOtp({
         email: trimmed,
         options: {
-          emailRedirectTo: 'conflux://auth/callback',
+          // DEV: use localhost redirect so magic link opens in browser, not Tauri app.
+          // PROD: use conflux:// deep link to open the Tauri app.
+          // To revert: change back to 'conflux://auth/callback' unconditionally.
+          emailRedirectTo: window.location.origin.includes('localhost')
+            ? 'http://localhost:5173/auth/callback'
+            : 'conflux://auth/callback',
         },
       })
       console.log('[LoginScreen] signInWithOtp response:', JSON.stringify({ data, error: authError }))

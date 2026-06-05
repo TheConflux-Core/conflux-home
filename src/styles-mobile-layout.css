@@ -1,0 +1,1194 @@
+/* ═══════════════════════════════════════════════════════════
+   styles-mobile-layout.css — Mobile Layout System
+   
+   Phase 1: Root layout (100dvh, overflow, safe areas)
+   Phase 2: TopBar + ConfluxBarV2 mobile adaptations
+   
+   ALL rules are inside @media (max-width: 768px).
+   Desktop is completely untouched.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── BREAKPOINT: Tablet & Phone (≤ 768px) ──────────────── */
+
+@media (max-width: 768px) {
+
+  /* ──────────────────────────────────────────────────────────
+     1. ROOT LAYOUT — kill the black margins
+     ────────────────────────────────────────────────────────── */
+
+  body {
+    height: 100dvh;
+    height: -webkit-fill-available;
+    overflow: hidden;
+    width: 100vw;
+    overscroll-behavior: none;
+  }
+
+  #root {
+    height: 100dvh;
+    height: -webkit-fill-available;
+    width: 100vw;
+    overflow: hidden;
+  }
+
+  .desktop-shell {
+    width: 100vw;
+    height: 100dvh;
+    height: -webkit-fill-available;
+    overflow: hidden;
+    max-width: 100vw;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     2. TOPBAR — mobile-optimized
+     ────────────────────────────────────────────────────────── */
+
+  .topbar {
+    height: 40px;
+    padding: 0 10px;
+  }
+
+  .topbar-left {
+    gap: 6px;
+    min-width: 0;          /* allow shrinking */
+    flex-shrink: 1;
+  }
+
+  .topbar-logo {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
+  /* Title: hide the full "Conflux Home vX.X" — too wide for mobile.
+     Show just "Conflux" to save space. */
+  .topbar-title {
+    font-size: 12px;
+    letter-spacing: -0.1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100px;
+  }
+
+  /* Hide the version number span inside the title */
+  .topbar-title span {
+    display: none;
+  }
+
+  /* Center agent name */
+  .topbar-center {
+    font-size: 11px;
+    /* Prevent it from being pushed off-screen */
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .topbar-right {
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  /* Hide credits balance on mobile — too wide */
+  .topbar-right > span {
+    display: none;
+  }
+
+  /* Hide the Google/connectivity link button on mobile */
+  .topbar-google-btn {
+    display: none !important;
+  }
+
+  /* Connection mode status dot */
+  .topbar-status-dot {
+    width: 6px;
+    height: 6px;
+  }
+
+  .topbar-status {
+    gap: 3px;
+  }
+
+  /* Theme picker — keep but compact */
+  .topbar-theme-btn {
+    font-size: 14px;
+    padding: 3px;
+  }
+
+  /* Notification bell — keep but compact */
+  .topbar-notif-btn {
+    font-size: 14px;
+    padding: 3px 4px;
+  }
+
+  /* Dropdowns from TopBar — constrain to viewport */
+  .topbar-connectivity-popup,
+  .theme-dropdown,
+  .notif-dropdown,
+  .topbar-notif-menu {
+    max-width: calc(100vw - 16px) !important;
+    min-width: 0 !important;
+    right: 4px !important;
+  }
+
+  /* Connection mode popup */
+  .topbar-connectivity-popup {
+    padding: 12px !important;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     3. DESKTOP AREA — prevent overflow
+     ────────────────────────────────────────────────────────── */
+
+  .desktop-area {
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .desktop-widgets-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .desktop-widget {
+    min-height: 120px;
+  }
+
+  .widget-body {
+    padding: 14px;
+  }
+
+  .widget-icon {
+    font-size: 24px;
+  }
+
+  .widget-label {
+    font-size: 14px;
+  }
+
+  .widget-preview {
+    font-size: 12px;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     4. IMMERSIVE OVERLAY — app world container
+     ────────────────────────────────────────────────────────── */
+
+  .immersive-overlay {
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     5. IMMERSIVE CONTENT — app view container
+     ────────────────────────────────────────────────────────── */
+
+  .immersive-content {
+    position: fixed;
+    top: 40px;        /* below TopBar */
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    overscroll-behavior: contain;
+  }
+
+  .immersive-content > * {
+    min-height: auto;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     6. IMMERSIVE BACK BUTTON
+     ────────────────────────────────────────────────────────── */
+
+  .immersive-back-btn {
+    right: auto;
+    left: 12px;
+    top: 8px;
+    padding: 6px 14px;
+    font-size: 12px;
+    z-index: 210;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     7. CONFLUXBAR V2 — mobile-optimized nav
+     ────────────────────────────────────────────────────────── */
+
+  .conflux-bar-v2-wrapper {
+    z-index: 200;
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
+  }
+
+  .conflux-bar-v2 {
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 22px;
+    max-width: calc(100vw - 16px);
+    box-sizing: border-box;
+  }
+
+  /* Side buttons — 44px minimum touch target (Apple HIG) */
+  .conflux-logo-btn,
+  .conflux-home-btn {
+    width: 44px;
+    height: 44px;
+    font-size: 18px;
+  }
+
+  /* Hero button — smaller but still prominent */
+  .hero-btn {
+    width: 60px;
+    height: 60px;
+    margin-top: -22px;
+    font-size: 18px;
+  }
+
+  .hero-btn::before {
+    width: calc(100% + 4px);
+    height: calc(100% + 4px);
+  }
+
+  .hero-btn::after {
+    width: 85px;
+    height: 85px;
+  }
+
+  .hero-btn-status {
+    width: 8px;
+    height: 8px;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     8. CONFLUX MENU — full-width on mobile
+     ────────────────────────────────────────────────────────── */
+
+  .conflux-bar-v2-wrapper .conflux-menu {
+    width: calc(100vw - 16px);
+    max-width: 420px;
+    max-height: 70vh;
+    border-radius: 16px 16px 20px 20px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-hero {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-hero-title {
+    font-size: 14px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-hero-subtitle {
+    font-size: 11px;
+  }
+
+  /* Search — bigger touch target */
+  .conflux-bar-v2-wrapper .conflux-menu-search {
+    margin: 0 10px 8px;
+    padding: 8px 10px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-search-input {
+    font-size: 14px;
+  }
+
+  /* Categories — horizontal scroll */
+  .conflux-bar-v2-wrapper .conflux-menu-categories {
+    gap: 4px;
+    padding: 0 10px 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-categories::-webkit-scrollbar {
+    display: none;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-cat {
+    padding: 5px 10px;
+    font-size: 11px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* App grid — 2 columns on tablet, 1 on phone */
+  .conflux-bar-v2-wrapper .conflux-menu-grid {
+    gap: 4px;
+    padding: 4px 8px 8px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-app {
+    padding: 10px 10px;
+    gap: 8px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-app-icon {
+    font-size: 20px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-app-name {
+    font-size: 12px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-app-desc {
+    font-size: 10px;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     9. INTELLIGENCE BADGES — minimal on mobile
+     ────────────────────────────────────────────────────────── */
+
+  .conflux-bar-v2-wrapper .intelligence-badge {
+    padding: 3px 6px;
+    gap: 3px;
+  }
+
+  .conflux-bar-v2-wrapper .intelligence-badge-label {
+    display: none;
+  }
+
+  .conflux-bar-v2-wrapper .intelligence-badge-emoji {
+    font-size: 11px;
+  }
+
+  .conflux-bar-v2-wrapper .intelligence-badge-value {
+    min-width: 14px;
+    height: 14px;
+    font-size: 8px;
+  }
+
+  .conflux-bar-v2-wrapper > div:not(.conflux-bar-v2) {
+    max-width: calc(100vw - 24px);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     10. AGENTS BOTTOM BAR — hide (redundant)
+     ────────────────────────────────────────────────────────── */
+
+  .agents-bottom-bar {
+    display: none;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     11. GLOBAL: prevent horizontal overflow
+     ────────────────────────────────────────────────────────── */
+
+  .immersive-overlay * {
+    box-sizing: border-box;
+  }
+
+  .immersive-overlay table {
+    max-width: 100%;
+  }
+
+  .immersive-overlay div[style*="overflowX"] {
+    max-width: 100vw;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     12. IMMERSIVE CHILDREN — contain overflow
+     ────────────────────────────────────────────────────────── */
+
+  .immersive-content > div,
+  .immersive-content > section {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     13. LOGIN / AUTH — full-bleed
+     ────────────────────────────────────────────────────────── */
+
+  .login-screen,
+  .auth-callback {
+    width: 100vw;
+    min-height: 100dvh;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     14. CHAT PANEL — full width
+     ────────────────────────────────────────────────────────── */
+
+  .chat-panel {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    left: 0 !important;
+    right: 0 !important;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     15. MODALS — full screen
+     ────────────────────────────────────────────────────────── */
+
+  .agent-detail-overlay,
+  .modal-overlay {
+    width: 100vw;
+    height: 100dvh;
+    inset: 0;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     16. VOICE FAB — above ConfluxBar
+     ────────────────────────────────────────────────────────── */
+
+  .voice-fab {
+    bottom: 90px;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     17. STATUS ORB — hide label on mobile, keep the orb itself
+     ────────────────────────────────────────────────────────── */
+
+  .status-orb-label {
+    display: none;
+  }
+
+  /* Tooltip — constrain to viewport */
+  .status-orb-tooltip {
+    min-width: 160px;
+    max-width: calc(100vw - 32px);
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     18. TOPBAR POPUPS — full-width mobile
+     ────────────────────────────────────────────────────────── */
+
+  .notif-dropdown,
+  .topbar-notif-menu {
+    max-width: calc(100vw - 16px);
+    right: 8px;
+  }
+
+  .topbar-theme-popup {
+    max-width: calc(100vw - 16px);
+    right: 8px;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     PHASE 4: PER-VIEW MOBILE FIXES
+     ══════════════════════════════════════════════════════════ */
+
+  /* ──────────────────────────────────────────────────────────
+     19. SECURITY DASHBOARD — tactical ops mobile
+     ────────────────────────────────────────────────────────── */
+
+  .sec-content {
+    padding: 16px 12px 60px 12px;
+  }
+
+  .sec-header {
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .sec-header-left {
+    width: 100%;
+  }
+
+  .sec-header-right {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .sec-title {
+    font-size: 20px !important;
+  }
+
+  .sec-subtitle {
+    font-size: 12px !important;
+  }
+
+  /* Hero section — stack on mobile */
+  .sec-hero {
+    padding: 20px 14px;
+    border-radius: 14px;
+    margin-bottom: 16px;
+  }
+
+  .sec-hero-content {
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+  }
+
+  .sec-score-ring-wrap {
+    display: flex;
+    justify-content: center;
+  }
+
+  .sec-score-info {
+    min-width: 0;
+    text-align: center;
+  }
+
+  .sec-score-label {
+    font-size: 17px !important;
+  }
+
+  .sec-hero-stats {
+    justify-content: center;
+  }
+
+  .sec-stat-chip {
+    min-width: 60px;
+    padding: 10px 12px;
+  }
+
+  .sec-stat-num {
+    font-size: 20px !important;
+  }
+
+  .sec-stat-label {
+    font-size: 9px !important;
+  }
+
+  /* Tabs — horizontal scroll */
+  .sec-tabs {
+    gap: 2px;
+    padding-bottom: 10px;
+    margin-bottom: 12px;
+  }
+
+  .sec-tab {
+    padding: 6px 10px;
+    font-size: 12px;
+    gap: 4px;
+  }
+
+  .sec-tab-count {
+    font-size: 10px;
+    padding: 1px 5px;
+  }
+
+  /* Sections — tighter padding */
+  .sec-section {
+    padding: 14px 14px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+  }
+
+  .sec-section-title {
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+
+  /* Radar sweep — smaller on mobile */
+  .sec-radar-sweep {
+    width: 300px;
+    height: 300px;
+    margin: -150px 0 0 -150px;
+  }
+
+  /* Satellite stats — wrap */
+  .sec-satellite-stats {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     20. GROVE VIEW — fix massive horizontal padding
+     ────────────────────────────────────────────────────────── */
+
+  .grove {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  .grove > * {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  /* Override the 140px horizontal padding in grove children */
+  .grove [style*="padding: 32px 140px"],
+  .grove [style*="padding:12px 140px"],
+  .grove [style*="padding: 0 140px"] {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     21. MORNING BRIEF — tighter padding
+     ────────────────────────────────────────────────────────── */
+
+  .morning-brief-overlay {
+    padding: 16px !important;
+  }
+
+  .morning-brief-card {
+    padding: 20px 16px !important;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     22. ORBIT / LIFE — mission control mobile
+         Has inline padding: 50px top, 150px sides, 150px bottom
+     ────────────────────────────────────────────────────────── */
+
+  .mission-control-view {
+    padding-top: 16px !important;
+    padding-bottom: 80px !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    overflow-x: hidden;
+  }
+
+  .mission-control-view > * {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     23. HORIZON / DREAMS — stellar view mobile
+         Has inline padding: 50px top, 150px sides, 150px bottom
+     ────────────────────────────────────────────────────────── */
+
+  .stellar-view {
+    padding-top: 16px !important;
+    padding-bottom: 80px !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    overflow-x: hidden;
+  }
+
+  .stellar-view > * {
+    max-width: 100%;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     24. FOUNDATION / HOME — health view mobile
+     ────────────────────────────────────────────────────────── */
+
+  .foundation-view {
+    padding: 16px !important;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     25. KITCHEN / HEARTH — matrix view mobile
+         Has inline padding: 50px top, 150px sides, 150px bottom
+     ────────────────────────────────────────────────────────── */
+
+  .kitchen-matrix {
+    padding-top: 16px !important;
+    padding-bottom: 80px !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    overflow-x: hidden;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     26. PULSE / BUDGET — wrapper mobile
+     ────────────────────────────────────────────────────────── */
+
+  .pulse-wrapper {
+    overflow-x: hidden;
+  }
+
+  .pulse-wrapper > * {
+    max-width: 100%;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     27. GLOBAL INLINE STYLE OVERRIDES
+         Components with inline padding: 24+ won't respond to CSS.
+         Use !important sparingly on known patterns.
+     ────────────────────────────────────────────────────────── */
+
+  /* Immersive content children with large inline padding.
+     These target the wrapper divs that most views render into. */
+  .immersive-content > div {
+    padding-left: max(12px, env(safe-area-inset-left, 12px)) !important;
+    padding-right: max(12px, env(safe-area-inset-right, 12px)) !important;
+  }
+
+  /* Flex rows with large gaps — allow wrapping */
+  .immersive-content [style*="gap: 24"] {
+    gap: 12px !important;
+  }
+
+  .immersive-content [style*="gap: 28"] {
+    gap: 14px !important;
+  }
+
+  .immersive-content [style*="gap: 32"] {
+    gap: 16px !important;
+  }
+
+  /* Cards with large padding */
+  .immersive-content [style*="padding: 24"] {
+    padding: 16px !important;
+  }
+
+  .immersive-content [style*="padding: 28"] {
+    padding: 18px !important;
+  }
+
+  .immersive-content [style*="padding: 32"] {
+    padding: 20px !important;
+  }
+
+  /* Fixed minWidth that causes overflow */
+  .immersive-content [style*="minWidth: 220"] {
+    min-width: 0 !important;
+  }
+
+  .immersive-content [style*="minWidth: 240"] {
+    min-width: 0 !important;
+  }
+
+  .immersive-content [style*="minWidth: 280"] {
+    min-width: 0 !important;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     PHASE 5: COMPONENT-LEVEL MOBILE FIXES
+     ══════════════════════════════════════════════════════════ */
+
+  /* ──────────────────────────────────────────────────────────
+     28. CHAT PANEL — full-width slide-up on mobile
+     ────────────────────────────────────────────────────────── */
+
+  .chat-panel {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: 40px !important;
+    bottom: 0 !important;
+    border-left: none !important;
+    border-radius: 0 !important;
+  }
+
+  .chat-panel.open {
+    transform: translateX(0);
+  }
+
+  .chat-panel-header {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .chat-panel-header-name {
+    font-size: 13px;
+  }
+
+  .chat-panel-header-role {
+    font-size: 11px;
+  }
+
+  .chat-panel-messages {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .chat-panel-input-area {
+    padding: 10px 12px 14px;
+    gap: 6px;
+  }
+
+  .chat-panel-input {
+    font-size: 16px; /* prevents iOS zoom on focus */
+    padding: 10px 14px;
+  }
+
+  .chat-panel-send {
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+
+  /* Chat backdrop — full screen */
+  .chat-backdrop {
+    inset: 0;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     29. VOICE CHAT — nearly full screen on mobile
+     ────────────────────────────────────────────────────────── */
+
+  .voice-chat-overlay {
+    padding: 8px;
+  }
+
+  .voice-chat {
+    max-width: 100%;
+    width: 100%;
+    height: 95vh;
+    max-height: none;
+    border-radius: 20px;
+  }
+
+  .voice-chat-header {
+    padding: 12px 14px;
+  }
+
+  .voice-agent-emoji {
+    font-size: 28px;
+  }
+
+  .voice-agent-name {
+    font-size: 15px;
+  }
+
+  .voice-messages {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .voice-welcome {
+    padding: 20px;
+  }
+
+  .voice-welcome-emoji {
+    font-size: 48px;
+  }
+
+  .voice-welcome-text {
+    font-size: 15px;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     30. LOGIN SCREEN — mobile card sizing
+     ────────────────────────────────────────────────────────── */
+
+  /* Login uses inline styles, so we target the container class */
+  .login-screen > div {
+    padding: 28px 20px !important;
+    border-radius: 18px !important;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     31. VAULT — fix 64px horizontal padding
+     ────────────────────────────────────────────────────────── */
+
+  .vault-container {
+    padding: 16px 12px 80px 12px !important;
+  }
+
+  .vault-body {
+    flex-direction: column;
+  }
+
+  .vault-sidebar {
+    width: 100% !important;
+    min-width: 100% !important;
+    border-right: none;
+    border-bottom: 1px solid var(--vault-border, #1e293b);
+    max-height: 200px;
+    padding: 10px 0;
+  }
+
+  .vault-hero {
+    padding: 20px 14px;
+    border-radius: 14px;
+    margin-bottom: 12px;
+  }
+
+  .vault-hero-title {
+    font-size: 20px !important;
+  }
+
+  .vault-hero-sub {
+    font-size: 12px !important;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     32. GOOGLE VIEW — mobile layout
+     ────────────────────────────────────────────────────────── */
+
+  .google-view {
+    padding: 16px 12px !important;
+    overflow-x: hidden;
+  }
+
+  .google-hero {
+    padding: 20px 14px;
+    border-radius: 14px;
+    margin-bottom: 12px;
+  }
+
+  .google-hero-title {
+    font-size: 20px !important;
+  }
+
+  .google-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 4px;
+  }
+
+  .google-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .google-tab {
+    padding: 6px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     33. ECHO / COUNSELOR — mobile layout
+     ────────────────────────────────────────────────────────── */
+
+  .echo-view {
+    padding: 16px 12px !important;
+    overflow-x: hidden;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     34. AGENT INTRODUCTIONS — mobile
+     ────────────────────────────────────────────────────────── */
+
+  .ai-overlay {
+    padding: 16px;
+  }
+
+  .ai-card {
+    padding: 24px 18px;
+    border-radius: 18px;
+  }
+
+  .ai-emblem {
+    font-size: 48px;
+  }
+
+  .ai-name {
+    font-size: 20px;
+  }
+
+  .ai-intro {
+    font-size: 13px;
+  }
+
+  .ai-badges {
+    gap: 6px;
+  }
+
+  .ai-badge {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     35. GAMES HUB — mobile
+     ────────────────────────────────────────────────────────── */
+
+  .games-hub {
+    padding: 16px 12px !important;
+    overflow-x: hidden;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     36. DESKTOP WIDGETS — single column on mobile
+     ────────────────────────────────────────────────────────── */
+
+  .desktop-widgets-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .desktop-widget {
+    min-height: 100px;
+  }
+
+  .widget-body {
+    padding: 12px;
+    gap: 4px;
+  }
+
+  .widget-icon {
+    font-size: 22px;
+    margin-bottom: 2px;
+  }
+
+  .widget-label {
+    font-size: 13px;
+  }
+
+  .widget-preview {
+    font-size: 11px;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     37. VOICE FAB — above ConfluxBarV2
+     ────────────────────────────────────────────────────────── */
+
+  .voice-fab {
+    bottom: 90px !important;
+    right: 12px !important;
+  }
+}
+
+/* ── BREAKPOINT: Small Phone (≤ 480px) ──────────────────── */
+
+@media (max-width: 480px) {
+
+  .topbar {
+    height: 36px;
+    padding: 0 8px;
+  }
+
+  .topbar-title {
+    font-size: 11px;
+    max-width: 70px;
+  }
+
+  .topbar-center {
+    max-width: 80px;
+    font-size: 10px;
+  }
+
+  /* ConfluxBarV2 — minimal */
+  .conflux-bar-v2 {
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 20px;
+  }
+
+  .conflux-logo-btn,
+  .conflux-home-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+  }
+
+  /* Hero button — still the focal point */
+  .hero-btn {
+    width: 52px;
+    height: 52px;
+    margin-top: -18px;
+    font-size: 16px;
+  }
+
+  .hero-btn::after {
+    width: 72px;
+    height: 72px;
+  }
+
+  /* Immersive content adjustments */
+  .immersive-content {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    top: 36px;
+  }
+
+  .immersive-back-btn {
+    padding: 5px 12px;
+    font-size: 11px;
+    top: 6px;
+    left: 8px;
+  }
+
+  /* Menu — nearly full screen */
+  .conflux-bar-v2-wrapper .conflux-menu {
+    width: calc(100vw - 8px);
+    max-height: 75vh;
+    border-radius: 14px 14px 18px 18px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-app {
+    padding: 10px 8px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-app-icon {
+    font-size: 18px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-app-name {
+    font-size: 11px;
+  }
+
+  .conflux-bar-v2-wrapper .conflux-menu-app-desc {
+    font-size: 9px;
+  }
+
+  /* Phase 5: 480px refinements */
+
+  .chat-panel-header {
+    padding: 8px 10px;
+  }
+
+  .chat-panel-messages {
+    padding: 8px 10px;
+  }
+
+  .chat-panel-input-area {
+    padding: 8px 10px 12px;
+  }
+
+  .chat-panel-input {
+    font-size: 16px;
+    padding: 8px 12px;
+  }
+
+  .voice-chat {
+    border-radius: 16px;
+  }
+
+  .voice-welcome-emoji {
+    font-size: 40px;
+  }
+
+  .vault-container {
+    padding: 12px 8px 80px 8px !important;
+  }
+
+  .vault-sidebar {
+    max-height: 160px;
+  }
+
+  .sec-content {
+    padding: 12px 8px 60px 8px;
+  }
+
+  .sec-hero {
+    padding: 16px 10px;
+  }
+
+  .sec-section {
+    padding: 12px 10px;
+  }
+
+  .desktop-widgets-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 8px;
+  }
+}
+
+/* ── Landscape phones ───────────────────────────────────── */
+
+@media (max-width: 768px) and (orientation: landscape) {
+
+  .immersive-content {
+    top: 36px;
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .topbar {
+    height: 36px;
+  }
+
+  /* Menu — constrain height in landscape */
+  .conflux-bar-v2-wrapper .conflux-menu {
+    max-height: 55vh;
+  }
+}
