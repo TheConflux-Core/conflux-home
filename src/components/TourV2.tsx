@@ -554,7 +554,7 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
     return () => {
       cancelledRef.current = true;
       stopTourAudio();
-      window.speechSynthesis.cancel();
+      try { window.speechSynthesis?.cancel(); } catch (_) { /* Android WebView may not support speechSynthesis */ }
     };
   }, []);
 
@@ -588,7 +588,7 @@ export default function TourV2({ onComplete, onNavigate }: TourV2Props) {
     cancelledRef.current = true;
     stopTourAudio();
     setIsSpeaking(false);
-    window.speechSynthesis.cancel();
+    try { window.speechSynthesis?.cancel(); } catch (_) { /* Android WebView may not support speechSynthesis */ }
     setIsActive(false);
     localStorage.setItem('conflux-tour-v2-completed', 'true');
     onComplete();
