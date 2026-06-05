@@ -11,3 +11,4 @@ src-tauri/binaries/llama-server
 src-tauri/binaries/llama-server.exe
 icons-generated/
 src-tauri/.env
+src-tauri/gen/

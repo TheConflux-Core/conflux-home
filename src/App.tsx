@@ -12,6 +12,7 @@ import Desktop from './components/Desktop';
 import DesktopV2 from './components/DesktopV2';
 import './styles-quadrants.css';
 import './styles-mobile.css';
+import './styles-mobile-layout.css';
 import ConfluxBar from './components/ConfluxBar';
 import ConfluxBarV2 from './components/ConfluxBarV2';
 import './styles-conflux-bar-v2.css';
@@ -177,7 +178,14 @@ export default function App() {
   }, [])
 
   // Global deep link handler for billing redirects
+  // Guard: skip in browser dev mode (no Tauri runtime).
   useEffect(() => {
+    const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+    if (!isTauri) {
+      console.log('[DeepLink] Skipping — browser dev mode (no Tauri runtime)');
+      return;
+    }
+
     console.log('[DeepLink] Registering billing deep link handlers');
 
     // 1. Tauri deep-link plugin
