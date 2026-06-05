@@ -355,7 +355,7 @@ export default function HearthOnboarding({ onComplete }: Props) {
                 />
               </svg>
             </div>
-            <p className="hearth-onboard-saving-text">Saved to your kitchen.</p>
+            <p className="hearth-onboard-saving-text">Saving your meal<span className="saving-dots">...</span></p>
           </div>
         </div>
       )}
