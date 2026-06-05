@@ -111,19 +111,14 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
     setLoading(true)
     console.log('[LoginScreen] ═══ signInWithOtp START ═══')
     console.log('[LoginScreen] Email:', trimmed)
-    console.log('[LoginScreen] Redirect:', window.location.origin.includes('localhost') ? 'http://localhost:1420/auth/callback' : 'conflux://auth/callback')
+    console.log('[LoginScreen] Redirect: conflux://auth/callback')
     try {
       const { supabase } = await import('../lib/supabase')
       console.log('[LoginScreen] Supabase client loaded, calling signInWithOtp...')
       const { data, error: authError } = await supabase.auth.signInWithOtp({
         email: trimmed,
         options: {
-          // DEV: use localhost redirect so magic link opens in browser, not Tauri app.
-          // PROD: use conflux:// deep link to open the Tauri app.
-          // To revert: change back to 'conflux://auth/callback' unconditionally.
-          emailRedirectTo: window.location.origin.includes('localhost')
-            ? 'http://localhost:5173/auth/callback'
-            : 'conflux://auth/callback',
+          emailRedirectTo: 'conflux://auth/callback',
         },
       })
       console.log('[LoginScreen] signInWithOtp response:', JSON.stringify({ data, error: authError }))
