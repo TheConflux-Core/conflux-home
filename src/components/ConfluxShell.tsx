@@ -20,7 +20,6 @@ interface ConfluxShellProps {
   isPushToTalkActive: boolean;
   voiceChatOpen: boolean;
   onTogglePushToTalk: () => void;
-  onOpenVoiceChat: () => void;
 }
 
 export default function ConfluxShell({
@@ -28,7 +27,6 @@ export default function ConfluxShell({
   isPushToTalkActive,
   voiceChatOpen,
   onTogglePushToTalk,
-  onOpenVoiceChat,
 }: ConfluxShellProps) {
   const conflux = useConflux();
   useGlobalClickSound();
@@ -61,7 +59,6 @@ export default function ConfluxShell({
         isPushToTalkActive={isPushToTalkActive}
         voiceChatOpen={voiceChatOpen}
         onTogglePushToTalk={onTogglePushToTalk}
-        onOpenVoiceChat={onOpenVoiceChat}
         pulseImpulse={conflux.pulseImpulse}
         effectivePalette={conflux.effectivePalette}
       />
