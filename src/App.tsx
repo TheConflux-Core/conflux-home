@@ -1532,7 +1532,6 @@ const [activeSnake, setActiveSnake] = useState(false);
               setIsPushToTalkActive(true);
             }
           }}
-          onOpenVoiceChat={() => setVoiceChatOpen(true)}
         >
           {useBarV2 ? (
             <ConfluxBarV2

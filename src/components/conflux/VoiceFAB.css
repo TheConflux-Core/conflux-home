@@ -1,6 +1,6 @@
 /* ── Voice FAB (Floating Action Button) ─────────────────────────────────── */
 /* Primary voice interaction point. Replaces fairy as the "talk to Conflux" trigger.
-   Bottom-right floating button with tap (PTT) and hold (voice chat) modes. */
+   Bottom-right floating button — click or Space for Push to Talk. */
 
 .voice-fab {
   position: fixed;
