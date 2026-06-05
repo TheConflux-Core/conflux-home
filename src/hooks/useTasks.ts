@@ -25,6 +25,7 @@ export interface CreateTaskReq {
   agent_id: string;
   priority: string;
   description?: string;
+  created_by?: string;
 }
 
 export interface UpdateTaskReq {

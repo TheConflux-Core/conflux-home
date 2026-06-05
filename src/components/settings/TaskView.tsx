@@ -98,8 +98,9 @@ export default function TaskView() {
     try {
       await create({
         title: addTitle.trim(),
-        agent_id: addAgent,
+        agent_id: addAgent || 'conflux',
         priority: addPriority,
+        created_by: 'conflux',
       });
       setAddTitle('');
       setAddPriority('normal');
