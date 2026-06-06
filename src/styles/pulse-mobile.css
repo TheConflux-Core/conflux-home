@@ -152,36 +152,372 @@
     justify-content: center;
   }
 
-  /* ── Speak to Pulse — stack layout on mobile ─────────── */
+  /* ═══════════════════════════════════════════════════════════
+     SPEAK TO PULSE — Full-Width Chat on Mobile
+     ═══════════════════════════════════════════════════════════ */
+
+  /* ── Main container — stack vertically ────────────────── */
   .speak-to-pulse {
     flex-direction: column !important;
-    padding: 12px !important;
+    padding: 8px 8px 0 !important;
+    gap: 0 !important;
+    overflow: hidden !important;
   }
 
+  /* ── Health Banner — compact horizontal card ──────────── */
   .pulse-health-banner {
     width: 100% !important;
     flex-direction: row !important;
+    align-items: center !important;
     border-right: none !important;
     border-bottom: 1px solid rgba(16, 185, 129, 0.1);
-    padding: 12px 16px !important;
-    gap: 16px !important;
+    padding: 10px 14px !important;
+    gap: 14px !important;
     height: auto !important;
+    flex-shrink: 0 !important;
+    border-radius: 14px !important;
+    margin-bottom: 8px !important;
   }
 
+  /* Smaller ring (60px) */
+  .banner-ring-wrap {
+    flex-shrink: 0 !important;
+  }
+
+  .banner-ring-wrap .banner-ring-svg {
+    width: 60px !important;
+    height: 60px !important;
+  }
+
+  .banner-ring-glow {
+    inset: -8px !important;
+  }
+
+  /* Score label — inline, not stacked */
+  .banner-score-label {
+    align-items: flex-start !important;
+    margin-top: 0 !important;
+  }
+
+  .banner-label-top,
+  .banner-label-bottom {
+    display: inline !important;
+    font-size: 0.52rem !important;
+  }
+
+  /* Status — inline next to label */
+  .banner-status {
+    font-size: 0.65rem !important;
+    margin-top: 0 !important;
+    margin-left: 8px !important;
+  }
+
+  /* Divider — horizontal or hidden */
+  .banner-divider {
+    display: none !important;
+  }
+
+  /* Metrics — horizontal row with wrapping */
   .banner-metrics {
     flex-direction: row !important;
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    width: auto !important;
+    flex: 1 !important;
+    min-width: 0 !important;
   }
 
   .banner-metric-pill {
-    flex: 1;
-    min-width: 80px;
+    flex: 1 !important;
+    min-width: 70px !important;
+    max-width: 120px !important;
+    padding: 4px 8px !important;
   }
 
-  /* ── Chat input bar — tighter on mobile ──────────────── */
+  .banner-pill-label {
+    font-size: 0.48rem !important;
+  }
+
+  .banner-pill-value {
+    font-size: 0.65rem !important;
+  }
+
+  /* ── Chat Panel — full width, full remaining height ───── */
+  .pulse-chat-panel {
+    width: 100% !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* ── Chat Header — simplified, compact ────────────────── */
+  .pulse-chat-header {
+    padding: 8px 12px 6px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .pulse-chat-title-text {
+    font-size: 0.9rem !important;
+  }
+
+  .pulse-chat-subtitle {
+    font-size: 0.55rem !important;
+  }
+
+  .market-status-badge {
+    padding: 3px 8px !important;
+  }
+
+  .market-label {
+    font-size: 0.58rem !important;
+  }
+
+  /* ── View Tabs — compact ──────────────────────────────── */
+  .pulse-view-tabs {
+    padding: 4px 10px !important;
+    gap: 2px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .pulse-view-tab {
+    padding: 5px 10px !important;
+    font-size: 0.72rem !important;
+    gap: 4px !important;
+  }
+
+  .pulse-view-tab-icon {
+    font-size: 0.75rem !important;
+  }
+
+  /* ── Chat Messages — mobile typography ────────────────── */
+  .chat-history {
+    padding: 10px 8px 6px !important;
+    gap: 12px !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .chat-message {
+    gap: 8px !important;
+  }
+
+  .pulse-avatar {
+    font-size: 1.3rem !important;
+  }
+
+  .message-bubble-wrap {
+    max-width: 90% !important;
+  }
+
+  .message-bubble {
+    padding: 10px 14px !important;
+    font-size: 0.85rem !important;
+    line-height: 1.5 !important;
+  }
+
+  .message-time {
+    font-size: 0.62rem !important;
+  }
+
+  .pulse-msg-speak-btn {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 0.65rem !important;
+  }
+
+  /* ── Quick Suggestions — horizontal scroll ────────────── */
+  .quick-suggestions {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    gap: 6px !important;
+    padding: 0 4px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .quick-suggestions::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .suggestion-chip {
+    flex-shrink: 0 !important;
+    padding: 5px 12px !important;
+    font-size: 0.72rem !important;
+  }
+
+  .chip-icon {
+    font-size: 0.8rem !important;
+  }
+
+  /* ── Chat Input Bar — full width, comfortable ─────────── */
   .chat-input-bar {
-    margin: 8px 4px 12px !important;
+    margin: 4px 6px 8px !important;
+    padding: 8px 10px !important;
+    border-radius: 14px !important;
+    gap: 8px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .chat-input {
+    font-size: 0.88rem !important;
+    padding: 10px 14px !important;
+  }
+
+  /* ── Voice Button — 44px touch target ─────────────────── */
+  .voice-btn {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  /* ── Send Button — 44px touch target ──────────────────── */
+  .send-btn {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  /* ── End Session Button — compact ─────────────────────── */
+  .end-session-btn {
+    padding: 6px 12px !important;
+    font-size: 0.7rem !important;
+  }
+
+  /* ── Session View — full width ────────────────────────── */
+  .pulse-session-view {
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .pulse-session-view .chat-history {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* ── Chat Empty State ─────────────────────────────────── */
+  .chat-empty-state {
+    padding: 16px 20px !important;
+    gap: 8px !important;
+  }
+
+  .chat-empty-icon {
+    font-size: 2.5rem !important;
+  }
+
+  .chat-empty-title {
+    font-size: 0.9rem !important;
+  }
+
+  .chat-empty-sub {
+    font-size: 0.75rem !important;
+  }
+
+  /* ── Pulse Loading State ──────────────────────────────── */
+  .pulse-loading-state {
+    font-size: 0.8rem !important;
+  }
+
+  .pulse-spinner {
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  /* ── Sessions History View — full width ───────────────── */
+  .pulse-sessions-view {
+    padding: 8px 10px 16px !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .pulse-sessions-intro h3 {
+    font-size: 0.9rem !important;
+  }
+
+  .pulse-sessions-intro p {
+    font-size: 0.75rem !important;
+  }
+
+  .pulse-sessions-list {
+    gap: 6px !important;
+  }
+
+  /* ── Session Cards — full width ───────────────────────── */
+  .pulse-session-card {
+    border-radius: 10px !important;
+  }
+
+  .pulse-session-card-header {
+    padding: 10px 12px !important;
+  }
+
+  .pulse-session-card-date {
+    font-size: 0.8rem !important;
+  }
+
+  .pulse-session-duration {
+    font-size: 0.7rem !important;
+  }
+
+  .pulse-session-card-meta {
+    font-size: 0.65rem !important;
+  }
+
+  .pulse-session-card-messages {
+    padding: 6px 12px 12px !important;
+    max-height: 260px !important;
+  }
+
+  .pulse-session-msg-content {
+    font-size: 0.8rem !important;
+    padding: 6px 10px !important;
+    max-width: 92% !important;
+  }
+
+  /* ── Pulse Health Hero Card — compact ─────────────────── */
+  .pulse-health-hero {
+    padding: 14px 16px !important;
+    gap: 14px !important;
+    border-radius: 14px !important;
+  }
+
+  .pulse-health-status {
+    font-size: 1rem !important;
+  }
+
+  .pulse-health-pills {
+    gap: 4px !important;
+  }
+
+  .pulse-metric-pill {
+    padding: 4px 10px !important;
+    min-width: 70px !important;
+  }
+
+  .pill-label {
+    font-size: 0.5rem !important;
+  }
+
+  .pill-value {
+    font-size: 0.72rem !important;
+  }
+
+  /* ── Typing Indicator — compact ───────────────────────── */
+  .typing-indicator span {
+    width: 6px !important;
+    height: 6px !important;
+  }
+
+  /* ── Pulse Reaction — scaled down ─────────────────────── */
+  .reaction-emote {
+    font-size: 1rem !important;
   }
 
   /* ── Stock cards — reduce padding ────────────────────── */
