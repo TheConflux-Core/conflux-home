@@ -95,7 +95,7 @@ export default function FeedView() {
         {/* ═══ Main Area ═══ */}
         <div className="feed-radar-main">
           {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+          <div className="feed-radar-header-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <div>
               <h2 style={{
                 fontFamily: 'var(--radar-font-header)',
@@ -158,7 +158,7 @@ export default function FeedView() {
 
           {/* Threads (below radar) */}
           {threads && threads.length > 0 && (
-            <div style={{
+            <div className="feed-radar-threads" style={{
               marginTop: '20px',
               padding: '16px',
               background: 'var(--radar-glass-bg)',

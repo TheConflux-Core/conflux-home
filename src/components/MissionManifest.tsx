@@ -86,10 +86,9 @@ function TaskRow({ task, onComplete, onDelete }: {
         </span>
       )}
       <button
-        className="mc-task-delete"
+        className="mc-task-delete orbit-task-delete"
         onClick={(e) => { e.stopPropagation(); onDelete(task.id); }}
         title="Delete task"
-        style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', padding: '4px', fontSize: '14px' }}
       >
         🗑️
       </button>
@@ -145,74 +144,70 @@ export function MissionManifest({ tasks, completedTasks, onComplete, onDelete, o
 
       {/* Inline add form */}
       {showForm && (
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+        <div className="orbit-add-form">
           <input
             type="text"
-            className="mc-nl-input"
-            style={{ flex: 1 }}
+            className="mc-nl-input orbit-form-input"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="What needs to be done?"
-            autoFocus
           />
-          <select
-            className="mc-btn-secondary"
-            style={{ padding: '6px 10px', fontSize: '11px' }}
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-          >
-            <option value="">Category</option>
-            <option value="health">💪 Health</option>
-            <option value="work">💼 Work</option>
-            <option value="personal">🧑 Personal</option>
-            <option value="family">👨‍👩‍👧‍👦 Family</option>
-            <option value="finance">💰 Finance</option>
-            <option value="learning">📚 Learning</option>
-            <option value="creative">🎨 Creative</option>
-            <option value="home">🏠 Home</option>
-          </select>
-          <select
-            className="mc-btn-secondary"
-            style={{ padding: '6px 10px', fontSize: '11px' }}
-            value={priority}
-            onChange={(e) => setPriority(e.target.value)}
-          >
-            <option value="urgent">🔴 Urgent</option>
-            <option value="high">🟠 High</option>
-            <option value="normal">🟡 Normal</option>
-            <option value="low">🟢 Low</option>
-          </select>
-          <input
-            type="date"
-            className="mc-btn-secondary"
-            style={{ padding: '6px 10px', fontSize: '11px' }}
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-          />
-          <button
-            className="mc-btn-primary"
-            style={{ padding: '6px 12px', fontSize: '11px' }}
-            onClick={handleAdd}
-            disabled={!title.trim()}
-          >
-            Add
-          </button>
+          <div className="orbit-form-row">
+            <select
+              className="mc-btn-secondary orbit-form-select"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            >
+              <option value="">Category</option>
+              <option value="health">💪 Health</option>
+              <option value="work">💼 Work</option>
+              <option value="personal">🧑 Personal</option>
+              <option value="family">👨‍👩‍👧‍👦 Family</option>
+              <option value="finance">💰 Finance</option>
+              <option value="learning">📚 Learning</option>
+              <option value="creative">🎨 Creative</option>
+              <option value="home">🏠 Home</option>
+            </select>
+            <select
+              className="mc-btn-secondary orbit-form-select"
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+            >
+              <option value="urgent">🔴 Urgent</option>
+              <option value="high">🟠 High</option>
+              <option value="normal">🟡 Normal</option>
+              <option value="low">🟢 Low</option>
+            </select>
+            <input
+              type="date"
+              className="mc-btn-secondary orbit-form-input"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+            <button
+              className="mc-btn-primary orbit-form-submit"
+              onClick={handleAdd}
+              disabled={!title.trim()}
+            >
+              Add
+            </button>
+          </div>
         </div>
       )}
 
       {/* Task list */}
       {sorted.length === 0 && completedTasks.length === 0 ? (
-        <div className="mc-empty" style={{ padding: '24px', textAlign: 'center' }}>
-          <div style={{ fontSize: '24px', marginBottom: '8px' }}>✨</div>
+        <div className="mc-empty orbit-empty-state">
+          <div className="orbit-empty-icon">✨</div>
           <div>All clear. Your agents will add tasks here as they work.</div>
         </div>
       ) : sorted.length === 0 ? (
-        <div className="mc-empty" style={{ padding: '16px', textAlign: 'center' }}>
+        <div className="mc-empty">
           All tasks complete for today! 🎉
         </div>
       ) : (
-        <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+        <div className="orbit-task-list">
           {sorted.map(task => (
             <TaskRow key={task.id} task={task} onComplete={onComplete} onDelete={onDelete} />
           ))}

@@ -479,7 +479,6 @@ function SetupModal({
                 value={config.monthlyIncome || ''}
                 onChange={e => onUpdateConfig({ monthlyIncome: parseFloat(e.target.value) || 0 })}
                 min="0"
-                autoFocus
               />
             </div>
             <p className="pulse-setup-hint">Total take-home pay per month, after taxes.</p>

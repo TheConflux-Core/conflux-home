@@ -886,7 +886,6 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           color: 'var(--text-primary)', fontSize: 16, textAlign: 'center',
           outline: 'none', boxSizing: 'border-box',
         }}
-        autoFocus
       />
 
       {userName && (
@@ -1243,7 +1242,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   };
 
   return (
-    <div style={{
+    <div className="onboarding-root" style={{
       display: 'flex', flexDirection: 'column',
       height: '100vh', width: '100%', background: 'var(--bg-primary)',
       position: 'relative', overflow: 'hidden',

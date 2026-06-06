@@ -106,12 +106,8 @@ export default function HorizonOnboarding({ onComplete }: Props) {
     };
   }, [starPosition]);
 
-  // Auto-focus input
-  useEffect(() => {
-    if (phase === 'question') {
-      setTimeout(() => inputRef.current?.focus(), 300);
-    }
-  }, [phase]);
+  // No auto-focus on mobile — keyboard pops up and cuts off content
+  // User taps input or clicks a chip when ready
 
   const handleSubmit = useCallback(async () => {
     if (!dreamInput.trim()) return;
@@ -235,7 +231,6 @@ export default function HorizonOnboarding({ onComplete }: Props) {
               onChange={e => setDreamInput(e.target.value)}
               onKeyDown={handleKeyDown}
               rows={2}
-              autoFocus
             />
             <button
               className="horizon-onboard-submit"

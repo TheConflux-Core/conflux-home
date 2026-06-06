@@ -48,16 +48,8 @@ function relativeTime(dateStr: string): string {
 
 function AgentPill({ agentId }: { agentId: string }) {
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: '4px',
-      fontSize: '10px', fontWeight: 600, color: agentColor(agentId),
-      background: `${agentColor(agentId)}18`, borderRadius: '4px',
-      padding: '1px 6px', textTransform: 'capitalize',
-    }}>
-      <span style={{
-        width: '5px', height: '5px', borderRadius: '50%',
-        background: agentColor(agentId),
-      }} />
+    <span className="orbit-agent-pill" style={{ color: agentColor(agentId), background: `${agentColor(agentId)}18` }}>
+      <span className="orbit-agent-pill-dot" style={{ background: agentColor(agentId) }} />
       {agentId}
     </span>
   );
@@ -70,65 +62,39 @@ function AgentTaskCard({ task }: { task: Task }) {
   const st = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.pending;
 
   return (
-    <div style={{
-      background: 'var(--bg-card, #111827)',
-      border: '1px solid var(--border, #1f2937)',
-      borderRadius: '8px',
-      padding: '10px 12px',
-      transition: 'all 0.15s',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-        <span style={{ fontSize: '14px', lineHeight: 1 }}>{st.emoji}</span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontSize: '12px', fontWeight: 600, color: 'var(--text-primary, #e5e7eb)',
-            marginBottom: '4px', lineHeight: 1.3,
-          }}>
+    <div className="orbit-agent-card">
+      <div className="orbit-agent-card-row">
+        <span className="orbit-agent-card-emoji">{st.emoji}</span>
+        <div className="orbit-agent-card-body">
+          <div className="orbit-agent-card-title">
             {task.title}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          <div className="orbit-agent-card-meta">
             <AgentPill agentId={task.agent_id} />
             {task.created_by !== task.agent_id && (
-              <span style={{ fontSize: '9px', color: '#6b7280' }}>
+              <span className="orbit-agent-card-by">
                 by {task.created_by}
               </span>
             )}
-            <span style={{
-              fontSize: '10px', fontWeight: 600, color: pri.color,
-              background: `${pri.color}15`, borderRadius: '4px',
-              padding: '1px 5px',
-            }}>
+            <span className="orbit-agent-card-priority" style={{ color: pri.color, background: `${pri.color}15` }}>
               {pri.emoji} {task.priority}
             </span>
-            <span style={{ fontSize: '10px', color: '#6b7280' }}>
+            <span className="orbit-agent-card-time">
               {relativeTime(task.created_at)}
             </span>
             {task.requires_verify && !task.verified && (
-              <span style={{
-                fontSize: '9px', color: '#f59e0b',
-                background: '#f59e0b18', borderRadius: '3px',
-                padding: '1px 5px',
-              }}>
+              <span className="orbit-agent-card-badge orbit-badge-verify">
                 needs verify
               </span>
             )}
             {task.verified && (
-              <span style={{
-                fontSize: '9px', color: '#10b981',
-                background: '#10b98118', borderRadius: '3px',
-                padding: '1px 5px',
-              }}>
+              <span className="orbit-agent-card-badge orbit-badge-verified">
                 ✓ verified
               </span>
             )}
           </div>
           {task.result && (
-            <div style={{
-              fontSize: '11px', color: '#9ca3af', marginTop: '6px',
-              padding: '6px 8px', background: 'rgba(255,255,255,0.03)',
-              borderRadius: '6px', lineHeight: 1.4,
-              maxHeight: '60px', overflow: 'hidden',
-            }}>
+            <div className="orbit-agent-card-result">
               {task.result.length > 150 ? task.result.slice(0, 150) + '…' : task.result}
             </div>
           )}
@@ -145,27 +111,17 @@ function StatusColumn({ status, tasks }: { status: string; tasks: Task[] }) {
   if (tasks.length === 0) return null;
 
   return (
-    <div style={{ marginBottom: '16px' }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: '6px',
-        marginBottom: '8px', padding: '0 2px',
-      }}>
-        <span style={{ fontSize: '13px' }}>{cfg.emoji}</span>
-        <span style={{
-          fontSize: '11px', fontWeight: 700, color: cfg.color,
-          textTransform: 'uppercase', letterSpacing: '0.05em',
-        }}>
+    <div className="orbit-status-col">
+      <div className="orbit-status-header">
+        <span className="orbit-status-emoji">{cfg.emoji}</span>
+        <span className="orbit-status-label" style={{ color: cfg.color }}>
           {cfg.label}
         </span>
-        <span style={{
-          fontSize: '10px', color: '#6b7280',
-          background: 'rgba(255,255,255,0.06)', borderRadius: '8px',
-          padding: '1px 6px',
-        }}>
+        <span className="orbit-status-count">
           {tasks.length}
         </span>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <div className="orbit-status-cards">
         {tasks.map(t => <AgentTaskCard key={t.id} task={t} />)}
       </div>
     </div>
@@ -230,31 +186,16 @@ export function AgentBoard() {
           <span className="mc-panel-count">
             {tasks.filter(t => t.status !== 'completed' && t.status !== 'failed').length} active
           </span>
-          <div style={{
-            display: 'flex', background: 'rgba(255,255,255,0.04)',
-            borderRadius: '6px', overflow: 'hidden',
-          }}>
+          <div className="orbit-board-filters">
             <button
+              className={`orbit-board-filter ${filter === 'active' ? 'orbit-board-filter-active' : ''}`}
               onClick={() => setFilter('active')}
-              style={{
-                padding: '3px 10px', fontSize: '10px', fontWeight: 600,
-                border: 'none', cursor: 'pointer',
-                background: filter === 'active' ? 'rgba(255,255,255,0.1)' : 'transparent',
-                color: filter === 'active' ? '#e5e7eb' : '#6b7280',
-                transition: 'all 0.15s',
-              }}
             >
               Active
             </button>
             <button
+              className={`orbit-board-filter ${filter === 'all' ? 'orbit-board-filter-active' : ''}`}
               onClick={() => setFilter('all')}
-              style={{
-                padding: '3px 10px', fontSize: '10px', fontWeight: 600,
-                border: 'none', cursor: 'pointer',
-                background: filter === 'all' ? 'rgba(255,255,255,0.1)' : 'transparent',
-                color: filter === 'all' ? '#e5e7eb' : '#6b7280',
-                transition: 'all 0.15s',
-              }}
             >
               All
             </button>

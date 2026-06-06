@@ -316,7 +316,7 @@ export default function GamesPage({
   }, []);
 
   return (
-    <div style={PAGE_STYLE}>
+    <div className="games-page" style={PAGE_STYLE}>
       {/* ── Background layers ── */}
       <div style={BG_STYLE}>
         <div style={GRID_STYLE} />
@@ -345,11 +345,12 @@ export default function GamesPage({
       </div>
 
       {/* ── Content ── */}
-      <div style={INNER_STYLE}>
+      <div className="games-page-inner" style={INNER_STYLE}>
         {/* Header */}
-        <div style={HEADER_STYLE}>
+        <div className="games-page-header" style={HEADER_STYLE}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <button
+              className="games-page-back-btn"
               style={BACK_BTN_STYLE}
               onClick={handleBack}
               onMouseEnter={e => { (e.target as HTMLButtonElement).style.background = 'rgba(255,255,255,0.08)'; (e.target as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
@@ -364,6 +365,7 @@ export default function GamesPage({
             </div>
           </div>
           <button
+            className="games-page-sound-btn"
             style={SOUND_BTN_STYLE}
             onClick={handleToggleSound}
             title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
@@ -376,6 +378,7 @@ export default function GamesPage({
 
         {/* ── Hero: Conflux Stories (Coming Soon) ── */}
         <div
+          className="games-page-hero"
           style={{
             ...HERO_STYLE,
             cursor: 'default',
@@ -430,7 +433,7 @@ export default function GamesPage({
           Classic Games
           <span style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, rgba(255,255,255,0.07) 0%, transparent 100%)' }} />
         </div>
-        <div style={GRID_STYLE_CSS}>
+        <div className="games-page-grid" style={GRID_STYLE_CSS}>
           {GAMES.filter(g => g.id !== 'stories').map((game, idx) => {
             const accent = GAME_ACCENTS[game.id] ?? { glow: '#ff4d00', gradient: 'linear-gradient(135deg, #161020, #1e1428)', border: 'rgba(255,77,0,0.3)' };
             const isHovered = hoveredGame === game.id;
@@ -439,6 +442,7 @@ export default function GamesPage({
             return (
               <div
                 key={game.id}
+                className="games-page-card"
                 style={{
                   position: 'relative' as const,
                   borderRadius: '20px',
@@ -572,7 +576,7 @@ export default function GamesPage({
               Continue Playing
               <span style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, rgba(255,255,255,0.07) 0%, transparent 100%)' }} />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div className="games-page-sessions" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {activeSessions.map(session => (
                 <div
                   key={session.id}

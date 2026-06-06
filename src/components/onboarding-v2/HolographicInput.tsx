@@ -24,10 +24,8 @@ export default function HolographicInput({ onComplete, userName }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const keyCountRef = useRef(0);
 
-  useEffect(() => {
-    const t = setTimeout(() => inputRef.current?.focus(), 1200);
-    return () => clearTimeout(t);
-  }, []);
+  // No auto-focus — on mobile it pops the keyboard and cuts off content
+  // User taps the input when ready
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && inputValue.trim()) {
@@ -183,7 +181,6 @@ export default function HolographicInput({ onComplete, userName }: Props) {
             value={inputValue}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            autoFocus
             style={{
               width: '100%',
               padding: '18px 24px',

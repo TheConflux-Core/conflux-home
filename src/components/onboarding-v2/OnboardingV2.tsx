@@ -429,7 +429,6 @@ function IceBreaker({
   const rippleIdRef = useRef(0);
 
   useEffect(() => {
-    const t = setTimeout(() => inputRef.current?.focus(), 800);
     // Conflux introduces his role via ElevenLabs
     const greetingTimer = setTimeout(() => {
       setConfluxSpeaking(true);
@@ -438,7 +437,7 @@ function IceBreaker({
         'conflux'
       ).catch(() => {}).finally(() => setConfluxSpeaking(false));
     }, 1200);
-    return () => { clearTimeout(t); clearTimeout(greetingTimer); stopCurrentAudio(); setConfluxSpeaking(false); };
+    return () => { clearTimeout(greetingTimer); stopCurrentAudio(); setConfluxSpeaking(false); };
   }, [userName]);
 
   const handleSubmit = useCallback(() => {

@@ -127,12 +127,8 @@ export default function HearthOnboarding({ onComplete }: Props) {
     };
   }, []);
 
-  // Auto-focus input
-  useEffect(() => {
-    if (phase === 'question') {
-      setTimeout(() => inputRef.current?.focus(), 400);
-    }
-  }, [phase]);
+  // No auto-focus on mobile — keyboard pops up and cuts off content
+  // User taps input or clicks a chip when ready
 
   // Flame intensity animation (pulsing glow behind card)
   useEffect(() => {
@@ -250,7 +246,6 @@ export default function HearthOnboarding({ onComplete }: Props) {
               onChange={e => setMealInput(e.target.value)}
               onKeyDown={handleKeyDown}
               rows={2}
-              autoFocus
             />
             <button
               className="hearth-onboard-submit"

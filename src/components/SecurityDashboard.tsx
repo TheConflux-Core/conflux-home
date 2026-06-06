@@ -2719,7 +2719,7 @@ function WatchtowerTab({ alerts, onAlertAction, onRunCorrelation }: {
   return (
     <div>
       {/* ── Hero Status Bar ── */}
-      <div className="sec-section" style={{
+      <div className="sec-section sec-wt-hero" style={{
         background: 'linear-gradient(135deg, #0a1628 0%, #0f1d32 100%)',
         border: `1px solid ${threatColor}30`,
         padding: 20,
@@ -2786,7 +2786,7 @@ function WatchtowerTab({ alerts, onAlertAction, onRunCorrelation }: {
 
       {/* ── Panel Selector ── */}
       <div className="sec-section" style={{ padding: 0, marginBottom: 16 }}>
-        <div style={{ display: 'flex', borderBottom: '1px solid #1e293b' }}>
+        <div className="sec-wt-panel-tabs" style={{ display: 'flex', borderBottom: '1px solid #1e293b' }}>
           {[
             { key: 'files' as const, label: '📁 File System', count: events.length },
             { key: 'processes' as const, label: '⚡ Processes', count: processes.length },
@@ -2914,7 +2914,7 @@ function WatchtowerTab({ alerts, onAlertAction, onRunCorrelation }: {
                         padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700,
                         background: `${sevColor}20`, color: sevColor, textTransform: 'uppercase',
                       }}>{evt.severity}</span>
-                      <span style={{ color: '#f1f5f9', fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                      <span className="sec-wt-file-row" style={{ color: '#f1f5f9', fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
                         {evt.file_path}
                       </span>
                       <span style={{ color: '#64748b', fontSize: 11, whiteSpace: 'nowrap' as const }}>
@@ -2990,7 +2990,7 @@ function WatchtowerTab({ alerts, onAlertAction, onRunCorrelation }: {
             ) : processViewMode === 'tree' ? (
               <ProcessTreeView processes={processes} onKillProcess={handleKillProcess} />
             ) : (
-              <div style={{ overflowX: 'auto' }}>
+              <div className="sec-wt-process-table" style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid #1e293b' }}>
@@ -3005,7 +3005,7 @@ function WatchtowerTab({ alerts, onAlertAction, onRunCorrelation }: {
                   </thead>
                   <tbody>
                     {processes.map(proc => (
-                      <tr key={proc.id} className={updatedPids.has(proc.pid) ? 'sec-row-updated' : ''} style={{
+                      <tr key={proc.id} className={`${updatedPids.has(proc.pid) ? 'sec-row-updated' : ''} sec-wt-process-row`} style={{
                         borderBottom: '1px solid #1e293b',
                         background: proc.is_suspicious ? '#ef444410' : 'transparent',
                         transition: 'background 0.3s',
@@ -3064,7 +3064,7 @@ function WatchtowerTab({ alerts, onAlertAction, onRunCorrelation }: {
                 <p className="sec-empty-text">Run a scan to snapshot active network connections.</p>
               </div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
+              <div className="sec-wt-process-table" style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid #1e293b' }}>
@@ -3077,7 +3077,7 @@ function WatchtowerTab({ alerts, onAlertAction, onRunCorrelation }: {
                   </thead>
                   <tbody>
                     {connections.map(conn => (
-                      <tr key={conn.id} style={{
+                      <tr key={conn.id} className="sec-wt-conn-row" style={{
                         borderBottom: '1px solid #1e293b',
                         background: conn.is_suspicious ? '#ef444410' : 'transparent',
                       }}>
@@ -4281,7 +4281,7 @@ function NetworkMapTab({ devices, networkMap, events, scanning, editingId, nickn
   return (
     <div style={{ padding: 16 }}>
       {/* ── Hero: Network Map ── */}
-      <div style={{
+      <div className="sec-network-hero" style={{
         background: 'linear-gradient(135deg, #0a1628 0%, #0f172a 50%, #1e1b4b 100%)',
         borderRadius: 16, padding: 24, marginBottom: 16,
         border: '1px solid #1e293b', position: 'relative', overflow: 'hidden',
@@ -4308,6 +4308,7 @@ function NetworkMapTab({ devices, networkMap, events, scanning, editingId, nickn
           <button
             onClick={onScan}
             disabled={scanning}
+            className="sec-network-scan-btn"
             style={{
               background: scanning ? '#475569' : '#3b82f6',
               color: 'white', border: 'none', borderRadius: 8,
@@ -4396,7 +4397,7 @@ function NetworkMapTab({ devices, networkMap, events, scanning, editingId, nickn
       )}
 
       {/* ── Device Cards Grid ── */}
-      <div style={{
+      <div className="sec-device-grid" style={{
         display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
         gap: 12, marginBottom: 16,
       }}>
@@ -4868,9 +4869,9 @@ function SentinelTab({ quarantined, history, onEscalate, onRelease, onRunAutoEsc
       {/* Quarantine Levels Legend */}
       <div className="sec-section" style={{ marginBottom: 16 }}>
         <h3 className="sec-section-title">🎖️ Quarantine Levels</h3>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div className="sec-quarantine-levels" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {QUARANTINE_LEVELS.map(lvl => (
-            <div key={lvl.level} style={{
+            <div key={lvl.level} className="sec-quarantine-level-chip" style={{
               display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px',
               background: `${lvl.color}15`, borderRadius: 8, border: `1px solid ${lvl.color}30`,
               fontSize: 12, color: '#e2e8f0'
@@ -4949,7 +4950,7 @@ function SentinelTab({ quarantined, history, onEscalate, onRelease, onRunAutoEsc
 
       {/* Escalate Modal */}
       {escalateAgent && (
-        <div style={{
+        <div className="sec-escalate-modal" style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center',
           justifyContent: 'center', zIndex: 1000,
