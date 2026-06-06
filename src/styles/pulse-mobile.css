@@ -17,7 +17,12 @@
   50% { opacity: 0.5; }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
+  /* DEBUG: if you see a red border, the media query IS firing */
+  .pulse-wrapper {
+    border: 3px solid red !important;
+  }
+
   /* ── Global Mobile Foundations ─────────────────────────── */
 
   /* Kill the wrapper scroll — let individual tabs handle their own scrolling */
@@ -34,20 +39,6 @@
   .pulse-sessions-view {
     overflow-x: hidden !important;
     box-sizing: border-box !important;
-  }
-
-  /* Mobile scrollbar — thin & subtle */
-  *::-webkit-scrollbar {
-    width: 4px;
-  }
-
-  *::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  *::-webkit-scrollbar-thumb {
-    background: rgba(16, 185, 129, 0.15);
-    border-radius: 2px;
   }
 
   /* ── Bottom Nav ────────────────────────────────────────── */
