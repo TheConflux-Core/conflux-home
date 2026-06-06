@@ -20,19 +20,30 @@
 @media (max-width: 1024px) {
   /* ── Global Mobile Foundations ─────────────────────────── */
 
-  /* Kill the wrapper scroll — let individual tabs handle their own scrolling */
+  /* Wrapper: fill viewport, single scroll container */
   .pulse-wrapper {
-    overflow: hidden !important;
+    height: 100vh !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
-  /* Prevent horizontal overflow on tab content */
+  /* Tab content: fill wrapper, no own scroll */
+  .pulse-tab-content {
+    height: auto !important;
+    min-height: calc(100vh - 72px) !important;
+    overflow: visible !important;
+  }
+
+  /* Inner tabs: no scroll, let content flow, pad for bottom nav */
   .budget-matrix-v2,
   .stocks-tab,
   .portfolio-tab,
   .speak-to-pulse,
   .pulse-sessions-view {
-    overflow-x: hidden !important;
-    box-sizing: border-box !important;
+    overflow: visible !important;
+    height: auto !important;
+    padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
   /* ── Bottom Nav ────────────────────────────────────────── */
@@ -123,12 +134,7 @@
     -webkit-overflow-scrolling: touch !important;
   }
 
-  /* ── Safe Area Padding on ALL scroll containers ──────── */
-  .budget-matrix-v2,
-  .stocks-tab,
-  .portfolio-tab,
-  .speak-to-pulse,
-  .pulse-sessions-view,
+  /* ── Safe Area Padding — chat containers ──────────────── */
   .chat-history,
   .chat-messages {
     padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important;
