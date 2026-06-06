@@ -261,6 +261,271 @@
     padding: 20px 16px !important;
   }
 
+  /* Hero cards — stack vertically */
+  .portfolio-hero-row {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+    margin-bottom: 20px !important;
+  }
+
+  .portfolio-hero-card {
+    padding: 20px !important;
+    border-radius: 16px !important;
+  }
+
+  .hero-amount {
+    font-size: 1.8rem !important;
+  }
+
+  .hero-gain-value {
+    font-size: 1.4rem !important;
+  }
+
+  .health-score-card {
+    grid-column: auto !important;
+    flex-direction: column !important;
+    padding: 20px !important;
+    min-width: auto !important;
+  }
+
+  /* Charts row — stack vertically */
+  .portfolio-charts-row {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+    margin-bottom: 20px !important;
+  }
+
+  .donut-chart-container {
+    display: flex;
+    justify-content: center;
+    max-width: 160px !important;
+    margin: 0 auto;
+  }
+
+  .pie-legend {
+    display: flex;
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    gap: 8px 16px !important;
+  }
+
+  .pie-legend-item {
+    font-size: 0.75rem !important;
+  }
+
+  .pie-chart-layout {
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 16px !important;
+  }
+
+  /* Holdings table → stacked cards */
+  .holdings-table {
+    display: block !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+  }
+
+  .holdings-thead {
+    display: none !important;
+  }
+
+  .holdings-row {
+    display: block !important;
+    grid-template-columns: none !important;
+    gap: 0 !important;
+    width: 100% !important;
+    padding: 16px !important;
+    margin-bottom: 10px !important;
+    background: rgba(6, 41, 22, 0.6) !important;
+    border: 1px solid rgba(16, 185, 129, 0.1) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+    animation: none !important;
+  }
+
+  .holdings-row:last-child {
+    margin-bottom: 0 !important;
+  }
+
+  .holdings-row:hover {
+    background: rgba(6, 41, 22, 0.75) !important;
+    border-color: rgba(16, 185, 129, 0.18) !important;
+  }
+
+  /* Asset header inside card */
+  .holding-asset {
+    margin-bottom: 10px !important;
+  }
+
+  .holding-name {
+    font-size: 0.95rem !important;
+  }
+
+  .holding-ticker {
+    margin-left: 0 !important;
+    font-size: 0.72rem !important;
+  }
+
+  .type-badge {
+    margin-bottom: 8px !important;
+  }
+
+  /* Card detail rows */
+  .holdings-row .holding-shares {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 6px 0 !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    font-size: 0.8rem !important;
+  }
+
+  .holdings-row .holding-shares::before {
+    content: 'Shares';
+    font-family: inherit !important;
+    font-size: 0.68rem !important;
+    font-weight: 600 !important;
+    color: #4b5563 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .holdings-row .holding-value {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 6px 0 !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    font-size: 0.85rem !important;
+  }
+
+  .holdings-row .holding-value::before {
+    content: 'Current Value';
+    font-family: inherit !important;
+    font-size: 0.68rem !important;
+    font-weight: 600 !important;
+    color: #4b5563 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .holdings-row .holding-gain {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 6px 0 !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  .holdings-row .holding-gain::before {
+    content: 'Gain / Loss';
+    font-family: inherit !important;
+    font-size: 0.68rem !important;
+    font-weight: 600 !important;
+    color: #4b5563 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .holdings-row .tag-badge {
+    margin-top: 6px !important;
+  }
+
+  .holdings-row .holding-actions {
+    justify-content: flex-start !important;
+    margin-top: 10px !important;
+    padding-top: 8px !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    gap: 8px !important;
+  }
+
+  .holdings-row .action-btn {
+    padding: 7px 14px !important;
+    font-size: 0.75rem !important;
+    gap: 5px !important;
+  }
+
+  /* Form — full width, single column */
+  .portfolio-form-card {
+    padding: 20px !important;
+    margin-bottom: 20px !important;
+  }
+
+  .portfolio-form-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+
+  .portfolio-form-grid.form-compact {
+    grid-template-columns: 1fr !important;
+  }
+
+  .form-actions {
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .form-actions button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Smart search results — single column on mobile */
+  .smart-results-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Search dropdown — full width */
+  .stock-search-dropdown {
+    left: 0 !important;
+    right: 0 !important;
+  }
+
+  /* Modal — larger on mobile */
+  .portfolio-modal-overlay {
+    padding: 16px !important;
+  }
+
+  .portfolio-confirm-dialog {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 24px !important;
+    border-radius: 16px !important;
+  }
+
+  .confirm-actions {
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .confirm-actions button {
+    width: 100% !important;
+  }
+
+  /* Stock cards — tighter */
+  .portfolio-pie-card {
+    padding: 20px !important;
+  }
+
+  .pie-card-title {
+    margin-bottom: 14px !important;
+  }
+
+  /* Portfolio header — stack */
+  .portfolio-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+    margin-bottom: 20px !important;
+  }
+
+  .portfolio-btn-primary {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
   /* ── Transaction history — tighter ───────────────────── */
   .tx-history-row {
     padding: 10px 12px !important;
