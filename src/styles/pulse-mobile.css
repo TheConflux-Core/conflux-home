@@ -20,30 +20,9 @@
 @media (max-width: 1024px) {
   /* ── Global Mobile Foundations ─────────────────────────── */
 
-  /* Wrapper: fill viewport, single scroll container */
+  /* Wrapper: pad bottom for fixed nav, let content scroll */
   .pulse-wrapper {
-    height: 100vh !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    -webkit-overflow-scrolling: touch !important;
-  }
-
-  /* Tab content: fill wrapper, no own scroll */
-  .pulse-tab-content {
-    height: auto !important;
-    min-height: calc(100vh - 72px) !important;
-    overflow: visible !important;
-  }
-
-  /* Inner tabs: no scroll, let content flow, pad for bottom nav */
-  .budget-matrix-v2,
-  .stocks-tab,
-  .portfolio-tab,
-  .speak-to-pulse,
-  .pulse-sessions-view {
-    overflow: visible !important;
-    height: auto !important;
-    padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: 150px !important;
   }
 
   /* ── Bottom Nav ────────────────────────────────────────── */
