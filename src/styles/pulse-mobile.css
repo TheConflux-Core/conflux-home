@@ -18,17 +18,11 @@
 }
 
 @media (max-width: 1024px) {
-  /* DEBUG: if you see a red border, the media query IS firing */
-  .pulse-wrapper {
-    border: 3px solid red !important;
-  }
-
   /* ── Global Mobile Foundations ─────────────────────────── */
 
   /* Kill the wrapper scroll — let individual tabs handle their own scrolling */
   .pulse-wrapper {
     overflow: hidden !important;
-    height: 100vh !important;
   }
 
   /* Prevent horizontal overflow on tab content */
