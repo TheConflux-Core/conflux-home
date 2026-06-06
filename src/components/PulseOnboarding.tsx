@@ -105,12 +105,8 @@ export default function PulseOnboarding({ onComplete }: Props) {
     };
   }, []);
 
-  // Auto-focus input
-  useEffect(() => {
-    if (phase === 'question') {
-      setTimeout(() => inputRef.current?.focus(), 400);
-    }
-  }, [phase]);
+  // No auto-focus on mobile — keyboard pops up and cuts off content
+  // User taps input or clicks a chip when ready
 
   const handleSubmit = useCallback(async () => {
     if (!incomeInput.trim()) return;
@@ -226,7 +222,6 @@ export default function PulseOnboarding({ onComplete }: Props) {
                 value={incomeInput}
                 onChange={e => setIncomeInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-                autoFocus
               />
               <span className="pulse-onboard-period">/ month</span>
             </div>

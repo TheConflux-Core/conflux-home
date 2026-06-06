@@ -183,7 +183,6 @@ export default function AgentIntroductions({
                 placeholder={currentConfig.placeholder}
                 value={inputs[currentConfig.id] || ''}
                 onChange={(e) => setInput(currentConfig.id, e.target.value)}
-                autoFocus
               />
             </div>
           )}

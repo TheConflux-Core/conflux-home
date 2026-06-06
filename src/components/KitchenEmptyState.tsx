@@ -68,7 +68,6 @@ export default function KitchenEmptyState({ onAddMeal, onOpenLibrary, isLoading 
                 placeholder={`e.g., "${hint}"`}
                 className="kitchen-empty-input"
                 disabled={isLoading}
-                autoFocus
               />
             </div>
 

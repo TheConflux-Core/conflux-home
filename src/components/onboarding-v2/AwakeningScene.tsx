@@ -764,7 +764,6 @@ function AwakeningSceneInner({ onComplete }: Props) {
       ttsTriggeredRef.current = true;
       setTimeout(() => {
         setShowInput(true);
-        setTimeout(() => inputRef.current?.focus(), 800);
         // Conflux speaks the welcome via ElevenLabs (once only)
         invoke<{ audio_base64: string }>('tts_speak', {
           text: "Welcome to Conflux Home!! My name is Conflux! ...What is your name?",
@@ -895,7 +894,7 @@ function AwakeningSceneInner({ onComplete }: Props) {
       )}
 
       {/* Logo + Title overlay */}
-      <div style={{
+      <div className="awakening-logo-overlay" style={{
         position: 'absolute',
         top: 0,
         marginTop: '8%',
@@ -934,7 +933,7 @@ function AwakeningSceneInner({ onComplete }: Props) {
 
       {/* Name input overlay */}
       {showInput && (
-        <div style={{
+        <div className="awakening-name-input-wrap" style={{
           position: 'absolute',
           bottom: '18%',
           left: '50%',
@@ -969,7 +968,6 @@ function AwakeningSceneInner({ onComplete }: Props) {
                 if (!showHint && e.target.value.length > 0) setShowHint(true);
               }}
               onKeyDown={handleKeyDown}
-              autoFocus
               style={{
                 width: '100%',
                 padding: '16px 0',

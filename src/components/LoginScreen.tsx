@@ -177,7 +177,7 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
   }, [])
 
   return (
-    <div style={styles.container}>
+    <div style={styles.container} className="login-screen">
       <style>{`
         .login-input:focus {
           border-color: rgba(124, 58, 237, 0.5) !important;
@@ -214,7 +214,6 @@ export default function LoginScreen({ onAuthSuccess }: LoginScreenProps) {
               placeholder="you@example.com"
               style={styles.input}
               className="login-input"
-              autoFocus
               disabled={loading}
             />
             {error && <p style={styles.error}>{error}</p>}

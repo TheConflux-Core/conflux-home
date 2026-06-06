@@ -90,7 +90,7 @@ const FoundationHero: React.FC<FoundationHeroProps> = ({ healthScore, systems, a
       </div>
 
       {/* System cards grid */}
-      <div style={{
+      <div className="foundation-hero-systems" style={{
         display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10,
       }}>
         {systems.map((sys, i) => {

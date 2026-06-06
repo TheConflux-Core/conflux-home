@@ -425,7 +425,7 @@ export default function DreamBuilderView() {
 
           {/* Recent Progress — all entries */}
           {selectedProgress.length > 0 && (
-            <div className="stellar-section" style={{ padding: '0 2rem 2rem', maxWidth: 1400, margin: '0 auto', position: 'relative', zIndex: 10 }}>
+            <div className="stellar-section stellar-activity-log" style={{ padding: '0 2rem 2rem', maxWidth: 1400, margin: '0 auto', position: 'relative', zIndex: 10 }}>
               <h3 className="stellar-section-title">📋 Activity Log</h3>
               {selectedProgress.map(p => (
                 <div key={p.id} className="stellar-insight-card">
@@ -443,7 +443,7 @@ export default function DreamBuilderView() {
 
           {/* Tasks Section */}
           {selectedTasks.length > 0 && (
-            <div className="stellar-section" style={{ padding: '0 2rem 2rem', maxWidth: 1400, margin: '0 auto', position: 'relative', zIndex: 10 }}>
+            <div className="stellar-section stellar-tasks-section" style={{ padding: '0 2rem 2rem', maxWidth: 1400, margin: '0 auto', position: 'relative', zIndex: 10 }}>
               <h3 className="stellar-section-title">📋 Tasks</h3>
               <div className="horizon-task-list">
                 {selectedTasks.map(t => (

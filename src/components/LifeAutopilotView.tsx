@@ -155,32 +155,16 @@ export default function LifeAutopilotView() {
         {parseFeedback && <div className="orbit-toast" style={{ color: '#10b981' }}>{parseFeedback}</div>}
 
         {/* Tab Switcher — Mission Manifest vs Agent Board */}
-        <div style={{
-          display: 'flex', gap: '4px', marginBottom: '16px',
-          background: 'rgba(255,255,255,0.03)', borderRadius: '10px',
-          padding: '3px', width: 'fit-content',
-        }}>
+        <div className="orbit-tab-switcher">
           <button
+            className={`orbit-tab-btn ${activeTab === 'manifest' ? 'orbit-tab-active' : ''}`}
             onClick={() => setActiveTab('manifest')}
-            style={{
-              padding: '6px 16px', fontSize: '12px', fontWeight: 600,
-              border: 'none', borderRadius: '8px', cursor: 'pointer',
-              background: activeTab === 'manifest' ? 'rgba(139,92,246,0.2)' : 'transparent',
-              color: activeTab === 'manifest' ? '#c4b5fd' : '#6b7280',
-              transition: 'all 0.15s',
-            }}
           >
             🎯 My Tasks
           </button>
           <button
+            className={`orbit-tab-btn ${activeTab === 'agentboard' ? 'orbit-tab-active' : ''}`}
             onClick={() => setActiveTab('agentboard')}
-            style={{
-              padding: '6px 16px', fontSize: '12px', fontWeight: 600,
-              border: 'none', borderRadius: '8px', cursor: 'pointer',
-              background: activeTab === 'agentboard' ? 'rgba(139,92,246,0.2)' : 'transparent',
-              color: activeTab === 'agentboard' ? '#c4b5fd' : '#6b7280',
-              transition: 'all 0.15s',
-            }}
           >
             🤖 Agent Board
           </button>

@@ -948,7 +948,6 @@ export default function AwakeningCanvas({ onComplete }: Props) {
                 if (!showHint && e.target.value.length > 0) setShowHint(true);
               }}
               onKeyDown={handleKeyDown}
-              autoFocus
             />
             <div className="awakening-input-beam" />
           </div>

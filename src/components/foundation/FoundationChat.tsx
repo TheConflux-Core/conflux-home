@@ -88,7 +88,7 @@ const FoundationChat: React.FC<FoundationChatProps> = ({ messages, onSend, loadi
       </div>
 
       {/* Input */}
-      <div style={{
+      <div className="foundation-chat-input-area" style={{
         display: 'flex', gap: 8, padding: '12px 0 4px',
         borderTop: '1px solid rgba(255,255,255,0.06)',
       }}>
@@ -108,6 +108,7 @@ const FoundationChat: React.FC<FoundationChatProps> = ({ messages, onSend, loadi
           }}
         />
         <button
+          className="foundation-chat-send"
           onClick={handleSend}
           disabled={!input.trim() || loading}
           style={{
