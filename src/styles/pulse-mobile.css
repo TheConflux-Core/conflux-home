@@ -20,9 +20,13 @@
 @media (max-width: 768px) {
   /* ── Global Mobile Foundations ─────────────────────────── */
 
-  /* Prevent horizontal overflow on main containers */
-  .pulse-app,
-  .pulse-main,
+  /* Kill the wrapper scroll — let individual tabs handle their own scrolling */
+  .pulse-wrapper {
+    overflow: hidden !important;
+    height: 100vh !important;
+  }
+
+  /* Prevent horizontal overflow on tab content */
   .budget-matrix-v2,
   .stocks-tab,
   .portfolio-tab,
