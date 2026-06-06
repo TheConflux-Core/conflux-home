@@ -8,8 +8,46 @@
   display: none; /* hidden on desktop */
 }
 
+.pulse-market-badge-mobile {
+  display: none;
+}
+
+@keyframes marketPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 @media (max-width: 768px) {
-  /* Show bottom nav */
+  /* ── Global Mobile Foundations ─────────────────────────── */
+
+  /* Prevent horizontal overflow on main containers */
+  .pulse-app,
+  .pulse-main,
+  .pulse-tab-content,
+  .budget-matrix-v2,
+  .stocks-tab,
+  .portfolio-tab,
+  .speak-to-pulse,
+  .pulse-sessions-view {
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Mobile scrollbar — thin & subtle */
+  *::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: rgba(16, 185, 129, 0.15);
+    border-radius: 2px;
+  }
+
+  /* ── Bottom Nav ────────────────────────────────────────── */
   .pulse-bottom-nav {
     display: flex;
     align-items: center;
@@ -42,7 +80,7 @@
     border: none;
     background: transparent;
     color: rgba(236, 253, 245, 0.45);
-    font-size: 0.62rem;
+    font-size: 0.7rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -56,7 +94,7 @@
   }
 
   .pulse-bottom-nav .pulse-tab-btn .tab-label {
-    font-size: 0.6rem;
+    font-size: 0.7rem;
     letter-spacing: 0.02em;
   }
 
@@ -101,8 +139,77 @@
   .portfolio-tab,
   .speak-to-pulse,
   .pulse-sessions-view,
-  .chat-history {
+  .chat-history,
+  .chat-messages {
     padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* ── Typography Scaling ────────────────────────────────── */
+
+  /* Hero values — responsive clamp */
+  .gauge-value,
+  .detail-current-price,
+  .hero-stat-value,
+  .hero-amount,
+  .hero-gain-value {
+    font-size: clamp(1.5rem, 5vw, 2.2rem) !important;
+  }
+
+  /* Body text */
+  .message-bubble,
+  .stock-company,
+  .detail-stat-value,
+  .holding-name,
+  .pulse-session-msg-content {
+    font-size: 0.85rem !important;
+  }
+
+  /* Labels */
+  .gauge-label,
+  .section-label,
+  .pill-label,
+  .banner-pill-label,
+  .detail-stat-label,
+  .holding-ticker {
+    font-size: 0.65rem !important;
+  }
+
+  /* Tab labels */
+  .pulse-bottom-nav .pulse-tab-btn .tab-label,
+  .pulse-view-tab {
+    font-size: 0.75rem !important;
+  }
+
+  /* ── Consistent Card Spacing ───────────────────────────── */
+  .stock-card,
+  .holdings-row,
+  .pulse-session-card,
+  .portfolio-hero-card,
+  .portfolio-pie-card,
+  .portfolio-form-card,
+  .pulse-health-hero,
+  .detail-stat,
+  .grid-row {
+    padding: 16px !important;
+    border-radius: 16px !important;
+    border: 1px solid rgba(16, 185, 129, 0.1) !important;
+  }
+
+  .stocks-grid,
+  .budget-cockpit,
+  .portfolio-hero-row,
+  .portfolio-charts-row {
+    gap: 12px !important;
+  }
+
+  /* ── Input Font Size — Prevent iOS Zoom ────────────────── */
+  .nlp-input,
+  .chat-input,
+  .add-search-input,
+  .pulse-app input[type="text"],
+  .pulse-app input[type="search"],
+  .pulse-app textarea {
+    font-size: 16px !important;
   }
 
   /* ── BudgetTab & BudgetView — responsive padding ─────── */
@@ -114,7 +221,6 @@
   /* ── Cockpit Gauge Cards — stack vertically ──────────── */
   .budget-cockpit {
     grid-template-columns: 1fr !important;
-    gap: 16px !important;
   }
 
   /* ── Stocks — hide ticker tape, show compact badge ───── */
@@ -124,12 +230,40 @@
 
   .pulse-market-badge-mobile {
     display: flex !important;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    margin-bottom: 16px;
+    background: rgba(2, 13, 8, 0.7);
+    border: 1px solid rgba(16, 185, 129, 0.15);
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(236, 253, 245, 0.6);
+  }
+
+  .pulse-market-badge-mobile .market-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .pulse-market-badge-mobile .market-dot.open {
+    background: #10b981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
+    animation: marketPulse 2s ease-in-out infinite;
+  }
+
+  .pulse-market-badge-mobile .market-dot.closed {
+    background: #6b7280;
   }
 
   /* ── Stocks grid — single column on mobile ───────────── */
   .stocks-grid {
     grid-template-columns: 1fr !important;
-    gap: 16px !important;
   }
 
   .stocks-tab {
@@ -154,7 +288,6 @@
 
   /* ── Stock Cards — Mobile Polish ──────────────────────── */
   .stock-card {
-    padding: 16px !important;
     width: 100% !important;
     box-sizing: border-box !important;
   }
@@ -175,17 +308,16 @@
 
   .stock-card-header .stock-company {
     max-width: 140px !important;
-    font-size: 0.65rem !important;
   }
 
-  /* Price display — verified 1.6rem */
+  /* Price display */
   .stock-price-display {
     font-size: 1.6rem !important;
     padding: 4px 10px !important;
     min-width: 90px !important;
   }
 
-  /* Change badge — readable */
+  /* Change badge */
   .stock-change-inline {
     font-size: 0.8rem !important;
   }
@@ -221,10 +353,6 @@
     gap: 10px !important;
   }
 
-  .detail-stat {
-    padding: 10px 12px !important;
-  }
-
   /* Chart area — full width, min height */
   .detail-chart-wrap {
     width: 100% !important;
@@ -252,6 +380,18 @@
     flex-shrink: 0 !important;
   }
 
+  /* Collapsed price row */
+  .stock-collapsible:not(.stock-card-expanded) .stock-price-display {
+    font-size: 1.6rem !important;
+    padding: 4px 10px !important;
+    min-width: 90px !important;
+  }
+
+  .stock-collapsible:not(.stock-card-expanded) .stock-price-row {
+    gap: 10px !important;
+    margin: 10px 0 6px !important;
+  }
+
   /* ── Add Stock Modal — Full Screen on Mobile ──────────── */
   .add-stock-modal {
     width: 100% !important;
@@ -265,7 +405,6 @@
   }
 
   .add-search-input {
-    font-size: 16px !important;
     padding: 14px 16px !important;
   }
 
@@ -293,16 +432,9 @@
     min-height: 48px !important;
   }
 
-  /* Collapsed price row — tighter */
-  .stock-collapsible:not(.stock-card-expanded) .stock-price-display {
-    font-size: 1.6rem !important;
-    padding: 4px 10px !important;
-    min-width: 90px !important;
-  }
-
-  .stock-collapsible:not(.stock-card-expanded) .stock-price-row {
-    gap: 10px !important;
-    margin: 10px 0 6px !important;
+  /* ── Add stock form — single column fields ───────────── */
+  .add-form-fields {
+    grid-template-columns: 1fr !important;
   }
 
   /* ═══════════════════════════════════════════════════════════
@@ -435,7 +567,6 @@
 
   .pulse-view-tab {
     padding: 5px 10px !important;
-    font-size: 0.72rem !important;
     gap: 4px !important;
   }
 
@@ -450,7 +581,6 @@
     flex: 1 !important;
     min-height: 0 !important;
     overflow-y: auto !important;
-    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
   .chat-message {
@@ -467,7 +597,6 @@
 
   .message-bubble {
     padding: 10px 14px !important;
-    font-size: 0.85rem !important;
     line-height: 1.5 !important;
   }
 
@@ -516,7 +645,6 @@
   }
 
   .chat-input {
-    font-size: 0.88rem !important;
     padding: 10px 14px !important;
   }
 
@@ -587,7 +715,6 @@
     flex: 1 !important;
     min-height: 0 !important;
     overflow-y: auto !important;
-    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
   .pulse-sessions-intro h3 {
@@ -602,11 +729,7 @@
     gap: 6px !important;
   }
 
-  /* ── Session Cards — full width ───────────────────────── */
-  .pulse-session-card {
-    border-radius: 10px !important;
-  }
-
+  /* ── Session Cards ────────────────────────────────────── */
   .pulse-session-card-header {
     padding: 10px 12px !important;
   }
@@ -629,18 +752,11 @@
   }
 
   .pulse-session-msg-content {
-    font-size: 0.8rem !important;
     padding: 6px 10px !important;
     max-width: 92% !important;
   }
 
-  /* ── Pulse Health Hero Card — compact ─────────────────── */
-  .pulse-health-hero {
-    padding: 14px 16px !important;
-    gap: 14px !important;
-    border-radius: 14px !important;
-  }
-
+  /* ── Pulse Health Hero Card ───────────────────────────── */
   .pulse-health-status {
     font-size: 1rem !important;
   }
@@ -652,10 +768,6 @@
   .pulse-metric-pill {
     padding: 4px 10px !important;
     min-width: 70px !important;
-  }
-
-  .pill-label {
-    font-size: 0.5rem !important;
   }
 
   .pill-value {
@@ -673,18 +785,10 @@
     font-size: 1rem !important;
   }
 
-  /* (Stock card mobile styles moved to dedicated section above) */
-
-  /* ── Add stock form — single column fields ───────────── */
-  .add-form-fields {
-    grid-template-columns: 1fr !important;
-  }
-
   /* ── Matrix grid — simplify on mobile ────────────────── */
   .grid-row {
     grid-template-columns: 1fr !important;
     gap: 8px !important;
-    padding: 12px !important;
   }
 
   .grid-row.header-row {
@@ -700,11 +804,12 @@
     display: none !important;
   }
 
-  /* ── Modal — full width on mobile ────────────────────── */
+  /* ── Modals — polish on mobile ────────────────────────── */
   .modal-content {
     width: 95% !important;
     max-height: 90vh !important;
     border-radius: 16px !important;
+    overflow-y: auto !important;
   }
 
   .stock-detail-modal {
@@ -712,6 +817,8 @@
     min-height: auto !important;
     margin: 16px auto !important;
     border-radius: 16px !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
   }
 
   .stock-detail-overlay {
@@ -719,6 +826,20 @@
     right: 0 !important;
     bottom: 0 !important;
     left: 0 !important;
+  }
+
+  .quick-log-modal {
+    width: 95% !important;
+    max-height: 90vh !important;
+    border-radius: 16px !important;
+    overflow-y: auto !important;
+  }
+
+  .transaction-log-modal {
+    width: 95% !important;
+    max-height: 90vh !important;
+    border-radius: 16px !important;
+    overflow-y: auto !important;
   }
 
   /* ── NLP input bar — tighter on mobile ───────────────── */
@@ -731,11 +852,6 @@
     font-size: 0.75rem !important;
   }
 
-  /* ── Quick log modal — full width ────────────────────── */
-  .quick-log-modal {
-    width: 95% !important;
-  }
-
   /* ── Portfolio responsive ────────────────────────────── */
   .portfolio-tab {
     padding: 20px 16px !important;
@@ -744,34 +860,18 @@
   /* Hero cards — stack vertically */
   .portfolio-hero-row {
     grid-template-columns: 1fr !important;
-    gap: 14px !important;
     margin-bottom: 20px !important;
-  }
-
-  .portfolio-hero-card {
-    padding: 20px !important;
-    border-radius: 16px !important;
-  }
-
-  .hero-amount {
-    font-size: 1.8rem !important;
-  }
-
-  .hero-gain-value {
-    font-size: 1.4rem !important;
   }
 
   .health-score-card {
     grid-column: auto !important;
     flex-direction: column !important;
-    padding: 20px !important;
     min-width: auto !important;
   }
 
   /* Charts row — stack vertically */
   .portfolio-charts-row {
     grid-template-columns: 1fr !important;
-    gap: 14px !important;
     margin-bottom: 20px !important;
   }
 
@@ -816,11 +916,8 @@
     grid-template-columns: none !important;
     gap: 0 !important;
     width: 100% !important;
-    padding: 16px !important;
     margin-bottom: 10px !important;
     background: rgba(6, 41, 22, 0.6) !important;
-    border: 1px solid rgba(16, 185, 129, 0.1) !important;
-    border-radius: 14px !important;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
     animation: none !important;
   }
@@ -845,7 +942,6 @@
 
   .holding-ticker {
     margin-left: 0 !important;
-    font-size: 0.72rem !important;
   }
 
   .type-badge {
@@ -928,11 +1024,6 @@
   }
 
   /* Form — full width, single column */
-  .portfolio-form-card {
-    padding: 20px !important;
-    margin-bottom: 20px !important;
-  }
-
   .portfolio-form-grid {
     grid-template-columns: 1fr !important;
     gap: 14px !important;
@@ -972,7 +1063,6 @@
     width: 100% !important;
     max-width: 100% !important;
     padding: 24px !important;
-    border-radius: 16px !important;
   }
 
   .confirm-actions {
@@ -982,15 +1072,6 @@
 
   .confirm-actions button {
     width: 100% !important;
-  }
-
-  /* Stock cards — tighter */
-  .portfolio-pie-card {
-    padding: 20px !important;
-  }
-
-  .pie-card-title {
-    margin-bottom: 14px !important;
   }
 
   /* Portfolio header — stack */
@@ -1014,43 +1095,4 @@
   .tx-row-desc {
     max-width: 120px !important;
   }
-}
-
-/* ── Compact Market Badge (hidden on desktop) ────────────── */
-.pulse-market-badge-mobile {
-  display: none;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  margin-bottom: 16px;
-  background: rgba(2, 13, 8, 0.7);
-  border: 1px solid rgba(16, 185, 129, 0.15);
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgba(236, 253, 245, 0.6);
-}
-
-.pulse-market-badge-mobile .market-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.pulse-market-badge-mobile .market-dot.open {
-  background: #10b981;
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
-  animation: marketPulse 2s ease-in-out infinite;
-}
-
-.pulse-market-badge-mobile .market-dot.closed {
-  background: #6b7280;
-}
-
-@keyframes marketPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
 }
