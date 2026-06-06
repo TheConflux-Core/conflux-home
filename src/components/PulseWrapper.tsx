@@ -14,6 +14,7 @@ import PortfolioTab from './PortfolioTab';
 // import InvestmentsTab from './InvestmentsTab';
 import SpeakToPulseTab from './SpeakToPulseTab';
 import '../styles/pulse-tabs.css';
+import '../styles/pulse-mobile.css';
 
 export type PulseTab = 'budget' | 'stocks' | 'portfolio' | 'speak';
 
@@ -164,6 +165,23 @@ export default function PulseWrapper() {
 
 
           <div className="pulse-tab-spacer" />
+        </nav>
+      )}
+
+      {/* Bottom Tab Navigation (mobile only — hidden on desktop via CSS) */}
+      {showTabBar && (
+        <nav className="pulse-bottom-nav">
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              className={`pulse-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <span className="tab-icon" dangerouslySetInnerHTML={{ __html: tab.iconSvg }} />
+              <span className="tab-label">{tab.label}</span>
+              {activeTab === tab.id && <span className="tab-active-dot" />}
+            </button>
+          ))}
         </nav>
       )}
 

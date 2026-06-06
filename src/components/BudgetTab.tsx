@@ -242,7 +242,7 @@ export default function BudgetTab({ preOnboarding = false }: BudgetTabProps) {
 
   // ── JSX ─────────────────────────────────────────────────
   return (
-    <div className="budget-matrix-v2" style={{ paddingTop: preOnboarding ? '50px' : '20px', paddingBottom: '120px', paddingLeft: '121px', paddingRight: '121px' }}>
+    <div className="budget-matrix-v2" style={{ paddingTop: preOnboarding ? '50px' : '20px', paddingBottom: '120px' }}>
       <div className="matrix-bg-effects" />
       <PulseParticles />
 

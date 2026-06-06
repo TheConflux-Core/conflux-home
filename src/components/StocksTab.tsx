@@ -599,6 +599,14 @@ export default function StocksTab() {
     <div className="stocks-tab">
       <div className="ticker-zone"><TickerTape /></div>
 
+      {/* Compact market badge — visible on mobile only (ticker-zone hidden via CSS) */}
+      {(() => { const ms = getMarketStatus(); const isOpen = ms.label.includes('Open'); return (
+        <div className="pulse-market-badge-mobile">
+          <span className={`market-dot ${isOpen ? 'open' : 'closed'}`} />
+          <span>{isOpen ? 'Market Open' : 'Market Closed'}</span>
+        </div>
+      ); })()}
+
       <div className="stocks-header">
         <div className="stocks-title-block">
           <h2 className="stocks-title">📈 Watchlist</h2>
