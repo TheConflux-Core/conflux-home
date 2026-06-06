@@ -152,6 +152,159 @@
     justify-content: center;
   }
 
+  /* ── Stock Cards — Mobile Polish ──────────────────────── */
+  .stock-card {
+    padding: 16px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .stock-card-header {
+    min-height: 48px !important;
+    padding: 4px 0 !important;
+  }
+
+  .stock-card-header .stock-symbol-block {
+    min-width: 0 !important;
+    flex: 1 !important;
+  }
+
+  .stock-card-header .stock-symbol {
+    font-size: 1.3rem !important;
+  }
+
+  .stock-card-header .stock-company {
+    max-width: 140px !important;
+    font-size: 0.65rem !important;
+  }
+
+  /* Price display — verified 1.6rem */
+  .stock-price-display {
+    font-size: 1.6rem !important;
+    padding: 4px 10px !important;
+    min-width: 90px !important;
+  }
+
+  /* Change badge — readable */
+  .stock-change-inline {
+    font-size: 0.8rem !important;
+  }
+
+  /* Expand button — 44px touch target */
+  .stock-expand-btn {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    border-radius: 10px !important;
+    font-size: 0.9rem !important;
+  }
+
+  /* Delete button — 44px touch target */
+  .stock-delete-btn {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    border-radius: 10px !important;
+    font-size: 0.85rem !important;
+  }
+
+  /* Expanded content — full width */
+  .stock-expanded-content {
+    width: 100% !important;
+  }
+
+  /* Detail stats grid — single column */
+  .detail-stats-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .detail-stat {
+    padding: 10px 12px !important;
+  }
+
+  /* Chart area — full width, min height */
+  .detail-chart-wrap {
+    width: 100% !important;
+    min-height: 140px !important;
+    padding: 10px 6px !important;
+  }
+
+  /* Range tabs — horizontal scroll */
+  .detail-range-tabs {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    width: 100% !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .detail-range-tabs::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .range-tab {
+    padding: 6px 10px !important;
+    font-size: 0.7rem !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* ── Add Stock Modal — Full Screen on Mobile ──────────── */
+  .add-stock-modal {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    border-radius: 0 !important;
+    inset: 0 !important;
+    margin: 0 !important;
+    align-self: stretch !important;
+  }
+
+  .add-search-input {
+    font-size: 16px !important;
+    padding: 14px 16px !important;
+  }
+
+  .add-search-input-wrap {
+    padding: 14px 16px !important;
+  }
+
+  .add-sector-select {
+    padding: 14px 16px !important;
+    font-size: 0.95rem !important;
+    min-height: 48px !important;
+  }
+
+  .add-modal-actions {
+    flex-direction: column !important;
+    gap: 10px !important;
+    margin-top: 12px !important;
+  }
+
+  .add-modal-actions button {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 14px 20px !important;
+    font-size: 0.95rem !important;
+    min-height: 48px !important;
+  }
+
+  /* Collapsed price row — tighter */
+  .stock-collapsible:not(.stock-card-expanded) .stock-price-display {
+    font-size: 1.6rem !important;
+    padding: 4px 10px !important;
+    min-width: 90px !important;
+  }
+
+  .stock-collapsible:not(.stock-card-expanded) .stock-price-row {
+    gap: 10px !important;
+    margin: 10px 0 6px !important;
+  }
+
   /* ═══════════════════════════════════════════════════════════
      SPEAK TO PULSE — Full-Width Chat on Mobile
      ═══════════════════════════════════════════════════════════ */
@@ -520,16 +673,7 @@
     font-size: 1rem !important;
   }
 
-  /* ── Stock cards — reduce padding ────────────────────── */
-  .stock-card {
-    padding: 16px !important;
-  }
-
-  .stock-price-display {
-    font-size: 1.6rem !important;
-    padding: 4px 12px !important;
-    min-width: 100px !important;
-  }
+  /* (Stock card mobile styles moved to dedicated section above) */
 
   /* ── Add stock form — single column fields ───────────── */
   .add-form-fields {
