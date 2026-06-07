@@ -567,20 +567,35 @@ export default function App() {
       soundManager.playAgentWake('conflux');
       try {
         await invoke('voice_capture_start');
+        window.dispatchEvent(new CustomEvent('push-to-talk-start'));
       } catch (err) {
         console.error('Failed to start voice capture:', err);
+        // Recording failed — clean up state so UI doesn't get stuck
+        setIsPushToTalkActive(false);
+        window.dispatchEvent(new CustomEvent('conflux-force-idle'));
       }
-      window.dispatchEvent(new CustomEvent('push-to-talk-start'));
     };
 
     const stopPTT = async () => {
-      if (!isPushToTalkActive) return;
-      if (pttCancelledRef.current) return;
+      // Always stop recording regardless of isPushToTalkActive state
+      // (handles rapid click where state toggles before stop fires)
+      if (pttCancelledRef.current) {
+        setIsPushToTalkActive(false);
+        return;
+      }
       setIsPushToTalkActive(false);
       window.dispatchEvent(new CustomEvent('push-to-talk-end'));
 
       try {
         const result = await invoke<{ samples: number; duration_seconds: number; transcript?: string | null }>('voice_capture_stop');
+
+        // Guard: no audio recorded (quick click/tap without speech)
+        if (!result.samples || result.samples < 1600) {
+          console.log('[Voice] No meaningful audio captured (%d samples) — returning to idle', result.samples);
+          window.dispatchEvent(new CustomEvent('conflux-force-idle'));
+          return;
+        }
+
         window.dispatchEvent(new CustomEvent('conflux-thinking', { detail: { text: '(transcribing...)' } }));
 
         // Fast path: realtime STT already gave us a transcript synchronously
@@ -619,12 +634,16 @@ export default function App() {
             await handleVoiceInput(text.trim());
             return;
           }
+          // Empty transcript — no speech detected
+          console.log('[Voice] Batch STT returned empty transcript — returning to idle');
+          window.dispatchEvent(new CustomEvent('conflux-force-idle'));
         } catch (e) {
           console.error('[Voice] Batch STT failed:', e);
+          window.dispatchEvent(new CustomEvent('conflux-force-idle'));
         }
       } catch (err) {
         console.error('[Voice] Transcription/Chat failed:', err);
-        window.dispatchEvent(new CustomEvent('conflux-idle'));
+        window.dispatchEvent(new CustomEvent('conflux-force-idle'));
       } finally {
         window.dispatchEvent(new CustomEvent('conflux-transcription-done'));
       }
@@ -739,9 +758,14 @@ export default function App() {
             console.warn('[Voice] TTS failed:', ttsErr);
             window.dispatchEvent(new CustomEvent('conflux-idle'));
           }
+        } else {
+          // No content to speak — return to idle
+          console.log('[Voice] Chat returned no content — returning to idle');
+          window.dispatchEvent(new CustomEvent('conflux-force-idle'));
         }
       } catch (err) {
         console.error('[Voice] Chat failed:', err);
+        window.dispatchEvent(new CustomEvent('conflux-force-idle'));
       }
     };
 

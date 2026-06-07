@@ -96,10 +96,12 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
 
         // Last resort: batch Whisper / ElevenLabs
         const text = await invoke<string>('voice_transcribe');
-        if (text) {
+        if (text && text.trim()) {
           options.onTranscription(text);
         }
+        // If still no text, silently return — caller handles empty result
       }
+      // else: too few samples, no speech detected — return silently
     } catch (e) {
       if (!abortRef.current || (e instanceof Error && !e.message.includes('Not recording'))) {
         setError(e instanceof Error ? e.message : String(e));

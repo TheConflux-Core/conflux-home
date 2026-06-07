@@ -57,10 +57,18 @@ export default function VoiceOverlay({ active, onTranscription, onDone, maxDurat
 
   // Auto-close after transcription completes
   useEffect(() => {
-    if (active && !isListening && !isTranscribing && transcript && !doneRef.current) {
-      doneRef.current = true;
-      const t = setTimeout(onDone, 1000);
-      return () => clearTimeout(t);
+    if (active && !isListening && !isTranscribing && !doneRef.current) {
+      if (transcript) {
+        // Got transcription — wait briefly then close
+        doneRef.current = true;
+        const t = setTimeout(onDone, 1000);
+        return () => clearTimeout(t);
+      } else if (!isListening && !isTranscribing && hasStartedRef.current) {
+        // No transcript and not listening — close immediately (no speech detected)
+        doneRef.current = true;
+        const t = setTimeout(onDone, 300);
+        return () => clearTimeout(t);
+      }
     }
   }, [active, isListening, isTranscribing, transcript, onDone]);
 
