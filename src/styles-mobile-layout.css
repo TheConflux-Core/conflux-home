@@ -445,7 +445,8 @@
      ────────────────────────────────────────────────────────── */
 
   .voice-fab {
-    bottom: 90px;
+    bottom: 20px;
+    right: 12px;
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -1169,6 +1170,43 @@
 
   .immersive-content [style*="minWidth: 280"] {
     min-width: 0 !important;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     27b. APP BOTTOM PADDING — specificity overrides
+         .immersive-content > div (class+element) beats single-class
+         selectors. These use .immersive-content > .class (same
+         specificity) and come AFTER §27 so they win on source order.
+         Proven fix from Pulse debugging 2026-06-06.
+     ────────────────────────────────────────────────────────── */
+
+  .immersive-content > .pulse-wrapper,
+  .immersive-content > .mission-control-view,
+  .immersive-content > .kitchen-matrix,
+  .immersive-content > .stellar-view,
+  .immersive-content > .echo-counselor-view,
+  .immersive-content > .feed-radar-view,
+  .immersive-content > .foundation-view,
+  .immersive-content > .studio-dashboard-container,
+  .immersive-content > .grove,
+  .immersive-content > .agents-hub,
+  .immersive-content > .vault-container,
+  .immersive-content > .google-view,
+  .immersive-content > .sec-app,
+  .immersive-content > .settings-page,
+  .immersive-content > .games-page {
+    padding-top: 16px !important;
+    padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* Modals — same padding treatment as app views */
+  .modal-overlay .modal-content,
+  .agent-detail-overlay .modal-content,
+  .mc-modal-overlay .mc-modal-content,
+  .modal-content.quick-log-modal,
+  .modal-content.transaction-log-modal {
+    padding-top: 16px !important;
+    padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
   /* ══════════════════════════════════════════════════════════
@@ -2659,7 +2697,7 @@
      ────────────────────────────────────────────────────────── */
 
   .voice-fab {
-    bottom: 90px !important;
+    bottom: 20px !important;
     right: 12px !important;
   }
 
@@ -8243,55 +8281,122 @@
     padding: 12px 10px 0 10px !important;
     gap: 0 !important;
     overflow-x: hidden !important;
-    overflow-y: auto !important;
+    overflow-y: hidden !important;
+    height: auto !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
 
   /* ──────────────────────────────────────────────────────────
-     134. VAULT HERO — compact header
+     134. VAULT TITLE BAR — compact 48px header (replaces hero)
      ────────────────────────────────────────────────────────── */
 
+  /* Hide hero entirely on mobile */
   .vault-hero {
-    padding: 16px 12px !important;
-    margin-bottom: 8px !important;
-    border-radius: 14px !important;
-    position: relative !important;
-    flex-wrap: wrap !important;
-    gap: 12px !important;
+    display: none !important;
   }
 
   .vault-hero-glow {
-    width: 200px !important;
-    height: 100px !important;
+    display: none !important;
   }
 
-  .vault-hero-icon svg {
-    width: 44px !important;
-    height: 44px !important;
+  .vault-hero-icon {
+    display: none !important;
   }
 
   .vault-hero-title {
-    font-size: 20px !important;
+    display: none !important;
   }
 
   .vault-hero-sub {
-    font-size: 12px !important;
+    display: none !important;
   }
 
   .vault-hero-content {
-    width: 100% !important;
+    display: none !important;
   }
 
-  /* Studio button — repositioned for mobile */
   .vault-hero-top-bar {
-    position: absolute !important;
-    top: 8px !important;
-    right: 10px !important;
+    display: none !important;
   }
 
+  /* Compact title bar — 48px, dark glass, purple glow */
+  .immersive-content > .vault-container .vault-title-bar {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    padding: 0 14px !important;
+    margin-bottom: 0 !important;
+    background: rgba(20, 15, 35, 0.8) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border-bottom: 1px solid rgba(128, 90, 213, 0.15) !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 10 !important;
+  }
+
+  .vault-title-bar-left {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+
+  .vault-title-bar-icon {
+    width: 24px !important;
+    height: 24px !important;
+    color: #8b5cf6 !important;
+    flex-shrink: 0 !important;
+  }
+
+  .vault-title-bar-icon svg {
+    width: 24px !important;
+    height: 24px !important;
+  }
+
+  .vault-title-bar-text {
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    background: linear-gradient(135deg, #8b5cf6, #c4b5fd) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+    letter-spacing: -0.02em !important;
+  }
+
+  /* Back button for project drill-down */
+  .vault-title-bar-back {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 10px !important;
+    background: rgba(139, 92, 246, 0.12) !important;
+    color: #c4b5fd !important;
+    font-size: 18px !important;
+    border: none !important;
+    cursor: pointer !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  .vault-title-bar-back:active {
+    background: rgba(139, 92, 246, 0.25) !important;
+  }
+
+  /* Studio button — in title bar */
   .vault-studio-btn {
-    padding: 6px 12px !important;
+    padding: 6px 14px !important;
     font-size: 12px !important;
-    min-height: 36px !important;
+    min-height: 32px !important;
+    border-radius: 8px !important;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(168, 85, 247, 0.15)) !important;
+    border: 1px solid rgba(139, 92, 246, 0.3) !important;
+    color: #c4b5fd !important;
+    -webkit-tap-highlight-color: transparent !important;
   }
 
   /* ──────────────────────────────────────────────────────────
@@ -8302,135 +8407,24 @@
     flex-direction: column !important;
     gap: 0 !important;
     min-height: 0 !important;
+    flex: 1 !important;
+    overflow: hidden !important;
   }
 
   /* ──────────────────────────────────────────────────────────
-     136. VAULT SIDEBAR — horizontal scroll tabs on mobile
+     136. VAULT SIDEBAR — hidden on mobile (replaced by bottom tabs + filter chips)
      ────────────────────────────────────────────────────────── */
 
   .vault-sidebar {
-    width: 100% !important;
-    min-width: 100% !important;
-    max-height: none !important;
-    border-right: none !important;
-    border-bottom: 1px solid var(--vault-border, rgba(128, 90, 213, 0.15)) !important;
-    padding: 8px 0 !important;
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-    -webkit-overflow-scrolling: touch !important;
-    scrollbar-width: none !important;
-    display: flex !important;
-    flex-direction: row !important;
-    gap: 0 !important;
-  }
-
-  .vault-sidebar::-webkit-scrollbar {
     display: none !important;
   }
 
-  .vault-sidebar-section {
-    padding: 0 8px !important;
-    margin-bottom: 0 !important;
-    flex-shrink: 0 !important;
-  }
-
-  .vault-sidebar-title {
-    display: none !important;
-  }
-
-  /* Folder tree — horizontal row */
-  .vault-folder-tree {
-    display: flex !important;
-    gap: 4px !important;
-  }
-
-  .vault-folder-item {
-    padding: 6px 10px !important;
-    font-size: 12px !important;
-    white-space: nowrap !important;
-    flex-shrink: 0 !important;
-    border-left: none !important;
-    border-bottom: 2px solid transparent !important;
-    border-radius: 8px 8px 0 0 !important;
-    min-height: 36px !important;
-  }
-
-  .vault-folder-item:hover {
-    border-left-color: transparent !important;
-    border-bottom-color: var(--vault-accent) !important;
-  }
-
-  .vault-folder-item.active {
-    border-left-color: transparent !important;
-    border-bottom-color: var(--vault-accent) !important;
-  }
-
-  .vault-folder-icon {
-    font-size: 14px !important;
-  }
-
-  /* Project list — horizontal row */
-  .vault-project-list {
-    display: flex !important;
-    gap: 4px !important;
-  }
-
-  .vault-project-item {
-    padding: 6px 10px !important;
-    font-size: 12px !important;
-    white-space: nowrap !important;
-    flex-shrink: 0 !important;
-    border-left: none !important;
-    border-bottom: 2px solid transparent !important;
-    border-radius: 8px 8px 0 0 !important;
-    min-height: 36px !important;
-  }
-
-  .vault-project-item.active {
-    border-left: none !important;
-    border-bottom: 2px solid var(--vault-accent) !important;
-    padding-left: 10px !important;
-  }
-
-  .vault-project-meta {
-    flex-direction: row !important;
-    gap: 6px !important;
-    align-items: center !important;
-  }
-
-  .vault-project-file-count {
-    font-size: 10px !important;
-  }
-
-  .vault-project-icon {
-    font-size: 14px !important;
-  }
-
-  .vault-project-actions {
-    margin-left: 0 !important;
-  }
-
-  .vault-project-action-btn {
-    padding: 4px !important;
-    min-width: 28px !important;
-    min-height: 28px !important;
-  }
-
-  /* New project button — compact in row */
-  .vault-new-project-btn {
-    white-space: nowrap !important;
-    padding: 6px 10px !important;
-    font-size: 12px !important;
-    min-height: 36px !important;
-    width: auto !important;
-    margin-top: 0 !important;
-  }
-
-  /* Tag cloud — horizontal scroll */
+  /* Tag cloud — horizontal scroll (KEEP — still useful for browse tab) */
   .vault-tag-cloud {
     flex-wrap: nowrap !important;
     overflow-x: auto !important;
     scrollbar-width: none !important;
+    display: flex !important;
   }
 
   .vault-tag-cloud::-webkit-scrollbar {
@@ -8449,13 +8443,18 @@
 
   .vault-main {
     min-width: 0 !important;
+    min-height: 0 !important;
+    flex: 1 !important;
     overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
 
   /* Search bar — compact */
   .vault-search-bar {
     padding: 10px 8px !important;
     gap: 8px !important;
+    flex-shrink: 0 !important;
   }
 
   .vault-search-input {
@@ -8473,6 +8472,7 @@
     padding: 8px !important;
     flex-wrap: wrap !important;
     gap: 8px !important;
+    flex-shrink: 0 !important;
   }
 
   .vault-toolbar-group {
@@ -8507,6 +8507,10 @@
 
   .vault-content-area {
     padding: 12px 8px !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
   .vault-grid {
@@ -8642,6 +8646,7 @@
     padding: 8px 10px !important;
     margin: 0 0 6px !important;
     border-radius: 10px !important;
+    flex-shrink: 0 !important;
   }
 
   .vault-selection-count {
@@ -8727,6 +8732,7 @@
     gap: 10px !important;
     padding: 8px 10px !important;
     font-size: 11px !important;
+    flex-shrink: 0 !important;
   }
 
   .vault-stat {
@@ -8779,13 +8785,733 @@
     font-size: 13px !important;
   }
 
+  /* ──────────────────────────────────────────────────────────
+     146. VAULT BOTTOM TAB BAR — 4 tabs, dark glass, 56px
+     ────────────────────────────────────────────────────────── */
+
+  .immersive-content > .vault-container .vault-bottom-tabs {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-around !important;
+    height: 56px !important;
+    min-height: 56px !important;
+    background: rgba(20, 15, 35, 0.85) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border-top: 1px solid rgba(128, 90, 213, 0.15) !important;
+    padding: 0 8px !important;
+    padding-bottom: env(safe-area-inset-bottom, 0) !important;
+    position: relative !important;
+    z-index: 10 !important;
+    flex-shrink: 0 !important;
+  }
+
+  .vault-tab-btn {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 2px !important;
+    flex: 1 !important;
+    padding: 6px 0 !important;
+    min-height: 48px !important;
+    background: transparent !important;
+    border: none !important;
+    cursor: pointer !important;
+    -webkit-tap-highlight-color: transparent !important;
+    transition: color 0.2s ease !important;
+    color: #8a8694 !important;
+    position: relative !important;
+  }
+
+  .vault-tab-btn.active {
+    color: #8b5cf6 !important;
+  }
+
+  .vault-tab-btn.active::after {
+    content: '' !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 28px !important;
+    height: 2px !important;
+    background: #8b5cf6 !important;
+    border-radius: 1px !important;
+    box-shadow: 0 0 8px rgba(139, 92, 246, 0.5) !important;
+  }
+
+  .vault-tab-btn:active {
+    background: rgba(139, 92, 246, 0.1) !important;
+  }
+
+  .vault-tab-icon {
+    font-size: 20px !important;
+    line-height: 1 !important;
+  }
+
+  .vault-tab-label {
+    font-size: 10px !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.02em !important;
+    line-height: 1 !important;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     147. VAULT FILTER CHIPS BAR — horizontal scroll below title
+     ────────────────────────────────────────────────────────── */
+
+  .immersive-content > .vault-container .vault-filter-bar {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    padding: 0 12px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch !important;
+    background: rgba(20, 15, 35, 0.5) !important;
+    border-bottom: 1px solid rgba(128, 90, 213, 0.1) !important;
+    flex-shrink: 0 !important;
+  }
+
+  .vault-filter-bar::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .vault-filter-chip {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    padding: 4px 12px !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    border-radius: 20px !important;
+    border: 1px solid rgba(128, 90, 213, 0.2) !important;
+    background: rgba(20, 15, 35, 0.6) !important;
+    color: #8a8694 !important;
+    cursor: pointer !important;
+    -webkit-tap-highlight-color: transparent !important;
+    transition: all 0.2s ease !important;
+    min-height: 28px !important;
+  }
+
+  .vault-filter-chip:active {
+    transform: scale(0.96) !important;
+  }
+
+  .vault-filter-chip.active {
+    background: rgba(139, 92, 246, 0.25) !important;
+    border-color: rgba(139, 92, 246, 0.5) !important;
+    color: #c4b5fd !important;
+    box-shadow: 0 0 8px rgba(139, 92, 246, 0.2) !important;
+  }
+
+  .vault-filter-chip-icon {
+    font-size: 13px !important;
+    line-height: 1 !important;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     148. VAULT CONTEXT MENU — bottom sheet overlay
+     ────────────────────────────────────────────────────────── */
+
+  .immersive-content > .vault-container .vault-context-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 100 !important;
+    background: rgba(0, 0, 0, 0.55) !important;
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
+    display: flex !important;
+    align-items: flex-end !important;
+    justify-content: center !important;
+    animation: vault-context-fade-in 0.2s ease !important;
+  }
+
+  @keyframes vault-context-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .vault-context-menu {
+    width: 100% !important;
+    max-width: 420px !important;
+    background: rgba(20, 15, 35, 0.95) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border-top: 1px solid rgba(128, 90, 213, 0.2) !important;
+    border-radius: 16px 16px 0 0 !important;
+    padding: 0 !important;
+    padding-bottom: env(safe-area-inset-bottom, 12px) !important;
+    animation: vault-context-slide-up 0.3s cubic-bezier(0.32, 0.72, 0, 1) !important;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.4) !important;
+  }
+
+  @keyframes vault-context-slide-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  .vault-context-header {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 14px 16px !important;
+    border-bottom: 1px solid rgba(128, 90, 213, 0.1) !important;
+  }
+
+  .vault-context-header-icon {
+    font-size: 28px !important;
+    width: 36px !important;
+    height: 36px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: rgba(139, 92, 246, 0.1) !important;
+    border-radius: 8px !important;
+  }
+
+  .vault-context-header-info {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 2px !important;
+    min-width: 0 !important;
+  }
+
+  .vault-context-header-name {
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: #e2e0ea !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .vault-context-header-meta {
+    font-size: 11px !important;
+    color: #8a8694 !important;
+  }
+
+  .vault-context-actions {
+    padding: 8px 0 !important;
+  }
+
+  .vault-context-action {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    width: 100% !important;
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+    color: #e2e0ea !important;
+    background: transparent !important;
+    border: none !important;
+    cursor: pointer !important;
+    -webkit-tap-highlight-color: transparent !important;
+    text-align: left !important;
+    transition: background 0.15s ease !important;
+    min-height: 44px !important;
+  }
+
+  .vault-context-action:active {
+    background: rgba(139, 92, 246, 0.12) !important;
+  }
+
+  .vault-context-action-icon {
+    font-size: 18px !important;
+    width: 24px !important;
+    text-align: center !important;
+    flex-shrink: 0 !important;
+  }
+
+  .vault-context-action-delete {
+    color: #ef4444 !important;
+  }
+
+  .vault-context-cancel {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: calc(100% - 32px) !important;
+    margin: 4px 16px 8px !important;
+    padding: 12px !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: #8b5cf6 !important;
+    background: rgba(139, 92, 246, 0.08) !important;
+    border: 1px solid rgba(128, 90, 213, 0.2) !important;
+    border-radius: 12px !important;
+    cursor: pointer !important;
+    -webkit-tap-highlight-color: transparent !important;
+    min-height: 44px !important;
+  }
+
+  .vault-context-cancel:active {
+    background: rgba(139, 92, 246, 0.18) !important;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     149. VAULT PROJECT CARDS GRID — 2-column grid
+     ────────────────────────────────────────────────────────── */
+
+  .immersive-content > .vault-container .vault-projects-grid-mobile {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+    padding: 12px 8px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+  }
+
+  .vault-project-card-mobile {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    padding: 14px 12px !important;
+    background: rgba(20, 15, 35, 0.7) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    border: 1px solid rgba(128, 90, 213, 0.12) !important;
+    border-radius: 12px !important;
+    cursor: pointer !important;
+    -webkit-tap-highlight-color: transparent !important;
+    transition: background 0.2s ease, border-color 0.2s ease !important;
+    min-height: 80px !important;
+  }
+
+  .vault-project-card-mobile:active {
+    background: rgba(139, 92, 246, 0.15) !important;
+    border-color: rgba(139, 92, 246, 0.3) !important;
+  }
+
+  .vault-project-card-icon {
+    font-size: 24px !important;
+    line-height: 1 !important;
+  }
+
+  .vault-project-card-name {
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #e2e0ea !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 1.2 !important;
+  }
+
+  .vault-project-card-meta {
+    font-size: 10px !important;
+    color: #8a8694 !important;
+    display: flex !important;
+    gap: 8px !important;
+    align-items: center !important;
+  }
+
+  .vault-project-card-count {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+  }
+
+  .vault-project-card-size {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     150. VAULT SEARCH SCREEN — full-width input + results
+     ────────────────────────────────────────────────────────── */
+
+  .immersive-content > .vault-container .vault-search-screen {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .vault-search-screen-input-wrap {
+    padding: 12px 12px 8px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .vault-search-screen-input {
+    width: 100% !important;
+    font-size: 16px !important; /* prevent iOS zoom */
+    padding: 12px 14px 12px 40px !important;
+    background: rgba(20, 15, 35, 0.8) !important;
+    border: 1px solid rgba(128, 90, 213, 0.2) !important;
+    border-radius: 10px !important;
+    color: #e2e0ea !important;
+    outline: none !important;
+    min-height: 44px !important;
+  }
+
+  .vault-search-screen-input:focus {
+    border-color: rgba(139, 92, 246, 0.5) !important;
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15) !important;
+  }
+
+  .vault-search-screen-input::placeholder {
+    color: #8a8694 !important;
+  }
+
+  .vault-search-screen-icon {
+    position: absolute !important;
+    left: 24px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    color: #8a8694 !important;
+    font-size: 16px !important;
+    pointer-events: none !important;
+  }
+
+  .vault-search-results {
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 8px !important;
+  }
+
+  /* ──────────────────────────────────────────────────────────
+     151. VAULT MOBILE CONTAINER UPDATES — layout chain
+     ────────────────────────────────────────────────────────── */
+
+  .immersive-content > .vault-container {
+    padding: 16px 0 calc(150px + env(safe-area-inset-bottom, 0px)) 0 !important;
+    gap: 0 !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .vault-view-mobile {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    position: relative !important;
+  }
+
+  .vault-content-wrapper {
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* ── VAULT MOBILE POLISH ── */
+
+  /* Tab switch animation */
+  .vault-content-wrapper {
+    animation: vault-fade-in 0.15s ease !important;
+  }
+
+  @keyframes vault-fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Filter chip press feedback */
+  .vault-filter-chip:active {
+    transform: scale(0.95) !important;
+    transition: transform 0.1s !important;
+  }
+
+  /* Project card press feedback */
+  .vault-project-card-mobile:active {
+    transform: scale(0.97) !important;
+    background: rgba(139, 92, 246, 0.2) !important;
+    transition: transform 0.1s, background 0.1s !important;
+  }
+
+  /* Bottom tab press feedback */
+  .vault-tab-btn:active {
+    transform: scale(0.9) !important;
+    transition: transform 0.1s !important;
+  }
+
+  /* Context menu action press feedback */
+  .vault-context-action:active {
+    background: rgba(139, 92, 246, 0.15) !important;
+    transform: scale(0.98) !important;
+  }
+
+  /* File card stagger animation on mount */
+  .vault-grid .vault-file-card {
+    animation: vault-card-in 0.25s ease forwards !important;
+  }
+
+  .vault-grid .vault-file-card:nth-child(1) { animation-delay: 0ms !important; }
+  .vault-grid .vault-file-card:nth-child(2) { animation-delay: 30ms !important; }
+  .vault-grid .vault-file-card:nth-child(3) { animation-delay: 60ms !important; }
+  .vault-grid .vault-file-card:nth-child(4) { animation-delay: 90ms !important; }
+  .vault-grid .vault-file-card:nth-child(5) { animation-delay: 120ms !important; }
+  .vault-grid .vault-file-card:nth-child(6) { animation-delay: 150ms !important; }
+
+  @keyframes vault-card-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Stats screen cards */
+  .vault-stats-screen {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 16px !important;
+    padding: 24px 16px !important;
+    flex: 1 !important;
+    overflow-y: auto !important;
+  }
+
+  .vault-stats-screen-card {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 24px !important;
+    background: rgba(20, 15, 35, 0.8) !important;
+    border: 1px solid rgba(139, 92, 246, 0.15) !important;
+    border-radius: 14px !important;
+    width: 100% !important;
+    max-width: 280px !important;
+    backdrop-filter: blur(12px) !important;
+  }
+
+  .vault-stats-screen-value {
+    font-size: 28px !important;
+    font-weight: 700 !important;
+    color: #a78bfa !important;
+  }
+
+  .vault-stats-screen-label {
+    font-size: 13px !important;
+    color: rgba(226, 224, 234, 0.6) !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+  }
+
+  /* Project card mobile */
+  .vault-project-card-mobile {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 20px 16px !important;
+    background: rgba(20, 15, 35, 0.8) !important;
+    border: 1px solid rgba(139, 92, 246, 0.15) !important;
+    border-radius: 14px !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    backdrop-filter: blur(12px) !important;
+  }
+
+  .vault-project-card-mobile:hover {
+    border-color: rgba(139, 92, 246, 0.4) !important;
+    background: rgba(30, 22, 50, 0.9) !important;
+  }
+
+  .vault-project-card-name {
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: #e2e0ea !important;
+    text-align: center !important;
+  }
+
+  .vault-project-card-meta {
+    font-size: 11px !important;
+    color: rgba(138, 134, 148, 0.8) !important;
+  }
+
+  /* Empty state per tab */
+  .vault-empty {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 12px !important;
+    padding: 48px 24px !important;
+    text-align: center !important;
+  }
+
+  .vault-empty-title {
+    font-size: 18px !important;
+    font-weight: 600 !important;
+    color: #e2e0ea !important;
+  }
+
+  .vault-empty-desc {
+    font-size: 13px !important;
+    color: rgba(138, 134, 148, 0.8) !important;
+    max-width: 260px !important;
+    line-height: 1.5 !important;
+  }
+
+  /* Search screen */
+  .vault-search-screen {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .vault-search-screen-input {
+    width: 100% !important;
+    padding: 14px 16px !important;
+    background: rgba(20, 15, 35, 0.8) !important;
+    border: 1px solid rgba(139, 92, 246, 0.2) !important;
+    border-radius: 12px !important;
+    color: #e2e0ea !important;
+    font-size: 16px !important;
+    outline: none !important;
+    margin: 12px !important;
+    box-sizing: border-box !important;
+    width: calc(100% - 24px) !important;
+  }
+
+  .vault-search-screen-input:focus {
+    border-color: #8b5cf6 !important;
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2) !important;
+  }
+
+  .vault-search-screen-input::placeholder {
+    color: rgba(138, 134, 148, 0.6) !important;
+  }
+
+  .vault-search-results {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    padding: 0 12px 12px !important;
+  }
+
+  /* Filter bar */
+  .vault-filter-bar {
+    display: flex !important;
+    gap: 8px !important;
+    padding: 8px 12px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    flex-shrink: 0 !important;
+  }
+
+  .vault-filter-bar::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .vault-filter-chip {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    padding: 6px 12px !important;
+    border-radius: 20px !important;
+    background: rgba(20, 15, 35, 0.8) !important;
+    border: 1px solid rgba(139, 92, 246, 0.15) !important;
+    color: rgba(226, 224, 234, 0.7) !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+  }
+
+  .vault-filter-chip.active {
+    background: rgba(139, 92, 246, 0.25) !important;
+    border-color: #8b5cf6 !important;
+    color: #a78bfa !important;
+    box-shadow: 0 0 8px rgba(139, 92, 246, 0.3) !important;
+  }
+
+  .vault-filter-chip-icon {
+    font-size: 14px !important;
+  }
+
+  /* Title bar */
+  .vault-title-bar {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    padding: 0 12px !important;
+    background: rgba(20, 15, 35, 0.8) !important;
+    border-bottom: 1px solid rgba(139, 92, 246, 0.1) !important;
+    flex-shrink: 0 !important;
+  }
+
+  .vault-title-bar-left {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  .vault-title-bar-icon {
+    font-size: 20px !important;
+  }
+
+  .vault-title-bar-text {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    background: linear-gradient(135deg, #fff 0%, #a78bfa 100%) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+  }
+
+  .vault-title-bar-back {
+    background: none !important;
+    border: none !important;
+    color: #a78bfa !important;
+    font-size: 18px !important;
+    padding: 6px !important;
+    cursor: pointer !important;
+    min-width: 36px !important;
+    min-height: 36px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  /* Content wrapper */
+  .vault-content-wrapper {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* Projects grid mobile */
+  .vault-projects-grid-mobile {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+  }
+
   /* ══════════════════════════════════════════════════════════
-     GROVE / SKILL GARDEN — COMPLETE MOBILE DESIGN PASS (§146–154)
+     GROVE / SKILL GARDEN — COMPLETE MOBILE DESIGN PASS (§152–160)
      Deep forest green, bioluminescent accents. Desktop untouched.
      ══════════════════════════════════════════════════════════ */
 
   /* ──────────────────────────────────────────────────────────
-     146. GROVE HERO — compact tree + stats + tabs
+     152. GROVE HERO — compact tree + stats + tabs
          Inline: padding 32px 140px 0. §20 overrides sides.
          This refines top padding + vertical spacing.
      ────────────────────────────────────────────────────────── */
@@ -8824,7 +9550,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     147. GROVE TABS — horizontal scroll, 44px touch targets
+     153. GROVE TABS — horizontal scroll, 44px touch targets
      ────────────────────────────────────────────────────────── */
 
   .grove-tabs {
@@ -8849,7 +9575,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     148. GROVE FILTER — stack label + select on mobile
+     154. GROVE FILTER — stack label + select on mobile
          Inline: padding 12px 140px. §20 overrides sides.
      ────────────────────────────────────────────────────────── */
 
@@ -8868,7 +9594,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     149. GROVE CONTENT — compact padding
+     155. GROVE CONTENT — compact padding
          Inline: padding 0 140px 32px. §20 overrides sides.
      ────────────────────────────────────────────────────────── */
 
@@ -8877,7 +9603,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     150. GROVE CARDS — readable + touch-friendly
+     156. GROVE CARDS — readable + touch-friendly
      ────────────────────────────────────────────────────────── */
 
   .grove-cards {
@@ -8915,7 +9641,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     151. GROVE BROWSE GRID — single column on mobile
+     157. GROVE BROWSE GRID — single column on mobile
      ────────────────────────────────────────────────────────── */
 
   .grove-browse-bar {
@@ -8988,7 +9714,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     152. GROVE MARKETPLACE — single column grid
+     158. GROVE MARKETPLACE — single column grid
      ────────────────────────────────────────────────────────── */
 
   .grove-marketplace-toggle {
@@ -9025,7 +9751,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     153. GROVE DETAIL OVERLAY — full-screen on mobile
+     159. GROVE DETAIL OVERLAY — full-screen on mobile
      ────────────────────────────────────────────────────────── */
 
   .grove-detail-overlay {
@@ -9117,7 +9843,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     154. GROVE TIMELINE — compact filters + readable events
+     160. GROVE TIMELINE — compact filters + readable events
      ────────────────────────────────────────────────────────── */
 
   .grove-timeline {
@@ -9196,14 +9922,14 @@
   }
 
   /* ══════════════════════════════════════════════════════════
-     STUDIO — COMPLETE MOBILE DESIGN PASS (§155–171)
+     STUDIO — COMPLETE MOBILE DESIGN PASS (§161–177)
      Purple-cyan creative workspace, tool palette, preview canvas,
      adjustment panel, prompt bar, history strip, upgrade modal.
      Desktop is NEVER touched — all rules inside @media blocks.
      ══════════════════════════════════════════════════════════ */
 
   /* ──────────────────────────────────────────────────────────
-     155. STUDIO DASHBOARD — base container
+     161. STUDIO DASHBOARD — base container
          Inline: paddingBottom 150px. Override for mobile.
      ────────────────────────────────────────────────────────── */
 
@@ -9213,7 +9939,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     156. STUDIO HEADER — compact, stack on narrow screens
+     162. STUDIO HEADER — compact, stack on narrow screens
      ────────────────────────────────────────────────────────── */
 
   .studio-dashboard-header {
@@ -9281,7 +10007,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     157. STUDIO MAIN LAYOUT — stack vertically
+     163. STUDIO MAIN LAYOUT — stack vertically
          Desktop: tool palette (200px) | preview (flex:1) | adjustments (260px)
          Mobile: tool palette (horizontal) → preview → adjustments (hidden)
      ────────────────────────────────────────────────────────── */
@@ -9294,7 +10020,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     158. TOOL PALETTE — horizontal scroll bar
+     164. TOOL PALETTE — horizontal scroll bar
          Desktop: 200px vertical sidebar.
          Mobile: horizontal scroll strip, icon+label, 44px targets.
      ────────────────────────────────────────────────────────── */
@@ -9325,6 +10051,7 @@
 
   .toolpalette-items {
     flex-direction: row !important;
+    align-items: flex-start !important;
     gap: 4px !important;
     padding: 6px 8px !important;
     overflow-x: auto !important;
@@ -9340,12 +10067,13 @@
   }
 
   .toolpalette-item {
-    flex-shrink: 0 !important;
+    flex: 0 0 auto !important;
     white-space: nowrap !important;
     padding: 8px 14px !important;
     min-height: 44px !important;
     gap: 6px !important;
     border-radius: 10px !important;
+    width: auto !important;
   }
 
   .toolpalette-icon {
@@ -9361,7 +10089,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     159. PREVIEW CANVAS — full width, responsive
+     165. PREVIEW CANVAS — full width, responsive
      ────────────────────────────────────────────────────────── */
 
   .studio-preview-canvas {
@@ -9518,7 +10246,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     160. ADJUSTMENT PANEL — hidden on mobile
+     166. ADJUSTMENT PANEL — hidden on mobile
          Desktop: 260px right sidebar.
          Mobile: hidden to maximize preview space.
      ────────────────────────────────────────────────────────── */
@@ -9528,7 +10256,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     161. REFERENCE ROW — full width, compact
+     167. REFERENCE ROW — full width, compact
      ────────────────────────────────────────────────────────── */
 
   .dashboard-reference-row {
@@ -9574,7 +10302,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     162. ACTION BUTTONS — full width, 44px touch targets
+     168. ACTION BUTTONS — full width, 44px touch targets
      ────────────────────────────────────────────────────────── */
 
   .dashboard-actions {
@@ -9591,7 +10319,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     163. HISTORY STRIP — compact on mobile
+     169. HISTORY STRIP — compact on mobile
      ────────────────────────────────────────────────────────── */
 
   .studio-history-strip {
@@ -9617,7 +10345,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     164. PROMPT BAR — full width, stacked, 16px font
+     170. PROMPT BAR — full width, stacked, 16px font
      ────────────────────────────────────────────────────────── */
 
   .dashboard-prompt-bar {
@@ -9679,7 +10407,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     165. ANALYTICS PANEL — full width on mobile
+     171. ANALYTICS PANEL — full width on mobile
      ────────────────────────────────────────────────────────── */
 
   .studio-analytics-panel {
@@ -9689,7 +10417,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     166. UPGRADE MODAL — mobile refinements
+     172. UPGRADE MODAL — mobile refinements
          Base styles in styles-studio-upgrade.css.
          Tighten for small screens.
      ────────────────────────────────────────────────────────── */
@@ -9741,7 +10469,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     167. STUDIO ONBOARDING — enhanced mobile (extends §38)
+     173. STUDIO ONBOARDING — enhanced mobile (extends §38)
      ────────────────────────────────────────────────────────── */
 
   .studio-onboarding-overlay {
@@ -9790,7 +10518,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     168. STUDIO BACKGROUND — reduce animation on mobile
+     174. STUDIO BACKGROUND — reduce animation on mobile
      ────────────────────────────────────────────────────────── */
 
   .studio-background {
@@ -9798,7 +10526,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     169. WEB PREVIEW (code module) — fit viewport
+     175. WEB PREVIEW (code module) — fit viewport
      ────────────────────────────────────────────────────────── */
 
   .preview-canvas-content iframe,
@@ -9808,7 +10536,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     170. GALLERY / PROJECT overlay — mobile safe
+     176. GALLERY / PROJECT overlay — mobile safe
      ────────────────────────────────────────────────────────── */
 
   .studio-gallery,
@@ -9818,7 +10546,7 @@
   }
 
   /* ──────────────────────────────────────────────────────────
-     171. NO HORIZONTAL OVERFLOW — Studio specific
+     177. NO HORIZONTAL OVERFLOW — Studio specific
      ────────────────────────────────────────────────────────── */
 
   .studio-dashboard-container,

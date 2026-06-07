@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { VaultFile, VaultProject, VaultTag, VaultStats, VaultViewMode } from '../types';
 import VaultSidebar from './VaultSidebar';
@@ -22,6 +22,14 @@ export default function VaultView() {
   const [renamingProject, setRenamingProject] = useState<VaultProject | null>(null);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [movingFileIds, setMovingFileIds] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<'browse' | 'projects' | 'search' | 'stats'>('browse');
+  const [contextMenu, setContextMenu] = useState<VaultFile | null>(null);
+  const [drilledProject, setDrilledProject] = useState<VaultProject | null>(null);
+
+  const isMobile = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth <= 768;
+  }, []);
 
   const loadFiles = useCallback(async (section?: string, query?: string) => {
     const s = section ?? activeSection;
@@ -240,6 +248,257 @@ export default function VaultView() {
     return `${(bytes / 1073741824).toFixed(1)} GB`;
   };
 
+  const FILTER_CHIPS = [
+    { key: 'recent', icon: '🕐', label: 'Recent' },
+    { key: 'favorites', icon: '⭐', label: 'Favorites' },
+    { key: 'all', icon: '📁', label: 'All' },
+    { key: 'image', icon: '🖼️', label: 'Images' },
+    { key: 'audio', icon: '🎵', label: 'Audio' },
+    { key: 'video', icon: '🎬', label: 'Video' },
+    { key: 'code', icon: '💻', label: 'Code' },
+    { key: 'document', icon: '📄', label: 'Docs' },
+  ];
+
+  const TABS = [
+    { key: 'browse', icon: '📁', label: 'Browse' },
+    { key: 'projects', icon: '📂', label: 'Projects' },
+    { key: 'search', icon: '🔍', label: 'Search' },
+    { key: 'stats', icon: '📊', label: 'Stats' },
+  ];
+
+  if (isMobile) {
+    return (
+      <div className="vault-container">
+        {/* ── Title Bar ── */}
+        <div className="vault-title-bar">
+          <div className="vault-title-bar-left">
+            {drilledProject && (
+              <button className="vault-title-bar-back" onClick={() => { setDrilledProject(null); setActiveSection('recent'); loadFiles('recent'); }}>←</button>
+            )}
+            <span className="vault-title-bar-icon">🛡️</span>
+            <span className="vault-title-bar-text">{drilledProject ? drilledProject.name : 'Vault'}</span>
+          </div>
+          <button className="vault-studio-btn" onClick={() => window.dispatchEvent(new CustomEvent('conflux:navigate', { detail: { viewId: 'studio' } }))}>✨ Studio</button>
+        </div>
+
+        {/* ── Browse Tab ── */}
+        {activeTab === 'browse' && (
+          <>
+            {!drilledProject && (
+              <div className="vault-filter-bar">
+                {FILTER_CHIPS.map(f => (
+                  <button key={f.key} className={`vault-filter-chip ${activeSection === f.key ? 'active' : ''}`} onClick={() => { setActiveSection(f.key); loadFiles(f.key); }}>
+                    <span className="vault-filter-chip-icon">{f.icon}</span> {f.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="vault-content-wrapper">
+              <VaultToolbar viewMode={viewMode} onViewModeChange={setViewMode} isMobile={true} />
+              {selectedIds.size > 0 && (
+                <div className="vault-selection-bar">
+                  <span className="vault-selection-count">{selectedIds.size} selected</span>
+                  <button className="vault-selection-btn move" onClick={handleBulkMoveToProject}>📂 Move</button>
+                  <button className="vault-selection-btn delete" onClick={handleBulkDelete}>🗑️ Delete</button>
+                  <button className="vault-selection-btn cancel" onClick={() => setSelectedIds(new Set())}>✕</button>
+                </div>
+              )}
+              <div className="vault-content-area">
+                {loading ? (
+                  <div className="vault-empty"><span className="vault-empty-title">Loading...</span></div>
+                ) : files.length === 0 ? (
+                  <div className="vault-empty">
+                    <span className="vault-empty-title">{searchQuery ? 'No results' : 'No files yet'}</span>
+                    <span className="vault-empty-desc">{searchQuery ? `No files match "${searchQuery}"` : 'Files appear here as your agents create them.'}</span>
+                  </div>
+                ) : viewMode === 'grid' ? (
+                  <div className="vault-grid">
+                    {files.map(file => (
+                      <VaultFileCard key={file.id} file={file} selected={selectedIds.has(file.id)} onSelect={() => toggleSelect(file.id)} onToggleFavorite={() => handleToggleFavorite(file.id)} onDelete={() => handleDelete(file.id)} onOpen={() => invoke('vault_open_file', { path: file.path })} onDownload={() => invoke('vault_download_file', { path: file.path, filename: file.name })} onContextMenu={() => setContextMenu(file)} />
+                    ))}
+                  </div>
+                ) : viewMode === 'list' ? (
+                  <div className="vault-list-view">
+                    <div className="vault-list-header">
+                      <div></div><div>Name</div><div>Type</div><div>Size</div><div>Modified</div><div>Agent</div><div></div>
+                    </div>
+                    {files.map(file => (
+                      <div key={file.id} className="vault-list-row" onClick={() => toggleSelect(file.id)} onDoubleClick={() => invoke('vault_open_file', { path: file.path })}>
+                        <div className="vault-list-icon">{getFileEmoji(file.file_type)}</div>
+                        <div className="vault-list-name">{file.name}</div>
+                        <div className="vault-list-cell">{file.extension || file.file_type}</div>
+                        <div className="vault-list-cell">{formatSize(file.size_bytes)}</div>
+                        <div className="vault-list-cell">{formatDate(file.updated_at)}</div>
+                        <div className="vault-list-cell">{file.created_by ? '🤖' : '—'}</div>
+                        <div>{file.is_favorite ? '⭐' : ''}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="vault-timeline">
+                    {groupByDate(files).map(([date, dateFiles]) => (
+                      <div key={date}>
+                        <div className="vault-timeline-date">{date}</div>
+                        <div className="vault-timeline-files">
+                          {dateFiles.map(file => (
+                            <VaultFileCard key={file.id} file={file} selected={selectedIds.has(file.id)} onSelect={() => toggleSelect(file.id)} onToggleFavorite={() => handleToggleFavorite(file.id)} onDelete={() => handleDelete(file.id)} onOpen={() => invoke('vault_open_file', { path: file.path })} onDownload={() => invoke('vault_download_file', { path: file.path, filename: file.name })} onContextMenu={() => setContextMenu(file)} />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ── Projects Tab ── */}
+        {activeTab === 'projects' && (
+          <div className="vault-content-wrapper">
+            <div style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, color: '#e2e0ea', fontSize: '16px' }}>Projects</h3>
+              <button className="vault-btn-primary" onClick={handleCreateProject} style={{ fontSize: '12px', padding: '8px 14px' }}>+ New</button>
+            </div>
+            <div className="vault-projects-grid-mobile" style={{ padding: '0 12px 12px' }}>
+              {projects.length === 0 ? (
+                <div className="vault-empty">
+                  <span className="vault-empty-title">No projects</span>
+                  <span className="vault-empty-desc">Create a project to organize your files.</span>
+                </div>
+              ) : projects.map(p => (
+                <div key={p.id} className="vault-project-card-mobile" onClick={() => { setDrilledProject(p); setActiveSection(`project:${p.id}`); loadFiles(`project:${p.id}`); }}>
+                  <span style={{ fontSize: '24px' }}>📂</span>
+                  <span className="vault-project-card-name">{p.name}</span>
+                  <span className="vault-project-card-meta">{p.file_count} files</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Search Tab ── */}
+        {activeTab === 'search' && (
+          <div className="vault-search-screen">
+            <input className="vault-search-screen-input" autoFocus placeholder="Search files..." value={searchQuery} onChange={e => { setSearchQuery(e.target.value); if (e.target.value) loadFiles(undefined, e.target.value); }} />
+            <div className="vault-search-results">
+              {searchQuery && files.length === 0 && (
+                <div className="vault-empty"><span className="vault-empty-title">No results</span></div>
+              )}
+              {searchQuery && files.length > 0 && (
+                <div className="vault-grid">
+                  {files.map(file => (
+                    <VaultFileCard key={file.id} file={file} selected={selectedIds.has(file.id)} onSelect={() => toggleSelect(file.id)} onToggleFavorite={() => handleToggleFavorite(file.id)} onDelete={() => handleDelete(file.id)} onOpen={() => invoke('vault_open_file', { path: file.path })} onDownload={() => invoke('vault_download_file', { path: file.path, filename: file.name })} onContextMenu={() => setContextMenu(file)} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Stats Tab ── */}
+        {activeTab === 'stats' && (
+          <div className="vault-stats-screen">
+            {stats && (
+              <>
+                <div className="vault-stats-screen-card">
+                  <span style={{ fontSize: '32px' }}>📁</span>
+                  <span className="vault-stats-screen-value">{stats.total_files}</span>
+                  <span className="vault-stats-screen-label">Files</span>
+                </div>
+                <div className="vault-stats-screen-card">
+                  <span style={{ fontSize: '32px' }}>💾</span>
+                  <span className="vault-stats-screen-value">{formatSize(stats.total_size)}</span>
+                  <span className="vault-stats-screen-label">Storage</span>
+                </div>
+                <div className="vault-stats-screen-card">
+                  <span style={{ fontSize: '32px' }}>📂</span>
+                  <span className="vault-stats-screen-value">{stats.total_projects}</span>
+                  <span className="vault-stats-screen-label">Projects</span>
+                </div>
+                <button className="vault-btn-primary" onClick={handleScan} style={{ marginTop: '16px', width: '100%' }}>🔄 Scan Files</button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── Bottom Tab Bar ── */}
+        <nav className="vault-bottom-tabs">
+          {TABS.map(t => (
+            <button key={t.key} className={`vault-tab-btn ${activeTab === t.key ? 'active' : ''}`} onClick={() => { setActiveTab(t.key as any); if (t.key !== 'browse') setDrilledProject(null); }}>
+              <span className="vault-tab-icon">{t.icon}</span>
+              <span className="vault-tab-label">{t.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        {/* ── Context Menu ── */}
+        {contextMenu && (
+          <div className="vault-context-overlay" onClick={() => setContextMenu(null)}>
+            <div className="vault-context-menu" onClick={e => e.stopPropagation()}>
+              <div className="vault-context-header">
+                <span className="vault-context-header-icon">{getFileEmoji(contextMenu.file_type)}</span>
+                <div className="vault-context-header-info">
+                  <span className="vault-context-header-name">{contextMenu.name}</span>
+                  <span className="vault-context-header-meta">{formatSize(contextMenu.size_bytes)} · {contextMenu.file_type}</span>
+                </div>
+              </div>
+              <div className="vault-context-actions">
+                <button className="vault-context-action" onClick={() => { handleToggleFavorite(contextMenu.id); setContextMenu(null); }}>
+                  <span className="vault-context-action-icon">{contextMenu.is_favorite ? '⭐' : '☆'}</span> {contextMenu.is_favorite ? 'Unfavorite' : 'Favorite'}
+                </button>
+                <button className="vault-context-action" onClick={() => { setMovingFileIds([contextMenu.id]); setShowProjectPicker(true); setContextMenu(null); }}>
+                  <span className="vault-context-action-icon">📂</span> Move to Project
+                </button>
+                <button className="vault-context-action" onClick={() => { invoke('vault_download_file', { path: contextMenu.path, filename: contextMenu.name }); setContextMenu(null); }}>
+                  <span className="vault-context-action-icon">⬇️</span> Download
+                </button>
+                <button className="vault-context-action" onClick={() => { invoke('vault_open_file', { path: contextMenu.path }); setContextMenu(null); }}>
+                  <span className="vault-context-action-icon">🔗</span> Open
+                </button>
+                <button className="vault-context-action vault-context-action-delete" onClick={() => { handleDelete(contextMenu.id); setContextMenu(null); }}>
+                  <span className="vault-context-action-icon">🗑️</span> Delete
+                </button>
+              </div>
+              <button className="vault-context-cancel" onClick={() => setContextMenu(null)}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Project Picker Modal ── */}
+        {showProjectPicker && (
+          <div className="vault-modal-overlay" onClick={() => setShowProjectPicker(false)}>
+            <div className="vault-modal" onClick={e => e.stopPropagation()}>
+              <div className="vault-modal-header">
+                <h3>Move to Project</h3>
+                <button className="vault-modal-close" onClick={() => setShowProjectPicker(false)}>✕</button>
+              </div>
+              <div className="vault-modal-body">
+                {projects.length === 0 ? (
+                  <div className="vault-modal-empty">No projects yet. Create one first.</div>
+                ) : (
+                  <div className="vault-project-picker-list">
+                    {projects.map(p => (
+                      <button key={p.id} className="vault-project-picker-item" onClick={() => handleProjectPick(p.id)}>
+                        <span className="vault-project-picker-icon">📂</span>
+                        <span className="vault-project-picker-name">{p.name}</span>
+                        <span className="vault-project-picker-count">{p.file_count} files</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <InputModal isOpen={showNewProjectModal} title="New Project" placeholder="Project name..." confirmLabel="Create" onConfirm={handleCreateProjectConfirm} onCancel={() => setShowNewProjectModal(false)} />
+        <InputModal isOpen={!!renamingProject} title="Rename Project" placeholder="Project name..." defaultValue={renamingProject?.name || ''} confirmLabel="Rename" onConfirm={handleRenameConfirm} onCancel={() => setRenamingProject(null)} />
+      </div>
+    );
+  }
+
+  // ── Desktop layout (unchanged) ──
   return (
     <div className="vault-container">
       {/* Hero Header */}
