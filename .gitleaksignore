@@ -1,0 +1,5 @@
+# Gitleaks false positive allowlist
+# Model names and identifiers that have high entropy but aren't secrets
+
+src-tauri/schema.sql:generic-api-key:799
+src-tauri/schema.sql:generic-api-key:800

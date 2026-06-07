@@ -792,12 +792,12 @@ INSERT OR IGNORE INTO tool_permissions (agent_id, tool_id) SELECT id, 'email_rec
 -- ============================================================
 
 INSERT OR IGNORE INTO providers (id, name, base_url, api_key, model_id, model_alias, priority) VALUES
-    ('cerebras',      'Cerebras',              'https://api.cerebras.ai/v1',          'REDACTED_CEREBRAS_KEY', 'llama3.1-8b',                          'conflux-fast',  1),
-    ('groq',          'Groq',                  'https://api.groq.com/openai/v1',      'GROQ_KEY_REDACTED', 'llama-3.1-8b-instant',                 'conflux-fast',  2),
-    ('mistral',       'Mistral',               'https://api.mistral.ai/v1',           'MISTRAL_KEY_REDACTED',                         'mistral-small-latest',                 'conflux-fast',  3),
-    ('cloudflare',    'Cloudflare Workers AI', 'https://api.cloudflare.com/client/v4/accounts/36d37d313aa8598b2735b28b4211862b/ai/v1', 'CLOUDFLARE_KEY_REDACTED', '@cf/meta/llama-3.1-8b-instruct', 'conflux-fast',  4),
-    ('groq-smart',    'Groq (Smart)',          'https://api.groq.com/openai/v1',      'GROQ_KEY_REDACTED', 'llama-3.3-70b-versatile',             'conflux-smart', 1),
-    ('cerebras-smart','Cerebras (Smart)',       'https://api.cerebras.ai/v1',          'REDACTED_CEREBRAS_KEY', 'qwen-3-235b-a22b-instruct-2507',       'conflux-smart', 2);
+    ('cerebras',      'Cerebras',              'https://api.cerebras.ai/v1',          'REPLACE_CEREBRAS_KEY', 'llama3.1-8b',                          'conflux-fast',  1),
+    ('groq',          'Groq',                  'https://api.groq.com/openai/v1',      'REPLACE_GROQ_KEY', 'llama-3.1-8b-instant',                 'conflux-fast',  2),
+    ('mistral',       'Mistral',               'https://api.mistral.ai/v1',           'REPLACE_MISTRAL_KEY',                         'mistral-small-latest',                 'conflux-fast',  3),
+    ('cloudflare',    'Cloudflare Workers AI', 'https://api.cloudflare.com/client/v4/accounts/ACCOUNT_ID/ai/v1', 'REPLACE_CLOUDFLARE_KEY', '@cf/meta/llama-3.1-8b-instruct', 'conflux-fast',  4),
+    ('groq-smart',    'Groq (Smart)',          'https://api.groq.com/openai/v1',      'REPLACE_GROQ_KEY', 'llama-3.3-70b-versatile',             'conflux-smart', 1),
+    ('cerebras-smart','Cerebras (Smart)',       'https://api.cerebras.ai/v1',          'REPLACE_CEREBRAS_KEY', 'qwen-3-235b-a22b-instruct-2507',       'conflux-smart', 2);
 
 -- ============================================================
 -- MIGRATION: Update agent personalities for existing installs

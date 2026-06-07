@@ -10,13 +10,13 @@ import WebSocket from 'ws';
 import https from 'https';
 import { readFileSync } from 'fs';
 
-const API_KEY = process.argv[2] || process.env.ELEVENLABS_API_KEY || 'ELEVENLABS_KEY_REDACTED';
-const MODEL_ID = 'scribe_v2_realtime';
-
+const API_KEY = process.argv[2] || process.env.ELEVENLABS_API_KEY;
 if (!API_KEY) {
-  console.error('No API key');
+  console.error('Error: No API key provided. Set ELEVENLABS_API_KEY env var or pass as first argument.');
+  console.error('Usage: node scripts/test-elevenlabs-wss.js [api_key]');
   process.exit(1);
 }
+const MODEL_ID = 'scribe_v2_realtime';
 
 // Step 1: Get single-use token
 async function getToken() {
