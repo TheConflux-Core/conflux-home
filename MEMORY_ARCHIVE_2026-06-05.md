@@ -33,7 +33,7 @@ Archive of all MEMORY.md entries before the compaction on 2026-06-05. All old me
 - Related skill: `conflux-offline-voice-pipeline`
 
 ## MiniMax API
-- API key: `MINIMAX_KEY_REDACTED`
+- API key: `[REDACTED — stored in .env]`
 - Model: `image-01`
 - Endpoint: `https://api.minimax.io/v1/image_generation`
 
