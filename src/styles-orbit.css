@@ -1600,3 +1600,81 @@
 .orbit-heatmap-cell.active .orbit-heatmap-day {
   color: var(--text-primary, #fff);
 }
+
+/* --- Tab Switcher (My Tasks / Agent Board) --- */
+.orbit-tab-switcher {
+  display: flex;
+  gap: 4px;
+  background: var(--orbit-glass-bg, rgba(15, 13, 26, 0.65));
+  border: 1px solid var(--orbit-border, rgba(139, 92, 246, 0.2));
+  border-radius: var(--orbit-radius, 14px);
+  padding: 4px;
+  margin-bottom: var(--orbit-gap-lg, 20px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.orbit-tab-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  border-radius: calc(var(--orbit-radius, 14px) - 4px);
+  background: transparent;
+  color: var(--orbit-text-secondary, #A78BFA);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: all var(--orbit-transition, 0.2s ease);
+  position: relative;
+  overflow: hidden;
+}
+
+.orbit-tab-btn:hover:not(.orbit-tab-active) {
+  background: var(--orbit-surface-hover, rgba(139, 92, 246, 0.12));
+  color: var(--orbit-text-primary, #F5F3FF);
+}
+
+.orbit-tab-active {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(124, 58, 237, 0.15));
+  color: var(--orbit-text-primary, #F5F3FF);
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+/* --- Board Filters (Active / All) --- */
+.orbit-board-filters {
+  display: flex;
+  gap: 2px;
+  background: rgba(15, 13, 26, 0.5);
+  border: 1px solid rgba(139, 92, 246, 0.12);
+  border-radius: var(--orbit-radius-sm, 8px);
+  padding: 2px;
+}
+
+.orbit-board-filter {
+  padding: 4px 12px;
+  border: none;
+  border-radius: calc(var(--orbit-radius-sm, 8px) - 2px);
+  background: transparent;
+  color: var(--orbit-text-muted, #6D28D9);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all var(--orbit-transition, 0.2s ease);
+}
+
+.orbit-board-filter:hover:not(.orbit-board-filter-active) {
+  color: var(--orbit-text-secondary, #A78BFA);
+  background: rgba(139, 92, 246, 0.08);
+}
+
+.orbit-board-filter-active {
+  background: rgba(139, 92, 246, 0.2);
+  color: var(--orbit-accent-bright, #A78BFA);
+  box-shadow: 0 0 8px rgba(139, 92, 246, 0.1);
+}
