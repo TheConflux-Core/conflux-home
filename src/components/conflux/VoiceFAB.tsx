@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import './VoiceFAB.css';
 
 interface VoiceFABProps {
@@ -18,8 +18,18 @@ export default function VoiceFAB({
 }: VoiceFABProps) {
   const [showTooltip, setShowTooltip] = useState(false);
   const activeRef = useRef(false);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMobileRef = useRef(false);
+
+  // Detect touch device on mount
+  useEffect(() => {
+    isMobileRef.current = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  }, []);
+
+  // ── Desktop: hold-to-talk via pointer events ────────────────────
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    if (isMobileRef.current) return; // Mobile uses click handler
     e.preventDefault();
     if (activeRef.current) return;
     activeRef.current = true;
@@ -27,19 +37,49 @@ export default function VoiceFAB({
   }, [onStartPTT]);
 
   const handlePointerUp = useCallback(() => {
+    if (isMobileRef.current) return;
     if (!activeRef.current) return;
     activeRef.current = false;
     onStopPTT();
   }, [onStopPTT]);
 
-  // Safety: if pointer leaves while held, stop recording
   const handlePointerLeave = useCallback(() => {
     setShowTooltip(false);
+    if (isMobileRef.current) return;
     if (activeRef.current) {
       activeRef.current = false;
       onStopPTT();
     }
   }, [onStopPTT]);
+
+  // ── Mobile: tap to toggle (start on first tap, stop+send on second) ──
+
+  const handleClick = useCallback(() => {
+    if (!isMobileRef.current) return;
+
+    if (isPushToTalkActive) {
+      // Second tap — stop and send
+      if (holdTimerRef.current) {
+        clearTimeout(holdTimerRef.current);
+        holdTimerRef.current = null;
+      }
+      onStopPTT();
+    } else {
+      // First tap — start recording
+      // Brief delay to distinguish tap from potential hold (prevents accidental triggers)
+      holdTimerRef.current = setTimeout(() => {
+        holdTimerRef.current = null;
+        onStartPTT();
+      }, 50);
+    }
+  }, [isPushToTalkActive, onStartPTT, onStopPTT]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
+    };
+  }, []);
 
   const intensity = Math.min(pulseImpulse / 16, 1);
 
@@ -54,6 +94,7 @@ export default function VoiceFAB({
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerLeave}
+      onClick={handleClick}
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={handlePointerLeave}
     >
@@ -67,7 +108,7 @@ export default function VoiceFAB({
         <div className="voice-fab-tooltip">
           <div className="voice-fab-tooltip-title">Talk to Conflux</div>
           <div className="voice-fab-tooltip-hint">
-            <span>Hold to talk · <kbd>Space</kbd> too</span>
+            <span>{isMobileRef.current ? 'Tap to talk' : 'Hold to talk · <kbd>Space</kbd> too'}</span>
           </div>
         </div>
       )}
