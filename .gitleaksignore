@@ -1,5 +1,12 @@
 # Gitleaks false positive allowlist
 # Model names and identifiers that have high entropy but aren't secrets
 
+# schema.sql model names (flagged as generic-api-key)
+src-tauri/schema.sql:generic-api-key:721
+src-tauri/schema.sql:generic-api-key:722
+src-tauri/schema.sql:generic-api-key:289
+src-tauri/schema.sql:generic-api-key:290
+conflux-home/src-tauri/schema.sql:generic-api-key:711
+conflux-home/src-tauri/schema.sql:generic-api-key:712
 src-tauri/schema.sql:generic-api-key:799
 src-tauri/schema.sql:generic-api-key:800
