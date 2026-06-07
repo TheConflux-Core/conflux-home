@@ -352,55 +352,23 @@ export default function BillingSection() {
           )}
 
           {/* ── Billing cycle toggle ── */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              gap: 0,
-              margin: '20px 0 16px',
-            }}
-          >
+          <div className="billing-cycle-toggle">
             <button
               onClick={() => setBillingCycle('month')}
-              style={{
-                padding: '6px 18px',
-                borderRadius: '8px 0 0 8px',
-                border: '1px solid var(--border, rgba(255,255,255,0.1))',
-                background: billingCycle === 'month' ? 'var(--accent, #0071e3)' : 'transparent',
-                color: billingCycle === 'month' ? '#fff' : 'var(--text, #ccc)',
-                cursor: 'pointer',
-                fontSize: 13,
-                fontWeight: 600,
-              }}
+              className={billingCycle === 'month' ? 'active' : ''}
             >
               Monthly
             </button>
             <button
               onClick={() => setBillingCycle('year')}
-              style={{
-                padding: '6px 18px',
-                borderRadius: '0 8px 8px 0',
-                border: '1px solid var(--border, rgba(255,255,255,0.1))',
-                borderLeft: 'none',
-                background: billingCycle === 'year' ? 'var(--accent, #0071e3)' : 'transparent',
-                color: billingCycle === 'year' ? '#fff' : 'var(--text, #ccc)',
-                cursor: 'pointer',
-                fontSize: 13,
-                fontWeight: 600,
-              }}
+              className={billingCycle === 'year' ? 'active' : ''}
             >
               Yearly
             </button>
           </div>
 
           {/* ── Plan cards ── */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 12,
-            }}
-          >
+          <div className="billing-plan-grid">
             {['free', 'power', 'pro'].map((plan) => {
               const isCurrent = currentPlan === plan;
               const features = PLAN_FEATURES[plan] || [];

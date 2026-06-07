@@ -474,28 +474,29 @@ export default function Settings() {
       <div className="settings-grid-pattern" aria-hidden="true" />
       <Particles />
 
+      {/* Report Header — above sidebar on mobile */}
+      <div className="mc-report-header">
+        <button
+          className="mc-report-btn"
+          onClick={() => openFeedback('bug')}
+          title="Report a Bug"
+        >
+          🐛 Report a Bug
+        </button>
+        <button
+          className="mc-report-btn"
+          onClick={() => openFeedback('feature')}
+          title="Suggest a Feature"
+        >
+          💡 Suggest a Feature
+        </button>
+      </div>
+
       {/* Sidebar Navigation */}
       <Sidebar activeCategory={activeCategory} onNavigate={handleNavigate} />
 
       {/* Main Content */}
       <div className="mc-content">
-        {/* Report Header — centered in content area, above category header */}
-        <div className="mc-report-header">
-          <button
-            className="mc-report-btn"
-            onClick={() => openFeedback('bug')}
-            title="Report a Bug"
-          >
-            🐛 Report a Bug
-          </button>
-          <button
-            className="mc-report-btn"
-            onClick={() => openFeedback('feature')}
-            title="Suggest a Feature"
-          >
-            💡 Suggest a Feature
-          </button>
-        </div>
 
         {/* Category Header */}
         <div className="mc-category-header" key={activeCategory}>
