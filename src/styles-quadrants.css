@@ -692,6 +692,7 @@
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 20px;
   padding: 28px;
+  padding-bottom: 150px;
   max-width: 1280px;
   margin: 0 auto;
   width: 100%;
@@ -889,6 +890,7 @@ body[data-color-theme="nexus"] .category-card-accent-themed {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 14px;
     padding: 16px;
+    padding-bottom: 150px;
   }
 
   .quadrant-expanded-header {
@@ -1076,10 +1078,24 @@ body[data-color-theme="nexus"] .category-card-accent-themed {
 
 @media (max-width: 480px) {
   .intel-overview-row {
-    flex-direction: column;
-    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px 0;
   }
   .intel-overview-knob {
+    width: 100%;
     order: -1;
+  }
+  .intel-overview-gauge {
+    flex: 0 0 50%;
+    max-width: 50%;
+  }
+  .intel-overview-gauge .intel-ring {
+    width: 90px;
+    height: 90px;
+  }
+  .intel-overview-gauge .intel-ring-bg,
+  .intel-overview-gauge .intel-ring-fill {
+    stroke-width: 4;
   }
 }

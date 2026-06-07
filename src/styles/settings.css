@@ -329,6 +329,47 @@
   margin-top: 3px;
 }
 
+/* ── Billing Plan Grid ── */
+.billing-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+/* ── Billing Cycle Toggle ── */
+.billing-cycle-toggle {
+  display: flex;
+  justify-content: center;
+  gap: 0;
+  margin: 20px 0 16px;
+}
+
+.billing-cycle-toggle button {
+  padding: 6px 18px;
+  border: 1px solid var(--si-border);
+  background: transparent;
+  color: var(--si-text);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  transition: background 0.2s, color 0.2s;
+}
+
+.billing-cycle-toggle button:first-child {
+  border-radius: 8px 0 0 8px;
+}
+
+.billing-cycle-toggle button:last-child {
+  border-radius: 0 8px 8px 0;
+  border-left: none;
+}
+
+.billing-cycle-toggle button.active {
+  background: var(--si-accent);
+  color: #fff;
+}
+
 /* ── Section Card — 3D Glass Panel ── */
 .settings-section {
   position: relative;
@@ -837,12 +878,15 @@
   .mc-nav-item span:not(.mc-nav-icon) { display: none; }
   .mc-nav-item { justify-content: center; padding: 11px; }
   .mc-nav-icon { font-size: 18px; }
-  .mc-content { margin-left: 56px; padding: 24px 20px 70px; }
+  .mc-content { margin-left: 56px; padding: 24px 20px 150px; max-height: none; overflow-y: visible; }
   .mc-status-bar { flex-wrap: wrap; }
   .mc-status-card { flex: 1 1 calc(50% - 7px); min-width: 150px; }
 }
 
 @media (max-width: 640px) {
+  .settings-page {
+    flex-direction: column;
+  }
   .mc-sidebar {
     position: fixed; bottom: 0; top: auto; left: 0; right: 0;
     width: 100%; height: 56px; flex-direction: row;
@@ -853,7 +897,12 @@
   .mc-nav-group { display: flex; flex-direction: row; gap: 2px; padding: 4px 8px; align-items: center; }
   .mc-nav-item { flex-direction: column; gap: 2px; padding: 6px 10px; font-size: 10px; min-width: 44px; }
   .mc-nav-item.active::before { left: 50%; top: 0; bottom: auto; transform: translateX(-50%); width: 22px; height: 3px; border-radius: 0 0 4px 4px; }
-  .mc-content { margin-left: 0; padding: 16px 12px 72px; }
+  .mc-content {
+    margin-left: 0;
+    padding: 16px 12px 150px;
+    max-height: none;
+    overflow-y: visible;
+  }
   .mc-status-bar { flex-direction: column; }
   .settings-section { padding: 18px; border-radius: 14px; }
   .settings-row { flex-direction: column; align-items: flex-start; gap: 6px; }
@@ -861,3 +910,5 @@
   .settings-actions { flex-direction: column; }
   .settings-button { width: 100%; justify-content: center; }
 }
+
+
