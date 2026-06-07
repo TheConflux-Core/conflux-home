@@ -51,19 +51,23 @@
 
 ---
 
-## Phase 3: Git History Cleanup ⏳ PENDING DON'S APPROVAL
+## Phase 3: Git History Cleanup ✅ COMPLETE
 
-**Plan:** Use `git-filter-repo` to purge secrets from all git history.
+**Actions taken:**
+1. Created backup branch `backup/pre-purge-*`
+2. Ran `git filter-repo --replace-text` with exact key values:
+   - ElevenLabs, MiniMax, Anthropic, OpenAI, Stripe (live+test), Groq, Cloudflare, Mistral, OpenRouter, Vercel
+3. Purged `.env.router` file from all history
+4. Purged `memory/` directory from all history
+5. Purged test scripts (`test_api_key_generation.ts`, `delete_user.mjs`, `seed_test_data.mjs`) from history
+6. Purged `model-catalog/` directory from history
 
-**What will be purged:**
-- API key patterns: `sk_live_*`, `sk_test_*`, `sk_*`, `sk-or-v1*`, `gsk_*`, `sk-cp-*`
-- Stripe keys, webhook secrets, JWTs
-- The `.env.router` file (was committed then deleted)
+**Verification:** `gitleaks detect` returns **ZERO LEAKS** across 1010 commits.
 
-**⚠️ THIS REWRITES GIT HISTORY — REQUIRES FORCE PUSH**
-- All commit hashes will change
-- Anyone with existing clones will need to re-clone
-- GitHub deploy keys / CI may need reconfiguration
+**Status:** Ready to force push. Run:
+```bash
+git push origin main --force
+```
 
 ---
 
