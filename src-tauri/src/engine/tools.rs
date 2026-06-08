@@ -462,7 +462,18 @@ pub async fn execute_tool(tool_name: &str, args: &Value, user_id: &str) -> Resul
         });
     }
 
-    let result = execute_tool_for_user(tool_name, args, user_id).await;
+    // Inject user_id into args so handlers can use the caller-resolved user
+    // instead of reading potentially stale supabase_user_id from config.
+    let args_with_user = if user_id.is_empty() {
+        args.clone()
+    } else {
+        let mut a = args.clone();
+        if let Some(obj) = a.as_object_mut() {
+            obj.insert("_user_id".to_string(), serde_json::Value::String(user_id.to_string()));
+        }
+        a
+    };
+    let result = execute_tool_for_user(tool_name, &args_with_user, user_id).await;
     // Security telemetry — fire and forget (use "conflux" as agent — we're the executor)
     let success = result.as_ref().map(|r| r.success).unwrap_or(false);
     log::info!("[tools] execute_tool EXIT: tool_name={}, success={}, output_len={}, error={:?}",
@@ -5474,9 +5485,7 @@ fn execute_kitchen_add_inventory(args: &Value) -> Result<ToolResult> {
 
     let id = uuid::Uuid::new_v4().to_string();
     let engine = super::get_engine();
-    let member_id = engine.db().get_config("supabase_user_id")
-        .unwrap_or_default()
-        .unwrap_or_else(|| "default_user".to_string());
+    let member_id = get_tool_member_id(args);
     let quantity = args.get("quantity").and_then(|v| v.as_f64());
     let unit = args.get("unit").and_then(|v| v.as_str());
     let category = None::<&str>;
@@ -5510,9 +5519,7 @@ fn execute_kitchen_add_inventory(args: &Value) -> Result<ToolResult> {
 
 fn execute_kitchen_get_inventory(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
-    let member_id = engine.db().get_config("supabase_user_id")
-        .unwrap_or_default()
-        .unwrap_or_else(|| "default_user".to_string());
+    let member_id = get_tool_member_id(args);
     let location = args.get("location").and_then(|v| v.as_str());
 
     match tokio::task::block_in_place(|| {
@@ -6060,9 +6067,7 @@ fn execute_fridge_scan(args: &Value) -> Result<ToolResult> {
     // The actual AI parsing happens in the Tauri command (kitchen_recognize_meal/fridge_scan)
     // Here we add items to inventory based on the description
     let engine = super::get_engine();
-    let member_id = engine.db().get_config("supabase_user_id")
-        .unwrap_or_default()
-        .unwrap_or_else(|| "default_user".to_string());
+    let member_id = get_tool_member_id(args);
 
     // Parse simple "item (qty unit)" patterns from description
     let mut added = Vec::new();
@@ -7252,9 +7257,7 @@ fn execute_budget_generate_report(args: &Value) -> Result<ToolResult> {
     }
 
     let engine = super::get_engine();
-    let member_id = engine.db().get_config("supabase_user_id")
-        .unwrap_or_default()
-        .unwrap_or_else(|| "default_user".to_string());
+    let member_id = get_tool_member_id(args);
 
     match tokio::task::block_in_place(|| {
         engine.db().get_monthly_report_sync(&member_id, month)
@@ -7323,9 +7326,7 @@ fn execute_budget_can_afford(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let now = chrono::Utc::now();
     let this_month = now.format("%Y-%m").to_string();
-    let member_id = engine.db().get_config("supabase_user_id")
-        .unwrap_or_default()
-        .unwrap_or_else(|| "default_user".to_string());
+    let member_id = get_tool_member_id(args);
 
     match tokio::task::block_in_place(|| {
         engine.db().get_budget_summary_sync(&member_id, &this_month)
@@ -7358,6 +7359,33 @@ fn execute_budget_can_afford(args: &Value) -> Result<ToolResult> {
 
 // ── Life Autopilot Tool Implementations ──
 
+/// Get user_id from tool args (caller-injected `_user_id`) or fall back to config.
+/// This ensures heartbeat chain and other callers get the correct user context
+/// instead of reading potentially stale `supabase_user_id` from SQLite config.
+fn get_tool_user_id(args: &Value) -> String {
+    // Prefer _user_id injected by execute_tool dispatcher
+    if let Some(uid) = args.get("_user_id").and_then(|v| v.as_str()) {
+        if !uid.is_empty() {
+            return uid.to_string();
+        }
+    }
+    // Fallback: read from config (backwards compat for direct calls)
+    let engine = super::get_engine();
+    engine.db().get_config("supabase_user_id")
+        .ok()
+        .flatten()
+        .filter(|id| !id.is_empty())
+        .unwrap_or_else(|| "default_user".to_string())
+}
+
+/// Get member_id from tool args or fall back to config.
+fn get_tool_member_id(args: &Value) -> String {
+    let user_id = get_tool_user_id(args);
+    let engine = super::get_engine();
+    engine.db().get_or_create_family_member_id_sync(&user_id)
+        .unwrap_or_else(|_| user_id)
+}
+
 fn execute_life_add_task(args: &Value) -> Result<ToolResult> {
     let title = args.get("title").and_then(|v| v.as_str()).unwrap_or("");
     if title.is_empty() {
@@ -7370,13 +7398,8 @@ fn execute_life_add_task(args: &Value) -> Result<ToolResult> {
 
     let id = uuid::Uuid::new_v4().to_string();
     let engine = super::get_engine();
-    // Resolve supabase_user_id → family_members.id (sync) so tasks land in the correct bucket
-    let user_id = engine.db().get_config("supabase_user_id")
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| "default_user".to_string());
-    let member_id = engine.db().get_or_create_family_member_id_sync(&user_id)
-        .unwrap_or_else(|_| user_id.clone());
+    // Use caller-resolved user_id (injected by execute_tool) instead of config
+    let member_id = get_tool_member_id(args);
     let category = args.get("category").and_then(|v| v.as_str());
     let priority = args
         .get("priority")
@@ -7419,11 +7442,8 @@ fn execute_life_add_task(args: &Value) -> Result<ToolResult> {
 fn execute_life_list_tasks(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let status = args.get("status").and_then(|v| v.as_str());
-    // Use supabase_user_id from config instead of hardcoded "NULL"
-    let member_id = engine.db().get_config("supabase_user_id")
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| "default_user".to_string());
+    // Use caller-resolved user_id instead of config
+    let member_id = get_tool_member_id(args);
     match tokio::task::block_in_place(|| {
         engine.db().get_life_tasks_sync(&member_id, status)
     }) {
@@ -7477,10 +7497,7 @@ fn execute_life_complete_task(args: &Value) -> Result<ToolResult> {
     }
 
     let engine = super::get_engine();
-    let member_id = engine.db().get_config("supabase_user_id")
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| "default_user".to_string());
+    let member_id = get_tool_member_id(args);
     match tokio::task::block_in_place(|| {
         engine.db().update_life_task_status_sync(
             &member_id,
@@ -7523,10 +7540,7 @@ fn execute_life_add_habit(args: &Value) -> Result<ToolResult> {
         .and_then(|v| v.as_i64())
         .unwrap_or(1);
 
-    let member_id = engine.db().get_config("supabase_user_id")
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| "default_user".to_string());
+    let member_id = get_tool_member_id(args);
     match tokio::task::block_in_place(|| {
         engine.db().add_life_habit_sync(
             &id,
@@ -7571,10 +7585,7 @@ fn execute_life_log_habit(args: &Value) -> Result<ToolResult> {
 
     let engine = super::get_engine();
     let now = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    let member_id = engine.db().get_config("supabase_user_id")
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| "default_user".to_string());
+    let member_id = get_tool_member_id(args);
     match tokio::task::block_in_place(|| {
         engine.db().log_life_habit_sync(
             &uuid::Uuid::new_v4().to_string(),
@@ -7645,10 +7656,7 @@ fn execute_life_delete_task(args: &Value) -> Result<ToolResult> {
     }
 
     let engine = super::get_engine();
-    let member_id = engine.db().get_config("supabase_user_id")
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| "default_user".to_string());
+    let member_id = get_tool_member_id(args);
     match tokio::task::block_in_place(|| {
         engine.db().delete_life_task_sync(&member_id, task_id)
     }) {
@@ -7714,10 +7722,7 @@ fn execute_life_get_habits(args: &Value) -> Result<ToolResult> {
         .and_then(|v| v.as_bool())
         .unwrap_or(true);
     // Use supabase_user_id from config instead of hardcoded "NULL"
-    let member_id = engine.db().get_config("supabase_user_id")
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| "default_user".to_string());
+    let member_id = get_tool_member_id(args);
     match tokio::task::block_in_place(|| {
         engine.db().get_life_habits_sync(&member_id, active_only)
     }) {
@@ -7784,10 +7789,7 @@ fn execute_life_dismiss_nudge(args: &Value) -> Result<ToolResult> {
 
 fn execute_life_get_heatmap(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
-    let member_id = engine.db().get_config("supabase_user_id")
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| "default_user".to_string());
+    let member_id = get_tool_member_id(args);
     match tokio::task::block_in_place(|| {
         engine.db().get_life_tasks_sync(&member_id, None)
     }) {
@@ -7828,12 +7830,9 @@ fn execute_life_get_heatmap(args: &Value) -> Result<ToolResult> {
     }
 }
 
-fn execute_life_morning_brief(_args: &Value) -> Result<ToolResult> {
+fn execute_life_morning_brief(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
-    let member_id = engine.db().get_config("supabase_user_id")
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| "default_user".to_string());
+    let member_id = get_tool_member_id(args);
     match tokio::task::block_in_place(|| {
         engine.db().get_orbit_dashboard_sync(&member_id)
     }) {
@@ -8581,10 +8580,7 @@ fn execute_dream_list(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let status = args.get("status").and_then(|v| v.as_str());
     // Use supabase_user_id from config instead of hardcoded "NULL"
-    let member_id = engine.db().get_config("supabase_user_id")
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| "default_user".to_string());
+    let member_id = get_tool_member_id(args);
     log::info!("[dream_list] Querying with member_id='{}', status={:?}", member_id, status);
     match tokio::task::block_in_place(|| {
         engine.db().get_dreams_sync(&member_id, status)
@@ -8731,12 +8727,9 @@ fn execute_dream_add_task(args: &Value) -> Result<ToolResult> {
 
 // ── Dreams Tool Implementations: Extended ──
 
-fn execute_dream_get_dashboard(_args: &Value) -> Result<ToolResult> {
+fn execute_dream_get_dashboard(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
-    let member_id = engine.db().get_config("supabase_user_id")
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| "default_user".to_string());
+    let member_id = get_tool_member_id(args);
     match tokio::task::block_in_place(|| {
         engine.db().get_dream_dashboard_sync(&member_id)
     }) {
@@ -8795,10 +8788,7 @@ fn execute_dream_complete_milestone(args: &Value) -> Result<ToolResult> {
         });
     }
     let engine = super::get_engine();
-    let member_id = engine.db().get_config("supabase_user_id")
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| "default_user".to_string());
+    let member_id = get_tool_member_id(args);
     match tokio::task::block_in_place(|| {
         engine.db().complete_milestone_sync(&member_id, id)
     }) {
@@ -9870,16 +9860,14 @@ fn execute_echo_counselor_set_evening_reminder(args: &Value) -> Result<ToolResul
 
 // ── Cross-App Intelligence Tool Implementations ──
 
-fn execute_weekly_summary(_args: &Value) -> Result<ToolResult> {
+fn execute_weekly_summary(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let now = chrono::Utc::now();
     let this_month = now.format("%Y-%m").to_string();
     let mut sections: Vec<String> = Vec::new();
 
     // 1. Budget summary (uses get_budget_summary_sync which reads buckets + settings)
-    let member_id = engine.db().get_config("supabase_user_id")
-        .unwrap_or_default()
-        .unwrap_or_else(|| "default_user".to_string());
+    let member_id = get_tool_member_id(args);
     if let Ok(summary) = tokio::task::block_in_place(|| {
         engine.db().get_budget_summary_sync(&member_id, &this_month)
     }) {
@@ -9979,9 +9967,7 @@ fn execute_can_afford(args: &Value) -> Result<ToolResult> {
     let now = chrono::Utc::now();
     let this_month = now.format("%Y-%m").to_string();
 
-    let member_id = engine.db().get_config("supabase_user_id")
-        .unwrap_or_default()
-        .unwrap_or_else(|| "default_user".to_string());
+    let member_id = get_tool_member_id(args);
     let summary = tokio::task::block_in_place(|| {
         engine.db().get_budget_summary_sync(&member_id, &this_month)
     })?;
@@ -10031,7 +10017,7 @@ fn execute_can_afford(args: &Value) -> Result<ToolResult> {
     })
 }
 
-fn execute_day_overview(_args: &Value) -> Result<ToolResult> {
+fn execute_day_overview(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     let now = chrono::Utc::now();
     let today = now.format("%Y-%m-%d").to_string();
@@ -10052,9 +10038,7 @@ fn execute_day_overview(_args: &Value) -> Result<ToolResult> {
     }
 
     // 2. Inventory expiring today or tomorrow
-    let member_id = engine.db().get_config("supabase_user_id")
-        .unwrap_or_default()
-        .unwrap_or_else(|| "default_user".to_string());
+    let member_id = get_tool_member_id(args);
     if let Ok(inventory) = tokio::task::block_in_place(|| {
         engine.db().get_inventory_sync(&member_id, None)
     }) {
