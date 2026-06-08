@@ -1317,12 +1317,14 @@ fn build_offline_system_prompt(
 /// Process a chat turn in offline mode — local inference only, no cloud path.
 /// This is the hard offline path. If local fails, it returns an error, not cloud.
 /// Optimized for speed: minimal prompt, no tools, no memories, no synthesis call.
+/// If local AI is unavailable (e.g. Android where llama-server isn't bundled),
+/// falls back to cloud chat as a last resort to avoid completely breaking.
 async fn local_offline_turn(
     db: &EngineDb,
     session_id: &str,
     agent_id: &str,
     user_message: &str,
-    _max_tokens: Option<i64>,
+    max_tokens: Option<i64>,
 ) -> Result<ModelResponse> {
     use super::local_ai::get_or_init_local_ai;
 
@@ -1338,8 +1340,29 @@ async fn local_offline_turn(
     let system_prompt = build_offline_system_prompt(db, &agent);
 
     // Get local llama-server manager
-    let manager = get_or_init_local_ai().await
-        .ok_or_else(|| anyhow::anyhow!("Local AI not available — llama-server not running"))?;
+    let manager = match get_or_init_local_ai().await {
+        Some(m) => m,
+        None => {
+            // Local AI unavailable (common on Android where llama-server isn't bundled)
+            // Fall back to cloud instead of completely failing
+            log::warn!("[Engine][Offline] Local AI not available — falling back to cloud chat");
+            let messages = vec![
+                OpenAIMessage {
+                    role: "system".to_string(),
+                    content: Some(system_prompt),
+                    tool_call_id: None,
+                    tool_calls: None,
+                },
+                OpenAIMessage {
+                    role: "user".to_string(),
+                    content: Some(user_message.to_string()),
+                    tool_call_id: None,
+                    tool_calls: None,
+                },
+            ];
+            return cloud::cloud_chat(None, messages, max_tokens, None, None).await;
+        }
+    };
 
     // Emit thinking state
     let state_manager = super::state_manager::get_state_manager();

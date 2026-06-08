@@ -32,12 +32,20 @@ export default function TopBar({ selectedAgent, controlRoom, currentView, onNavi
   // Auto-detected network state
   const { online: networkOnline } = useNetworkStatus();
 
+  // Detect Android — local AI (llama-server) is not available on mobile,
+  // so we must NOT auto-fallback to local mode on network drops.
+  const isAndroid = typeof navigator !== 'undefined' && navigator.userAgent.includes('Android');
+
   // Effective mode: what actually happens
   // - If user chose Local → always Local (respect privacy)
   // - If user chose Cloud + network up → Cloud
   // - If user chose Cloud + network down → Local (auto-fallback)
-  const effectiveMode: 'cloud' | 'local' = manualMode === 'local' ? 'local' : (networkOnline ? 'cloud' : 'local');
-  const isAutoFallback = manualMode === 'cloud' && !networkOnline;
+  //   BUT on Android: stay Cloud — local AI doesn't exist on mobile,
+  //   falling back to local just breaks everything.
+  const effectiveMode: 'cloud' | 'local' = manualMode === 'local'
+    ? 'local'
+    : (networkOnline ? 'cloud' : (isAndroid ? 'cloud' : 'local'));
+  const isAutoFallback = manualMode === 'cloud' && !networkOnline && !isAndroid;
 
   // Notify rest of app when effective mode changes
   const prevEffectiveRef = useRef(effectiveMode);

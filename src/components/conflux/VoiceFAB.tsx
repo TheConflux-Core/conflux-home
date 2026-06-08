@@ -20,30 +20,46 @@ export default function VoiceFAB({
   const activeRef = useRef(false);
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMobileRef = useRef(false);
+  const pointerTypeRef = useRef<string>('mouse');
 
-  // Detect touch device on mount
+  // Detect touch device — check multiple signals for Tauri mobile compatibility
   useEffect(() => {
-    isMobileRef.current = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    isMobileRef.current =
+      'ontouchstart' in window ||
+      navigator.maxTouchPoints > 0 ||
+      window.matchMedia('(pointer: coarse)').matches;
   }, []);
 
   // ── Desktop: hold-to-talk via pointer events ────────────────────
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    if (isMobileRef.current) return; // Mobile uses click handler
+    // Use the event's own pointerType for reliable mobile detection
+    pointerTypeRef.current = e.pointerType;
+    const isTouch = e.pointerType === 'touch';
+    if (isTouch) return; // Mobile uses click handler
     e.preventDefault();
     if (activeRef.current) return;
     activeRef.current = true;
     onStartPTT();
   }, [onStartPTT]);
 
-  const handlePointerUp = useCallback(() => {
-    if (isMobileRef.current) return;
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType === 'touch') return;
     if (!activeRef.current) return;
     activeRef.current = false;
     onStopPTT();
   }, [onStopPTT]);
 
-  const handlePointerLeave = useCallback(() => {
+  const handlePointerLeave = useCallback((e: React.PointerEvent) => {
+    setShowTooltip(false);
+    if (e.pointerType === 'touch') return;
+    if (activeRef.current) {
+      activeRef.current = false;
+      onStopPTT();
+    }
+  }, [onStopPTT]);
+
+  const handleMouseLeave = useCallback(() => {
     setShowTooltip(false);
     if (isMobileRef.current) return;
     if (activeRef.current) {
@@ -55,7 +71,10 @@ export default function VoiceFAB({
   // ── Mobile: tap to toggle (start on first tap, stop+send on second) ──
 
   const handleClick = useCallback(() => {
-    if (!isMobileRef.current) return;
+    // Use both event-derived and mount-detected mobile checks
+    const isTouchDevice =
+      pointerTypeRef.current === 'touch' || isMobileRef.current;
+    if (!isTouchDevice) return;
 
     if (isPushToTalkActive) {
       // Second tap — stop and send
@@ -96,7 +115,7 @@ export default function VoiceFAB({
       onPointerLeave={handlePointerLeave}
       onClick={handleClick}
       onMouseEnter={() => setShowTooltip(true)}
-      onMouseLeave={handlePointerLeave}
+      onMouseLeave={handleMouseLeave}
     >
       <div className="voice-fab-bg" />
       <div className="voice-fab-icon">
