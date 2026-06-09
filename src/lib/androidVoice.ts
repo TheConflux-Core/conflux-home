@@ -8,6 +8,19 @@
 
 const isAndroidPlatform = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 
+// Native logger — calls Android's Log.d() via JavaScriptInterface.
+// Survives release builds where console.log is stripped by bundler.
+function nativeLog(tag: string, msg: string, ...args: any[]) {
+  const fullMsg = args.length > 0 ? `${msg} ${args.join(' ')}` : msg;
+  try { (window as any).AndroidLog?.log(tag, fullMsg); } catch {}
+  try { console.log(`[${tag}]`, fullMsg); } catch {}
+}
+function nativeError(tag: string, msg: string, ...args: any[]) {
+  const fullMsg = args.length > 0 ? `${msg} ${args.join(' ')}` : msg;
+  try { (window as any).AndroidLog?.error(tag, fullMsg); } catch {}
+  try { console.error(`[${tag}]`, fullMsg); } catch {}
+}
+
 type VoiceCallback = (text: string) => void;
 type ErrorCallback = (error: string) => void;
 
@@ -27,8 +40,8 @@ function ensureRecognition(): boolean {
 
   const SR = getSpeechRecognition();
   if (!SR) {
-    console.error('[AndroidVoice] SpeechRecognition API not available');
-    console.error('[AndroidVoice] UserAgent:', typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown');
+    nativeError('AndroidVoice', 'SpeechRecognition API not available');
+    nativeError('AndroidVoice', 'UserAgent:', typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown');
     return false;
   }
 
@@ -47,13 +60,13 @@ function ensureRecognition(): boolean {
     }
     if (finalText) {
       transcriptBuffer += (transcriptBuffer ? ' ' : '') + finalText.trim();
-      console.log('[AndroidVoice] Final transcript chunk:', finalText.trim());
+      nativeLog('AndroidVoice', 'Final transcript chunk:', finalText.trim());
       if (onResultCallback) onResultCallback(transcriptBuffer);
     }
   };
 
   recognition.onerror = (event: any) => {
-    console.error('[AndroidVoice] SpeechRecognition error:', event.error);
+    nativeError('AndroidVoice', 'SpeechRecognition error:', event.error);
 
     if (event.error === 'no-speech') {
       // Normal — user didn't speak. Clean up gracefully.
@@ -82,16 +95,16 @@ function ensureRecognition(): boolean {
   };
 
   recognition.onend = () => {
-    console.log('[AndroidVoice] SpeechRecognition ended, isRecognizing was:', isRecognizing);
+    nativeLog('AndroidVoice', 'SpeechRecognition ended, isRecognizing was:', isRecognizing);
     isRecognizing = false;
   };
 
   recognition.onspeechstart = () => {
-    console.log('[AndroidVoice] Speech detected');
+    nativeLog('AndroidVoice', 'Speech detected');
   };
 
   recognition.onspeechend = () => {
-    console.log('[AndroidVoice] Speech ended');
+    nativeLog('AndroidVoice', 'Speech ended');
   };
 
   return true;
@@ -105,8 +118,8 @@ export async function startListening(): Promise<void> {
 
   // Stop any existing session before starting a new one
   if (isRecognizing) {
-    console.log('[AndroidVoice] Stopping previous session before starting new one');
-    try { recognition.stop(); } catch (e) { console.warn('[AndroidVoice] stop before start failed:', e); }
+    nativeLog('AndroidVoice', 'Stopping previous session before starting new one');
+    try { recognition.stop(); } catch (e) { nativeLog('AndroidVoice', '[WARN] stop before start failed:', e); }
     isRecognizing = false;
   }
 
@@ -117,7 +130,7 @@ export async function startListening(): Promise<void> {
       // Set up one-time start handler
       const onStart = () => {
         isRecognizing = true;
-        console.log('[AndroidVoice] SpeechRecognition started successfully');
+        nativeLog('AndroidVoice', 'SpeechRecognition started successfully');
         recognition.removeEventListener('start', onStart);
         recognition.removeEventListener('error', onError);
         resolve();
@@ -129,14 +142,14 @@ export async function startListening(): Promise<void> {
 
         if (event.error === 'aborted') {
           // This can happen if stop() was called immediately — not a real error
-          console.log('[AndroidVoice] Start aborted (likely stop() called)');
+          nativeLog('AndroidVoice', 'Start aborted (likely stop() called)');
           return;
         }
 
         const msg = event.error === 'not-allowed'
           ? 'Microphone permission denied — check Android app permissions'
           : `SpeechRecognition start failed: ${event.error}`;
-        console.error('[AndroidVoice]', msg);
+        nativeError('AndroidVoice', msg);
         reject(new Error(msg));
       };
 
@@ -149,7 +162,7 @@ export async function startListening(): Promise<void> {
         recognition.removeEventListener('error', onError);
         if (!isRecognizing) {
           const msg = 'SpeechRecognition start timed out — check microphone permission';
-          console.error('[AndroidVoice]', msg);
+          nativeError('AndroidVoice', msg);
           reject(new Error(msg));
         }
       }, 10000);
@@ -158,7 +171,7 @@ export async function startListening(): Promise<void> {
       // No await, no setTimeout before this line.
       recognition.start();
     } catch (err) {
-      console.error('[AndroidVoice] recognition.start() threw:', err);
+      nativeError('AndroidVoice', 'recognition.start() threw:', err);
       isRecognizing = false;
       reject(err);
     }
@@ -168,12 +181,12 @@ export async function startListening(): Promise<void> {
 /** Stop listening. Transcript is available via getTranscript() after a short delay. */
 export async function stopListening(): Promise<void> {
   if (!recognition) {
-    console.log('[AndroidVoice] stopListening called but no recognition instance');
+    nativeLog('AndroidVoice', 'stopListening called but no recognition instance');
     return;
   }
 
   if (!isRecognizing) {
-    console.log('[AndroidVoice] stopListening called but not recognizing');
+    nativeLog('AndroidVoice', 'stopListening called but not recognizing');
     return;
   }
 
@@ -181,7 +194,7 @@ export async function stopListening(): Promise<void> {
     const onEnd = () => {
       isRecognizing = false;
       recognition.removeEventListener('end', onEnd);
-      console.log('[AndroidVoice] Stopped. Buffer:', transcriptBuffer);
+      nativeLog('AndroidVoice', 'Stopped. Buffer:', transcriptBuffer);
       resolve();
     };
 
@@ -190,7 +203,7 @@ export async function stopListening(): Promise<void> {
     try {
       recognition.stop();
     } catch (e) {
-      console.warn('[AndroidVoice] recognition.stop() threw:', e);
+      nativeLog('AndroidVoice', '[WARN] recognition.stop() threw:', e);
       isRecognizing = false;
       recognition.removeEventListener('end', onEnd);
       resolve();
@@ -200,7 +213,7 @@ export async function stopListening(): Promise<void> {
     // Safety timeout — resolve even if onend doesn't fire
     setTimeout(() => {
       if (isRecognizing) {
-        console.warn('[AndroidVoice] stopListening safety timeout — forcing stop');
+        nativeLog('AndroidVoice', '[WARN] stopListening safety timeout — forcing stop');
         recognition.removeEventListener('end', onEnd);
         isRecognizing = false;
       }
@@ -212,11 +225,11 @@ export async function stopListening(): Promise<void> {
 /** Cancel listening without getting a transcript. */
 export function cancel(): void {
   if (!recognition) return;
-  console.log('[AndroidVoice] cancel() called');
+  nativeLog('AndroidVoice', 'cancel() called');
   try {
     recognition.abort();
   } catch (e) {
-    console.warn('[AndroidVoice] abort() threw:', e);
+    nativeLog('AndroidVoice', '[WARN] abort() threw:', e);
   }
   isRecognizing = false;
   transcriptBuffer = '';

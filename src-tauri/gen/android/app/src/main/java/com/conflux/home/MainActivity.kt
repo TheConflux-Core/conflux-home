@@ -3,14 +3,47 @@ package com.conflux.home
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.WindowManager
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 
+/** Native logger — JS calls window.AndroidLog.log(tag, msg) to write to logcat.
+ *  Survives release builds because it's a native call, not console.log. */
+class AndroidLog {
+    @JavascriptInterface
+    fun log(tag: String, msg: String) {
+        Log.d("ConfluxJS", "[$tag] $msg")
+    }
+    @JavascriptInterface
+    fun error(tag: String, msg: String) {
+        Log.e("ConfluxJS", "[$tag] $msg")
+    }
+}
+
 class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
+    // Enable Chrome DevTools remote debugging BEFORE super.onCreate() creates the WebView
+    WebView.setWebContentsDebuggingEnabled(true)
+
     super.onCreate(savedInstanceState)
+  }
+
+  override fun onWebViewCreate(webView: WebView) {
+    super.onWebViewCreate(webView)
+
+    // Inject native logger so JS can call window.AndroidLog.log()
+    // Survives release builds (console.log is stripped by bundler)
+    try {
+        webView.addJavascriptInterface(AndroidLog(), "AndroidLog")
+        Log.d("ConfluxNative", "AndroidLog JS interface injected")
+    } catch (e: Exception) {
+        Log.e("ConfluxNative", "Failed to inject AndroidLog: ${e.message}")
+    }
+  }
 
     // ── Edge-to-Edge: let content draw behind system bars ──
     // This MUST come after super.onCreate() — the WebView is created there.
