@@ -9,14 +9,23 @@ export function useOrbit() {
   const [dashboard, setDashboard] = useState<OrbitDashboard | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Log user_id for debugging task visibility issues
+  useEffect(() => {
+    console.log('[useOrbit] user_id:', user_id || '(EMPTY — user not authenticated)');
+  }, [user_id]);
+
   const loadDashboard = useCallback(async () => {
-    if (!user_id) return;
+    if (!user_id) {
+      console.warn('[useOrbit] loadDashboard skipped — no user_id');
+      return;
+    }
     try {
       setLoading(true);
       const d = await invoke<OrbitDashboard>('life_get_orbit_dashboard', { user_id });
+      console.log('[useOrbit] dashboard loaded:', { pending: d.pending_tasks?.length ?? 0, completed: d.completed_today ?? 0 });
       setDashboard(d);
     } catch (e) {
-      console.error('Failed:', e);
+      console.error('[useOrbit] loadDashboard FAILED:', e);
     } finally {
       setLoading(false);
     }
@@ -28,14 +37,21 @@ export function useOrbit() {
 
   const addTask = useCallback(
     async (title: string, category?: string, priority?: string, dueDate?: string, energyType?: string) => {
-      await invoke('life_add_task', {
-        user_id,
-        title,
-        category: category ?? null,
-        priority: priority ?? null,
-        due_date: dueDate ?? null,
-        energy_type: energyType ?? null,
-      });
+      console.log('[useOrbit] addTask:', { user_id, title, category, priority, dueDate, energyType });
+      try {
+        await invoke('life_add_task', {
+          user_id,
+          title,
+          category: category ?? null,
+          priority: priority ?? null,
+          due_date: dueDate ?? null,
+          energy_type: energyType ?? null,
+        });
+        console.log('[useOrbit] addTask success, reloading dashboard...');
+      } catch (e) {
+        console.error('[useOrbit] addTask FAILED:', e);
+        throw e;
+      }
       await loadDashboard();
     },
     [user_id, loadDashboard]
@@ -115,6 +131,13 @@ export function useOrbit() {
     [user_id, loadDashboard]
   );
 
+  // Diagnostic: call from browser console to dump task state
+  const debugDump = useCallback(async () => {
+    const result = await invoke('life_debug_dump', { user_id });
+    console.log('[Orbit Debug]', result);
+    return result;
+  }, [user_id]);
+
   return {
     dashboard,
     loading,
@@ -129,5 +152,6 @@ export function useOrbit() {
     smartReschedule,
     parseInput,
     dismissNudge,
+    debugDump,
   };
 }

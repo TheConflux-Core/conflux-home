@@ -465,12 +465,14 @@ pub async fn execute_tool(tool_name: &str, args: &Value, user_id: &str) -> Resul
     // Inject user_id into args so handlers can use the caller-resolved user
     // instead of reading potentially stale supabase_user_id from config.
     let args_with_user = if user_id.is_empty() {
+        log::warn!("[tools] execute_tool: user_id is EMPTY, not injecting _user_id");
         args.clone()
     } else {
         let mut a = args.clone();
         if let Some(obj) = a.as_object_mut() {
             obj.insert("_user_id".to_string(), serde_json::Value::String(user_id.to_string()));
         }
+        log::info!("[tools] execute_tool: injected _user_id={}", user_id);
         a
     };
     let result = execute_tool_for_user(tool_name, &args_with_user, user_id).await;
@@ -7400,6 +7402,8 @@ fn execute_life_add_task(args: &Value) -> Result<ToolResult> {
     let engine = super::get_engine();
     // Use caller-resolved user_id (injected by execute_tool) instead of config
     let member_id = get_tool_member_id(args);
+    let user_id = get_tool_user_id(args);
+    log::info!("[execute_life_add_task] _user_id={}, resolved member_id={}, title='{}'", user_id, member_id, title);
     let category = args.get("category").and_then(|v| v.as_str());
     let priority = args
         .get("priority")

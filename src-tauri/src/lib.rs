@@ -688,6 +688,7 @@ pub fn run() {
             commands::life_get_tasks,
             commands::life_complete_task,
             commands::life_delete_task,
+            commands::life_debug_dump,
             commands::life_add_habit,
             commands::life_get_habits,
             commands::life_log_habit,

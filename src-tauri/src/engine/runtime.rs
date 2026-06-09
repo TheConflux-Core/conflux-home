@@ -97,7 +97,7 @@ fn parse_xml_tool_calls(content: &str) -> Vec<ToolCallRequest> {
 
 /// Helper: Extract user_id from session record, or fall back to get_supabase_user_id.
 fn get_session_user_id(db: &EngineDb, session_id: &str) -> String {
-    match db.get_session(session_id) {
+    let uid = match db.get_session(session_id) {
         Ok(Some(session)) if !session.user_id.is_empty() => session.user_id,
         _ => {
             // Fallback: try to get from Supabase config
@@ -107,7 +107,9 @@ fn get_session_user_id(db: &EngineDb, session_id: &str) -> String {
                 .filter(|id| !id.is_empty())
                 .unwrap_or_default()
         }
-    }
+    };
+    log::info!("[get_session_user_id] session={}, resolved user_id={}", session_id, if uid.is_empty() { "(EMPTY)" } else { &uid });
+    uid
 }
 
 
