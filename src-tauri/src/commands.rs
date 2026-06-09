@@ -10687,17 +10687,24 @@ pub use voice_cmds::*;
 pub mod voice_cmds {
     use super::*;
 
+    // ── Android voice: frontend handles everything via SpeechRecognition API ──
+    // These stubs return success so status checks don't error out.
+    // Actual voice capture is handled entirely in the browser (see androidVoice.ts).
+
     #[tauri::command]
     pub fn voice_capture_start() -> Result<String, String> {
-        Err("Voice input is not available on Android".to_string())
+        // Frontend calls androidVoice.startListening() directly on Android
+        Ok("android-handled-by-frontend".to_string())
     }
     #[tauri::command]
     pub fn voice_capture_stop() -> Result<serde_json::Value, String> {
-        Err("Voice input is not available on Android".to_string())
+        // Frontend calls androidVoice.stopListening() directly on Android
+        Ok(serde_json::json!({ "samples": 0, "transcript": null, "platform": "android" }))
     }
     #[tauri::command]
     pub fn voice_transcribe(_app: tauri::AppHandle) -> Result<String, String> {
-        Err("Voice input is not available on Android".to_string())
+        // Not needed on Android — SpeechRecognition returns text directly
+        Ok(String::new())
     }
     #[tauri::command]
     pub async fn voice_capture_and_transcribe(

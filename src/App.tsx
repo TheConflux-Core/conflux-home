@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { soundManager } from './lib/sound';
 import { playBuildComplete } from './lib/onboarding-sounds';
+import { isAndroid, getTranscript as getAndroidTranscript, startListening as androidStartListening, stopListening as androidStopListening, cancel as androidCancel } from './lib/androidVoice';
 import { initHeartbeatGlobal } from './lib/heartbeatGlobal';
 import { startDemoBeats, stopDemoBeats } from './lib/beatBus';
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
@@ -566,19 +567,20 @@ export default function App() {
       setIsPushToTalkActive(true);
       soundManager.playAgentWake('conflux');
       try {
-        await invoke('voice_capture_start');
+        if (isAndroid) {
+          await androidStartListening();
+        } else {
+          await invoke('voice_capture_start');
+        }
         window.dispatchEvent(new CustomEvent('push-to-talk-start'));
       } catch (err) {
         console.error('Failed to start voice capture:', err);
-        // Recording failed — clean up state so UI doesn't get stuck
         setIsPushToTalkActive(false);
         window.dispatchEvent(new CustomEvent('conflux-force-idle'));
       }
     };
 
     const stopPTT = async () => {
-      // Always stop recording regardless of isPushToTalkActive state
-      // (handles rapid click where state toggles before stop fires)
       if (pttCancelledRef.current) {
         setIsPushToTalkActive(false);
         return;
@@ -587,6 +589,25 @@ export default function App() {
       window.dispatchEvent(new CustomEvent('push-to-talk-end'));
 
       try {
+        // ── Android path: SpeechRecognition → transcript directly ──
+        if (isAndroid) {
+          window.dispatchEvent(new CustomEvent('conflux-thinking', { detail: { text: '(transcribing...)' } }));
+          await androidStopListening();
+          // Small delay to let the final onresult fire
+          await new Promise(r => setTimeout(r, 300));
+          const transcript = getAndroidTranscript();
+          if (transcript && transcript.trim()) {
+            console.log('[Voice] Android STT transcript:', transcript);
+            await handleVoiceInput(transcript.trim());
+          } else {
+            console.log('[Voice] Android STT returned empty — no speech detected');
+            window.dispatchEvent(new CustomEvent('conflux-force-idle'));
+          }
+          window.dispatchEvent(new CustomEvent('conflux-transcription-done'));
+          return;
+        }
+
+        // ── Desktop path: cpal + ElevenLabs ──
         const result = await invoke<{ samples: number; duration_seconds: number; transcript?: string | null }>('voice_capture_stop');
 
         // Guard: no audio recorded (quick click/tap without speech)
@@ -662,7 +683,13 @@ export default function App() {
         pttCancelledRef.current = true;
         setIsPushToTalkActive(false);
         window.dispatchEvent(new CustomEvent('push-to-talk-end'));
-        try { await invoke('voice_capture_stop'); } catch { /* may already be stopped */ }
+        try {
+          if (isAndroid) {
+            androidCancel();
+          } else {
+            await invoke('voice_capture_stop');
+          }
+        } catch { /* may already be stopped */ }
         window.dispatchEvent(new CustomEvent('conflux-force-idle'));
         return;
       }

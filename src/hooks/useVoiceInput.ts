@@ -2,9 +2,10 @@
 // Split flow: start → user taps stop → transcribe
 // No blocking wait — user controls recording duration.
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { isAndroid, getTranscript as getAndroidTranscript, startListening as androidStartListening, stopListening as androidStopListening, cancel as androidCancel } from '../lib/androidVoice';
 
 interface UseVoiceInputOptions {
   onTranscription: (text: string) => void;
@@ -36,7 +37,11 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
     setError(null);
 
     try {
-      await invoke('voice_capture_start');
+      if (isAndroid) {
+        await androidStartListening();
+      } else {
+        await invoke('voice_capture_start');
+      }
       setIsListening(true);
 
       // Auto-stop after maxDurationMs as a safety net
@@ -61,6 +66,20 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
     setIsListening(false);
 
     try {
+      // ── Android path: SpeechRecognition → transcript directly ──
+      if (isAndroid) {
+        setIsTranscribing(true);
+        await androidStopListening();
+        // Small delay for final onresult event
+        await new Promise(r => setTimeout(r, 300));
+        const transcript = getAndroidTranscript();
+        if (transcript && transcript.trim()) {
+          options.onTranscription(transcript.trim());
+        }
+        return;
+      }
+
+      // ── Desktop path: cpal + ElevenLabs ──
       // Stop recording — backend returns transcript if realtime STT delivered it
       const result = await invoke<{ samples: number; duration_seconds: number; transcript?: string | null }>('voice_capture_stop');
 
@@ -120,7 +139,11 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
     setIsListening(false);
     setIsTranscribing(false);
     try {
-      await invoke('voice_capture_stop');
+      if (isAndroid) {
+        androidCancel();
+      } else {
+        await invoke('voice_capture_stop');
+      }
     } catch {
       // Ignore — may already be stopped
     }
@@ -135,6 +158,18 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
   }, [isListening, startListening, stopListening]);
 
   const clearError = useCallback(() => setError(null), []);
+
+  // Check if voice is available (Android: SpeechRecognition API, Desktop: always true)
+  const [isAvailable, setIsAvailable] = useState(true);
+  useEffect(() => {
+    if (isAndroid) {
+      const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SR) {
+        console.warn('[AndroidVoice] SpeechRecognition API not available');
+        setIsAvailable(false);
+      }
+    }
+  }, []);
 
   return {
     isListening,
