@@ -10738,82 +10738,80 @@ pub mod voice_cmds {
         Ok(serde_json::json!({ "available": false }))
     }
 
-    /// Transcribe audio bytes (base64-encoded WebM/Opus) using ElevenLabs STT.
-    /// Called from the frontend after getUserMedia + MediaRecorder capture.
-    #[tauri::command]
-    pub async fn voice_transcribe_audio(audio_base64: String) -> Result<String, String> {
-        use base64::Engine;
+}
 
-        if audio_base64.is_empty() {
-            return Err("No audio data provided".to_string());
-        }
+/// Transcribe audio bytes (base64-encoded WebM/Opus) using ElevenLabs STT.
+/// Works on all platforms — used by Android getUserMedia + MediaRecorder flow.
+#[tauri::command]
+pub async fn voice_transcribe_audio(audio_base64: String) -> Result<String, String> {
+    use base64::Engine;
 
-        // Decode base64 audio
-        let audio_bytes = base64::engine::general_purpose::STANDARD
-            .decode(&audio_base64)
-            .map_err(|e| format!("Base64 decode failed: {}", e))?;
-
-        if audio_bytes.len() < 1000 {
-            return Err("Audio too short".to_string());
-        }
-
-        log::info!("[STT-Android] Transcribing {} bytes of audio", audio_bytes.len());
-
-        // Get ElevenLabs API key
-        let eleven_key = {
-            let engine = crate::engine::get_engine();
-            engine
-                .db()
-                .get_config("studio_elevenlabs_key")
-                .ok()
-                .flatten()
-                .filter(|k| !k.is_empty())
-                .or_else(|| std::env::var("ELEVENLABS_API_KEY").ok().filter(|k| !k.is_empty()))
-                .unwrap_or_default()
-        };
-
-        if eleven_key.is_empty() {
-            return Err("No ElevenLabs API key configured".to_string());
-        }
-
-        // Send to ElevenLabs Scribe v1
-        let client = reqwest::Client::new();
-        let part = reqwest::multipart::Part::bytes(audio_bytes)
-            .file_name("audio.webm")
-            .mime_str("audio/webm")
-            .map_err(|e| format!("MIME error: {}", e))?;
-
-        let form = reqwest::multipart::Form::new()
-            .part("audio", part);
-
-        let resp = client
-            .post("https://api.elevenlabs.io/v1/speech-to-text")
-            .header("xi-api-key", &eleven_key)
-            .multipart(form)
-            .send()
-            .await
-            .map_err(|e| format!("ElevenLabs request failed: {}", e))?;
-
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(format!("ElevenLabs STT error {}: {}", status, body));
-        }
-
-        let json: serde_json::Value = resp
-            .json()
-            .await
-            .map_err(|e| format!("ElevenLabs response parse error: {}", e))?;
-
-        let transcript = json["text"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
-
-        log::info!("[STT-Android] Transcript: {}", if transcript.len() > 80 { &transcript[..80] } else { &transcript });
-
-        Ok(transcript)
+    if audio_base64.is_empty() {
+        return Err("No audio data provided".to_string());
     }
+
+    let audio_bytes = base64::engine::general_purpose::STANDARD
+        .decode(&audio_base64)
+        .map_err(|e| format!("Base64 decode failed: {}", e))?;
+
+    if audio_bytes.len() < 1000 {
+        return Err("Audio too short".to_string());
+    }
+
+    log::info!("[STT] Transcribing {} bytes of audio", audio_bytes.len());
+
+    let eleven_key = {
+        let engine = crate::engine::get_engine();
+        engine
+            .db()
+            .get_config("studio_elevenlabs_key")
+            .ok()
+            .flatten()
+            .filter(|k| !k.is_empty())
+            .or_else(|| std::env::var("ELEVENLABS_API_KEY").ok().filter(|k| !k.is_empty()))
+            .unwrap_or_default()
+    };
+
+    if eleven_key.is_empty() {
+        return Err("No ElevenLabs API key configured".to_string());
+    }
+
+    let client = reqwest::Client::new();
+    let part = reqwest::multipart::Part::bytes(audio_bytes)
+        .file_name("audio.webm")
+        .mime_str("audio/webm")
+        .map_err(|e| format!("MIME error: {}", e))?;
+
+    let form = reqwest::multipart::Form::new()
+        .part("audio", part);
+
+    let resp = client
+        .post("https://api.elevenlabs.io/v1/speech-to-text")
+        .header("xi-api-key", &eleven_key)
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| format!("ElevenLabs request failed: {}", e))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("ElevenLabs STT error {}: {}", status, body));
+    }
+
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("ElevenLabs response parse error: {}", e))?;
+
+    let transcript = json["text"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+
+    log::info!("[STT] Transcript: {}", if transcript.len() > 80 { &transcript[..80] } else { &transcript });
+
+    Ok(transcript)
 }
 /*
 #[cfg(target_os = "android")]
