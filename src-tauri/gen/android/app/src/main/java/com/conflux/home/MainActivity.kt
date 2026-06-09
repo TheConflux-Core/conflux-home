@@ -30,20 +30,6 @@ class MainActivity : TauriActivity() {
     WebView.setWebContentsDebuggingEnabled(true)
 
     super.onCreate(savedInstanceState)
-  }
-
-  override fun onWebViewCreate(webView: WebView) {
-    super.onWebViewCreate(webView)
-
-    // Inject native logger so JS can call window.AndroidLog.log()
-    // Survives release builds (console.log is stripped by bundler)
-    try {
-        webView.addJavascriptInterface(AndroidLog(), "AndroidLog")
-        Log.d("ConfluxNative", "AndroidLog JS interface injected")
-    } catch (e: Exception) {
-        Log.e("ConfluxNative", "Failed to inject AndroidLog: ${e.message}")
-    }
-  }
 
     // ── Edge-to-Edge: let content draw behind system bars ──
     // This MUST come after super.onCreate() — the WebView is created there.
@@ -69,5 +55,18 @@ class MainActivity : TauriActivity() {
 
     // Keep screen on while app is active
     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+  }
+
+  override fun onWebViewCreate(webView: WebView) {
+    super.onWebViewCreate(webView)
+
+    // Inject native logger so JS can call window.AndroidLog.log()
+    // Survives release builds (console.log is stripped by bundler)
+    try {
+        webView.addJavascriptInterface(AndroidLog(), "AndroidLog")
+        Log.d("ConfluxNative", "AndroidLog JS interface injected")
+    } catch (e: Exception) {
+        Log.e("ConfluxNative", "Failed to inject AndroidLog: ${e.message}")
+    }
   }
 }
