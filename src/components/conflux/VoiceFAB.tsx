@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import './VoiceFAB.css';
 
 interface VoiceFABProps {
@@ -17,31 +17,22 @@ export default function VoiceFAB({
   effectivePalette,
 }: VoiceFABProps) {
   const [showTooltip, setShowTooltip] = useState(false);
-  const pointerTypeRef = useRef<string>('mouse');
+  const lastTapRef = useRef<number>(0);
 
   // ── Click-to-toggle: works for both desktop and mobile ──────────
-  // Previous hold-to-talk on desktop broke when cursor drifted off the
-  // tiny FAB button (pointerleave fired → recording stopped after ~2s).
-  // Now everything is tap-to-toggle: click to start, click again to stop.
+  // Tap to start, tap again to stop. No setTimeout — it breaks the
+  // user gesture chain required by Android WebView's SpeechRecognition.
+  // Use a 300ms debounce to prevent double-fire from pointer→click.
 
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    // Track pointer type for the minor touch delay below
-    if ('pointerType' in e) {
-      pointerTypeRef.current = (e as React.PointerEvent).pointerType;
-    }
+  const handleClick = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) return; // debounce
+    lastTapRef.current = now;
 
     if (isPushToTalkActive) {
-      // Second tap — stop and send
       onStopPTT();
     } else {
-      // Start recording. Touch events need a tiny delay to avoid
-      // double-fire from the pointer→click event sequence.
-      const isTouch = pointerTypeRef.current === 'touch';
-      if (isTouch) {
-        setTimeout(() => onStartPTT(), 50);
-      } else {
-        onStartPTT();
-      }
+      onStartPTT();
     }
   }, [isPushToTalkActive, onStartPTT, onStopPTT]);
 
