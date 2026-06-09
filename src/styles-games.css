@@ -88,7 +88,7 @@
 .ember:nth-child(1)  { left:  8%; animation-duration: 9s; animation-delay:  0s; width: 2px; height: 2px; }
 .ember:nth-child(2)  { left: 18%; animation-duration: 11s; animation-delay: 2s; }
 .ember:nth-child(3)  { left: 30%; animation-duration:  8s; animation-delay: 5s; width: 4px; height: 4px; }
-.ember:nth-child(4)  { left: 45%; animation-duration: 10s; animation delay: 1s; }
+.ember:nth-child(4)  { left: 45%; animation-duration: 10s; animation-delay: 1s; }
 .ember:nth-child(5)  { left: 60%; animation-duration: 12s; animation-delay: 3s; }
 .ember:nth-child(6)  { left: 72%; animation-duration:  9s; animation-delay: 7s; width: 2px; height: 2px; }
 .ember:nth-child(7)  { left: 85%; animation-duration: 11s; animation-delay: 4s; }

@@ -854,7 +854,7 @@ pub fn run() {
             commands::voice_cmds::voice_capture_stop,
             #[cfg(not(target_os = "android"))]
             commands::voice_cmds::voice_transcribe,
-            commands::voice_cmds::voice_transcribe_audio,
+            commands::voice_transcribe_audio,
             #[cfg(not(target_os = "android"))]
             commands::voice_cmds::voice_capture_and_transcribe,
             #[cfg(not(target_os = "android"))]
