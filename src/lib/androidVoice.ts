@@ -23,7 +23,8 @@ function ensureRecognition(): boolean {
 
   const SR = getSpeechRecognition();
   if (!SR) {
-    console.error('[AndroidVoice] SpeechRecognition API not available');
+    console.error('[AndroidVoice] SpeechRecognition API not available — WebView may not support it');
+    console.error('[AndroidVoice] UserAgent:', typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown');
     return false;
   }
 
@@ -51,7 +52,17 @@ function ensureRecognition(): boolean {
     console.error('[AndroidVoice] SpeechRecognition error:', event.error);
     // 'no-speech' and 'aborted' are normal stop conditions
     if (event.error !== 'no-speech' && event.error !== 'aborted') {
-      if (onErrorCallback) onErrorCallback(event.error);
+      // 'not-allowed' means mic permission denied or not available in WebView
+      const errorMsg = event.error === 'not-allowed'
+        ? 'Microphone permission denied. Check Android Settings → Apps → Conflux → Permissions → Microphone.'
+        : event.error;
+      if (onErrorCallback) onErrorCallback(errorMsg);
+
+      // Fatal error — reset state so UI doesn't get stuck in listening mode
+      isRecognizing = false;
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('conflux-force-idle'));
+      }
     }
   };
 
@@ -88,24 +99,33 @@ export async function startListening(): Promise<void> {
         isRecognizing = true;
         console.log('[AndroidVoice] SpeechRecognition started');
         recognition.removeEventListener('start', onStart);
+        recognition.removeEventListener('error', onError);
         resolve();
       };
 
       const onError = (event: any) => {
+        recognition.removeEventListener('start', onStart);
         recognition.removeEventListener('error', onError);
         // Only reject on real errors, not 'aborted' from stop()
         if (event.error !== 'aborted') {
-          reject(new Error(`SpeechRecognition start failed: ${event.error}`));
+          const msg = event.error === 'not-allowed'
+            ? 'Microphone permission denied'
+            : `SpeechRecognition start failed: ${event.error}`;
+          reject(new Error(msg));
         }
       };
 
       recognition.addEventListener('start', onStart);
       recognition.addEventListener('error', onError);
 
-      // Clean up error handler after 5s (in case it never fires)
+      // Timeout — reject if start never fires (e.g., permission dialog ignored)
       setTimeout(() => {
+        recognition.removeEventListener('start', onStart);
         recognition.removeEventListener('error', onError);
-      }, 5000);
+        if (!isRecognizing) {
+          reject(new Error('SpeechRecognition start timed out — check microphone permission'));
+        }
+      }, 10000);
 
       recognition.start();
     } catch (err) {

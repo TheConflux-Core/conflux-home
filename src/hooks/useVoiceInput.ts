@@ -174,7 +174,7 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
   return {
     isListening,
     isTranscribing,
-    isAvailable: true,
+    isAvailable,
     error,
     startListening,
     stopListening,
