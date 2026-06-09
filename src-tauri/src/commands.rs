@@ -4994,8 +4994,10 @@ pub async fn life_add_task(
     due_date: Option<String>,
     energy_type: Option<String>,
 ) -> Result<(), String> {
+    log::info!("[life_add_task] user_id={}, title='{}', cat={:?}, pri={:?}, due={:?}", user_id, title, category, priority, due_date);
     let engine = engine::get_engine();
     let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
+    log::info!("[life_add_task] resolved member_id={}", member_id);
     let id = uuid::Uuid::new_v4().to_string();
     engine
         .db()
@@ -5019,11 +5021,13 @@ pub async fn life_get_tasks(
 ) -> Result<Vec<engine::types::LifeTask>, String> {
     let engine = engine::get_engine();
     let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
-    engine
+    let tasks = engine
         .db()
         .get_life_tasks(&member_id, status.as_deref())
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    log::info!("[life_get_tasks] user_id={}, member_id={}, status={:?}, found={} tasks", user_id, member_id, status, tasks.len());
+    Ok(tasks)
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -5046,6 +5050,61 @@ pub async fn life_delete_task(user_id: String, task_id: String) -> Result<(), St
         .delete_life_task(&member_id, &task_id)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// Diagnostic: dump task state for debugging.
+/// Returns all family members, all tasks, and the resolved member_id for a given user_id.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn life_debug_dump(user_id: String) -> Result<serde_json::Value, String> {
+    let engine = engine::get_engine();
+    let db = engine.db();
+
+    // Resolve member_id for this user
+    let member_id = db.get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
+
+    // Get all family members
+    let conn = db.conn_async().await;
+    let members: Vec<serde_json::Value> = {
+        let mut stmt = conn.prepare("SELECT id, user_id, name, is_active FROM family_members").map_err(|e| e.to_string())?;
+        stmt.query_map([], |row| {
+            Ok(serde_json::json!({
+                "id": row.get::<_, String>(0)?,
+                "user_id": row.get::<_, String>(1)?,
+                "name": row.get::<_, String>(2)?,
+                "is_active": row.get::<_, i32>(3)?
+            }))
+        }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+    };
+
+    // Get all tasks
+    let tasks: Vec<serde_json::Value> = {
+        let mut stmt = conn.prepare("SELECT id, member_id, title, status, created_at FROM life_tasks ORDER BY created_at DESC LIMIT 50").map_err(|e| e.to_string())?;
+        stmt.query_map([], |row| {
+            Ok(serde_json::json!({
+                "id": row.get::<_, String>(0)?,
+                "member_id": row.get::<_, String>(1)?,
+                "title": row.get::<_, String>(2)?,
+                "status": row.get::<_, String>(3)?,
+                "created_at": row.get::<_, String>(4)?
+            }))
+        }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+    };
+
+    let supabase_user_id = db.get_config("supabase_user_id").ok().flatten().unwrap_or_default();
+
+    let dump = serde_json::json!({
+        "input_user_id": user_id,
+        "resolved_member_id": member_id,
+        "supabase_user_id_config": supabase_user_id,
+        "family_members": members,
+        "recent_tasks": tasks,
+    });
+
+    log::info!("[life_debug_dump] user_id={}, member_id={}, supabase_config={}, members={}, tasks={}",
+        user_id, member_id, supabase_user_id, members.len(), tasks.len());
+    log::info!("[life_debug_dump] full dump: {}", dump);
+
+    Ok(dump)
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -5107,11 +5166,13 @@ pub async fn life_get_orbit_dashboard(
 ) -> Result<engine::types::OrbitDashboard, String> {
     let engine = engine::get_engine();
     let member_id = engine.db().get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
-    engine
+    let dashboard = engine
         .db()
         .get_orbit_dashboard(&member_id)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    log::info!("[life_get_orbit_dashboard] user_id={}, member_id={}, pending_tasks={}, completed_today={}", user_id, member_id, dashboard.pending_tasks.len(), dashboard.completed_today);
+    Ok(dashboard)
 }
 
 #[tauri::command(rename_all = "snake_case")]

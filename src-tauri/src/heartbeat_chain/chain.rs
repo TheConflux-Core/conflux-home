@@ -144,6 +144,7 @@ async fn execute_step(step: &ChainStep, previous_context: &str) -> Option<String
         .flatten()
         .filter(|id| !id.is_empty())
         .unwrap_or_else(|| "default_user".to_string());
+    log::info!("[HeartbeatChain] step='{}', using user_id={}", step.action, real_user_id);
     let session = match db.create_session(&step.agent, &real_user_id) {
         Ok(s) => s,
         Err(e) => {

@@ -109,8 +109,8 @@ const ACTION_HANDLERS: Record<string, (text: string, userId?: string) => void> =
           title: title || text,
           category: 'personal',
           priority: 'medium',
-          dueDate: null,
-          energyType: null,
+          due_date: null,
+          energy_type: null,
         });
       } catch (e) {
         console.error('[AgentActivityFeed] Failed to create task:', e);
