@@ -1,6 +1,10 @@
 // Android Voice Input — WebView SpeechRecognition API
 // Uses the browser's built-in speech recognition on Android.
-// No native audio code needed — the WebView handles everything.
+// Falls back to getUserMedia() + MediaRecorder if SpeechRecognition is unavailable.
+//
+// KEY CONSTRAINT: recognition.start() MUST be called synchronously within a
+// user gesture (click/tap). Any async gap (setTimeout, await) breaks the
+// gesture chain and causes "not-allowed" errors on Android WebView.
 
 const isAndroidPlatform = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 
@@ -23,7 +27,7 @@ function ensureRecognition(): boolean {
 
   const SR = getSpeechRecognition();
   if (!SR) {
-    console.error('[AndroidVoice] SpeechRecognition API not available — WebView may not support it');
+    console.error('[AndroidVoice] SpeechRecognition API not available');
     console.error('[AndroidVoice] UserAgent:', typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown');
     return false;
   }
@@ -50,35 +54,50 @@ function ensureRecognition(): boolean {
 
   recognition.onerror = (event: any) => {
     console.error('[AndroidVoice] SpeechRecognition error:', event.error);
-    // 'no-speech' and 'aborted' are normal stop conditions
-    if (event.error !== 'no-speech' && event.error !== 'aborted') {
-      // 'not-allowed' means mic permission denied or not available in WebView
-      const errorMsg = event.error === 'not-allowed'
-        ? 'Microphone permission denied. Check Android Settings → Apps → Conflux → Permissions → Microphone.'
-        : event.error;
-      if (onErrorCallback) onErrorCallback(errorMsg);
 
-      // Fatal error — reset state so UI doesn't get stuck in listening mode
+    if (event.error === 'no-speech') {
+      // Normal — user didn't speak. Clean up gracefully.
       isRecognizing = false;
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('conflux-force-idle'));
-      }
+      return;
+    }
+
+    if (event.error === 'aborted') {
+      // Normal — stop() or abort() was called. Clean up gracefully.
+      isRecognizing = false;
+      return;
+    }
+
+    // Fatal errors: not-allowed, network, service-not-allowed, etc.
+    const errorMsg = event.error === 'not-allowed'
+      ? 'Microphone permission denied. Check Android Settings → Apps → Conflux → Permissions → Microphone.'
+      : `SpeechRecognition error: ${event.error}`;
+
+    if (onErrorCallback) onErrorCallback(errorMsg);
+
+    // Reset state so UI doesn't get stuck
+    isRecognizing = false;
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('conflux-force-idle'));
     }
   };
 
   recognition.onend = () => {
+    console.log('[AndroidVoice] SpeechRecognition ended, isRecognizing was:', isRecognizing);
     isRecognizing = false;
-    console.log('[AndroidVoice] SpeechRecognition ended');
   };
 
   recognition.onspeechstart = () => {
     console.log('[AndroidVoice] Speech detected');
   };
 
+  recognition.onspeechend = () => {
+    console.log('[AndroidVoice] Speech ended');
+  };
+
   return true;
 }
 
-/** Start listening. Returns immediately. */
+/** Start listening. MUST be called within a user gesture (no async before this call). */
 export async function startListening(): Promise<void> {
   if (!ensureRecognition()) {
     throw new Error('SpeechRecognition API not available');
@@ -86,7 +105,8 @@ export async function startListening(): Promise<void> {
 
   // Stop any existing session before starting a new one
   if (isRecognizing) {
-    try { recognition.stop(); } catch {}
+    console.log('[AndroidVoice] Stopping previous session before starting new one');
+    try { recognition.stop(); } catch (e) { console.warn('[AndroidVoice] stop before start failed:', e); }
     isRecognizing = false;
   }
 
@@ -97,7 +117,7 @@ export async function startListening(): Promise<void> {
       // Set up one-time start handler
       const onStart = () => {
         isRecognizing = true;
-        console.log('[AndroidVoice] SpeechRecognition started');
+        console.log('[AndroidVoice] SpeechRecognition started successfully');
         recognition.removeEventListener('start', onStart);
         recognition.removeEventListener('error', onError);
         resolve();
@@ -106,13 +126,18 @@ export async function startListening(): Promise<void> {
       const onError = (event: any) => {
         recognition.removeEventListener('start', onStart);
         recognition.removeEventListener('error', onError);
-        // Only reject on real errors, not 'aborted' from stop()
-        if (event.error !== 'aborted') {
-          const msg = event.error === 'not-allowed'
-            ? 'Microphone permission denied'
-            : `SpeechRecognition start failed: ${event.error}`;
-          reject(new Error(msg));
+
+        if (event.error === 'aborted') {
+          // This can happen if stop() was called immediately — not a real error
+          console.log('[AndroidVoice] Start aborted (likely stop() called)');
+          return;
         }
+
+        const msg = event.error === 'not-allowed'
+          ? 'Microphone permission denied — check Android app permissions'
+          : `SpeechRecognition start failed: ${event.error}`;
+        console.error('[AndroidVoice]', msg);
+        reject(new Error(msg));
       };
 
       recognition.addEventListener('start', onStart);
@@ -123,12 +148,18 @@ export async function startListening(): Promise<void> {
         recognition.removeEventListener('start', onStart);
         recognition.removeEventListener('error', onError);
         if (!isRecognizing) {
-          reject(new Error('SpeechRecognition start timed out — check microphone permission'));
+          const msg = 'SpeechRecognition start timed out — check microphone permission';
+          console.error('[AndroidVoice]', msg);
+          reject(new Error(msg));
         }
       }, 10000);
 
+      // IMPORTANT: This must be called synchronously from the user gesture.
+      // No await, no setTimeout before this line.
       recognition.start();
     } catch (err) {
+      console.error('[AndroidVoice] recognition.start() threw:', err);
+      isRecognizing = false;
       reject(err);
     }
   });
@@ -136,7 +167,12 @@ export async function startListening(): Promise<void> {
 
 /** Stop listening. Transcript is available via getTranscript() after a short delay. */
 export async function stopListening(): Promise<void> {
-  if (!recognition || !isRecognizing) {
+  if (!recognition) {
+    console.log('[AndroidVoice] stopListening called but no recognition instance');
+    return;
+  }
+
+  if (!isRecognizing) {
     console.log('[AndroidVoice] stopListening called but not recognizing');
     return;
   }
@@ -153,15 +189,21 @@ export async function stopListening(): Promise<void> {
 
     try {
       recognition.stop();
-    } catch {
+    } catch (e) {
+      console.warn('[AndroidVoice] recognition.stop() threw:', e);
       isRecognizing = false;
+      recognition.removeEventListener('end', onEnd);
       resolve();
+      return;
     }
 
     // Safety timeout — resolve even if onend doesn't fire
     setTimeout(() => {
-      recognition.removeEventListener('end', onEnd);
-      isRecognizing = false;
+      if (isRecognizing) {
+        console.warn('[AndroidVoice] stopListening safety timeout — forcing stop');
+        recognition.removeEventListener('end', onEnd);
+        isRecognizing = false;
+      }
       resolve();
     }, 2000);
   });
@@ -170,9 +212,12 @@ export async function stopListening(): Promise<void> {
 /** Cancel listening without getting a transcript. */
 export function cancel(): void {
   if (!recognition) return;
+  console.log('[AndroidVoice] cancel() called');
   try {
     recognition.abort();
-  } catch {}
+  } catch (e) {
+    console.warn('[AndroidVoice] abort() threw:', e);
+  }
   isRecognizing = false;
   transcriptBuffer = '';
 }

@@ -555,161 +555,14 @@ export default function App() {
 
 
 
-  // Push-to-Talk — shared start/stop logic for spacebar and button
+  // Push-to-Talk — stable refs so VoiceFAB and keyboard share the same functions
+  const pttActiveRef = useRef(false);
   const pttCancelledRef = useRef(false);
-  const startPTTRef = useRef<(() => void) | null>(null);
+  const startPTTRef = useRef<(() => Promise<void>) | null>(null);
   const stopPTTRef = useRef<(() => Promise<void>) | null>(null);
 
-  useEffect(() => {
-    const startPTT = async () => {
-      if (isPushToTalkActive) return;
-      pttCancelledRef.current = false;
-      setIsPushToTalkActive(true);
-      soundManager.playAgentWake('conflux');
-      try {
-        if (isAndroid) {
-          await androidStartListening();
-        } else {
-          await invoke('voice_capture_start');
-        }
-        window.dispatchEvent(new CustomEvent('push-to-talk-start'));
-      } catch (err) {
-        console.error('Failed to start voice capture:', err);
-        setIsPushToTalkActive(false);
-        window.dispatchEvent(new CustomEvent('conflux-force-idle'));
-      }
-    };
-
-    const stopPTT = async () => {
-      if (pttCancelledRef.current) {
-        setIsPushToTalkActive(false);
-        return;
-      }
-      setIsPushToTalkActive(false);
-      window.dispatchEvent(new CustomEvent('push-to-talk-end'));
-
-      try {
-        // ── Android path: SpeechRecognition → transcript directly ──
-        if (isAndroid) {
-          window.dispatchEvent(new CustomEvent('conflux-thinking', { detail: { text: '(transcribing...)' } }));
-          await androidStopListening();
-          // Small delay to let the final onresult fire
-          await new Promise(r => setTimeout(r, 300));
-          const transcript = getAndroidTranscript();
-          if (transcript && transcript.trim()) {
-            console.log('[Voice] Android STT transcript:', transcript);
-            await handleVoiceInput(transcript.trim());
-          } else {
-            console.log('[Voice] Android STT returned empty — no speech detected');
-            window.dispatchEvent(new CustomEvent('conflux-force-idle'));
-          }
-          window.dispatchEvent(new CustomEvent('conflux-transcription-done'));
-          return;
-        }
-
-        // ── Desktop path: cpal + ElevenLabs ──
-        const result = await invoke<{ samples: number; duration_seconds: number; transcript?: string | null }>('voice_capture_stop');
-
-        // Guard: no audio recorded (quick click/tap without speech)
-        if (!result.samples || result.samples < 1600) {
-          console.log('[Voice] No meaningful audio captured (%d samples) — returning to idle', result.samples);
-          window.dispatchEvent(new CustomEvent('conflux-force-idle'));
-          return;
-        }
-
-        window.dispatchEvent(new CustomEvent('conflux-thinking', { detail: { text: '(transcribing...)' } }));
-
-        // Fast path: realtime STT already gave us a transcript synchronously
-        if (result.transcript && result.transcript.trim()) {
-          console.log('[Voice] Realtime STT transcript:', result.transcript);
-          await handleVoiceInput(result.transcript.trim());
-          return;
-        }
-
-        // Fallback: wait for conflux:transcription event
-        const eventText = await new Promise<string>(async (resolve) => {
-          const unlisten = await listen<{ text: string }>('conflux:transcription', (event) => {
-            clearTimeout(timeoutId);
-            unlisten();
-            if (event.payload?.text) resolve(event.payload.text);
-            else resolve('');
-          });
-          let timeoutId: ReturnType<typeof setTimeout> | undefined = setTimeout(() => {
-            unlisten();
-            resolve('');
-          }, 3000);
-        });
-
-        if (eventText && eventText.trim()) {
-          console.log('[Voice] Realtime STT via event:', eventText);
-          await handleVoiceInput(eventText.trim());
-          return;
-        }
-
-        // Last resort: batch STT
-        console.log('[Voice] No realtime transcript — calling ElevenLabs batch STT...');
-        try {
-          const text = await invoke<string>('voice_transcribe');
-          if (text && text.trim()) {
-            console.log('[Voice] Batch STT transcript:', text);
-            await handleVoiceInput(text.trim());
-            return;
-          }
-          // Empty transcript — no speech detected
-          console.log('[Voice] Batch STT returned empty transcript — returning to idle');
-          window.dispatchEvent(new CustomEvent('conflux-force-idle'));
-        } catch (e) {
-          console.error('[Voice] Batch STT failed:', e);
-          window.dispatchEvent(new CustomEvent('conflux-force-idle'));
-        }
-      } catch (err) {
-        console.error('[Voice] Transcription/Chat failed:', err);
-        window.dispatchEvent(new CustomEvent('conflux-force-idle'));
-      } finally {
-        window.dispatchEvent(new CustomEvent('conflux-transcription-done'));
-      }
-    };
-
-    // Expose to button via refs
-    startPTTRef.current = startPTT;
-    stopPTTRef.current = stopPTT;
-
-    const handleKeyDown = async (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-      // Esc or Backspace cancels PTT without transcribing
-      if ((e.key === 'Escape' || e.key === 'Backspace') && isPushToTalkActive) {
-        e.preventDefault();
-        pttCancelledRef.current = true;
-        setIsPushToTalkActive(false);
-        window.dispatchEvent(new CustomEvent('push-to-talk-end'));
-        try {
-          if (isAndroid) {
-            androidCancel();
-          } else {
-            await invoke('voice_capture_stop');
-          }
-        } catch { /* may already be stopped */ }
-        window.dispatchEvent(new CustomEvent('conflux-force-idle'));
-        return;
-      }
-
-      if (immersiveView) return;
-
-      if (e.code === 'Space' && !isPushToTalkActive) {
-        e.preventDefault();
-        await startPTT();
-      }
-    };
-
-    const handleKeyUp = async (e: KeyboardEvent) => {
-      if (e.code === 'Space' && isPushToTalkActive) {
-        await stopPTT();
-      }
-    };
-
-    // Handle voice input -> Chat -> TTS
-    const handleVoiceInput = async (text: string) => {
+  // Handle voice input -> Chat -> TTS (extracted from PTT effect for stability)
+  const handleVoiceInput = useCallback(async (text: string) => {
       try {
         // Set Conflux to 'thinking' state
         // We'll use a custom event to trigger this in ConfluxOrbit
@@ -794,6 +647,163 @@ export default function App() {
         console.error('[Voice] Chat failed:', err);
         window.dispatchEvent(new CustomEvent('conflux-force-idle'));
       }
+    }, []);
+
+  // Push-to-Talk: start recording
+  const startPTT = useCallback(async () => {
+    if (pttActiveRef.current) return;
+    pttCancelledRef.current = false;
+    pttActiveRef.current = true;
+    setIsPushToTalkActive(true);
+    soundManager.playAgentWake('conflux');
+    try {
+      if (isAndroid) {
+        await androidStartListening();
+      } else {
+        await invoke('voice_capture_start');
+      }
+      // Only dispatch if we weren't cancelled during startup
+      if (pttCancelledRef.current) return;
+      window.dispatchEvent(new CustomEvent('push-to-talk-start'));
+    } catch (err) {
+      console.error('[PTT] Failed to start voice capture:', err);
+      pttActiveRef.current = false;
+      setIsPushToTalkActive(false);
+      window.dispatchEvent(new CustomEvent('conflux-force-idle'));
+    }
+  }, [handleVoiceInput]);
+
+  // Push-to-Talk: stop recording and transcribe
+  const stopPTT = useCallback(async () => {
+    if (pttCancelledRef.current) {
+      pttActiveRef.current = false;
+      setIsPushToTalkActive(false);
+      return;
+    }
+    pttActiveRef.current = false;
+    setIsPushToTalkActive(false);
+    window.dispatchEvent(new CustomEvent('push-to-talk-end'));
+
+    try {
+      // ── Android path: SpeechRecognition → transcript directly ──
+      if (isAndroid) {
+        window.dispatchEvent(new CustomEvent('conflux-thinking', { detail: { text: '(transcribing...)' } }));
+        await androidStopListening();
+        // Small delay to let the final onresult fire
+        await new Promise(r => setTimeout(r, 300));
+        const transcript = getAndroidTranscript();
+        if (transcript && transcript.trim()) {
+          console.log('[PTT] Android STT transcript:', transcript);
+          await handleVoiceInput(transcript.trim());
+        } else {
+          console.log('[PTT] Android STT returned empty — no speech detected');
+          window.dispatchEvent(new CustomEvent('conflux-force-idle'));
+        }
+        window.dispatchEvent(new CustomEvent('conflux-transcription-done'));
+        return;
+      }
+
+      // ── Desktop path: cpal + ElevenLabs ──
+      const result = await invoke<{ samples: number; duration_seconds: number; transcript?: string | null }>('voice_capture_stop');
+
+      // Guard: no audio recorded (quick click/tap without speech)
+      if (!result.samples || result.samples < 1600) {
+        console.log('[PTT] No meaningful audio captured (%d samples) — returning to idle', result.samples);
+        window.dispatchEvent(new CustomEvent('conflux-force-idle'));
+        return;
+      }
+
+      window.dispatchEvent(new CustomEvent('conflux-thinking', { detail: { text: '(transcribing...)' } }));
+
+      // Fast path: realtime STT already gave us a transcript synchronously
+      if (result.transcript && result.transcript.trim()) {
+        console.log('[PTT] Realtime STT transcript:', result.transcript);
+        await handleVoiceInput(result.transcript.trim());
+        return;
+      }
+
+      // Fallback: wait for conflux:transcription event
+      const eventText = await new Promise<string>(async (resolve) => {
+        const unlisten = await listen<{ text: string }>('conflux:transcription', (event) => {
+          clearTimeout(timeoutId);
+          unlisten();
+          if (event.payload?.text) resolve(event.payload.text);
+          else resolve('');
+        });
+        let timeoutId: ReturnType<typeof setTimeout> | undefined = setTimeout(() => {
+          unlisten();
+          resolve('');
+        }, 3000);
+      });
+
+      if (eventText && eventText.trim()) {
+        console.log('[PTT] Realtime STT via event:', eventText);
+        await handleVoiceInput(eventText.trim());
+        return;
+      }
+
+      // Last resort: batch STT
+      console.log('[PTT] No realtime transcript — calling ElevenLabs batch STT...');
+      try {
+        const text = await invoke<string>('voice_transcribe');
+        if (text && text.trim()) {
+          console.log('[PTT] Batch STT transcript:', text);
+          await handleVoiceInput(text.trim());
+          return;
+        }
+        console.log('[PTT] Batch STT returned empty transcript — returning to idle');
+        window.dispatchEvent(new CustomEvent('conflux-force-idle'));
+      } catch (e) {
+        console.error('[PTT] Batch STT failed:', e);
+        window.dispatchEvent(new CustomEvent('conflux-force-idle'));
+      }
+    } catch (err) {
+      console.error('[PTT] Transcription/Chat failed:', err);
+      window.dispatchEvent(new CustomEvent('conflux-force-idle'));
+    } finally {
+      window.dispatchEvent(new CustomEvent('conflux-transcription-done'));
+    }
+  }, [handleVoiceInput]);
+
+  // Expose to VoiceFAB via refs
+  startPTTRef.current = startPTT;
+  stopPTTRef.current = stopPTT;
+
+  // Keyboard: Space for PTT, Esc/Backspace to cancel
+  useEffect(() => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      // Esc or Backspace cancels PTT without transcribing
+      if ((e.key === 'Escape' || e.key === 'Backspace') && pttActiveRef.current) {
+        e.preventDefault();
+        pttCancelledRef.current = true;
+        pttActiveRef.current = false;
+        setIsPushToTalkActive(false);
+        window.dispatchEvent(new CustomEvent('push-to-talk-end'));
+        try {
+          if (isAndroid) {
+            androidCancel();
+          } else {
+            await invoke('voice_capture_stop');
+          }
+        } catch { /* may already be stopped */ }
+        window.dispatchEvent(new CustomEvent('conflux-force-idle'));
+        return;
+      }
+
+      if (immersiveView) return;
+
+      if (e.code === 'Space' && !pttActiveRef.current) {
+        e.preventDefault();
+        await startPTT();
+      }
+    };
+
+    const handleKeyUp = async (e: KeyboardEvent) => {
+      if (e.code === 'Space' && pttActiveRef.current) {
+        await stopPTT();
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -803,7 +813,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [isPushToTalkActive]);
+  }, [immersiveView, startPTT, stopPTT]);
 
   // On first render, clear the session flag so boot cards show every page reload
   useEffect(() => {
