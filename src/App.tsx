@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { soundManager } from './lib/sound';
 import { playBuildComplete } from './lib/onboarding-sounds';
-import { isAndroid, getTranscript as getAndroidTranscript, startListening as androidStartListening, stopListening as androidStopListening, cancel as androidCancel } from './lib/androidVoice';
+import { isAndroid, startListening as androidStartListening, stopListening as androidStopListening, cancel as androidCancel, isAvailable as androidVoiceAvailable } from './lib/androidVoice';
 import { initHeartbeatGlobal } from './lib/heartbeatGlobal';
 import { startDemoBeats, stopDemoBeats } from './lib/beatBus';
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link';
@@ -685,20 +685,45 @@ export default function App() {
     window.dispatchEvent(new CustomEvent('push-to-talk-end'));
 
     try {
-      // ── Android path: SpeechRecognition → transcript directly ──
+      // ── Android path: getUserMedia → MediaRecorder → ElevenLabs STT ──
       if (isAndroid) {
         window.dispatchEvent(new CustomEvent('conflux-thinking', { detail: { text: '(transcribing...)' } }));
-        await androidStopListening();
-        // Small delay to let the final onresult fire
-        await new Promise(r => setTimeout(r, 300));
-        const transcript = getAndroidTranscript();
-        if (transcript && transcript.trim()) {
-          console.log('[PTT] Android STT transcript:', transcript);
-          await handleVoiceInput(transcript.trim());
-        } else {
-          console.log('[PTT] Android STT returned empty — no speech detected');
+        const audioBlob = await androidStopListening();
+
+        if (!audioBlob || audioBlob.size < 1000) {
+          console.log('[PTT] Android: no meaningful audio captured');
+          window.dispatchEvent(new CustomEvent('conflux-force-idle'));
+          window.dispatchEvent(new CustomEvent('conflux-transcription-done'));
+          return;
+        }
+
+        console.log('[PTT] Android: audio blob size:', audioBlob.size, 'bytes');
+
+        // Convert blob to base64 for Tauri command
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        let binary = '';
+        for (let i = 0; i < uint8Array.length; i++) {
+          binary += String.fromCharCode(uint8Array[i]);
+        }
+        const audioBase64 = btoa(binary);
+
+        console.log('[PTT] Android: sending', audioBase64.length, 'base64 chars to ElevenLabs STT');
+
+        try {
+          const transcript = await invoke<string>('voice_transcribe_audio', { audioBase64 });
+          if (transcript && transcript.trim()) {
+            console.log('[PTT] Android STT transcript:', transcript);
+            await handleVoiceInput(transcript.trim());
+          } else {
+            console.log('[PTT] Android STT returned empty — no speech detected');
+            window.dispatchEvent(new CustomEvent('conflux-force-idle'));
+          }
+        } catch (sttErr) {
+          console.error('[PTT] Android STT failed:', sttErr);
           window.dispatchEvent(new CustomEvent('conflux-force-idle'));
         }
+
         window.dispatchEvent(new CustomEvent('conflux-transcription-done'));
         return;
       }

@@ -5,7 +5,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { isAndroid, getTranscript as getAndroidTranscript, startListening as androidStartListening, stopListening as androidStopListening, cancel as androidCancel } from '../lib/androidVoice';
+import { isAndroid, startListening as androidStartListening, stopListening as androidStopListening, cancel as androidCancel, isAvailable as androidVoiceAvailable } from '../lib/androidVoice';
 
 interface UseVoiceInputOptions {
   onTranscription: (text: string) => void;
@@ -66,15 +66,32 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
     setIsListening(false);
 
     try {
-      // ── Android path: SpeechRecognition → transcript directly ──
+      // ── Android path: getUserMedia → MediaRecorder → ElevenLabs STT ──
       if (isAndroid) {
         setIsTranscribing(true);
-        await androidStopListening();
-        // Small delay for final onresult event
-        await new Promise(r => setTimeout(r, 300));
-        const transcript = getAndroidTranscript();
-        if (transcript && transcript.trim()) {
-          options.onTranscription(transcript.trim());
+        const audioBlob = await androidStopListening();
+
+        if (!audioBlob || audioBlob.size < 1000) {
+          console.log('[VoiceInput] Android: no meaningful audio');
+          return;
+        }
+
+        // Convert blob to base64
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        let binary = '';
+        for (let i = 0; i < uint8Array.length; i++) {
+          binary += String.fromCharCode(uint8Array[i]);
+        }
+        const audioBase64 = btoa(binary);
+
+        try {
+          const transcript = await invoke<string>('voice_transcribe_audio', { audioBase64 });
+          if (transcript && transcript.trim()) {
+            options.onTranscription(transcript.trim());
+          }
+        } catch (sttErr) {
+          console.error('[VoiceInput] Android STT failed:', sttErr);
         }
         return;
       }
@@ -162,12 +179,9 @@ export function useVoiceInput(options: UseVoiceInputOptions): UseVoiceInputRetur
   // Check if voice is available (Android: SpeechRecognition API, Desktop: always true)
   const [isAvailable, setIsAvailable] = useState(true);
   useEffect(() => {
-    if (isAndroid) {
-      const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!SR) {
-        console.warn('[AndroidVoice] SpeechRecognition API not available');
-        setIsAvailable(false);
-      }
+    if (isAndroid && !androidVoiceAvailable()) {
+      console.warn('[AndroidVoice] getUserMedia not available');
+      setIsAvailable(false);
     }
   }, []);
 
