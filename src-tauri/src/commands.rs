@@ -5064,31 +5064,35 @@ pub async fn life_debug_dump(user_id: String) -> Result<serde_json::Value, Strin
 
     // Get all family members
     let conn = db.conn_async().await;
-    let members: Vec<serde_json::Value> = {
+    let mut members: Vec<serde_json::Value> = Vec::new();
+    {
         let mut stmt = conn.prepare("SELECT id, user_id, name, is_active FROM family_members").map_err(|e| e.to_string())?;
-        stmt.query_map([], |row| {
-            Ok(serde_json::json!({
+        let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
+        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            members.push(serde_json::json!({
                 "id": row.get::<_, String>(0)?,
                 "user_id": row.get::<_, String>(1)?,
                 "name": row.get::<_, String>(2)?,
                 "is_active": row.get::<_, i32>(3)?
-            }))
-        }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
-    };
+            }));
+        }
+    }
 
     // Get all tasks
-    let tasks: Vec<serde_json::Value> = {
+    let mut tasks: Vec<serde_json::Value> = Vec::new();
+    {
         let mut stmt = conn.prepare("SELECT id, member_id, title, status, created_at FROM life_tasks ORDER BY created_at DESC LIMIT 50").map_err(|e| e.to_string())?;
-        stmt.query_map([], |row| {
-            Ok(serde_json::json!({
+        let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
+        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            tasks.push(serde_json::json!({
                 "id": row.get::<_, String>(0)?,
                 "member_id": row.get::<_, String>(1)?,
                 "title": row.get::<_, String>(2)?,
                 "status": row.get::<_, String>(3)?,
                 "created_at": row.get::<_, String>(4)?
-            }))
-        }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
-    };
+            }));
+        }
+    }
 
     let supabase_user_id = db.get_config("supabase_user_id").ok().flatten().unwrap_or_default();
 
