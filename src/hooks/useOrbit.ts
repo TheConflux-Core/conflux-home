@@ -131,13 +131,6 @@ export function useOrbit() {
     [user_id, loadDashboard]
   );
 
-  // Diagnostic: call from browser console to dump task state
-  const debugDump = useCallback(async () => {
-    const result = await invoke('life_debug_dump', { user_id });
-    console.log('[Orbit Debug]', result);
-    return result;
-  }, [user_id]);
-
   return {
     dashboard,
     loading,
@@ -152,6 +145,5 @@ export function useOrbit() {
     smartReschedule,
     parseInput,
     dismissNudge,
-    debugDump,
   };
 }

@@ -5052,64 +5052,7 @@ pub async fn life_delete_task(user_id: String, task_id: String) -> Result<(), St
         .map_err(|e| e.to_string())
 }
 
-/// Diagnostic: dump task state for debugging.
-/// Returns all family members, all tasks, and the resolved member_id for a given user_id.
-#[tauri::command(rename_all = "snake_case")]
-pub async fn life_debug_dump(user_id: String) -> Result<serde_json::Value, String> {
-    let engine = engine::get_engine();
-    let db = engine.db();
 
-    // Resolve member_id for this user
-    let member_id = db.get_or_create_family_member_id(&user_id).await.map_err(|e| e.to_string())?;
-
-    // Get all family members
-    let conn = db.conn_async().await;
-    let mut members: Vec<serde_json::Value> = Vec::new();
-    {
-        let mut stmt = conn.prepare("SELECT id, user_id, name, is_active FROM family_members").map_err(|e| e.to_string())?;
-        let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
-        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
-            members.push(serde_json::json!({
-                "id": row.get::<_, String>(0)?,
-                "user_id": row.get::<_, String>(1)?,
-                "name": row.get::<_, String>(2)?,
-                "is_active": row.get::<_, i32>(3)?
-            }));
-        }
-    }
-
-    // Get all tasks
-    let mut tasks: Vec<serde_json::Value> = Vec::new();
-    {
-        let mut stmt = conn.prepare("SELECT id, member_id, title, status, created_at FROM life_tasks ORDER BY created_at DESC LIMIT 50").map_err(|e| e.to_string())?;
-        let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
-        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
-            tasks.push(serde_json::json!({
-                "id": row.get::<_, String>(0)?,
-                "member_id": row.get::<_, String>(1)?,
-                "title": row.get::<_, String>(2)?,
-                "status": row.get::<_, String>(3)?,
-                "created_at": row.get::<_, String>(4)?
-            }));
-        }
-    }
-
-    let supabase_user_id = db.get_config("supabase_user_id").ok().flatten().unwrap_or_default();
-
-    let dump = serde_json::json!({
-        "input_user_id": user_id,
-        "resolved_member_id": member_id,
-        "supabase_user_id_config": supabase_user_id,
-        "family_members": members,
-        "recent_tasks": tasks,
-    });
-
-    log::info!("[life_debug_dump] user_id={}, member_id={}, supabase_config={}, members={}, tasks={}",
-        user_id, member_id, supabase_user_id, members.len(), tasks.len());
-    log::info!("[life_debug_dump] full dump: {}", dump);
-
-    Ok(dump)
-}
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn life_add_habit(
