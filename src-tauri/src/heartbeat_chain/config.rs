@@ -45,7 +45,7 @@ impl Default for ChainGlobalConfig {
 /// Canonical default chain (matches SPEC).
 pub fn default_chain() -> HeartbeatChainConfig {
     HeartbeatChainConfig {
-        version: 4,
+        version: 8,
         chain: vec![
             ChainStep {
                 agent: "conflux".into(),
@@ -53,9 +53,12 @@ pub fn default_chain() -> HeartbeatChainConfig {
                 delay_sec: 0,
                 voice_id: Some("TvxTBL9RtGW6tVhl4NoI".into()),
                 task_message: Some(
-                    "Check overall system health. \
-                     Use conflux_weekly_summary to get a cross-app status report. \
-                     Provide a 1-2 sentence summary of system health.".into()
+                    "Analyze the full system state. Compare with LAST HEARTBEAT data if available \
+                     — focus on what changed. If this is the first run, do a full baseline report. \
+                     Identify the ONE most important thing the user should know or do right now. \
+                     If you detect a system issue (disk space low, memory pressure, service down, outdated packages), \
+                     use life_add_task to create an actionable task for it — e.g. 'Free up disk space' or \
+                     'Restart crashed service'. Only create tasks for real problems, not routine status.".into()
                 ),
             },
             ChainStep {
@@ -64,10 +67,13 @@ pub fn default_chain() -> HeartbeatChainConfig {
                 delay_sec: 8,
                 voice_id: Some("WtA85syCrJwasGeHGH2p".into()),
                 task_message: Some(
-                    "Quick system security check. \
-                     Use exec to run: echo '=== LISTENING PORTS ===' && netstat -tulpn 2>/dev/null | head -20 && echo '=== OPEN FILES ===' && lsof -i 2>/dev/null | head -10. \
-                     Report any unusual open ports or connections in 1-2 sentences. \
-                     If everything looks normal, confirm clean.".into()
+                    "Security check. Use exec to run: echo '=== LISTENING PORTS ===' && netstat -tulpn \
+                     2>/dev/null | head -20 && echo '=== OPEN FILES ===' && lsof -i 2>/dev/null | head -10. \
+                     Compare with last heartbeat — report only NEW or CHANGED ports/processes. \
+                     If nothing changed, say 'No changes since last scan.' If clean and first run, confirm briefly. \
+                     IMPORTANT: If you find unexpected open ports, unknown processes, or anything suspicious, \
+                     use life_add_task to create a security review task (e.g. 'Investigate unknown port 4444 \
+                     listening on 0.0.0.0'). Be specific in the task title so the user knows exactly what to check.".into()
                 ),
             },
             ChainStep {
@@ -76,10 +82,13 @@ pub fn default_chain() -> HeartbeatChainConfig {
                 delay_sec: 16,
                 voice_id: Some("NQMJRVvPew6HsaebYnZj".into()),
                 task_message: Some(
-                    "Check market signals and trends. \
-                     Use web_search to check major market indices (S&P 500, NASDAQ, BTC). \
-                     Note any significant moves (>1% change). \
-                     Keep output to 2-3 sentences with specific numbers.".into()
+                    "Check market data. Use web_search for S&P 500, NASDAQ, BTC. \
+                     Compare with last heartbeat numbers if available — report the DELTA \
+                     (e.g., 'NASDAQ was 17,234, now 17,412 — up 1%'). If first run, just report current numbers. \
+                     Highlight what's noteworthy. Connect to user's financial picture if Pulse has data. \
+                     IMPORTANT: If any index moves more than 2% since last heartbeat, or BTC moves more than 5%, \
+                     use life_add_task to create a task like 'Review portfolio — NASDAQ dropped 3% today'. \
+                     Major moves are actionable, not just informational.".into()
                 ),
             },
             ChainStep {
@@ -88,11 +97,13 @@ pub fn default_chain() -> HeartbeatChainConfig {
                 delay_sec: 25,
                 voice_id: Some("iLVmqjzCGGvqtMCk6vVQ".into()),
                 task_message: Some(
-                    "Check budget and financial status. \
-                     Use budget_get_summary for this month's spending. \
-                     Use budget_get_goals to check savings progress. \
-                     Report total spent this month and any goals at risk. \
-                     Keep output to 2-3 sentences with specific dollar amounts.".into()
+                    "Analyze budget status. Use budget_get_summary for this month. \
+                     Compare with last heartbeat — did spending change? New entries? \
+                     If nothing changed, say 'Budget unchanged since last check.' If first run, do a full report. \
+                     If Helix reported market data, connect it to the user's financial picture. \
+                     IMPORTANT: If any category is over 80% of its budget, use life_add_task to create a task \
+                     like 'Review dining budget — 85% used with 10 days left'. If a recurring expense seems missing, \
+                     create a task to check on it. Give the user specific, time-bound financial actions.".into()
                 ),
             },
             ChainStep {
@@ -101,9 +112,13 @@ pub fn default_chain() -> HeartbeatChainConfig {
                 delay_sec: 35,
                 voice_id: Some("Mtmp3KhFIjYpWYRycDe3".into()),
                 task_message: Some(
-                    "Quick vulnerability check. \
-                     Use exec to run: echo '=== USERS ===' && cat /etc/passwd | grep -v nologin | grep -v false && echo '=== SUDO ===' && groups && echo '=== SSH ===' && cat ~/.ssh/authorized_keys 2>/dev/null | wc -l && echo '=== CRONTAB ===' && crontab -l 2>/dev/null. \
-                     Report any findings in 1-2 sentences. If clean, confirm no issues.".into()
+                    "Quick security audit. Use exec to run: echo '=== USERS ===' && cat /etc/passwd | \
+                     grep -v nologin | grep -v false && echo '=== SUDO ===' && groups && echo '=== SSH ===' && \
+                     cat ~/.ssh/authorized_keys 2>/dev/null | wc -l && echo '=== CRONTAB ===' && crontab -l 2>/dev/null. \
+                     Compare with last scan — report only changes. If nothing changed, say 'No changes.' \
+                     IMPORTANT: If you find new user accounts, new SSH keys, unknown cron jobs, or permission \
+                     changes since last scan, use life_add_task to create a hardening task (e.g. 'Review new SSH \
+                     key added since last scan'). Security drift is always actionable.".into()
                 ),
             },
             ChainStep {
@@ -112,10 +127,13 @@ pub fn default_chain() -> HeartbeatChainConfig {
                 delay_sec: 45,
                 voice_id: Some("56bWURjYFHyYyVf490Dp".into()),
                 task_message: Some(
-                    "Check dream and goal progress. \
-                     Use dream_list to see active dreams and their completion percentages. \
-                     Note any milestones recently completed or tasks due soon. \
-                     Keep output to 2-3 sentences.".into()
+                    "Check dream progress. Use dream_list with status='active'. \
+                     Compare with last heartbeat — did any dream's percentage change? New milestones completed? \
+                     If nothing changed and dream is at 0%, DON'T re-break it into milestones (you already did that). \
+                     Instead, say 'Dream unchanged — still waiting on first milestone.' If first run, break it into milestones. \
+                     IMPORTANT: If a dream has been unchanged for 2+ consecutive heartbeats, use life_add_task to create \
+                     a task like 'Work on [dream name] — no progress in [X] days'. If a milestone is close to completion \
+                     (>80%), create a task to push it over the finish line. Dreams need momentum.".into()
                 ),
             },
             ChainStep {
@@ -124,11 +142,15 @@ pub fn default_chain() -> HeartbeatChainConfig {
                 delay_sec: 55,
                 voice_id: Some("QzTKubutNn9TjrB7Xb2Q".into()),
                 task_message: Some(
-                    "Review life tasks and habits. \
-                     Use life_list_tasks with status='pending' to check upcoming tasks. \
-                     Use life_list_habits to check habit streaks. \
-                     Report how many tasks are pending and any broken habit streaks. \
-                     Keep output to 2-3 sentences.".into()
+                    "Review tasks and habits. Use life_list_tasks with status='pending' to see user tasks. \
+                     Use agent_list_tasks to see what work is assigned to agents on the Agent Board. \
+                     Compare with last heartbeat — any tasks completed? New tasks added? \
+                     If nothing changed, say 'Tasks unchanged.' If tasks exist from a previous run, DON'T recreate them. \
+                     IMPORTANT — You are the task orchestrator. After reviewing ALL agent outputs from this heartbeat chain: \
+                     (1) Use life_add_task to create USER-facing tasks for anything actionable — budget issues, stalled dreams, \
+                     low supplies, security concerns. (2) Use agent_create_task to assign INTER-AGENT work — e.g., assign \
+                     Forge to fix a bug, assign Helix to research a market shift. Cross-reference everything. Don't duplicate \
+                     tasks that already exist in pending. Your job is to make sure nothing falls through the cracks.".into()
                 ),
             },
             ChainStep {
@@ -137,11 +159,14 @@ pub fn default_chain() -> HeartbeatChainConfig {
                 delay_sec: 65,
                 voice_id: Some("W7iR5kTNHozpIl2Jqq15".into()),
                 task_message: Some(
-                    "Check kitchen and pantry status. \
-                     Use kitchen_get_inventory to check current stock. \
-                     Note any items expiring within 3 days. \
-                     Use kitchen_list_meals to see recent meals. \
-                     Keep output to 2-3 sentences.".into()
+                    "Check kitchen state. Use kitchen_get_inventory. \
+                     Compare with last heartbeat — did inventory change? New items added? Items used? \
+                     If nothing changed, say 'Kitchen unchanged.' If first run and pantry is empty, \
+                     generate a shopping list with cost estimate. Tell Pulse the cost against the Groceries bucket. \
+                     IMPORTANT: If any staple items are critically low (milk, eggs, bread, etc.), \
+                     use life_add_task to create a shopping task like 'Restock groceries — milk, eggs running low'. \
+                     If items are expiring within 2 days, create a task to use them up. \
+                     Don't just report — give the user a reason to act.".into()
                 ),
             },
             ChainStep {
@@ -150,11 +175,13 @@ pub fn default_chain() -> HeartbeatChainConfig {
                 delay_sec: 75,
                 voice_id: Some("EST9Ui6982FZPSi7gCHi".into()),
                 task_message: Some(
-                    "Emotional wellness check-in. \
-                     Use echo_get_entries with limit=3 to check recent journal entries. \
-                     Look for patterns in mood or emotional tone. \
-                     If no recent entries, gently encourage a check-in. \
-                     Keep output to 1-2 sentences, warm and supportive.".into()
+                    "Warm wellness check-in. Use echo_counselor_get_state. \
+                     Compare with last heartbeat — any new sessions? Streak changed? \
+                     If nothing changed, offer a gentle prompt. If the chain found many things changed this run, \
+                     acknowledge the user is making progress. If everything is the same, gently nudge without being repetitive. \
+                     IMPORTANT: If the chain flagged multiple action items from other agents (3+ tasks created this run), \
+                     use life_add_task to create a self-care task like 'Take a break — you have a lot on your plate today'. \
+                     If the user hasn't had an echo session in 7+ days, suggest a check-in. Balance productivity with wellbeing.".into()
                 ),
             },
             ChainStep {
