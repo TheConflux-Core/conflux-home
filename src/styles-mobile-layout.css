@@ -65,12 +65,9 @@
     display: none !important;
   }
 
-  /* Status Orb: reposition from center to left (next to logo) on mobile */
+  /* Status Orb: inside .topbar-center, hide the center text and show orb only */
   .topbar-center-orb {
-    left: 46px !important;
-    transform: none !important;
-    top: 50% !important;
-    margin-top: -10px !important;
+    position: static;
   }
 
   /* Compact orb on mobile — smaller circle + label */
