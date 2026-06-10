@@ -18,7 +18,7 @@ export function useContentFeed(member_id?: string) {
     try {
       setLoading(true);
       const data = await invoke<ContentFeedItem[]>('feed_get_items', {
-        userId,
+        userId: user_id,
         memberId: member_id ?? null,
         contentType: null,
         unreadOnly: false,
@@ -29,17 +29,17 @@ export function useContentFeed(member_id?: string) {
     } finally {
       setLoading(false);
     }
-  }, [userId, member_id]);
+  }, [user_id, member_id]);
 
   useEffect(() => { load(); }, [load]);
 
   const markRead = useCallback(async (id: string) => {
-    await invoke('feed_mark_read', { userId, id });
+    await invoke('feed_mark_read', { userId: user_id, id });
     setItems(prev => prev.map(i => i.id === id ? { ...i, is_read: true } : i));
   }, [user_id]);
 
   const toggleBookmark = useCallback(async (id: string) => {
-    await invoke('feed_toggle_bookmark', { userId, id });
+    await invoke('feed_toggle_bookmark', { userId: user_id, id });
     setItems(prev => prev.map(i => i.id === id ? { ...i, is_bookmarked: !i.is_bookmarked } : i));
   }, [user_id]);
 
@@ -47,7 +47,7 @@ export function useContentFeed(member_id?: string) {
     setGenerating(true);
     try {
       const data = await invoke<ContentFeedItem[]>('feed_generate', {
-        userId,
+        userId: user_id,
         memberId: member_id ?? null,
         interests: interests ?? null,
       });
@@ -56,7 +56,7 @@ export function useContentFeed(member_id?: string) {
     } finally {
       setGenerating(false);
     }
-  }, [userId, member_id]);
+  }, [user_id, member_id]);
 
   const unreadCount = items.filter(i => !i.is_read).length;
 

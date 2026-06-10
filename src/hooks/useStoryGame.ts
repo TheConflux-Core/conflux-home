@@ -22,7 +22,7 @@ export function useStoryGames(memberId?: string) {
     }
     try {
       setLoading(true);
-      const data = await invoke<StoryGame[]>('story_games_list', { memberId ?? null });
+      const data = await invoke<StoryGame[]>('story_games_list', { memberId: memberId ?? null });
       setGames(data);
       setError(null);
     } catch (e) {
