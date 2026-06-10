@@ -880,6 +880,7 @@ pub fn run() {
             commands::get_usage_stats,
             commands::purchase_credits,
             commands::set_supabase_session,
+            commands::sync_studio_keys,
             // Deterministic Router
             commands::route_select_model,
             commands::route_get_tier,
