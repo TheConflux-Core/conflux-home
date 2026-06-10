@@ -49,12 +49,26 @@ class SoundManager {
   // ── Audio Context ──
 
   private getAudioContext(): AudioContext {
+    // Recreate if closed (can happen on Android WebView when audio device conflicts)
+    if (this.ctx && this.ctx.state === 'closed') {
+      this.ctx = null;
+    }
     if (!this.ctx) {
-      this.ctx = new AudioContext();
-      this.setupGainNodes();
+      try {
+        this.ctx = new AudioContext();
+        this.ctx.addEventListener('statechange', () => {
+          if (this.ctx?.state === 'closed') {
+            this.ctx = null;
+          }
+        });
+        this.setupGainNodes();
+      } catch (e) {
+        console.warn('[Sound] AudioContext creation failed:', e);
+        return {} as AudioContext;
+      }
     }
     if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      this.ctx.resume().catch(() => {});
     }
     return this.ctx;
   }

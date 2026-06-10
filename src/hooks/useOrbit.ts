@@ -5,23 +5,22 @@ import { useAuthContext } from '../contexts/AuthContext';
 
 export function useOrbit() {
   const { user } = useAuthContext();
-  const user_id = user?.id || '';
+  const userId = user?.id || '';
   const [dashboard, setDashboard] = useState<OrbitDashboard | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Log user_id for debugging task visibility issues
   useEffect(() => {
-    console.log('[useOrbit] user_id:', user_id || '(EMPTY — user not authenticated)');
-  }, [user_id]);
+    console.log('[useOrbit] userId:', userId || '(EMPTY — user not authenticated)');
+  }, [userId]);
 
   const loadDashboard = useCallback(async () => {
-    if (!user_id) {
-      console.warn('[useOrbit] loadDashboard skipped — no user_id');
+    if (!userId) {
+      console.warn('[useOrbit] loadDashboard skipped — no userId');
       return;
     }
     try {
       setLoading(true);
-      const d = await invoke<OrbitDashboard>('life_get_orbit_dashboard', { user_id });
+      const d = await invoke<OrbitDashboard>('life_get_orbit_dashboard', { userId });
       console.log('[useOrbit] dashboard loaded:', { pending: d.pending_tasks?.length ?? 0, completed: d.completed_today ?? 0 });
       setDashboard(d);
     } catch (e) {
@@ -29,7 +28,7 @@ export function useOrbit() {
     } finally {
       setLoading(false);
     }
-  }, [user_id]);
+  }, [userId]);
 
   useEffect(() => {
     loadDashboard();
@@ -37,78 +36,76 @@ export function useOrbit() {
 
   const addTask = useCallback(
     async (title: string, category?: string, priority?: string, dueDate?: string, energyType?: string) => {
-      console.log('[useOrbit] addTask:', { user_id, title, category, priority, dueDate, energyType });
       try {
         await invoke('life_add_task', {
-          user_id,
+          userId,
           title,
           category: category ?? null,
           priority: priority ?? null,
-          due_date: dueDate ?? null,
-          energy_type: energyType ?? null,
+          dueDate: dueDate ?? null,
+          energyType: energyType ?? null,
         });
-        console.log('[useOrbit] addTask success, reloading dashboard...');
       } catch (e) {
         console.error('[useOrbit] addTask FAILED:', e);
         throw e;
       }
       await loadDashboard();
     },
-    [user_id, loadDashboard]
+    [userId, loadDashboard]
   );
 
   const completeTask = useCallback(
-    async (task_id: string) => {
-      await invoke('life_complete_task', { user_id, task_id });
+    async (taskId: string) => {
+      await invoke('life_complete_task', { userId, taskId });
       await loadDashboard();
     },
-    [user_id, loadDashboard]
+    [userId, loadDashboard]
   );
 
   const deleteTask = useCallback(
-    async (task_id: string) => {
-      await invoke('life_delete_task', { user_id, task_id });
+    async (taskId: string) => {
+      await invoke('life_delete_task', { userId, taskId });
       await loadDashboard();
     },
-    [user_id, loadDashboard]
+    [userId, loadDashboard]
   );
 
   const addHabit = useCallback(
     async (name: string, category?: string, frequency?: string, targetCount?: number) => {
       await invoke('life_add_habit', {
-        user_id,
+        userId,
         name,
         category: category ?? null,
         frequency: frequency ?? null,
-        target_count: targetCount ?? null,
+        targetCount: targetCount ?? null,
       });
       await loadDashboard();
     },
-    [user_id, loadDashboard]
+    [userId, loadDashboard]
   );
 
   const logHabit = useCallback(
     async (habitId: string) => {
-      await invoke('life_log_habit', { user_id, habit_id: habitId });
+      await invoke('life_log_habit', { userId, habitId });
       await loadDashboard();
     },
-    [user_id, loadDashboard]
+    [userId, loadDashboard]
   );
 
   const addFocus = useCallback(
-    async (task_id: string, position?: number) => {
-      await invoke('life_add_daily_focus', { user_id, task_id, position: position ?? null });
+    async (taskId: string, position?: number) => {
+      await invoke('life_add_daily_focus', { userId, taskId, position: position ?? null });
       await loadDashboard();
     },
-    [user_id, loadDashboard]
+    [userId, loadDashboard]
   );
 
   const morningBrief = useCallback(async () => {
-    return await invoke<string>('life_morning_brief', { user_id });
-  }, [user_id]);
+    return await invoke<string>('life_morning_brief', { userId });
+  }, [userId]);
 
-  const smartReschedule = useCallback(async (task_id: string) => {
-    return await invoke<LifeSchedule>('life_smart_reschedule', { task_id });
+  const smartReschedule = useCallback(async (taskId: string) => {
+    return await invoke<LifeSchedule>('life_smart_reschedule', { taskId });
   }, []);
 
   const parseInput = useCallback(async (input: string) => {
@@ -125,10 +122,10 @@ export function useOrbit() {
 
   const dismissNudge = useCallback(
     async (nudgeId: string) => {
-      await invoke('life_dismiss_nudge', { user_id, nudgeId });
+      await invoke('life_dismiss_nudge', { userId, nudgeId });
       await loadDashboard();
     },
-    [user_id, loadDashboard]
+    [userId, loadDashboard]
   );
 
   return {

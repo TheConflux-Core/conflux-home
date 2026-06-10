@@ -20,7 +20,7 @@ export function useMeals(category?: string, cuisine?: string, favoritesOnly = fa
         category: category ?? null,
         cuisine: cuisine ?? null,
         favoritesOnly,
-        member_id: memberId,
+        memberId,
       });
       console.log('[useMeals] load() returned', data.length, 'meals, memberId:', memberId);
       setMeals(data);
@@ -35,14 +35,14 @@ export function useMeals(category?: string, cuisine?: string, favoritesOnly = fa
 
   const addWithAI = useCallback(async (description: string) => {
     console.log('[useMeals] addWithAI called, memberId:', memberId);
-    const result = await invoke<MealWithIngredients>('kitchen_ai_add_meal', { description, member_id: memberId });
+    const result = await invoke<MealWithIngredients>('kitchen_ai_add_meal', { description, memberId });
     console.log('[useMeals] addWithAI result.meal:', result?.meal?.name ?? 'NULL/UNDEFINED');
     setMeals(prev => [result.meal, ...prev]);
     return result;
   }, [memberId]);
 
   const toggleFavorite = useCallback(async (id: string) => {
-    await invoke('kitchen_toggle_favorite', { id, member_id: memberId });
+    await invoke('kitchen_toggle_favorite', { id, memberId });
     setMeals(prev => prev.map(m => m.id === id ? { ...m, is_favorite: !m.is_favorite } : m));
   }, [memberId]);
 
@@ -59,7 +59,7 @@ export function useMealDetail(mealId: string | null) {
     if (!mealId) { setMeal(null); return; }
     try {
       setLoading(true);
-      const data = await invoke<MealWithIngredients | null>('kitchen_get_meal', { id: mealId, member_id: memberId });
+      const data = await invoke<MealWithIngredients | null>('kitchen_get_meal', { id: mealId, memberId });
       setMeal(data);
     } catch (e) {
       console.error('Failed to load meal:', e);
@@ -82,7 +82,7 @@ export function useWeeklyPlan(weekStart: string) {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await invoke<WeeklyPlan>('kitchen_get_weekly_plan', { weekStart, member_id: memberId });
+      const data = await invoke<WeeklyPlan>('kitchen_get_weekly_plan', { weekStart, memberId });
       setPlan(data);
     } catch (e) {
       console.error('Failed to load weekly plan:', e);
@@ -96,13 +96,13 @@ export function useWeeklyPlan(weekStart: string) {
   const setEntry = useCallback(async (dayOfWeek: number, mealSlot: string, mealId: string | null, notes?: string) => {
     await invoke('kitchen_set_plan_entry', {
       req: { week_start: weekStart, day_of_week: dayOfWeek, meal_slot: mealSlot, meal_id: mealId, notes: notes ?? null },
-      member_id: memberId,
+      memberId,
     });
     await load();
   }, [weekStart, load, memberId]);
 
   const clearWeek = useCallback(async () => {
-    await invoke('kitchen_clear_week_plan', { weekStart, member_id: memberId });
+    await invoke('kitchen_clear_week_plan', { weekStart, memberId });
     await load();
   }, [weekStart, load, memberId]);
 
@@ -118,7 +118,7 @@ export function useGroceryList(weekStart: string) {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await invoke<GroceryItem[]>('kitchen_get_grocery', { weekStart, member_id: memberId });
+      const data = await invoke<GroceryItem[]>('kitchen_get_grocery', { weekStart, memberId });
       setItems(data);
     } catch (e) {
       console.error('Failed to load grocery list:', e);
@@ -130,12 +130,12 @@ export function useGroceryList(weekStart: string) {
   useEffect(() => { load(); }, [load]);
 
   const generate = useCallback(async () => {
-    const data = await invoke<GroceryItem[]>('kitchen_generate_grocery', { weekStart, member_id: memberId });
+    const data = await invoke<GroceryItem[]>('kitchen_generate_grocery', { weekStart, memberId });
     setItems(data);
   }, [weekStart, memberId]);
 
   const toggleItem = useCallback(async (id: string) => {
-    await invoke('kitchen_toggle_grocery_item', { id, member_id: memberId });
+    await invoke('kitchen_toggle_grocery_item', { id, memberId });
     setItems(prev => prev.map(i => i.id === id ? { ...i, is_checked: !i.is_checked } : i));
   }, [memberId]);
 

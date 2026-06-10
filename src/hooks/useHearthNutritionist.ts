@@ -73,7 +73,7 @@ export function useHearthNutritionist() {
       // Call Hearth's own backend command (uses HEARTH_SYSTEM_PROMPT)
       const response = await invoke<{ id: string; session_id: string; role: string; content: string; timestamp: string }>(
         'hearth_nutritionist_send_message',
-        { session_id: sessionId, content },
+        { sessionId, content },
       );
 
       // Add Hearth's response
@@ -107,7 +107,7 @@ export function useHearthNutritionist() {
     const sessionId = currentSession.id;
 
     try {
-      await invoke('hearth_nutritionist_end_session', { session_id: sessionId });
+      await invoke('hearth_nutritionist_end_session', { sessionId });
     } catch (e) {
       console.error('[HearthNutritionist] endSession backend error:', e);
     }
@@ -145,7 +145,7 @@ export function useHearthNutritionist() {
     try {
       const msgs = await invoke<{ id: string; session_id: string; role: string; content: string; timestamp: string }[]>(
         'hearth_nutritionist_get_messages',
-        { session_id: sessionId },
+        { sessionId },
       );
       return msgs.map(m => ({
         id: m.id,

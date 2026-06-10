@@ -116,7 +116,7 @@ export function useEngineChat(agent_id: string | null, user_id?: string): UseEng
     setMessages([]);
 
     try {
-      const history = await invoke<EngineMessage[]>('engine_get_messages', { session_id: sid, limit: 50 });
+      const history = await invoke<EngineMessage[]>('engine_get_messages', { sessionId: sid, limit: 50 });
 
       // Ignore if session changed while waiting for DB
       if (sessionIdRef.current !== currentSid) return;
@@ -142,7 +142,7 @@ export function useEngineChat(agent_id: string | null, user_id?: string): UseEng
   async function createSessionForAgent(): Promise<string> {
     const currentAgentId = agent_id ?? agentIdRef.current;
     if (!currentAgentId) throw new Error('No agent selected');
-    const session = await invoke<EngineSession>('engine_create_session', { agent_id: currentAgentId });
+    const session = await invoke<EngineSession>('engine_create_session', { agentId: currentAgentId });
     return session.id;
   }
 
@@ -179,7 +179,7 @@ export function useEngineChat(agent_id: string | null, user_id?: string): UseEng
           await loadMessagesForSession(agentSession.id);
         } else {
           // Create new session for this agent
-          const session = await invoke<EngineSession>('engine_create_session', { agent_id: agent_id });
+          const session = await invoke<EngineSession>('engine_create_session', { agentId: agent_id });
           if (cancelled) return;
           setSessionId(session.id);
           sessionIdRef.current = session.id;
@@ -195,7 +195,7 @@ export function useEngineChat(agent_id: string | null, user_id?: string): UseEng
         // Load cloud credits if authenticated
         if (authUserId) {
           try {
-            const balance = await invoke<{ total_available: number }>('get_credit_balance', { user_id: authUserId });
+            const balance = await invoke<{ total_available: number }>('get_credit_balance', { userId: authUserId });
             if (!cancelled) setCredits(balance.total_available ?? 0);
           } catch {
             // Cloud credits not available
@@ -230,7 +230,7 @@ export function useEngineChat(agent_id: string | null, user_id?: string): UseEng
     if (!currentAgentId) throw new Error('No agent selected');
 
     cleanupListeners();
-    const session = await invoke<EngineSession>('engine_create_session', { agent_id: currentAgentId });
+    const session = await invoke<EngineSession>('engine_create_session', { agentId: currentAgentId });
     setSessionId(session.id);
     sessionIdRef.current = session.id;
     setMessages([]);

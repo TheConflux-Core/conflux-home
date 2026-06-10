@@ -110,6 +110,25 @@ impl EngineDb {
             }
         }
 
+        // ── Column repair: add columns that were added to schema.sql after initial release ──
+        // ALTER TABLE ADD COLUMN is a no-op error if column already exists; we skip those.
+        let column_repairs: &[(&str, &str, &str)] = &[
+            // (table, column, "type DEFAULT value")
+            ("family_members", "user_id", "TEXT NOT NULL DEFAULT ''"),
+        ];
+        for (table, column, col_def) in column_repairs {
+            let sql = format!("ALTER TABLE {} ADD COLUMN {} {}", table, column, col_def);
+            match conn.execute_batch(&sql) {
+                Ok(_) => log::info!("Column repair: added {}.{}", table, column),
+                Err(e) => {
+                    let msg = e.to_string().to_lowercase();
+                    if !msg.contains("duplicate column") && !msg.contains("already exists") {
+                        log::warn!("Column repair failed for {}.{}: {}", table, column, e);
+                    }
+                }
+            }
+        }
+
         log::info!(
             "Schema migration: {} statements, {} succeeded, {} skipped",
             total, succeeded, skipped

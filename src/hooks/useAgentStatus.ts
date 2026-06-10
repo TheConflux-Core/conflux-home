@@ -52,12 +52,12 @@ export function useAgentStatus(userId: string, memberId?: string | null) {
 
     // Fire all queries in parallel
     const [kitchenItems, budgetData, budgetPatterns, orbitTasks, dreamList, feedUnread, homeDashboard] = await Promise.all([
-      safeInvoke(invoke<any[]>('kitchen_get_inventory', { location: null, member_id: mid }), []),
+      safeInvoke(invoke<any[]>('kitchen_get_inventory', { location: null, memberId: mid }), []),
       safeInvoke(invoke<any>('budget_get_summary', { month }), null),
-      safeInvoke(invoke<any[]>('budget_detect_patterns', { member_id: mid }), []),
-      safeInvoke(invoke<any[]>('life_get_tasks', { user_id: userId, status: 'pending' }), []),
-      safeInvoke(invoke<any[]>('dream_get_all', { user_id: userId, status: null }), []),
-      safeInvoke(invoke<any[]>('feed_get_items', { user_id: userId, member_id: mid, content_type: null, unread_only: true }), []),
+      safeInvoke(invoke<any[]>('budget_detect_patterns', { memberId: mid }), []),
+      safeInvoke(invoke<any[]>('life_get_tasks', { userId, status: 'pending' }), []),
+      safeInvoke(invoke<any[]>('dream_get_all', { userId, status: null }), []),
+      safeInvoke(invoke<any[]>('feed_get_items', { userId, memberId: mid, contentType: null, unreadOnly: true }), []),
       safeInvoke(invoke<any>('home_get_dashboard'), null),
     ]);
 
