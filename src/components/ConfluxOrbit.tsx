@@ -67,10 +67,23 @@ export default function ConfluxOrbit({
     try { activeSourceRef.current?.stop(); } catch (_) { /* already stopped */ }
     activeSourceRef.current = null;
 
+    // Recreate AudioContext if closed (happens on Android after getUserMedia/PTT)
+    if (audioContextRef.current && audioContextRef.current.state === 'closed') {
+      audioContextRef.current = null;
+    }
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      try {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      } catch (e) {
+        console.error('[ConfluxOrbit] AudioContext creation failed:', e);
+        return;
+      }
     }
     const ctx = audioContextRef.current;
+    // Resume if suspended (common on Android after user interaction)
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
 
     const binaryString = atob(base64);
     const bytes = new Uint8Array(binaryString.length);

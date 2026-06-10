@@ -55,8 +55,8 @@
   }
 
   .topbar-logo {
-    width: 18px;
-    height: 18px;
+    width: 26px;
+    height: 26px;
     flex-shrink: 0;
   }
 
@@ -67,20 +67,21 @@
 
   /* Status Orb: reposition from center to left (next to logo) on mobile */
   .topbar-center-orb {
-    left: 42px !important;
+    left: 46px !important;
     transform: none !important;
-    top: 8px !important;
+    top: 50% !important;
+    margin-top: -10px !important;
   }
 
   /* Compact orb on mobile — smaller circle + label */
   .topbar-center-orb .status-orb {
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
   }
 
   .topbar-center-orb .status-orb-core {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
   }
 
   .topbar-center-orb .status-orb-ring {
@@ -88,9 +89,11 @@
   }
 
   .topbar-center-orb .status-orb-label {
+    display: block !important;
     font-size: 9px;
     left: calc(100% + 5px);
     letter-spacing: 0;
+    opacity: 0.85;
   }
 
   .topbar-center-orb .status-orb-mic-icon {

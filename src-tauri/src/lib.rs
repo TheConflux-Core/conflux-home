@@ -124,6 +124,11 @@ pub fn run() {
                 return Ok(());
             }
 
+            // Set HOME to app data dir so all code using std::env::var("HOME") works on Android
+            // (Android doesn't have HOME set by default, causing fallback to /tmp which is not writable)
+            std::env::set_var("HOME", &app_data_dir);
+            log::info!("[Setup] HOME set to {:?}", app_data_dir);
+
             let db_path = app_data_dir.join("conflux.db");
             match engine::init_engine(&db_path) {
                 Ok(engine_ref) => {
