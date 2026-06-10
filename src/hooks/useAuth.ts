@@ -127,16 +127,7 @@ export function useAuth(): UseAuthReturn {
       supabaseAnonKey: SUPABASE_ANON_KEY,
       accessToken: token,
       userId,
-    }).then(() => {
-      // After auth syncs, pull Studio API keys from Supabase to local SQLite.
-      // This ensures mobile/新 devices get the same keys as desktop.
-      return invoke('sync_studio_keys');
-    }).then((synced: unknown) => {
-      const keys = synced as string[];
-      if (keys && keys.length > 0) {
-        console.log('[useAuth] ✅ Synced Studio keys from cloud:', keys);
-      }
-    }).catch((err) => console.warn('[useAuth] ❌ Failed to sync Supabase session/keys:', err))
+    }).catch((err) => console.warn('[useAuth] ❌ Failed to sync Supabase session to backend:', err))
   }, [session?.access_token, session?.user?.id, SUPABASE_URL, SUPABASE_ANON_KEY])
 
   // Fire telemetry on confirmed session
