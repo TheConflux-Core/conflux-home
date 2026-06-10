@@ -115,6 +115,16 @@ impl EngineDb {
         let column_repairs: &[(&str, &str, &str)] = &[
             // (table, column, "type DEFAULT value")
             ("family_members", "user_id", "TEXT NOT NULL DEFAULT ''"),
+            ("kitchen_inventory", "member_id", "TEXT"),
+            ("budget_entries", "member_id", "TEXT"),
+            ("grocery_items", "member_id", "TEXT"),
+            ("meal_plans", "member_id", "TEXT"),
+            ("life_tasks", "member_id", "TEXT"),
+            ("life_habits", "member_id", "TEXT"),
+            ("dreams", "member_id", "TEXT"),
+            ("content_feed", "member_id", "TEXT"),
+            ("learning_activities", "member_id", "TEXT"),
+            ("story_games", "member_id", "TEXT"),
         ];
         for (table, column, col_def) in column_repairs {
             let sql = format!("ALTER TABLE {} ADD COLUMN {} {}", table, column, col_def);
