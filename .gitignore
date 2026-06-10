@@ -7,6 +7,7 @@ dist/
 src-tauri/target/
 src-tauri/gen/
 !src-tauri/gen/android/app/src/main/java/com/conflux/home/MainActivity.kt
+!src-tauri/gen/android/app/src/main/AndroidManifest.xml
 src-tauri/models/*.bin
 src-tauri/models/*.gguf
 src-tauri/binaries/llama-server
