@@ -10783,7 +10783,8 @@ pub async fn voice_transcribe_audio(audio_base64: String) -> Result<String, Stri
         .map_err(|e| format!("MIME error: {}", e))?;
 
     let form = reqwest::multipart::Form::new()
-        .part("audio", part);
+        .part("audio", part)
+        .text("model_id", "scribe_v2");
 
     let resp = client
         .post("https://api.elevenlabs.io/v1/speech-to-text")

@@ -8,11 +8,26 @@
 let audioContext: AudioContext | null = null;
 
 function getAudioContext(): AudioContext {
+  // Recreate if closed (can happen on Android WebView when audio device conflicts)
+  if (audioContext && audioContext.state === 'closed') {
+    audioContext = null;
+  }
   if (!audioContext) {
-    audioContext = new AudioContext();
+    try {
+      audioContext = new AudioContext();
+      audioContext.addEventListener('statechange', () => {
+        if (audioContext?.state === 'closed') {
+          audioContext = null;
+        }
+      });
+    } catch (e) {
+      console.warn('[Sounds] AudioContext creation failed:', e);
+      // Return a dummy that won't crash
+      return {} as AudioContext;
+    }
   }
   if (audioContext.state === 'suspended') {
-    audioContext.resume();
+    audioContext.resume().catch(() => {});
   }
   return audioContext;
 }

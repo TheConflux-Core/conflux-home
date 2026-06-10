@@ -30,7 +30,7 @@ export function useHomeHealth() {
 
   const addBill = useCallback(async (billType: string, amount: number, billingMonth: string, usage?: number, notes?: string) => {
     if (!user?.id) return;
-    await invoke('home_add_bill', { id: crypto.randomUUID(), bill_type: billType, amount, usage: usage ?? null, billing_month: billingMonth, notes: notes ?? null });
+    await invoke('home_add_bill', { id: crypto.randomUUID(), billType: billType, amount, usage: usage ?? null, billingMonth: billingMonth, notes: notes ?? null });
     await load();
   }, [load, user?.id]);
 
