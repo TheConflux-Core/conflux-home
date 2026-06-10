@@ -42,7 +42,7 @@ export function usePulseCounselor() {
     setLoading(true);
     try {
       const session = await invoke<PulseSession>('pulse_start_session');
-      const msgs = await invoke<PulseMessage[]>('pulse_get_messages', { sessionId: session.id });
+      const msgs = await invoke<PulseMessage[]>('pulse_get_messages', { session_id: session.id });
       setCurrentSession(session);
       setMessages(msgs);
       return session;
@@ -99,7 +99,7 @@ export function usePulseCounselor() {
       for (const msg of pendingRef.current) {
         try {
           await invoke('pulse_save_message', {
-            sessionId: msg.session_id,
+            session_id: msg.session_id,
             role: msg.role,
             content: msg.content,
             timestamp: msg.timestamp,
@@ -111,7 +111,7 @@ export function usePulseCounselor() {
       }
       pendingRef.current = [];
 
-      await invoke('pulse_end_session', { sessionId: sessionId });
+      await invoke('pulse_end_session', { session_id: sessionId });
       setCurrentSession(null);
       setMessages([]);
     } catch (e) {
@@ -134,7 +134,7 @@ export function usePulseCounselor() {
   // ── Load messages for a given session ────────────────────
   const loadMessages = useCallback(async (sessionId: string) => {
     try {
-      const msgs = await invoke<PulseMessage[]>('pulse_get_messages', { sessionId: sessionId });
+      const msgs = await invoke<PulseMessage[]>('pulse_get_messages', { session_id: sessionId });
       return msgs;
     } catch (e) {
       console.error('[usePulseCounselor] loadMessages:', e);

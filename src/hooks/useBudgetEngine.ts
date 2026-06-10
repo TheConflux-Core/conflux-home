@@ -33,10 +33,10 @@ export function useBudgetEngine(explicitUserId?: string | null) {
       setLoading(true);
       console.log('[useBudgetEngine] Loading for member:', resolvedMemberId);
       const [s, b, a, t] = await Promise.all([
-        invoke<BudgetSettings | null>('budget_get_settings', { memberId: resolvedMemberId }),
-        invoke<BudgetBucket[]>('budget_get_buckets', { memberId: resolvedMemberId }),
-        invoke<BudgetAllocation[]>('budget_get_allocations', { memberId: resolvedMemberId }),
-        invoke<BudgetTransaction[]>('budget_get_transactions', { memberId: resolvedMemberId }),
+        invoke<BudgetSettings | null>('budget_get_settings', { member_id: resolvedMemberId }),
+        invoke<BudgetBucket[]>('budget_get_buckets', { member_id: resolvedMemberId }),
+        invoke<BudgetAllocation[]>('budget_get_allocations', { member_id: resolvedMemberId }),
+        invoke<BudgetTransaction[]>('budget_get_transactions', { member_id: resolvedMemberId }),
       ]);
       console.log('[useBudgetEngine] RAW settings:', JSON.stringify(s));
       console.log('[useBudgetEngine] RAW buckets:', JSON.stringify(b));
@@ -64,7 +64,7 @@ export function useBudgetEngine(explicitUserId?: string | null) {
   const updateSettings = useCallback(async (req: UpdateSettingsRequest) => {
     console.log('🔧 Hook: updateSettings called with:', req);
     try {
-      const result = await invoke('budget_update_settings', { req, memberId: resolvedMemberId });
+      const result = await invoke('budget_update_settings', { req, member_id: resolvedMemberId });
       console.log('🔧 Hook: budget_update_settings result:', result);
       await refreshData();
     } catch (err) {
@@ -74,12 +74,12 @@ export function useBudgetEngine(explicitUserId?: string | null) {
   }, [refreshData, resolvedMemberId]);
 
   const logTransaction = useCallback(async (req: LogTransactionRequest) => {
-    await invoke('budget_log_transaction', { req, memberId: resolvedMemberId });
+    await invoke('budget_log_transaction', { req, member_id: resolvedMemberId });
     await refreshData();
   }, [refreshData, resolvedMemberId]);
 
   const updateAllocation = useCallback(async (bucketId: string, payPeriodId: string, amount: number) => {
-    await invoke('budget_update_allocation', { req: { bucket_id: bucketId, pay_period_id: payPeriodId, amount }, memberId: resolvedMemberId });
+    await invoke('budget_update_allocation', { req: { bucket_id: bucketId, pay_period_id: payPeriodId, amount }, member_id: resolvedMemberId });
     await refreshData();
   }, [refreshData, resolvedMemberId]);
 
@@ -91,7 +91,7 @@ export function useBudgetEngine(explicitUserId?: string | null) {
         monthly_goal: bucket.monthly_goal,
         color: bucket.color,
       },
-      memberId: resolvedMemberId
+      member_id: resolvedMemberId
     });
     await refreshData();
   }, [refreshData, resolvedMemberId]);
@@ -106,7 +106,7 @@ export function useBudgetEngine(explicitUserId?: string | null) {
         color: bucket.color,
         is_active: bucket.is_active,
       },
-      memberId: resolvedMemberId,
+      member_id: resolvedMemberId,
     });
     await refreshData();
   }, [refreshData, resolvedMemberId]);
