@@ -877,7 +877,6 @@ pub fn run() {
             // New ElevenLabs streaming commands (desktop only)
             #[cfg(not(target_os = "android"))]
             engine::commands::voice_commands::voice_start_stream,
-            #[cfg(not(target_os = "android"))]
             engine::commands::voice_commands::voice_synthesize,
             // Cloud — Supabase Credit & Usage System
             commands::get_credit_balance,

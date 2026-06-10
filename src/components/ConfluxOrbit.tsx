@@ -107,7 +107,10 @@ export default function ConfluxOrbit({
         activeSourceRef.current = null;
         conflux.setMode('idle', 'backend', 'Ready');
       };
-    }).catch(e => console.error('TTS Decode Error:', e));
+    }).catch(e => {
+      console.error('[ConfluxOrbit] TTS Decode Error:', e);
+      conflux.setMode('idle', 'backend', 'Ready');
+    });
   }, []);
 
   // ── Tauri Event Bridge ────────────────────────────────────────────────

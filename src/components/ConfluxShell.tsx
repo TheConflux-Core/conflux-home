@@ -33,8 +33,8 @@ export default function ConfluxShell({
 
   return (
     <>
-      {/* Status Orb — centered on desktop, left-aligned on mobile */}
-      <div className="topbar-center-orb" style={{ position: 'fixed', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 901 }}>
+      {/* Status Orb — CSS-driven positioning (no inline styles so mobile overrides work) */}
+      <div className="topbar-center-orb">
         <ConfluxStatusOrb
           mode={conflux.mode}
           status={conflux.status}
