@@ -7,6 +7,7 @@
  * Accepts children for the dock content (ConfluxBarV2 or ConfluxBar).
  */
 
+import { createPortal } from 'react-dom';
 import { useConflux } from './conflux';
 import ConfluxStatusOrb from './conflux/ConfluxStatusOrb';
 import DockGlow from './conflux/DockGlow';
@@ -33,16 +34,19 @@ export default function ConfluxShell({
 
   return (
     <>
-      {/* Status Orb — CSS-driven positioning (no inline styles so mobile overrides work) */}
-      <div className="topbar-center-orb">
-        <ConfluxStatusOrb
-          mode={conflux.mode}
-          status={conflux.status}
-          pulseImpulse={conflux.pulseImpulse}
-          effectivePalette={conflux.effectivePalette}
-          appPalette={conflux.appPalette}
-        />
-      </div>
+      {/* Status Orb — portal into TopBar's .topbar-center so it's inside the topbar flow */}
+      {createPortal(
+        <div className="topbar-center-orb">
+          <ConfluxStatusOrb
+            mode={conflux.mode}
+            status={conflux.status}
+            pulseImpulse={conflux.pulseImpulse}
+            effectivePalette={conflux.effectivePalette}
+            appPalette={conflux.appPalette}
+          />
+        </div>,
+        document.querySelector('.topbar-left') || document.body
+      )}
 
       {/* Dock with reactive glow */}
       <DockGlow

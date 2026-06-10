@@ -364,13 +364,10 @@ body {
   gap: 16px;
 }
 
-/* Status Orb — positioned via CSS so mobile overrides can beat these rules */
+/* Status Orb — lives inside .topbar-center via portal */
 .topbar-center-orb {
-  position: fixed;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 901;
+  display: flex;
+  align-items: center;
 }
 
 .topbar-clock {
