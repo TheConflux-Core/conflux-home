@@ -10919,24 +10919,6 @@ pub async fn set_supabase_session(
     Ok(())
 }
 
-/// Sync Studio API keys from Supabase studio_config table to local SQLite.
-/// Called after auth succeeds. Only writes keys not already present locally.
-#[tauri::command]
-pub async fn sync_studio_keys() -> Result<Vec<String>, String> {
-    log::info!("[sync_studio_keys] Syncing Studio API keys from cloud...");
-    match cloud::sync_studio_keys_from_cloud().await {
-        Ok(synced) => {
-            log::info!("[sync_studio_keys] Synced {} keys", synced.len());
-            Ok(synced)
-        }
-        Err(e) => {
-            log::warn!("[sync_studio_keys] Sync failed (non-fatal): {}", e);
-            // Non-fatal: don't block app startup if sync fails
-            Ok(vec![])
-        }
-    }
-}
-
 // ── Deterministic Router ──
 
 /// Select the best model for a given task type using deterministic routing.
