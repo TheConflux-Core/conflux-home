@@ -60,20 +60,41 @@
     flex-shrink: 0;
   }
 
-  /* Title: hide the full "Conflux Home vX.X" — too wide for mobile.
-     Show just "Conflux" to save space. */
+  /* Title: hide "Conflux Home" entirely on mobile — replaced by status orb */
   .topbar-title {
-    font-size: 12px;
-    letter-spacing: -0.1px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100px;
+    display: none !important;
   }
 
-  /* Hide the version number span inside the title */
-  .topbar-title span {
-    display: none;
+  /* Status Orb: reposition from center to left (next to logo) on mobile */
+  .topbar-center-orb {
+    left: 42px !important;
+    transform: none !important;
+    top: 8px !important;
+  }
+
+  /* Compact orb on mobile — smaller circle + label */
+  .topbar-center-orb .status-orb {
+    width: 20px;
+    height: 20px;
+  }
+
+  .topbar-center-orb .status-orb-core {
+    width: 8px;
+    height: 8px;
+  }
+
+  .topbar-center-orb .status-orb-ring {
+    border-width: 1px;
+  }
+
+  .topbar-center-orb .status-orb-label {
+    font-size: 9px;
+    left: calc(100% + 5px);
+    letter-spacing: 0;
+  }
+
+  .topbar-center-orb .status-orb-mic-icon {
+    font-size: 7px;
   }
 
   /* Center agent name */
