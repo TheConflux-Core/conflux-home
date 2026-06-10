@@ -1,3 +1,9 @@
+// Polyfill: Android WebView lacks window.Notification — the Tauri notification
+// plugin's isPermissionGranted() reads window.Notification.permission and crashes.
+if (typeof window !== 'undefined' && !('Notification' in window)) {
+  (window as any).Notification = { permission: 'default' };
+}
+
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
