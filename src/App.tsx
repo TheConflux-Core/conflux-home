@@ -481,6 +481,7 @@ export default function App() {
   }, []);
 
   const [isOnboarded, setIsOnboarded] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);  // gates onboarding until backend check completes
   const [showWelcome, setShowWelcome] = useState(false);
   const [showIntroductions, setShowIntroductions] = useState(true);
   const [showBootCards, setShowBootCards] = useState(() => {
@@ -532,6 +533,7 @@ export default function App() {
               localStorage.getItem('conflux-introductions-complete') !== 'true'
             );
           }
+          if (!cancelled) setProfileLoaded(true);
           return; // Success — exit retry loop
         } catch (e: any) {
           retries--;
@@ -546,6 +548,7 @@ export default function App() {
             setShowIntroductions(
               localStorage.getItem('conflux-introductions-complete') !== 'true'
             );
+            if (!cancelled) setProfileLoaded(true);
           } else {
             await new Promise(r => setTimeout(r, 500));
           }
@@ -892,9 +895,14 @@ export default function App() {
 
   // Restore onboarding state from Supabase if localStorage is empty
   useEffect(() => {
-    if (!user || isOnboarded) { console.log('[App] Supabase restore: skipped (user=', !!user, 'isOnboarded=', isOnboarded, ')'); return }
-    console.log('[App] Supabase restore: checking ch_profiles for user', user.id)
+    if (!user || isOnboarded || !profileLoaded) { console.log('[App] Supabase restore: skipped (user=', !!user, 'isOnboarded=', isOnboarded, 'profileLoaded=', profileLoaded, ')'); return }
     import('./lib/supabase').then(async ({ supabase }) => {
+      // Verify the auth user still exists server-side — stale tokens from deleted
+      // users still resolve locally but fail the getUser() call
+      const { data: { user: liveUser }, error: authErr } = await supabase.auth.getUser()
+      if (authErr || !liveUser) { console.log('[App] Supabase restore: auth user invalid, skipping'); return }
+
+      console.log('[App] Supabase restore: checking ch_profiles for user', user.id)
       const { data, error } = await supabase
         .from('ch_profiles')
         .select('display_name')
@@ -913,7 +921,7 @@ export default function App() {
         setIsOnboarded(true)
       }
     })
-  }, [user, isOnboarded])
+  }, [user, isOnboarded, profileLoaded])
 
   const { connected, agents, refresh } = useEngine();
 
@@ -1359,7 +1367,17 @@ const [activeSnake, setActiveSnake] = useState(false);
   }
 
   // ── Gate: Onboarding ──
-  console.log('[App] Gate check — isOnboarded:', isOnboarded, '| user:', user?.id);
+  console.log('[App] Gate check — isOnboarded:', isOnboarded, '| profileLoaded:', profileLoaded, '| user:', user?.id);
+  // Wait for profile check to complete before deciding — prevents flash-and-dismiss
+  // when backend has stale onboarded=true from a prior session
+  if (!profileLoaded) {
+    console.log('[App] → Waiting for profile load...');
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#0a0a1a' }}>
+        <img src="/logo_v1.png" alt="Conflux" style={{ width: 32, height: 32, objectFit: 'contain' }} />
+      </div>
+    );
+  }
   if (!isOnboarded) {
     console.log('[App] → Rendering Onboarding (isOnboarded=false)');
     return <Onboarding onComplete={handleOnboardingComplete} />;
