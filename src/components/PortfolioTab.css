@@ -8,7 +8,8 @@
   color: #ecfdf5;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   min-height: 100%;
-  overflow-y: auto;
+  overflow-y: visible;
+  overflow-x: hidden;
   position: relative;
   animation: tabFadeIn 0.35s ease;
 }
