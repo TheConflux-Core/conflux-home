@@ -612,9 +612,11 @@ export default function StocksTab() {
           <h2 className="stocks-title">📈 Watchlist</h2>
           {stocks.length > 0 && <span className="stocks-count">{stocks.length} stock{stocks.length !== 1 ? 's' : ''}</span>}
         </div>
-        <button className="btn-open-add-form" onClick={() => setShowAddModal(true)}>
-          <span>🔍</span> Add Stock
-        </button>
+        {stocks.length > 0 && (
+          <button className="btn-open-add-form" onClick={() => setShowAddModal(true)}>
+            <span>🔍</span> Add Stock
+          </button>
+        )}
       </div>
 
       {error && (

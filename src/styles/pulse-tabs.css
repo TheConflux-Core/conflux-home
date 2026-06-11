@@ -17,6 +17,7 @@
   position: relative;
   height: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   color: #ecfdf5;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   background: #020d08;
@@ -278,7 +279,8 @@
   height: calc(100vh - 72px);
   position: relative;
   z-index: 1;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding-bottom: 100px;
 }
 
