@@ -817,29 +817,6 @@ impl ConfluxEngine {
               Be observational, not judgmental. Note trends and growth. \
               Store this reflection using memory_write with category 'diary' and a descriptive title."),
 
-            ("weekly-insights", "conflux", "0 10 * * 0", "local",
-             "Generate a weekly cross-app insights report. \
-              1. Budget: Use budget_get_summary (do NOT pass a month - it auto-detects). Note total spent, top categories, any unusual spending. \
-              2. Kitchen: Use kitchen_list_meals to see what was cooked. Use kitchen_get_inventory for expiring items. \
-              3. Life: Use life_list_tasks for completion stats. Use life_list_habits for streaks. \
-              4. Home: Use home_get_bills for upcoming due dates. \
-              5. Dreams: Use dream_list for progress percentages. \
-              Write a structured report with specific numbers and 2-3 actionable recommendations. \
-              Store the report using memory_write with category 'weekly-insights'."),
-
-            ("pantry-check", "conflux", "0 8 * * *", "local",
-             "Check kitchen inventory for items expiring in the next 3 days using kitchen_get_inventory. \
-              If any items are expiring soon, use kitchen_list_meals to suggest a recipe that uses them. \
-              If nothing is expiring, just say 'Pantry looks good!' with a 1-sentence inventory summary. \
-              Keep it brief — 2-3 sentences max."),
-
-            ("budget-nudge", "conflux", "0 18 * * *", "local",
-             "IMPORTANT: Do NOT pass a month argument to budget tools - they auto-detect the current month. Check today's budget entries using budget_get_entries for this month. \
-              If the user spent money today, give a brief 1-sentence spending summary. \
-              If a savings goal is close to deadline, mention progress using budget_get_goals. \
-              If no budget activity today, stay completely silent — do not generate any output. \
-              Be encouraging, never judgmental. 1-2 sentences max."),
-
             ("dream-motivation", "conflux", "0 9 * * 1-5", "local",
              "Check active dreams using dream_list. \
               Look for any dream tasks due today or this week. \
@@ -847,17 +824,6 @@ impl ConfluxEngine {
               Reference the dream title and the specific task name. \
               If no upcoming tasks, check if any milestones were recently completed and celebrate briefly. \
               If nothing notable, stay silent — do not generate output."),
-
-            ("security-scan", "conflux", "0 2 * * *", "local",
-             "Run a scheduled security scan. \
-              1. Use aegis_run_audit with run_type='scheduled' to check system hardening. \
-              2. Use viper_run_scan with scan_type='scheduled' to check for vulnerabilities. \
-              3. Use security_run_anomaly_scan to check for anomalous agent behavior. \
-              4. Use siem_run_correlation to update the risk overview. \
-              If any critical findings are found, store a memory with category 'security-alert' and alert the user in the Security Hub. \
-              If all scans are clean, store a brief memory with category 'security-status' noting the clean scan. \
-              Do NOT send a notification to the user unless there is a critical finding. \
-              Keep output minimal — just the scan results summary."),
 
             ("dream-skill-synthesis", "conflux", "0 23 * * *", "local",
              "Skill Synthesis — Dream Cycle Phase 4. \
@@ -875,71 +841,6 @@ impl ConfluxEngine {
               Be concise — this cron must complete within its timeout window."),
 
 
-            ("trajectory-mine", "conflux", "50 23 * * *", "local",
-             "Trajectory Mining — automated skill discovery from tool sequences. \
-              1. Call engine_mine_trajectory_skills with agent_id=null and min_count=3. \
-                 This automatically mines trajectory patterns into skills. \
-                 It checks for existing skills, generates names, and installs. \
-              2. Call engine_mine_agent_skills for each active agent: conflux, helix, forge, pulse, quanta, prism, catalyst. \
-                 This ensures agent-specific patterns are discovered. \
-              3. Check for skill compositions: use engine_get_trajectory_patterns_full with min_count=5. \
-                 If pattern A's last tool matches pattern B's first tool, create a composition via engine_create_skill_composition. \
-              4. Archive trajectory data older than 30 days. \
-              5. Log results: '🧩 Mined X new skills, Y compositions' to the run log. \
-              Be concise — this cron must complete within its timeout window."),
-
-
-            // ── Security Cron Jobs (Phase 10) ──
-            ("sec-quick-aegis", "conflux", "0 */6 * * *", "local",
-             "SECURITY: Quick Aegis system audit. \
-              Run aegis_run_audit with run_type='quick'. \
-              This focuses on firewall status and open ports. \
-              If any critical findings, use memory_write with category 'security-alert' to log. \
-              Keep output to a brief summary — 2-3 sentences. \
-              Do NOT notify the user unless critical."),
-
-            ("sec-full-aegis", "conflux", "0 3 * * *", "local",
-             "SECURITY: Full Aegis system audit. \
-              Run aegis_run_audit with run_type='full'. \
-              This is the comprehensive system hardening check — firewall, ports, SSH, \
-              file permissions, software updates, cron jobs, kernel hardening. \
-              If any critical findings, use memory_write with category 'security-alert'. \
-              Store a brief summary using memory_write with category 'security-status'."),
-
-            ("sec-viper-scan", "conflux", "0 4 * * 1", "local",
-             "SECURITY: Full Viper vulnerability scan. \
-              Run viper_run_scan with scan_type='full'. \
-              This checks system misconfig, network exposure, browser security, \
-              password safety, secrets in config files, and general hardening. \
-              If any critical vulnerabilities found, use memory_write with category 'security-alert'."),
-
-            // sec-watchtower removed — was firing every 5 min (12 LLM sessions/hour).
-            // Watchtower runs via: (1) heartbeat chain security_scan step, (2) sec-full-aegis at 3am,
-            // (3) security-scan cron at 2am. No need for continuous 5-min polling.
-
-            ("sec-siem-correlate", "conflux", "0 0 * * *", "local",
-             "SECURITY: SIEM correlation and risk assessment. \
-              Run siem_run_correlation to execute all correlation rules. \
-              Run siem_get_risk_overview to check the aggregate risk score. \
-              If the risk score drops below 50 or critical alerts are active, \
-              use memory_write with category 'security-alert' to flag it. \
-              Keep output to the risk score and any new correlations found."),
-
-            ("sec-agent-audit", "conflux", "0 6 * * 1", "local",
-             "SECURITY: Agent-vs-agent security audit. \
-              Run the agent security audit to test all agents against prompt injection, \
-              data exfiltration, privilege escalation, instruction override, and social engineering attacks. \
-              Check the defense scores. If any agent scores below 50, \
-              use memory_write with category 'security-alert' to flag weak agent defenses."),
-
-            ("sec-weekly-report", "conflux", "0 8 * * 1", "local",
-             "SECURITY: Generate weekly SIEM report. \
-              Run siem_generate_weekly_report to compile the week's security data. \
-              Summarize: risk score trend, top alerts, critical events, \
-              aegis score, viper risk, agent defense scores. \
-              Store the full report using memory_write with category 'security-weekly'."),
-
-            // sec-baseline-refresh removed — redundant with security-scan (both at 2am, both call watchtower)
         ];
 
         for (name, agent_id, schedule, tz, message) in system_jobs {

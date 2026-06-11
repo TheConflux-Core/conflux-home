@@ -6,6 +6,7 @@ import { invoke } from '@tauri-apps/api/core';
 
 export interface CronJob {
   id: string;
+  name?: string;
   agent_id: string;
   schedule: string;
   message: string;
@@ -15,10 +16,26 @@ export interface CronJob {
   created_at: string;
 }
 
+// Tauri command returns different field names — map them
+function mapCronJob(raw: Record<string, unknown>): CronJob {
+  return {
+    id: raw.id as string,
+    name: raw.name as string | undefined,
+    agent_id: raw.agent_id as string,
+    schedule: raw.schedule as string,
+    message: (raw.message ?? raw.task_message ?? '') as string,
+    enabled: (raw.enabled ?? raw.is_enabled ?? false) as boolean,
+    last_run: (raw.last_run ?? raw.last_run_at) as string | undefined,
+    next_run: (raw.next_run ?? raw.next_run_at) as string | undefined,
+    created_at: (raw.created_at ?? '') as string,
+  };
+}
+
 export interface CreateCronReq {
+  name: string;
   agent_id: string;
   schedule: string;
-  message: string;
+  task_message: string;
   enabled: boolean;
 }
 
@@ -28,8 +45,8 @@ export function useCron() {
 
   const refresh = useCallback(async () => {
     try {
-      const result = await invoke<CronJob[]>('engine_get_crons', { enabledOnly: null });
-      setJobs(result);
+      const raw = await invoke<Record<string, unknown>[]>('engine_get_crons', { enabledOnly: null });
+      setJobs(raw.map(mapCronJob));
     } catch (err) {
       console.error('[useCron] Failed to load:', err);
     } finally {
