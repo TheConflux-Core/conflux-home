@@ -469,3 +469,25 @@
   stroke-width: 2.5 !important;
   filter: drop-shadow(0 0 6px rgba(0, 212, 255, 0.4));
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE — Agent Cards & Grid
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 600px) {
+  .onboarding-v2-agent-grid {
+    gap: 10px !important;
+    max-width: 100% !important;
+    padding: 0 8px;
+  }
+  .holographic-card {
+    width: calc(50% - 10px) !important;
+    padding: 14px 10px 12px;
+    border-radius: 14px;
+  }
+  .holographic-card .card-inner img,
+  .holographic-card img {
+    width: 56px !important;
+    height: 56px !important;
+  }
+}

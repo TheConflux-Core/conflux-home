@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useState } from 'react';
 import { VaultFile } from '../types';
 import { convertFileSrc } from '@tauri-apps/api/core';
 
@@ -31,6 +31,7 @@ function formatSize(bytes: number): string {
 export default function VaultFileCard({ file, selected, onSelect, onToggleFavorite, onDelete, onOpen, onDownload, onContextMenu }: Props) {
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasLongPress = useRef(false);
+  const [imgError, setImgError] = useState(false);
 
   const clearLongPress = useCallback(() => {
     if (longPressTimer.current) {
@@ -76,10 +77,10 @@ export default function VaultFileCard({ file, selected, onSelect, onToggleFavori
       onTouchMove={handleTouchMove}
     >
       <div className="vault-file-thumb">
-        {file.file_type === 'image' && file.thumbnail_path ? (
-          <img src={convertFileSrc(file.thumbnail_path)} alt={file.name} loading="lazy" />
-        ) : file.file_type === 'image' ? (
-          <img src={convertFileSrc(file.path)} alt={file.name} loading="lazy" />
+        {file.file_type === 'image' && file.thumbnail_path && !imgError ? (
+          <img src={convertFileSrc(file.thumbnail_path)} alt={file.name} loading="lazy" onError={() => setImgError(true)} />
+        ) : file.file_type === 'image' && !imgError ? (
+          <img src={convertFileSrc(file.path)} alt={file.name} loading="lazy" onError={() => setImgError(true)} />
         ) : file.file_type === 'audio' ? (
           <div className="vault-file-icon-large">🎵</div>
         ) : file.file_type === 'video' ? (

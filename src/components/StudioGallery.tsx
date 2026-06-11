@@ -233,7 +233,7 @@ export default function StudioGallery() {
                 <div className="gallery-item-thumb">
                   {displayUrl ? (
                     gen.module === 'image' ? (
-                      <img src={displayUrl} alt="" className="gallery-thumb-img" loading="lazy" />
+                      <img src={displayUrl} alt="" className="gallery-thumb-img" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                     ) : gen.module === 'voice' ? (
                       <div className="gallery-thumb-voice">🗣️</div>
                     ) : (

@@ -877,27 +877,20 @@ export default function App() {
     import('./lib/supabase').then(async ({ supabase }) => {
       const { data, error } = await supabase
         .from('ch_profiles')
-        .select('onboarded, display_name, onboarding_goals, selected_agents')
+        .select('display_name')
         .eq('id', user.id)
         .single()
-      console.log('[App] Supabase ch_profiles query result:', JSON.stringify({ data, error }))
-      if (data?.onboarded) {
-        console.log('[App] ✅ User is onboarded in Supabase, syncing to local')
+      if (error) {
+        console.warn('[App] Supabase ch_profiles query error:', error.message)
+        return
+      }
+      // If user has a display_name in Supabase, they completed onboarding on another device
+      if (data?.display_name) {
+        console.log('[App] ✅ User has profile in Supabase, syncing name')
         localStorage.setItem('conflux-onboarded', 'true')
-        if (data.display_name) {
-          localStorage.setItem('conflux-name', data.display_name)
-          setUserName(data.display_name)
-        }
-        if (data.selected_agents && Array.isArray(data.selected_agents) && data.selected_agents.length > 0) {
-          localStorage.setItem('conflux-selected-agents', JSON.stringify(data.selected_agents))
-          setSelectedAgentIds(data.selected_agents)
-        }
-        if (data.onboarding_goals) {
-          localStorage.setItem('conflux-goals', JSON.stringify(data.onboarding_goals))
-        }
+        localStorage.setItem('conflux-name', data.display_name)
+        setUserName(data.display_name)
         setIsOnboarded(true)
-      } else {
-        console.log('[App] Supabase: user NOT onboarded (data=', data, ')')
       }
     })
   }, [user, isOnboarded])
@@ -1103,10 +1096,8 @@ const [activeSnake, setActiveSnake] = useState(false);
       import('./lib/supabase').then(({ supabase }) => {
         supabase.from('ch_profiles').upsert({
           id: user.id,
-          onboarded: true,
-          onboarding_goals: selectedApps,
           display_name: name,
-        }).then()
+        }).then(({ error }) => { if (error) console.warn('[Onboarding] Supabase upsert failed:', error) })
       })
       trackEvent(user.id, null, 'onboarding_completed', { selectedApps })
     }
