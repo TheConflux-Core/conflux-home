@@ -79,6 +79,46 @@
   animation: orb-ring-speak 0.8s ease-in-out infinite;
 }
 
+/* ── Thinking state — rainbow cycle ── */
+.status-orb.thinking .status-orb-core {
+  animation: orb-think-rainbow 3s linear infinite, orb-think-breathe 1.2s ease-in-out infinite;
+  box-shadow:
+    0 0 10px var(--orb-glow, rgba(255, 159, 67, 0.6)),
+    0 0 24px var(--orb-glow, rgba(255, 107, 53, 0.3));
+}
+
+.status-orb.thinking .status-orb-ring {
+  opacity: 0.6;
+  animation: orb-ring-think 3s linear infinite;
+}
+
+.status-orb.thinking .status-orb-label {
+  animation: orb-label-think 2s ease-in-out infinite;
+}
+
+@keyframes orb-think-rainbow {
+  0%   { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+
+@keyframes orb-think-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+@keyframes orb-ring-think {
+  0%   { border-color: #ff9f43; filter: hue-rotate(0deg); opacity: 0.5; transform: scale(1) rotate(0deg); }
+  25%  { border-color: #ff6b9d; }
+  50%  { border-color: #a855f7; opacity: 0.7; transform: scale(1.1) rotate(180deg); }
+  75%  { border-color: #4facfe; }
+  100% { border-color: #ff9f43; filter: hue-rotate(360deg); opacity: 0.5; transform: scale(1) rotate(360deg); }
+}
+
+@keyframes orb-label-think {
+  0%, 100% { opacity: 0.85; filter: hue-rotate(0deg); }
+  50% { opacity: 1; filter: hue-rotate(180deg); }
+}
+
 /* ── Tooltip ── */
 .status-orb-tooltip {
   position: absolute;

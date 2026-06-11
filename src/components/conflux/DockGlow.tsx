@@ -36,10 +36,11 @@ export default function DockGlow({
   const intensity = Math.min(pulseImpulse / 24, 1);
   const isListening = mode === 'listen';
   const isSpeaking = mode === 'speak';
+  const isThinking = mode === 'focus';
 
   return (
     <div
-      className={`dock-glow-wrapper ${ripple ? 'dock-glow-ripple' : ''} ${isListening ? 'dock-glow-listening' : ''} ${isSpeaking ? 'dock-glow-speaking' : ''}`}
+      className={`dock-glow-wrapper ${ripple ? 'dock-glow-ripple' : ''} ${isListening ? 'dock-glow-listening' : ''} ${isSpeaking ? 'dock-glow-speaking' : ''} ${isThinking ? 'dock-glow-thinking' : ''}`}
       style={{
         '--dock-color': effectivePalette.node,
         '--dock-glow': effectivePalette.glow,

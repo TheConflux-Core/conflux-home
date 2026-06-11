@@ -62,6 +62,17 @@ export default function ConfluxOrbit({
   // ── TTS Playback ──────────────────────────────────────────────────────
   const audioContextRef = useRef<AudioContext | null>(null);
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const ttsSpeakingRef = useRef(false);
+
+  const stopTTS = useCallback(() => {
+    try { activeSourceRef.current?.stop(); } catch (_) { /* already stopped */ }
+    activeSourceRef.current = null;
+    if (ttsSpeakingRef.current) {
+      ttsSpeakingRef.current = false;
+      window.dispatchEvent(new CustomEvent('conflux:tts-status', { detail: { speaking: false } }));
+    }
+    conflux.setMode('idle', 'manual', 'Ready');
+  }, []);
 
   const playTTS = useCallback((base64: string, sampleRate: number) => {
     try { activeSourceRef.current?.stop(); } catch (_) { /* already stopped */ }
@@ -102,9 +113,14 @@ export default function ConfluxOrbit({
       conflux.setMode('speak', 'backend', 'Speaking...');
       console.log('[ConfluxOrbit] Playing TTS audio');
 
+      ttsSpeakingRef.current = true;
+      window.dispatchEvent(new CustomEvent('conflux:tts-status', { detail: { speaking: true } }));
+
       source.onended = () => {
         console.log('[ConfluxOrbit] TTS finished, returning to idle');
         activeSourceRef.current = null;
+        ttsSpeakingRef.current = false;
+        window.dispatchEvent(new CustomEvent('conflux:tts-status', { detail: { speaking: false } }));
         conflux.setMode('idle', 'backend', 'Ready');
       };
     }).catch(e => {
@@ -199,10 +215,13 @@ export default function ConfluxOrbit({
       conflux.setMode('idle', 'manual', 'Ready');
     };
 
+    const handleStopTTS = () => stopTTS();
+
     window.addEventListener('push-to-talk-start', handlePTTStart);
     window.addEventListener('push-to-talk-end', handlePTTEnd);
     window.addEventListener('conflux-transcription-done', handleTranscriptionDone);
     window.addEventListener('conflux-force-idle', handleForceIdle);
+    window.addEventListener('conflux-stop-tts', handleStopTTS);
     window.addEventListener('conflux-thinking', (e: any) => {
       console.log('[ConfluxOrbit] Thinking...', e.detail?.text);
       conflux.setMode('focus', 'backend', 'Thinking...');
@@ -213,6 +232,7 @@ export default function ConfluxOrbit({
       window.removeEventListener('push-to-talk-end', handlePTTEnd);
       window.removeEventListener('conflux-transcription-done', handleTranscriptionDone);
       window.removeEventListener('conflux-force-idle', handleForceIdle);
+      window.removeEventListener('conflux-stop-tts', handleStopTTS);
       window.removeEventListener('conflux-thinking', () => {});
     };
   }, []);
@@ -259,6 +279,7 @@ export default function ConfluxOrbit({
   useEffect(() => {
     if (voiceChatOpen) { conflux.setMode('listen', 'manual', 'Voice chat active'); return; }
     if (chatOpen) { conflux.setMode('focus', 'manual', 'Chat open'); return; }
+    conflux.setMode('idle', 'manual', 'Ready');
   }, [voiceChatOpen, chatOpen]);
 
   return (

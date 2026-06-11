@@ -134,6 +134,8 @@ function getDefaultWallpaper(): string {
 export default function App() {
   const [view, setView] = useState<View>('dashboard');
   const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
+  const [isTTSSpeaking, setIsTTSSpeaking] = useState(false);
+  const isTTSSpeakingRef = useRef(false);
   const [immersiveView, setImmersiveView] = useState<View | null>(null);
   const [controlRoom, setControlRoom] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
@@ -817,6 +819,13 @@ export default function App() {
         return;
       }
 
+      // Esc also stops TTS playback mid-response
+      if (e.key === 'Escape' && isTTSSpeakingRef.current) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('conflux-stop-tts'));
+        return;
+      }
+
       if (immersiveView) return;
 
       if (e.code === 'Space' && !pttActiveRef.current) {
@@ -839,6 +848,17 @@ export default function App() {
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, [immersiveView, startPTT, stopPTT]);
+
+  // Track TTS speaking state for stop button
+  useEffect(() => {
+    const handleTTSStatus = (e: Event) => {
+      const speaking = (e as CustomEvent).detail?.speaking ?? false;
+      setIsTTSSpeaking(speaking);
+      isTTSSpeakingRef.current = speaking;
+    };
+    window.addEventListener('conflux:tts-status', handleTTSStatus);
+    return () => window.removeEventListener('conflux:tts-status', handleTTSStatus);
+  }, []);
 
   // On first render, clear the session flag so boot cards show every page reload
   useEffect(() => {
@@ -1632,6 +1652,36 @@ const [activeSnake, setActiveSnake] = useState(false);
 
       {/* Nudge Toasts — replaces fairy speech bubbles */}
       <NudgeToast />
+
+      {/* Stop TTS button — appears when Conflux is speaking, Esc on desktop, tap on mobile */}
+      {isTTSSpeaking && (
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('conflux-stop-tts'))}
+          style={{
+            position: 'fixed',
+            bottom: 100,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 10000,
+            background: 'rgba(220, 38, 38, 0.9)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 24,
+            padding: '10px 24px',
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            backdropFilter: 'blur(12px)',
+            boxShadow: '0 4px 20px rgba(220, 38, 38, 0.4)',
+
+          }}
+        >
+          ⏹ Stop Speaking
+        </button>
+      )}
 
       {/* Agent Detail Modal — listens for conflux:agent-detail events */}
       <AgentDetail />
