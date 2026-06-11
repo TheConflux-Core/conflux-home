@@ -771,7 +771,7 @@ export default function OnboardingV2({ onComplete }: OnboardingV2Props) {
   useEffect(() => {
     const audio1 = new Audio('/soundscape-onboarding-0002.mp3');
     audio1.loop = true;
-    audio1.volume = 0.5;
+    audio1.volume = 0.4;
     soundscapeRef.current = audio1;
     audio1.play().catch(() => {});
 
