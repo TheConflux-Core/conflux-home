@@ -97,14 +97,9 @@
     font-size: 7px;
   }
 
-  /* Center agent name */
+  /* Center agent name — hidden on mobile, StatusOrb in .topbar-left replaces it */
   .topbar-center {
-    font-size: 11px;
-    /* Prevent it from being pushed off-screen */
-    max-width: 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display: none !important;
   }
 
   .topbar-right {

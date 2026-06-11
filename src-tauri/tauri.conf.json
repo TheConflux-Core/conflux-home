@@ -31,7 +31,7 @@
       "freezePrototype": false,
       "assetProtocol": {
         "enable": true,
-        "scope": ["$HOME/.conflux/**", "$APPDATA/**", "$RESOURCE/**", "/tmp/.conflux/**"]
+        "scope": ["$HOME/.conflux/**", "$APPDATA/**", "$RESOURCE/**", "/tmp/.conflux/**", "/data/user/**"]
       }
     }
   },

@@ -85,10 +85,17 @@ export default function useNotificationListener() {
 
     async function setup() {
       // Request notification permission
-      let permissionGranted = await isPermissionGranted();
-      if (!permissionGranted) {
-        const permission = await requestPermission();
-        permissionGranted = permission === 'granted';
+      // On Android the native plugin may not be available — bail silently
+      let permissionGranted = false;
+      try {
+        permissionGranted = await isPermissionGranted();
+        if (!permissionGranted) {
+          const permission = await requestPermission();
+          permissionGranted = permission === 'granted';
+        }
+      } catch (e) {
+        console.warn('[Notifications] Plugin not available on this platform:', e);
+        return;
       }
 
       if (!permissionGranted) {

@@ -331,7 +331,7 @@ function IceBreakerParticles({ typing }: { typing: boolean }) {
       }
 
       // Draw pulse wave
-      if (pulseWave > 0) {
+      if (pulseWave > 40) {
         const gradient = ctx.createRadialGradient(w / 2, h / 2, pulseWave - 40, w / 2, h / 2, pulseWave);
         gradient.addColorStop(0, 'rgba(0, 212, 255, 0)');
         gradient.addColorStop(0.5, 'rgba(0, 212, 255, 0.06)');
