@@ -42,6 +42,11 @@
   animation: dock-glow-speak 1s ease-in-out infinite;
 }
 
+/* ── Thinking state — rainbow cycle ── */
+.dock-glow-thinking .dock-glow-ambient {
+  animation: dock-glow-think-rainbow 3s linear infinite, dock-glow-think-pulse 1.5s ease-in-out infinite;
+}
+
 /* ── Keyframes ── */
 
 @keyframes dock-glow-ripple-anim {
@@ -59,4 +64,14 @@
   0%, 100% { opacity: 0.4; }
   30% { opacity: 0.75; }
   70% { opacity: 0.5; }
+}
+
+@keyframes dock-glow-think-rainbow {
+  0%   { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+
+@keyframes dock-glow-think-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.85; }
 }

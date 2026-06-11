@@ -13,7 +13,7 @@ interface ConfluxStatusOrbProps {
 const MODE_LABELS: Record<BrainMode, string> = {
   idle: 'Standing By',
   listen: 'Listening',
-  focus: 'Focused',
+  focus: 'Thinking...',
   speak: 'Speaking',
   excited: 'Active',
   compact: 'Compact',
@@ -22,7 +22,7 @@ const MODE_LABELS: Record<BrainMode, string> = {
 
 const SHORTCUTS = [
   { key: 'Space', desc: 'Push to Talk' },
-  { key: 'Esc', desc: 'Cancel Voice' },
+  { key: 'Esc', desc: 'Stop / Cancel' },
 ];
 
 export default function ConfluxStatusOrb({
@@ -52,10 +52,11 @@ export default function ConfluxStatusOrb({
   const glowColor = effectivePalette.glow;
   const isListening = mode === 'listen';
   const isSpeaking = mode === 'speak';
+  const isThinking = mode === 'focus';
 
   return (
     <div
-      className={`status-orb ${recentPulse ? 'pulse' : ''} ${isListening ? 'listening' : ''} ${isSpeaking ? 'speaking' : ''}`}
+      className={`status-orb ${recentPulse ? 'pulse' : ''} ${isListening ? 'listening' : ''} ${isSpeaking ? 'speaking' : ''} ${isThinking ? 'thinking' : ''}`}
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
       style={{

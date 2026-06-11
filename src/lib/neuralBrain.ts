@@ -132,18 +132,18 @@ export const COMMANDS: BrainCommand[] = [
     activeLobes: ["perception", "speech"]
   },
   {
-    label: "Focused Reply",
+    label: "Thinking...",
     mode: "focus",
     glowBoost: 2.0, // More vibrant glow
     pulseRate: 2.5, // Faster pulses
     scale: 0.95,
     turbulence: 0.12, // More dynamic movement
     palette: {
-      node: "#4facfe", // Brighter blue
-      hot: "#00f2ff", // Cyan hot spots
-      line: "#0c3547",
-      glow: "#00d2ff", // Vibrant cyan glow
-      aura: "#0099cc" // Deep cyan aura
+      node: "#ff9f43", // Warm amber
+      hot: "#ffd32a", // Golden yellow
+      line: "#5c3d0e",
+      glow: "#ff6b35", // Orange glow
+      aura: "#cc5500" // Deep amber aura
     },
     driftAxis: [0.08, -0.12, 0.03],
     wobble: 0.15, // More wobble for energy
