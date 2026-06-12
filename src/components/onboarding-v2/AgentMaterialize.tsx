@@ -344,7 +344,7 @@ function HolographicCard({
         <ParticleAura color={agent.color} />
 
         {/* Avatar container */}
-        <div style={{
+        <div className="holographic-avatar-wrap" style={{
           position: 'relative',
           width: 80,
           height: 80,
@@ -464,7 +464,7 @@ function HolographicCard({
 
         {/* Name + tagline + narrative */}
         <div style={{ textAlign: 'center', maxWidth: 160 }}>
-          <div style={{
+          <div className="holographic-agent-name" style={{
             fontSize: 16,
             fontWeight: 700,
             color: agent.color,
@@ -476,7 +476,7 @@ function HolographicCard({
           }}>
             {agent.name}
           </div>
-          <div style={{
+          <div className="holographic-agent-tagline" style={{
             fontSize: 11,
             color: 'rgba(255,255,255,0.5)',
             marginTop: 4,
@@ -623,7 +623,7 @@ export default function AgentMaterialize({ agents, onComplete, onAgentVoice }: P
         transition={{ duration: 0.6, delay: 0.2 }}
         style={{ textAlign: 'center', marginBottom: 20, position: 'relative', zIndex: 2 }}
       >
-        <div style={{
+        <div className="hologram-subtitle" style={{
           fontSize: 11,
           fontWeight: 600,
           textTransform: 'uppercase',
@@ -717,24 +717,62 @@ export default function AgentMaterialize({ agents, onComplete, onAgentVoice }: P
         @media (max-width: 600px) {
           .agent-materialize-root {
             min-height: auto !important;
+            height: 100vh !important;
             justify-content: flex-start !important;
-            padding: 16px 8px 32px !important;
+            padding: 72px 8px 12px !important;
+            overflow: hidden !important;
+          }
+          .agent-materialize-root > div:first-child {
+            margin-bottom: 8px !important;
           }
           .onboarding-v2-agent-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            max-width: 100%;
-            padding: 0 4px;
-            margin-bottom: 20px;
+            display: grid !important;
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 8px !important;
+            max-width: 100% !important;
+            padding: 0 4px !important;
+            margin-bottom: 12px !important;
+            flex-wrap: unset !important;
           }
           .holographic-card {
             width: 100% !important;
-            max-width: none;
-            box-sizing: border-box;
+            max-width: none !important;
+            padding: 10px 6px 8px !important;
+            border-radius: 12px !important;
+            box-sizing: border-box !important;
+            gap: 6px !important;
+          }
+          .holographic-avatar-wrap {
+            width: 44px !important;
+            height: 44px !important;
+            border-radius: 12px !important;
+          }
+          .holographic-card img {
+            width: 44px !important;
+            height: 44px !important;
+          }
+          .holographic-agent-name {
+            font-size: 12px !important;
+          }
+          .holographic-agent-tagline {
+            font-size: 9px !important;
+            margin-top: 2px !important;
           }
           .hologram-title {
-            font-size: 22px !important;
+            font-size: 18px !important;
+          }
+          .hologram-subtitle {
+            font-size: 9px !important;
+            margin-bottom: 6px !important;
+          }
+          .holographic-card button {
+            padding: 4px 10px !important;
+            font-size: 10px !important;
+          }
+          .pulse-energy-button {
+            padding: 12px 32px !important;
+            font-size: 14px !important;
+            border-radius: 14px !important;
           }
         }
       `}</style>
