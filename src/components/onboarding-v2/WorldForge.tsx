@@ -6,7 +6,7 @@
  * triumphant transition.
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { playBuildComplete } from '../../lib/onboarding-sounds';
 
@@ -297,10 +297,13 @@ export default function WorldForge({ selectedApps, onComplete, userName }: Props
   const [currentAppIndex, setCurrentAppIndex] = useState(-1);
   const [completedApps, setCompletedApps] = useState<Set<string>>(new Set());
 
-  // Resolve apps to build
-  const appsToBuild = selectedApps.length > 0
-    ? APP_REGISTRY.filter(a => selectedApps.includes(a.id))
-    : APP_REGISTRY.slice(0, 3); // default: budget, kitchen, dreams
+  // Resolve apps to build (memoized to prevent useEffect resets on re-render)
+  const appsToBuild = useMemo(() =>
+    selectedApps.length > 0
+      ? APP_REGISTRY.filter(a => selectedApps.includes(a.id))
+      : APP_REGISTRY.slice(0, 3),
+    [selectedApps]
+  );
 
   // Start build sequence
   useEffect(() => {
