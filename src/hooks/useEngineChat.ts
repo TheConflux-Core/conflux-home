@@ -195,7 +195,7 @@ export function useEngineChat(agent_id: string | null, user_id?: string): UseEng
         // Load cloud credits if authenticated
         if (authUserId) {
           try {
-            const balance = await invoke<{ total_available: number }>('get_credit_balance', { user_id: authUserId });
+            const balance = await invoke<{ total_available: number }>('get_credit_balance', { userId: authUserId });
             if (!cancelled) setCredits(balance.total_available ?? 0);
           } catch {
             // Cloud credits not available

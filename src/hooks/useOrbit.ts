@@ -108,7 +108,7 @@ export function useOrbit() {
   }, [user_id]);
 
   const smartReschedule = useCallback(async (task_id: string) => {
-    return await invoke<LifeSchedule>('life_smart_reschedule', { task_id });
+    return await invoke<LifeSchedule>('life_smart_reschedule', { taskId: task_id });
   }, []);
 
   const parseInput = useCallback(async (input: string) => {
@@ -125,7 +125,7 @@ export function useOrbit() {
 
   const dismissNudge = useCallback(
     async (nudgeId: string) => {
-      await invoke('life_dismiss_nudge', { user_id, nudgeId });
+      await invoke('life_dismiss_nudge', { user_id, nudge_id: nudgeId });
       await loadDashboard();
     },
     [user_id, loadDashboard]
