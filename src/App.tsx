@@ -539,9 +539,6 @@ export default function App() {
           retries--;
           if (retries === 0) {
             console.warn('[App] Failed to load user profile from backend:', e);
-            if (typeof window !== 'undefined' && window.alert) {
-              window.alert(`Profile load failed: ${e?.message || String(e)}`);
-            }
             // Fallback to localStorage
             const lsOnboarded = localStorage.getItem('conflux-onboarded') === 'true';
             setIsOnboarded(lsOnboarded);
@@ -1334,7 +1331,7 @@ const [activeSnake, setActiveSnake] = useState(false);
   }, [isOnboarded, showWelcome, connected, view, chatOpen, handleNavigate, handleCloseChat, filteredAgents, agents, selectedAgentIds]);
 
   // ── Gate: Splash screen ──
-  console.log('[App] Gate: loaded=', loaded, '| isAuthCallback=', isAuthCallback, '| authLoading=', authLoading, '| authenticated=', authenticated, '| isOnboarded=', isOnboarded);
+  // console.log('[App] Gate: loaded=', loaded, '| isAuthCallback=', isAuthCallback, '| authLoading=', authLoading, '| authenticated=', authenticated, '| isOnboarded=', isOnboarded);
   if (!loaded) {
     console.log('[App] → Rendering SplashScreen');
     return <SplashScreen onComplete={() => setLoaded(true)} />;
@@ -1362,7 +1359,7 @@ const [activeSnake, setActiveSnake] = useState(false);
   }
 
   // ── Gate: Onboarding ──
-  console.log('[App] Gate check — isOnboarded:', isOnboarded, '| profileLoaded:', profileLoaded, '| user:', user?.id);
+  // console.log('[App] Gate check — isOnboarded:', isOnboarded, '| profileLoaded:', profileLoaded, '| user:', user?.id);
   // Wait for profile check to complete before deciding — prevents flash-and-dismiss
   // when backend has stale onboarded=true from a prior session
   if (!profileLoaded) {
