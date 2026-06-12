@@ -893,9 +893,10 @@ export default function App() {
     return () => window.removeEventListener('conflux:agents-selected', handler);
   }, []);
 
-  // Restore onboarding state from Supabase if localStorage is empty
+  // Sync display name from Supabase (for cross-device name consistency)
+  // NOTE: Does NOT control onboarding state — local backend is the source of truth
   useEffect(() => {
-    if (!user || isOnboarded || !profileLoaded) { console.log('[App] Supabase restore: skipped (user=', !!user, 'isOnboarded=', isOnboarded, 'profileLoaded=', profileLoaded, ')'); return }
+    if (!user || isOnboarded) return
     import('./lib/supabase').then(async ({ supabase }) => {
       // Verify the auth user still exists server-side — stale tokens from deleted
       // users still resolve locally but fail the getUser() call
@@ -908,17 +909,11 @@ export default function App() {
         .select('display_name')
         .eq('id', user.id)
         .single()
-      if (error) {
-        console.warn('[App] Supabase ch_profiles query error:', error.message)
-        return
-      }
-      // If user has a display_name in Supabase, they completed onboarding on another device
-      if (data?.display_name) {
-        console.log('[App] ✅ User has profile in Supabase, syncing name')
-        localStorage.setItem('conflux-onboarded', 'true')
+      if (error || !data?.display_name) return
+      // Only sync name — do NOT set isOnboarded here (display_name is set at signup by trigger)
+      if (data.display_name && data.display_name !== 'User') {
         localStorage.setItem('conflux-name', data.display_name)
         setUserName(data.display_name)
-        setIsOnboarded(true)
       }
     })
   }, [user, isOnboarded, profileLoaded])
