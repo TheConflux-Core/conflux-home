@@ -600,6 +600,7 @@ export default function AgentMaterialize({ agents, onComplete, onAgentVoice }: P
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.5 }}
+      className="agent-materialize-root"
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -644,16 +645,7 @@ export default function AgentMaterialize({ agents, onComplete, onAgentVoice }: P
       </motion.div>
 
       {/* Agent grid — arc layout */}
-      <div className="onboarding-v2-agent-grid" style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        justifyContent: 'center',
-        gap: 16,
-        maxWidth: 760,
-        marginBottom: 28,
-        position: 'relative',
-        zIndex: 2,
-      }}>
+      <div className="onboarding-v2-agent-grid">
         {agents.map((agent, i) => (
           <HolographicCard
             key={agent.id}
@@ -704,6 +696,16 @@ export default function AgentMaterialize({ agents, onComplete, onAgentVoice }: P
 
       {/* CSS animations */}
       <style>{`
+        .onboarding-v2-agent-grid {
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: center;
+          gap: 16px;
+          max-width: 760px;
+          margin-bottom: 28px;
+          position: relative;
+          z-index: 2;
+        }
         @keyframes scanSweep {
           0% { top: 0; }
           100% { top: 100%; }
@@ -711,6 +713,29 @@ export default function AgentMaterialize({ agents, onComplete, onAgentVoice }: P
         @keyframes waveform {
           0% { height: 4px; }
           100% { height: 20px; }
+        }
+        @media (max-width: 600px) {
+          .agent-materialize-root {
+            min-height: auto !important;
+            justify-content: flex-start !important;
+            padding: 16px 8px 32px !important;
+          }
+          .onboarding-v2-agent-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            max-width: 100%;
+            padding: 0 4px;
+            margin-bottom: 20px;
+          }
+          .holographic-card {
+            width: 100% !important;
+            max-width: none;
+            box-sizing: border-box;
+          }
+          .hologram-title {
+            font-size: 22px !important;
+          }
         }
       `}</style>
     </motion.div>
