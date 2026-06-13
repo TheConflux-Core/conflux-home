@@ -27,3 +27,4 @@ src-tauri/.env
 !.agents/**/*.md
 findings.txt
 src-tauri/conflux.db
+.conflux.db
